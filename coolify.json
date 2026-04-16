@@ -1,0 +1,73 @@
+{
+  "name": "MiroFish",
+  "description": "AI Prediction Engine with Multi-Agent Swarm Intelligence",
+  "version": "0.1.0",
+  "logo": "./static/image/MiroFish_logo_compressed.jpeg",
+  "repository": "https://github.com/koolbrand/MiroFish",
+  "documentation": "https://github.com/koolbrand/MiroFish/blob/main/README.md",
+  "deployment": {
+    "type": "docker-compose",
+    "dockerfile": "Dockerfile",
+    "docker_compose_file": "docker-compose.yml",
+    "ports": [
+      {
+        "port": 8000,
+        "protocol": "http",
+        "name": "API Server"
+      }
+    ],
+    "env_variables": [
+      {
+        "key": "LLM_API_KEY",
+        "description": "API Key for LLM provider",
+        "required": true,
+        "example": "sk-..."
+      },
+      {
+        "key": "LLM_BASE_URL",
+        "description": "Base URL for LLM API",
+        "required": true,
+        "default": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      },
+      {
+        "key": "LLM_MODEL_NAME",
+        "description": "Model name to use",
+        "required": true,
+        "default": "qwen-plus"
+      },
+      {
+        "key": "ZEP_API_KEY",
+        "description": "Zep Memory API Key",
+        "required": true,
+        "example": "zep_..."
+      },
+      {
+        "key": "DEBUG",
+        "description": "Enable debug mode",
+        "required": false,
+        "default": "false"
+      }
+    ],
+    "volumes": [
+      {
+        "path": "/app/backend/uploads",
+        "description": "User uploads directory"
+      },
+      {
+        "path": "/app/backend/logs",
+        "description": "Application logs"
+      }
+    ],
+    "health_check": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10,
+      "retries": 3
+    }
+  },
+  "requirements": {
+    "cpu": "2 cores (recommended 4)",
+    "ram": "2GB (recommended 4GB)",
+    "disk": "10GB"
+  }
+}

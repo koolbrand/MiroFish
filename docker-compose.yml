@@ -1,14 +1,32 @@
+version: '3.8'
+
 services:
   mirofish:
-    image: ghcr.io/666ghj/mirofish:latest
-    # 加速镜像（如拉取缓慢可替换上方地址）
-    # image: ghcr.nju.edu.cn/666ghj/mirofish:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mirofish
     env_file:
       - .env
     ports:
-      - "3000:3000"
-      - "5001:5001"
+      - "8000:8000"
     restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - NODE_ENV=production
     volumes:
       - ./backend/uploads:/app/backend/uploads
+      - ./backend/logs:/app/backend/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Para Coolify: descomenta esto si necesitas conectar a otros servicios
+    # networks:
+    #   - mirofish-network
+
+# networks:
+#   mirofish-network:
+#     driver: bridge
