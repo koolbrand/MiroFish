@@ -67,14 +67,34 @@ def create_app(config_class=Config):
     app.register_blueprint(graph_bp, url_prefix='/api/graph')
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
     app.register_blueprint(report_bp, url_prefix='/api/report')
-    
+
     # 健康检查
     @app.route('/health')
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}
-    
+
+    # Servir el frontend compilado en producción
+    frontend_dist = os.path.join(os.path.dirname(__file__), '../../frontend/dist')
+
+    if os.path.exists(frontend_dist):
+        from flask import send_from_directory
+
+        @app.route('/', defaults={'path': ''})
+        @app.route('/<path:path>')
+        def serve_frontend(path):
+            file_path = os.path.join(frontend_dist, path)
+            if path and os.path.exists(file_path) and os.path.isfile(file_path):
+                return send_from_directory(frontend_dist, path)
+            return send_from_directory(frontend_dist, 'index.html')
+
+        if should_log_startup:
+            logger.info(f"Frontend servido desde: {frontend_dist}")
+    else:
+        if should_log_startup:
+            logger.info("Frontend dist no encontrado, solo API disponible")
+
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")
-    
+
     return app
 
