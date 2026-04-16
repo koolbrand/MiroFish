@@ -1,15 +1,16 @@
 # ===== Stage 1: Build Frontend =====
 FROM node:22-alpine as frontend-builder
 
-WORKDIR /app/frontend
+WORKDIR /app
 
-COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./frontend/
 
-RUN npm ci
+RUN npm ci --prefix frontend
 
-COPY frontend/ .
+COPY frontend/ ./frontend/
+COPY locales/ ./locales/
 
-RUN npm run build
+RUN npm run build --prefix frontend
 
 # ===== Stage 2: Build Backend Dependencies =====
 FROM python:3.11-slim as backend-builder
@@ -41,6 +42,7 @@ COPY --from=backend-builder /app/backend/.venv /app/backend/.venv
 
 # 从 frontend builder 复制编译后的前端
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+COPY --from=frontend-builder /app/locales /app/locales
 
 # 复制项目源码
 COPY backend/ ./backend/
