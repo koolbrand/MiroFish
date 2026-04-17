@@ -465,6 +465,28 @@ def prepare_simulation():
             state.entities_count = filtered_preview.filtered_count
             state.entity_types = list(filtered_preview.entity_types)
             logger.info(f"预期实体数量: {filtered_preview.filtered_count}, 类型: {filtered_preview.entity_types}")
+
+            # 如果图谱中没有任何可用实体，立即返回错误（不要启动后台任务）
+            # 这样前端可以立刻显示明确的错误信息，而不是无限轮询空状态
+            if filtered_preview.filtered_count == 0:
+                state.status = SimulationStatus.FAILED
+                state.error = t('api.prepareNoEntities')
+                manager._save_simulation_state(state)
+                logger.error(
+                    f"Prepare aborted: graph {state.graph_id} has 0 usable entities "
+                    f"(total nodes fetched: {filtered_preview.total_count})"
+                )
+                return jsonify({
+                    "success": False,
+                    "error": t('api.prepareNoEntities'),
+                    "data": {
+                        "simulation_id": simulation_id,
+                        "status": "failed",
+                        "total_nodes": filtered_preview.total_count,
+                        "entities_count": 0,
+                        "hint": t('api.prepareNoEntitiesHint'),
+                    }
+                }), 400
         except Exception as e:
             logger.warning(f"同步获取实体数量失败（将在后台任务中重试）: {e}")
             # 失败不影响后续流程，后台任务会重新获取

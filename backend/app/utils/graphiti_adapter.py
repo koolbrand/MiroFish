@@ -4,6 +4,7 @@ compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
 import json
+import logging
 import re
 import threading
 import uuid
@@ -11,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import get_close_matches
 from typing import Optional
+
+from pydantic import BaseModel, Field, create_model
 
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
@@ -21,6 +24,135 @@ from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerCli
 from neo4j import GraphDatabase
 
 from ..config import Config
+
+logger = logging.getLogger('mirofish.graphiti_adapter')
+
+
+# ---------------------------------------------------------------------------
+# Build Pydantic models dynamically from the ontology dict produced by
+# OntologyGenerator.  Graphiti requires:
+#   - entity_types: dict[str, type[BaseModel]]
+#   - edge_types: dict[str, type[BaseModel]]
+#   - edge_type_map: dict[(source, target), list[edge_name]]
+#
+# All fields must be Optional (default=None) and have a `description` so
+# the LLM knows what to extract.  We also blacklist reserved field names
+# that conflict with Graphiti's internal node properties.
+# ---------------------------------------------------------------------------
+_RESERVED_FIELDS = {
+    'uuid', 'name', 'labels', 'created_at', 'summary', 'attributes',
+    'group_id', 'name_embedding', 'fact_embedding',
+}
+
+
+def _safe_field_name(name: str) -> str:
+    """Rename reserved fields to avoid collision with Graphiti internals."""
+    if name in _RESERVED_FIELDS:
+        return f'{name}_value'
+    # Strip non-identifier chars
+    name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+    if name and name[0].isdigit():
+        name = f'f_{name}'
+    return name or 'value'
+
+
+def _build_entity_model(entity_def: dict) -> type[BaseModel]:
+    """Create a Pydantic model class from an ontology entity definition."""
+    name = entity_def['name']
+    description = entity_def.get('description', f'A {name} entity.')
+    attrs = entity_def.get('attributes', [])
+
+    fields: dict = {}
+    for attr in attrs:
+        attr_name = _safe_field_name(attr.get('name', ''))
+        if not attr_name:
+            continue
+        attr_desc = attr.get('description', attr_name)
+        fields[attr_name] = (
+            Optional[str],
+            Field(default=None, description=attr_desc),
+        )
+
+    model_cls = create_model(name, __base__=BaseModel, **fields)
+    model_cls.__doc__ = description
+    return model_cls
+
+
+def _build_edge_model(edge_def: dict) -> type[BaseModel]:
+    """Create a Pydantic model class from an ontology edge definition."""
+    name = edge_def['name']
+    # Convert UPPER_SNAKE_CASE → PascalCase for the class name
+    class_name = ''.join(word.capitalize() for word in name.split('_')) or name
+    description = edge_def.get('description', f'A {name} relationship.')
+    attrs = edge_def.get('attributes', [])
+
+    fields: dict = {}
+    for attr in attrs:
+        attr_name = _safe_field_name(attr.get('name', ''))
+        if not attr_name:
+            continue
+        attr_desc = attr.get('description', attr_name)
+        fields[attr_name] = (
+            Optional[str],
+            Field(default=None, description=attr_desc),
+        )
+
+    model_cls = create_model(class_name, __base__=BaseModel, **fields)
+    model_cls.__doc__ = description
+    return model_cls
+
+
+def build_ontology_models(ontology: dict) -> tuple[dict, dict, dict]:
+    """
+    Convert a MiroFish ontology dict (as produced by OntologyGenerator) into
+    the three structures Graphiti's add_episode() expects:
+      - entity_types: {EntityName: PydanticModel}
+      - edge_types:   {EDGE_NAME: PydanticModel}
+      - edge_type_map: {(source_entity, target_entity): [edge_names]}
+
+    Returns (entity_types, edge_types, edge_type_map).
+    """
+    entity_types: dict = {}
+    edge_types: dict = {}
+    edge_type_map: dict[tuple[str, str], list[str]] = {}
+
+    valid_entity_names: set[str] = set()
+    for ent in ontology.get('entity_types', []) or []:
+        try:
+            model = _build_entity_model(ent)
+            entity_types[ent['name']] = model
+            valid_entity_names.add(ent['name'])
+        except Exception as e:
+            logger.warning(f"Failed to build entity model for {ent.get('name')!r}: {e}")
+
+    for edge in ontology.get('edge_types', []) or []:
+        try:
+            edge_name = edge['name']
+            model = _build_edge_model(edge)
+            edge_types[edge_name] = model
+
+            # Source-target pairs
+            source_targets = edge.get('source_targets', []) or []
+            if not source_targets:
+                # If no pairs provided, allow this edge between any of our
+                # custom entity types.
+                for s in valid_entity_names:
+                    for t in valid_entity_names:
+                        edge_type_map.setdefault((s, t), []).append(edge_name)
+            else:
+                for st in source_targets:
+                    src = st.get('source') or 'Entity'
+                    tgt = st.get('target') or 'Entity'
+                    edge_type_map.setdefault((src, tgt), []).append(edge_name)
+        except Exception as e:
+            logger.warning(f"Failed to build edge model for {edge.get('name')!r}: {e}")
+
+    # Graphiti also accepts a wildcard fallback ("Entity", "Entity") → use it
+    # so untyped nodes still get edges extracted.
+    if edge_types and ('Entity', 'Entity') not in edge_type_map:
+        edge_type_map[('Entity', 'Entity')] = list(edge_types.keys())
+
+    return entity_types, edge_types, edge_type_map
 
 
 # ---------------------------------------------------------------------------
@@ -670,6 +802,12 @@ class GraphitiGraphClient:
         # Initialize indices once
         _run(self._graphiti.build_indices_and_constraints())
 
+        # Per-graph ontology cache: graph_id → (entity_types, edge_types, edge_type_map)
+        # Populated by set_ontology(); consumed by add() to pass custom entity
+        # types to add_episode() so Graphiti assigns specific labels (Person,
+        # Organization, ...) instead of the generic "Entity".
+        self._ontologies: dict[str, tuple[dict, dict, dict]] = {}
+
         self.node = GraphitiNodeClient(self._graphiti, self._driver)
         self.edge = GraphitiEdgeClient(self._driver)
         self.episode = GraphitiEpisodeClient()
@@ -678,20 +816,79 @@ class GraphitiGraphClient:
         """No-op — Graphiti creates groups implicitly on first episode add."""
         pass
 
-    def set_ontology(self, graph_ids: list, entities=None, edges=None) -> None:
-        """No-op — Graphiti extracts ontology automatically from text."""
-        pass
+    def set_ontology(
+        self,
+        graph_ids: list,
+        entities=None,
+        edges=None,
+        ontology: Optional[dict] = None,
+    ) -> None:
+        """
+        Register a custom ontology for one or more graphs.
+
+        Accepts either:
+          - entities/edges: already-built dicts {name: PydanticModel}
+            (legacy Zep-Cloud-style parameters), OR
+          - ontology: the raw MiroFish ontology dict from OntologyGenerator,
+            which we convert to Pydantic models on the fly.
+
+        Graphiti's add_episode() receives `entity_types` and `edge_types`
+        parameters that drive the LLM extraction prompt to emit specific
+        labels (Person, Organization, …) instead of the default "Entity".
+        """
+        entity_types: dict = dict(entities or {})
+        edge_types: dict = dict(edges or {})
+        edge_type_map: dict = {}
+
+        if ontology:
+            built_entities, built_edges, built_map = build_ontology_models(ontology)
+            # entities/edges passed explicitly take priority over built ones
+            for k, v in built_entities.items():
+                entity_types.setdefault(k, v)
+            for k, v in built_edges.items():
+                edge_types.setdefault(k, v)
+            edge_type_map = built_map
+
+        if not entity_types and not edge_types:
+            logger.info(
+                "set_ontology called with empty entity/edge types — "
+                "Graphiti will fall back to its default 'Entity' label."
+            )
+
+        entry = (entity_types, edge_types, edge_type_map)
+        for gid in graph_ids or []:
+            self._ontologies[gid] = entry
+            logger.info(
+                f"Ontology registered for graph {gid}: "
+                f"{len(entity_types)} entity types, {len(edge_types)} edge types"
+            )
 
     def add(self, graph_id: str, type: str = "text", data: str = "") -> FakeEpisode:
         ep_uuid = str(uuid.uuid4())
-        _run(self._graphiti.add_episode(
+        # Look up any custom ontology registered for this graph via
+        # set_ontology().  If present, pass the Pydantic models to
+        # add_episode() so Graphiti constrains the LLM extraction to our
+        # entity/edge taxonomy (Person, Organization, …).
+        entity_types, edge_types, edge_type_map = self._ontologies.get(
+            graph_id, ({}, {}, {})
+        )
+
+        kwargs = dict(
             name=f"episode_{ep_uuid[:8]}",
             episode_body=data,
             source=EpisodeType.text,
             source_description="MiroFish simulation activity",
             group_id=graph_id,
             reference_time=datetime.now(timezone.utc),
-        ))
+        )
+        if entity_types:
+            kwargs['entity_types'] = entity_types
+        if edge_types:
+            kwargs['edge_types'] = edge_types
+        if edge_type_map:
+            kwargs['edge_type_map'] = edge_type_map
+
+        _run(self._graphiti.add_episode(**kwargs))
         return FakeEpisode(uuid_=ep_uuid, processed=True)
 
     def add_batch(self, graph_id: str, episodes: list) -> list:

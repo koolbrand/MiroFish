@@ -229,41 +229,65 @@ class ZepEntityReader:
             FilteredEntities: 过滤后的实体集合
         """
         logger.info(f"开始筛选图谱 {graph_id} 的实体...")
-        
+
         # 获取所有节点
         all_nodes = self.get_all_nodes(graph_id)
         total_count = len(all_nodes)
-        
+
         # 获取所有边（用于后续关联查找）
         all_edges = self.get_all_edges(graph_id) if enrich_with_edges else []
-        
+
         # 构建节点UUID到节点数据的映射
         node_map = {n["uuid"]: n for n in all_nodes}
-        
+
+        # Decide whether to fall back to the generic "Entity" label.
+        # Normally we require at least one custom label per node (Person,
+        # Organization, …).  If Graphiti's extractor failed to assign any
+        # custom types at all (e.g. underlying LLM didn't honour the
+        # json_schema), we degrade gracefully: accept the generic "Entity"
+        # nodes so the simulation can still run with a homogeneous agent
+        # population instead of failing silently with 0 entities.
+        any_custom_label = any(
+            any(l not in ["Entity", "Node"] for l in (n.get("labels") or []))
+            for n in all_nodes
+        )
+        use_entity_fallback = (not any_custom_label) and (not defined_entity_types)
+        if use_entity_fallback and all_nodes:
+            logger.warning(
+                f"图谱 {graph_id} 的所有节点只有通用标签 'Entity'（提取器未赋予自定义类型）。"
+                f"将使用 'Entity' 作为兜底类型以允许模拟继续运行。"
+            )
+
         # 筛选符合条件的实体
         filtered_entities = []
         entity_types_found = set()
-        
+
         for node in all_nodes:
             labels = node.get("labels", [])
-            
+
             # 筛选逻辑：Labels必须包含除"Entity"和"Node"之外的标签
             custom_labels = [l for l in labels if l not in ["Entity", "Node"]]
-            
+
             if not custom_labels:
-                # 只有默认标签，跳过
-                continue
-            
-            # 如果指定了预定义类型，检查是否匹配
-            if defined_entity_types:
-                matching_labels = [l for l in custom_labels if l in defined_entity_types]
-                if not matching_labels:
+                if use_entity_fallback:
+                    # Accept generic Entity nodes as a fallback so we have
+                    # at least *some* agents to simulate.
+                    entity_type = "Entity"
+                    entity_types_found.add(entity_type)
+                else:
+                    # 只有默认标签且已有其他节点带自定义标签 → 跳过
                     continue
-                entity_type = matching_labels[0]
             else:
-                entity_type = custom_labels[0]
-            
-            entity_types_found.add(entity_type)
+                # 如果指定了预定义类型，检查是否匹配
+                if defined_entity_types:
+                    matching_labels = [l for l in custom_labels if l in defined_entity_types]
+                    if not matching_labels:
+                        continue
+                    entity_type = matching_labels[0]
+                else:
+                    entity_type = custom_labels[0]
+
+                entity_types_found.add(entity_type)
             
             # 创建实体节点对象
             entity = EntityNode(

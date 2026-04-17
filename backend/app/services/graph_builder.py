@@ -206,10 +206,25 @@ class GraphBuilderService:
         return graph_id
     
     def set_ontology(self, graph_id: str, ontology: Dict[str, Any]):
-        """设置图谱本体（Graphiti自动从文本中提取本体，此方法为空操作）"""
-        # Graphiti extracts ontology automatically from episode text —
-        # no explicit ontology registration is needed.
-        self.client.graph.set_ontology(graph_ids=[graph_id])
+        """
+        Register custom entity/edge types with Graphiti for this graph.
+
+        Graphiti's `add_episode()` accepts `entity_types`/`edge_types` dicts of
+        Pydantic models.  When provided, the LLM extraction prompt is
+        constrained to emit specific labels (Person, Organization, …)
+        instead of the generic "Entity" fallback.
+
+        We pass the raw ontology dict; the adapter converts it to
+        Pydantic models on the fly.
+        """
+        self.client.graph.set_ontology(
+            graph_ids=[graph_id],
+            ontology=ontology,
+        )
+        entity_count = len((ontology or {}).get('entity_types', []) or [])
+        edge_count = len((ontology or {}).get('edge_types', []) or [])
+        print(f"[set_ontology] graph_id={graph_id}, "
+              f"entities={entity_count}, edges={edge_count}", flush=True)
     
     def add_text_batches(
         self,
@@ -330,11 +345,22 @@ class GraphBuilderService:
 
         # 统计实体类型
         entity_types = set()
+        all_labels_seen = set()
         for node in nodes:
             if node.labels:
                 for label in node.labels:
+                    all_labels_seen.add(label)
                     if label not in ["Entity", "Node"]:
                         entity_types.add(label)
+
+        # Log extraction outcome so we can diagnose label issues post-build.
+        print(f"[graph_built] graph_id={graph_id} nodes={len(nodes)} edges={len(edges)} "
+              f"all_labels={sorted(all_labels_seen)} custom_types={sorted(entity_types)}",
+              flush=True)
+        if not entity_types:
+            print(f"[graph_built] WARNING: no custom entity types extracted; "
+                  f"the simulation will use 'Entity' as a generic fallback.",
+                  flush=True)
 
         return GraphInfo(
             graph_id=graph_id,

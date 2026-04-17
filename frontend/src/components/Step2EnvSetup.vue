@@ -639,7 +639,8 @@ import {
   getPrepareStatus,
   getSimulationProfilesRealtime,
   getSimulationConfig,
-  getSimulationConfigRealtime
+  getSimulationConfigRealtime,
+  getSimulation
 } from '../api/simulation'
 
 const { t } = useI18n()
@@ -795,11 +796,11 @@ const startPrepareSimulation = async () => {
         await loadPreparedData()
         return
       }
-      
+
       taskId.value = res.data.task_id
       addLog(t('log.prepareTaskStarted'))
       addLog(t('log.prepareTaskId', { taskId: res.data.task_id }))
-      
+
       // 立即设置预期Agent总数（从prepare接口返回值获取）
       if (res.data.expected_entities_count) {
         expectedTotal.value = res.data.expected_entities_count
@@ -808,14 +809,22 @@ const startPrepareSimulation = async () => {
           addLog(t('log.entityTypes', { types: res.data.entity_types.join(', ') }))
         }
       }
-      
+
       addLog(t('log.startPollingProgress'))
       // 开始轮询进度
       startPolling()
       // 开始实时获取 Profiles
       startProfilesPolling()
     } else {
-      addLog(t('log.prepareFailed', { error: res.error || t('common.unknownError') }))
+      // Backend rejected /prepare synchronously (most commonly because the
+      // graph contained 0 usable entities).  Surface the full error so the
+      // user knows exactly what to do instead of seeing an infinite spinner.
+      const backendError = res.error || t('common.unknownError')
+      const hint = res.data?.hint
+      addLog(t('log.prepareFailed', { error: backendError }))
+      if (hint) {
+        addLog(t('log.prepareFailedHint', { hint }))
+      }
       emit('update-status', 'error')
     }
   } catch (err) {
@@ -848,7 +857,11 @@ const stopProfilesPolling = () => {
 
 const pollPrepareStatus = async () => {
   if (!taskId.value && !props.simulationId) return
-  
+
+  // Safety net: watch for simulation-level failure that the task-level
+  // status poll may not surface.
+  if (await checkSimulationFailed()) return
+
   try {
     const res = await getPrepareStatus({
       task_id: taskId.value,
@@ -964,12 +977,42 @@ const stopConfigPolling = () => {
   }
 }
 
+// Safety net: if the simulation state has failed but the task-level poll
+// never surfaced it (e.g. prepare died before creating a task), this
+// short-circuit detects it from /api/simulation/:id and stops all polling
+// with a clear error message.
+let _simFailedDetected = false
+const checkSimulationFailed = async () => {
+  if (_simFailedDetected || !props.simulationId) return false
+  try {
+    const res = await getSimulation(props.simulationId)
+    const status = res?.data?.status
+    if (status === 'failed') {
+      _simFailedDetected = true
+      const errText = res.data.error || t('common.unknownError')
+      addLog(t('log.simulationFailed', { error: errText }))
+      stopPolling()
+      stopProfilesPolling()
+      stopConfigPolling()
+      emit('update-status', 'error')
+      return true
+    }
+  } catch (_err) {
+    // Network hiccup — retry on next poll tick.
+  }
+  return false
+}
+
 const fetchConfigRealtime = async () => {
   if (!props.simulationId) return
-  
+
+  // First, check the overall simulation state — if it flipped to "failed"
+  // while we were polling the real-time config, stop immediately.
+  if (await checkSimulationFailed()) return
+
   try {
     const res = await getSimulationConfigRealtime(props.simulationId)
-    
+
     if (res.success && res.data) {
       const data = res.data
       
