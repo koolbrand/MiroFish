@@ -342,8 +342,17 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         #     (schema is silently ignored → output drifts to odd field names)
         # We try json_schema first when supported, then fall back step by step.
         model_lower = (model or '').lower()
+        # NOTE: exclude reasoning models (deepseek-r1, deepseek-reasoner,
+        # minimax-m2.7) — they silently ignore json_schema and produce
+        # <think>...</think>{"invented_field": ...}.  Non-reasoning MoE
+        # models (deepseek-v3*, deepseek-chat, deepseek-v3-*-YYMMDD) honor
+        # it cleanly.
         supports_json_schema = any(k in model_lower for k in (
             'minimax-text', 'gpt-4o', 'gpt-4-turbo', 'gpt-4.1',
+            'deepseek-v3', 'deepseek-chat', 'qwen-plus', 'qwen-turbo',
+            'qwen-max',
+            # BytePlus Seed models with structured_outputs.json_schema=true
+            'seed-1-8', 'seed-2-0-lite', 'seed-1-6',
         ))
 
         attempts: list[dict] = []
