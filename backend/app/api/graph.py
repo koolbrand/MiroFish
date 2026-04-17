@@ -117,19 +117,50 @@ def list_projects():
 @graph_bp.route('/project/<project_id>', methods=['DELETE'])
 def delete_project(project_id: str):
     """
-    删除项目
+    删除项目，并级联清理相关的 simulations 和 reports。
     """
+    # Cascade: remove associated simulations (which also remove their reports)
+    cascaded_sims = 0
+    try:
+        from ..services.simulation_manager import SimulationManager
+        from ..services.simulation_runner import SimulationRunner, RunnerStatus
+        from ..services.report_agent import ReportManager
+        sim_manager = SimulationManager()
+        for sim_state in sim_manager.list_simulations(project_id=project_id):
+            sid = sim_state.simulation_id
+            try:
+                run_state = SimulationRunner.get_run_state(sid)
+                if run_state and run_state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
+                    SimulationRunner.stop_simulation(sid)
+            except Exception as stop_err:
+                logger.warning(f"级联停止模拟失败: {sid}: {stop_err}")
+            try:
+                for rep in ReportManager.list_reports(simulation_id=sid):
+                    rid = getattr(rep, 'report_id', None)
+                    if rid:
+                        ReportManager.delete_report(rid)
+            except Exception as rep_err:
+                logger.warning(f"级联删除报告失败: {sid}: {rep_err}")
+            if sim_manager.delete_simulation(sid):
+                cascaded_sims += 1
+    except Exception as cascade_err:
+        logger.warning(f"级联清理模拟失败（继续删除项目）: {project_id}: {cascade_err}")
+
     success = ProjectManager.delete_project(project_id)
-    
+
     if not success:
         return jsonify({
             "success": False,
             "error": t('api.projectDeleteFailed', id=project_id)
         }), 404
 
+    if cascaded_sims:
+        logger.info(f"删除项目 {project_id} · 级联清理 {cascaded_sims} 个模拟")
+
     return jsonify({
         "success": True,
-        "message": t('api.projectDeleted', id=project_id)
+        "message": t('api.projectDeleted', id=project_id),
+        "cascaded_simulations": cascaded_sims
     })
 
 

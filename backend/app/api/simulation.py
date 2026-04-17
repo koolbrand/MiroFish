@@ -756,6 +756,55 @@ def get_prepare_status():
         }), 500
 
 
+@simulation_bp.route('/<simulation_id>', methods=['DELETE'])
+def delete_simulation(simulation_id: str):
+    """
+    删除模拟：清理磁盘上的目录（state.json、profiles、config、run_state、logs...）
+    并尽量停止任何正在运行的实例。
+
+    同时清理与该 simulation 绑定的所有 reports。
+    """
+    try:
+        # Attempt to stop any live runner so we don't orphan threads.
+        try:
+            state = SimulationRunner.get_run_state(simulation_id)
+            if state and state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
+                SimulationRunner.stop_simulation(simulation_id)
+        except Exception as stop_err:
+            logger.warning(f"停止模拟失败（继续删除）: {simulation_id}: {stop_err}")
+
+        # Cascade delete any associated reports first.
+        try:
+            from ..services.report_agent import ReportManager
+            for rep in ReportManager.list_reports(simulation_id=simulation_id):
+                rep_id = getattr(rep, 'report_id', None)
+                if rep_id:
+                    ReportManager.delete_report(rep_id)
+        except Exception as rep_err:
+            logger.warning(f"级联删除报告失败（继续删除模拟）: {simulation_id}: {rep_err}")
+
+        manager = SimulationManager()
+        removed = manager.delete_simulation(simulation_id)
+
+        if not removed:
+            return jsonify({
+                "success": False,
+                "error": t('api.simulationNotFound', id=simulation_id)
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": t('api.simulationDeleted', id=simulation_id)
+        })
+    except Exception as e:
+        logger.error(f"删除模拟失败: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @simulation_bp.route('/<simulation_id>', methods=['GET'])
 def get_simulation(simulation_id: str):
     """获取模拟状态"""

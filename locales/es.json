@@ -376,12 +376,19 @@
     "notStarted": "No iniciado",
     "roundsProgress": "{current}/{total} rondas",
     "untitledSimulation": "Simulación sin título",
-    "unknownFile": "Archivo desconocido"
+    "unknownFile": "Archivo desconocido",
+    "deleteSim": "Eliminar",
+    "deleteConfirmTitle": "Eliminar simulación",
+    "deleteConfirmMsg": "¿Eliminar la simulación {id}? Se borrarán sus datos, configuración y reportes asociados.",
+    "deleteWarning": "Esta acción no se puede deshacer.",
+    "deleting": "Eliminando…",
+    "cancel": "Cancelar"
   },
   "api": {
     "projectNotFound": "Proyecto no encontrado: {id}",
     "projectDeleteFailed": "Proyecto no encontrado o error al eliminar: {id}",
     "projectDeleted": "Proyecto eliminado: {id}",
+    "simulationDeleted": "Simulación eliminada: {id}",
     "projectReset": "Proyecto restablecido: {id}",
     "requireSimulationRequirement": "Por favor proporciona un requisito de simulación (simulation_requirement)",
     "requireFileUpload": "Por favor sube al menos un archivo de documento",

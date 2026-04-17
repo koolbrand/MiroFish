@@ -376,12 +376,19 @@
     "notStarted": "Not started",
     "roundsProgress": "{current}/{total} rounds",
     "untitledSimulation": "Untitled simulation",
-    "unknownFile": "Unknown file"
+    "unknownFile": "Unknown file",
+    "deleteSim": "Delete",
+    "deleteConfirmTitle": "Delete simulation",
+    "deleteConfirmMsg": "Delete simulation {id}? Its data, configuration and associated reports will be removed.",
+    "deleteWarning": "This action cannot be undone.",
+    "deleting": "Deleting…",
+    "cancel": "Cancel"
   },
   "api": {
     "projectNotFound": "Project not found: {id}",
     "projectDeleteFailed": "Project not found or deletion failed: {id}",
     "projectDeleted": "Project deleted: {id}",
+    "simulationDeleted": "Simulation deleted: {id}",
     "projectReset": "Project reset: {id}",
     "requireSimulationRequirement": "Please provide a simulation requirement (simulation_requirement)",
     "requireFileUpload": "Please upload at least one document file",

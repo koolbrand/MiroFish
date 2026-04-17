@@ -463,20 +463,42 @@ class SimulationManager:
     def list_simulations(self, project_id: Optional[str] = None) -> List[SimulationState]:
         """列出所有模拟"""
         simulations = []
-        
+
         if os.path.exists(self.SIMULATION_DATA_DIR):
             for sim_id in os.listdir(self.SIMULATION_DATA_DIR):
                 # 跳过隐藏文件（如 .DS_Store）和非目录文件
                 sim_path = os.path.join(self.SIMULATION_DATA_DIR, sim_id)
                 if sim_id.startswith('.') or not os.path.isdir(sim_path):
                     continue
-                
+
                 state = self._load_simulation_state(sim_id)
                 if state:
                     if project_id is None or state.project_id == project_id:
                         simulations.append(state)
-        
+
         return simulations
+
+    def delete_simulation(self, simulation_id: str) -> bool:
+        """
+        删除模拟：移除磁盘目录并清理内存缓存。
+
+        Args:
+            simulation_id: 模拟ID
+
+        Returns:
+            True if a simulation directory was removed, False if it did not exist.
+        """
+        sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
+
+        # Remove from cache regardless; the directory check decides the return.
+        self._simulations.pop(simulation_id, None)
+
+        if not os.path.isdir(sim_dir):
+            return False
+
+        shutil.rmtree(sim_dir, ignore_errors=True)
+        logger.info(f"已删除模拟: {simulation_id}")
+        return True
     
     def get_profiles(self, simulation_id: str, platform: str = "reddit") -> List[Dict[str, Any]]:
         """获取模拟的Agent Profile"""

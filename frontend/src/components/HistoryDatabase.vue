@@ -33,20 +33,26 @@
         <div class="card-header">
           <span class="card-id">{{ formatSimulationId(project.simulation_id) }}</span>
           <div class="card-status-icons">
-            <span 
-              class="status-icon" 
+            <span
+              class="status-icon"
               :class="{ available: project.project_id, unavailable: !project.project_id }"
               :title="$t('history.graphBuild')"
             >◇</span>
-            <span 
-              class="status-icon available" 
+            <span
+              class="status-icon available"
               :title="$t('history.envSetup')"
             >◈</span>
-            <span 
-              class="status-icon" 
+            <span
+              class="status-icon"
               :class="{ available: project.report_id, unavailable: !project.report_id }"
               :title="$t('history.analysisReport')"
             >◆</span>
+            <button
+              class="card-delete-btn"
+              :title="$t('history.deleteSim')"
+              @click.stop="askDeleteSimulation(project)"
+              :disabled="deletingIds.has(project.simulation_id)"
+            >×</button>
           </div>
         </div>
 
@@ -104,6 +110,32 @@
       <span class="loading-spinner"></span>
       <span class="loading-text">{{ $t('history.loadingText') }}</span>
     </div>
+
+    <!-- 删除确认弹窗 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
+          <div class="delete-modal">
+            <div class="modal-header">
+              <h3>{{ $t('history.deleteConfirmTitle') }}</h3>
+              <button class="modal-close" @click="cancelDelete">×</button>
+            </div>
+            <div class="modal-body">
+              <p>{{ $t('history.deleteConfirmMsg', { id: formatSimulationId(deleteTarget.simulation_id) }) }}</p>
+              <p class="delete-warning">{{ $t('history.deleteWarning') }}</p>
+            </div>
+            <div class="modal-actions">
+              <button class="modal-btn" @click="cancelDelete" :disabled="confirming">
+                {{ $t('history.cancel') }}
+              </button>
+              <button class="modal-btn danger" @click="confirmDelete" :disabled="confirming">
+                {{ confirming ? $t('history.deleting') : $t('history.deleteSim') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- 历史回放详情弹窗 -->
     <Teleport to="body">
@@ -194,7 +226,7 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getSimulationHistory } from '../api/simulation'
+import { getSimulationHistory, deleteSimulation } from '../api/simulation'
 
 const router = useRouter()
 const route = useRoute()
@@ -207,6 +239,9 @@ const isExpanded = ref(false)
 const hoveringCard = ref(null)
 const historyContainer = ref(null)
 const selectedProject = ref(null)  // 当前选中的项目（用于弹窗）
+const deleteTarget = ref(null)  // 待删除的模拟
+const confirming = ref(false)
+const deletingIds = ref(new Set())
 let observer = null
 let isAnimating = false  // 动画锁，防止闪烁
 let expandDebounceTimer = null  // 防抖定时器
@@ -433,6 +468,43 @@ const goToReport = () => {
       params: { reportId: selectedProject.value.report_id }
     })
     closeModal()
+  }
+}
+
+// 请求删除模拟（打开确认弹窗）
+const askDeleteSimulation = (sim) => {
+  deleteTarget.value = sim
+}
+
+const cancelDelete = () => {
+  if (confirming.value) return
+  deleteTarget.value = null
+}
+
+const confirmDelete = async () => {
+  if (!deleteTarget.value || confirming.value) return
+  const sim = deleteTarget.value
+  const sid = sim.simulation_id
+  confirming.value = true
+  const next = new Set(deletingIds.value)
+  next.add(sid)
+  deletingIds.value = next
+  try {
+    const res = await deleteSimulation(sid)
+    if (res.success) {
+      // Optimistic UI update: drop the card immediately
+      projects.value = projects.value.filter(p => p.simulation_id !== sid)
+    } else {
+      console.warn('deleteSimulation failed:', res.error)
+    }
+  } catch (err) {
+    console.error('deleteSimulation error:', err)
+  } finally {
+    const after = new Set(deletingIds.value)
+    after.delete(sid)
+    deletingIds.value = after
+    confirming.value = false
+    deleteTarget.value = null
   }
 }
 
@@ -731,6 +803,113 @@ onUnmounted(() => {
   color: #D1D5DB;
   opacity: 0.5;
 }
+
+/* Delete (x) button on each card */
+.card-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #D1D5DB;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.card-delete-btn:hover:not(:disabled) {
+  color: #DC2626;
+  border-color: #FCA5A5;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.card-delete-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Delete confirm modal */
+.delete-modal {
+  background: #FFFFFF;
+  width: 420px;
+  max-width: 90vw;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.delete-modal .modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.delete-modal .modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.delete-modal .modal-body {
+  padding: 20px 24px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.delete-modal .modal-body p { margin: 0 0 10px 0; }
+
+.delete-modal .delete-warning {
+  margin-top: 12px !important;
+  padding: 10px 12px;
+  background: rgba(220, 38, 38, 0.08);
+  color: #DC2626;
+  font-size: 0.8rem;
+  border-left: 3px solid #DC2626;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.delete-modal .modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 14px 24px;
+  border-top: 1px solid #F3F4F6;
+  background: #fff;
+}
+
+.delete-modal .modal-btn {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #374151;
+  border-radius: 4px;
+}
+
+.delete-modal .modal-btn:hover:not(:disabled) {
+  border-color: #000;
+  color: #000;
+}
+
+.delete-modal .modal-btn.danger {
+  border-color: #DC2626;
+  color: #DC2626;
+}
+
+.delete-modal .modal-btn.danger:hover:not(:disabled) {
+  background: #DC2626;
+  color: #fff;
+}
+
+.delete-modal .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 轮数进度显示 */
 .card-progress {
