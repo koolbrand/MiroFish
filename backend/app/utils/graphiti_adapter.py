@@ -37,6 +37,43 @@ from ..config import Config
 # difflib.get_close_matches().  Resolves $ref references so nested models
 # (List[Entity], etc.) are normalized correctly.
 # ---------------------------------------------------------------------------
+def _extract_first_json_object(text: str) -> str:
+    """
+    Extract the first complete, balanced JSON object from text.
+
+    Using a regex like r'\{.*\}' with re.DOTALL is greedy and will span
+    across multiple JSON objects (e.g. {"a":1}{"b":2} → the whole string),
+    producing "Extra data" on json.loads.  This function counts braces to
+    stop exactly at the end of the first balanced object.
+    """
+    start = text.find('{')
+    if start == -1:
+        return text
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    # Unbalanced — return everything from first '{'
+    return text[start:]
+
+
 def _resolve_ref(schema: dict, root: dict) -> dict:
     """Follow a $ref pointer into the root schema's $defs."""
     if isinstance(schema, dict) and '$ref' in schema:
@@ -165,14 +202,14 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         content = re.sub(r'^```(?:json)?\s*', '', content).rstrip('`\n ').strip()
 
         if response_model is not None:
-            # Extract the outermost JSON object from the cleaned content
-            match = re.search(r'\{.*\}', content, re.DOTALL)
-            if match:
-                content = match.group(0)
+            # Extract the first complete balanced JSON object from the cleaned
+            # content.  Using a greedy regex can merge multiple JSON objects
+            # into one string, causing JSONDecodeError "Extra data".
+            content = _extract_first_json_object(content)
             data = json.loads(content)
-            # MiniMax (and other small-ish reasoning models) invent field name
-            # variants even with json_schema response_format.  Fuzzy-rename
-            # unknown keys to their closest expected match before validating.
+            # MiniMax (and other reasoning models) invent field name variants
+            # even with json_schema response_format.  Fuzzy-rename unknown keys
+            # to their closest expected match before Pydantic validates.
             _normalize_json_to_schema(data, response_model.model_json_schema())
             return response_model.model_validate(data).model_dump()
 
