@@ -54,3 +54,8 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[tool.uv]
+# Force CPU-only PyTorch — avoids pulling CUDA packages (~2.5 GB) from camel-ai.
+# This keeps the Docker image under 500 MB instead of 3+ GB.
+torch-backend = "cpu"
