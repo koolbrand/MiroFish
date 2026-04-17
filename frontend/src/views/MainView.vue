@@ -196,8 +196,8 @@ const initProject = async () => {
 const handleNewProject = async () => {
   const pending = getPendingUpload()
   if (!pending.isPending || pending.files.length === 0) {
-    error.value = 'No pending files found.'
-    addLog('Error: No pending files found for new project.')
+    error.value = t('log.noPendingFilesError')
+    addLog(t('log.noPendingFilesLog'))
     return
   }
   
@@ -271,7 +271,7 @@ const updatePhaseByStatus = (status) => {
     case 'ontology_generated': currentPhase.value = 0; break;
     case 'graph_building': currentPhase.value = 1; break;
     case 'graph_completed': currentPhase.value = 2; break;
-    case 'failed': error.value = 'Project failed'; break;
+    case 'failed': error.value = t('log.projectFailedError'); break;
   }
 }
 
@@ -288,7 +288,7 @@ const startBuildGraph = async () => {
       startPollingTask(res.data.task_id)
     } else {
       error.value = res.error
-      addLog(`Error starting build: ${res.error}`)
+      addLog(t('log.startBuildError', { error: res.error }))
     }
   } catch (err) {
     error.value = err.message
@@ -397,7 +397,7 @@ const stopGraphPolling = () => {
   if (graphPollTimer) {
     clearInterval(graphPollTimer)
     graphPollTimer = null
-    addLog('Graph polling stopped.')
+    addLog(t('log.graphPollingStopped'))
   }
 }
 

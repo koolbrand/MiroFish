@@ -334,14 +334,14 @@ class SimulationRunner:
         # 检查是否已在运行
         existing = cls.get_run_state(simulation_id)
         if existing and existing.runner_status in [RunnerStatus.RUNNING, RunnerStatus.STARTING]:
-            raise ValueError(f"模拟已在运行中: {simulation_id}")
+            raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
         
         # 加载模拟配置
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
         if not os.path.exists(config_path):
-            raise ValueError(f"模拟配置不存在，请先调用 /prepare 接口")
+            raise ValueError(t('api.simConfigMissing'))
         
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
@@ -523,8 +523,19 @@ class SimulationRunner:
             
             # 进程结束
             exit_code = process.returncode
-            
-            if exit_code == 0:
+
+            # Guard against the stop/monitor race: if the user just called
+            # stop_simulation, the runner_status is already STOPPING or STOPPED
+            # and the process exited with a signal (typically -15 SIGTERM).
+            # Do NOT overwrite STOPPED with FAILED — the stop was intentional.
+            was_stopped = state.runner_status in (RunnerStatus.STOPPING, RunnerStatus.STOPPED)
+
+            if was_stopped:
+                state.runner_status = RunnerStatus.STOPPED
+                if not state.completed_at:
+                    state.completed_at = datetime.now().isoformat()
+                logger.info(f"模拟已被用户停止: {simulation_id}, exit_code={exit_code}")
+            elif exit_code == 0:
                 state.runner_status = RunnerStatus.COMPLETED
                 state.completed_at = datetime.now().isoformat()
                 logger.info(f"模拟完成: {simulation_id}")
@@ -556,15 +567,17 @@ class SimulationRunner:
                     state.error = f"{state.error} {t('api.simRunnerErrorDetail', error=error_info[-500:])}"
 
                 logger.error(f"模拟失败: {simulation_id}, exit_code={exit_code}")
-            
+
             state.twitter_running = False
             state.reddit_running = False
             cls._save_run_state(state)
-            
+
         except Exception as e:
             logger.error(f"监控线程异常: {simulation_id}, error={str(e)}")
-            state.runner_status = RunnerStatus.FAILED
-            state.error = str(e)
+            # Never flip STOPPED to FAILED from an exception in the monitor loop.
+            if state.runner_status not in (RunnerStatus.STOPPING, RunnerStatus.STOPPED):
+                state.runner_status = RunnerStatus.FAILED
+                state.error = str(e)
             cls._save_run_state(state)
         
         finally:
@@ -793,10 +806,10 @@ class SimulationRunner:
         """停止模拟"""
         state = cls.get_run_state(simulation_id)
         if not state:
-            raise ValueError(f"模拟不存在: {simulation_id}")
-        
+            raise ValueError(t('api.simNotFound', simulationId=simulation_id))
+
         if state.runner_status not in [RunnerStatus.RUNNING, RunnerStatus.PAUSED]:
-            raise ValueError(f"模拟未在运行: {simulation_id}, status={state.runner_status}")
+            raise ValueError(t('api.simNotRunning', simulationId=simulation_id, status=state.runner_status.value))
         
         state.runner_status = RunnerStatus.STOPPING
         cls._save_run_state(state)
@@ -1252,7 +1265,7 @@ class SimulationRunner:
                         state.twitter_running = False
                         state.reddit_running = False
                         state.completed_at = datetime.now().isoformat()
-                        state.error = "服务器关闭，模拟被终止"
+                        state.error = t('api.simRunnerServerShutdown')
                         cls._save_run_state(state)
                     
                     # 同时更新 state.json，将状态设为 stopped

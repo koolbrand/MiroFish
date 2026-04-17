@@ -425,6 +425,7 @@ const expandedContent = ref(new Set())
 const expandedLogs = ref(new Set())
 const collapsedSections = ref(new Set())
 const isComplete = ref(false)
+const reportError = ref(null)
 const startTime = ref(null)
 const leftPanel = ref(null)
 const rightPanel = ref(null)
@@ -1713,9 +1714,10 @@ const statusClass = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (isComplete.value) return 'Completed'
-  if (agentLogs.value.length > 0) return 'Generating...'
-  return 'Waiting'
+  if (reportError.value) return t('step4.statusFailed')
+  if (isComplete.value) return t('step4.statusCompleted')
+  if (agentLogs.value.length > 0) return t('step4.statusGenerating')
+  return t('step4.statusWaiting')
 })
 
 const totalSections = computed(() => {
@@ -2059,7 +2061,16 @@ const fetchAgentLog = async () => {
             stopPolling()
             // 滚动逻辑统一在循环结束后的 nextTick 中处理
           }
-          
+
+          // report_failed - 后端生成报告时崩溃/异常，停止轮询避免无限转菊花
+          if (log.action === 'report_failed' || log.action === 'report_error') {
+            currentSectionIndex.value = null
+            reportError.value = log.details?.error || log.message || t('common.unknownError')
+            emit('add-log', { level: 'error', message: t('step4.reportFailed', { error: reportError.value }) })
+            emit('update-status', 'error')
+            stopPolling()
+          }
+
           if (log.action === 'report_start') {
             startTime.value = new Date(log.timestamp)
           }

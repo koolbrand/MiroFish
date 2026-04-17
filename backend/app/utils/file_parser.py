@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from .locale import t
+
 
 def _read_text_with_fallback(file_path: str) -> str:
     """
@@ -77,21 +79,21 @@ class FileParser:
         path = Path(file_path)
         
         if not path.exists():
-            raise FileNotFoundError(f"文件不存在: {file_path}")
-        
+            raise FileNotFoundError(t('api.fileNotFound', path=file_path))
+
         suffix = path.suffix.lower()
-        
+
         if suffix not in cls.SUPPORTED_EXTENSIONS:
-            raise ValueError(f"不支持的文件格式: {suffix}")
-        
+            raise ValueError(t('api.fileUnsupported', ext=suffix))
+
         if suffix == '.pdf':
             return cls._extract_from_pdf(file_path)
         elif suffix in {'.md', '.markdown'}:
             return cls._extract_from_md(file_path)
         elif suffix == '.txt':
             return cls._extract_from_txt(file_path)
-        
-        raise ValueError(f"无法处理的文件格式: {suffix}")
+
+        raise ValueError(t('api.fileUnsupported', ext=suffix))
     
     @staticmethod
     def _extract_from_pdf(file_path: str) -> str:
