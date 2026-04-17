@@ -13,6 +13,10 @@ services:
       NEO4J_server_config_strict__validation_enabled: "false"
     volumes:
       - neo4j_data:/data
+    # Contain Neo4j RAM usage so it can't starve the host.
+    # Heap is 1g max + ~512m for page cache and overhead → 2g is safe.
+    mem_limit: 2g
+    mem_reservation: 1g
 
   mirofish:
     build:
@@ -44,6 +48,14 @@ services:
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs
+    # Contain OASIS (BERT + simulation) memory usage so a runaway
+    # simulation can only kill MiroFish itself, never cascade into other
+    # Coolify apps on the same host. If the process exceeds mem_limit
+    # Docker SIGKILLs it and the container auto-restarts thanks to
+    # `restart: unless-stopped`. The localized SIGKILL/OOM error in the
+    # UI tells the user to reduce agents or extend RAM.
+    mem_limit: 4g
+    mem_reservation: 2g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
