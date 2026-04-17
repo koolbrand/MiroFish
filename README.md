@@ -5,15 +5,18 @@
 # MiroFish — Production Fork by KoolBrand
 
 **Next-generation AI prediction engine powered by multi-agent swarm intelligence.**
-*Predict public opinion, market reactions, social dynamics — before they happen.*
+*Predice opinión pública, reacciones de mercado y dinámicas sociales — antes de que ocurran.*
+
+> 🇪🇸 **Interfaz en español** · Preconfigurado para **MiniMax M2.7** · Memoria de grafo **100% autoalojada** (sin Zep Cloud)
 
 [![GitHub Stars](https://img.shields.io/github/stars/koolbrand/MiroFish?style=flat-square&color=DAA520)](https://github.com/koolbrand/MiroFish/stargazers)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
+[![MiniMax](https://img.shields.io/badge/LLM-MiniMax%20M2.7-FF6B35?style=flat-square)](https://www.minimaxi.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/)
 [![Coolify](https://img.shields.io/badge/Coolify-One--click-6B46C1?style=flat-square)](https://coolify.io/)
 [![Neo4j](https://img.shields.io/badge/Neo4j-Self--hosted-008CC1?style=flat-square&logo=neo4j&logoColor=white)](https://neo4j.com/)
 
-[🇪🇸 Español](#quick-start) · [🇬🇧 English](#quick-start) · [Original project ↗](https://github.com/666ghj/MiroFish)
+[🇪🇸 Español](#quick-start) · [🇬🇧 English](#quick-start) · [Proyecto original ↗](https://github.com/666ghj/MiroFish)
 
 </div>
 
