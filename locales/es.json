@@ -212,7 +212,8 @@
     "forceStopSuccess": "Simulación detenida forzosamente",
     "forceStopFailed": "Error al forzar detención: {error}",
     "startGenerateReportBtn": "Generar informe",
-    "generatingReportBtn": "Iniciando..."
+    "generatingReportBtn": "Iniciando...",
+    "stopSimulation": "Detener simulación"
   },
   "step4": {
     "generatingSection": "Generando {title}...",

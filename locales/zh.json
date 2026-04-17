@@ -212,6 +212,7 @@
     "forceStopSuccess": "模拟已强制停止",
     "forceStopFailed": "强制停止失败: {error}",
     "startGenerateReportBtn": "开始生成结果报告",
+    "stopSimulation": "停止模拟",
     "generatingReportBtn": "启动中..."
   },
   "step4": {
