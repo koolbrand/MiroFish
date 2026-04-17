@@ -3,11 +3,13 @@ Graphiti adapter — wraps graphiti-core async API in sync interface
 compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
+import json
 import re
 import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from difflib import get_close_matches
 from typing import Optional
 
 from graphiti_core import Graphiti
@@ -19,6 +21,73 @@ from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerCli
 from neo4j import GraphDatabase
 
 from ..config import Config
+
+
+# ---------------------------------------------------------------------------
+# Fuzzy schema normalization.
+#
+# MiniMax M2.7 partially honors the response_format json_schema but still
+# invents "natural language" variants of field names, e.g.:
+#   duplicate_idx     -> duplication_idx
+#   name              -> entity_text
+#   duplicates        -> duplicate_entries
+#
+# Before Pydantic validates the response, walk the dict recursively and
+# rename any unexpected field to its closest match in the schema using
+# difflib.get_close_matches().  Resolves $ref references so nested models
+# (List[Entity], etc.) are normalized correctly.
+# ---------------------------------------------------------------------------
+def _resolve_ref(schema: dict, root: dict) -> dict:
+    """Follow a $ref pointer into the root schema's $defs."""
+    if isinstance(schema, dict) and '$ref' in schema:
+        ref_name = schema['$ref'].split('/')[-1]
+        return root.get('$defs', {}).get(ref_name, schema)
+    return schema
+
+
+def _normalize_json_to_schema(data, schema: dict, root: dict = None):
+    """Recursively rename dict keys to match schema field names (fuzzy)."""
+    if root is None:
+        root = schema
+    schema = _resolve_ref(schema, root)
+    if not isinstance(schema, dict):
+        return data
+
+    # Unwrap anyOf / oneOf — pick the first object-like branch
+    for combinator in ('anyOf', 'oneOf'):
+        if combinator in schema:
+            for branch in schema[combinator]:
+                resolved = _resolve_ref(branch, root)
+                if isinstance(resolved, dict) and resolved.get('type') == 'object':
+                    schema = resolved
+                    break
+
+    if isinstance(data, dict) and 'properties' in schema:
+        expected = set(schema['properties'].keys())
+        # Rename unknown keys to their closest expected counterpart
+        for field in list(data.keys()):
+            if field not in expected:
+                remaining = [f for f in expected if f not in data]
+                match = get_close_matches(field, remaining, n=1, cutoff=0.5)
+                if match:
+                    data[match[0]] = data.pop(field)
+        # Recurse into nested properties
+        for key, val in list(data.items()):
+            if key in schema['properties']:
+                subschema = schema['properties'][key]
+                if isinstance(val, dict):
+                    _normalize_json_to_schema(val, subschema, root)
+                elif isinstance(val, list):
+                    item_schema = subschema.get('items') if isinstance(subschema, dict) else None
+                    if item_schema:
+                        for item in val:
+                            if isinstance(item, dict):
+                                _normalize_json_to_schema(item, item_schema, root)
+    elif isinstance(data, list) and isinstance(schema, dict) and 'items' in schema:
+        for item in data:
+            if isinstance(item, dict):
+                _normalize_json_to_schema(item, schema['items'], root)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +169,12 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             match = re.search(r'\{.*\}', content, re.DOTALL)
             if match:
                 content = match.group(0)
-            return response_model.model_validate_json(content).model_dump()
+            data = json.loads(content)
+            # MiniMax (and other small-ish reasoning models) invent field name
+            # variants even with json_schema response_format.  Fuzzy-rename
+            # unknown keys to their closest expected match before validating.
+            _normalize_json_to_schema(data, response_model.model_json_schema())
+            return response_model.model_validate(data).model_dump()
 
         return {"content": content}
 
