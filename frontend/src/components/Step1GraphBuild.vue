@@ -114,7 +114,9 @@
           </div>
           <div class="step-status">
             <span v-if="currentPhase > 1" class="badge success">{{ $t('step1.ontologyCompleted') }}</span>
-            <span v-else-if="currentPhase === 1" class="badge processing">{{ buildProgress?.progress || 0 }}%</span>
+            <span v-else-if="currentPhase === 1" class="badge processing">
+              {{ typeof buildProgress?.progress === 'number' ? `${buildProgress.progress}%` : $t('step1.buildInProgress') }}
+            </span>
             <span v-else class="badge pending">{{ $t('step1.ontologyPending') }}</span>
           </div>
         </div>

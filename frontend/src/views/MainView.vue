@@ -245,9 +245,33 @@ const loadProject = async () => {
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
-      } else if (res.data.status === 'graph_building' && res.data.graph_build_task_id) {
+      } else if (res.data.status === 'graph_building') {
+        // If graph already has data (e.g. server restart left status stale),
+        // skip polling a dead task and treat the build as complete.
+        if (res.data.graph_id) {
+          try {
+            const gRes = await getGraphData(res.data.graph_id)
+            const hasData = gRes.success && (gRes.data?.node_count > 0 || (gRes.data?.nodes?.length || 0) > 0)
+            if (hasData) {
+              currentPhase.value = 2
+              graphData.value = gRes.data
+              addLog(t('log.graphRecovered', {
+                nodes: gRes.data.node_count || gRes.data.nodes.length,
+                edges: gRes.data.edge_count || gRes.data.edges?.length || 0
+              }))
+              return
+            }
+          } catch (gErr) {
+            console.warn('Graph recovery probe failed:', gErr)
+          }
+        }
+        // Real in-progress build: resume polling.
         currentPhase.value = 1
-        startPollingTask(res.data.graph_build_task_id)
+        if (res.data.graph_build_task_id) {
+          startPollingTask(res.data.graph_build_task_id)
+        } else {
+          buildProgress.value = { progress: 0, message: t('log.graphBuildResuming') }
+        }
         startGraphPolling()
       } else if (res.data.status === 'graph_completed' && res.data.graph_id) {
         currentPhase.value = 2

@@ -39,12 +39,59 @@ def get_project(project_id: str):
     获取项目详情
     """
     project = ProjectManager.get_project(project_id)
-    
+
     if not project:
         return jsonify({
             "success": False,
             "error": t('api.projectNotFound', id=project_id)
         }), 404
+
+    # Self-heal: if status is GRAPH_BUILDING but no live task is tracking
+    # progress (e.g. the server was restarted mid-build, the in-memory task
+    # table was cleared, or the task finished/failed without flipping the
+    # project status), reconcile against the actual graph state in Neo4j.
+    if project.status == ProjectStatus.GRAPH_BUILDING:
+        task_manager = TaskManager()
+        task = task_manager.get_task(project.graph_build_task_id) if project.graph_build_task_id else None
+        task_alive = task is not None and task.status in (TaskStatus.PENDING, TaskStatus.PROCESSING)
+
+        if not task_alive:
+            # The build thread is no longer running. Check whether the
+            # graph actually has data; if it does, promote the project.
+            try:
+                if project.graph_id:
+                    builder = GraphBuilderService()
+                    graph_data = builder.get_graph_data(project.graph_id)
+                    node_count = graph_data.get('node_count', 0) if graph_data else 0
+                    if node_count > 0:
+                        project.status = ProjectStatus.GRAPH_COMPLETED
+                        ProjectManager.save_project(project)
+                        logger.info(
+                            f"[self-heal] Promoted project {project_id} "
+                            f"from graph_building → graph_completed "
+                            f"(graph_id={project.graph_id}, nodes={node_count})"
+                        )
+                    elif task is not None and task.status == TaskStatus.FAILED:
+                        project.status = ProjectStatus.FAILED
+                        project.error = task.error or 'Graph build failed'
+                        ProjectManager.save_project(project)
+                        logger.warning(
+                            f"[self-heal] Marked project {project_id} FAILED "
+                            f"(task {task.task_id} ended in failed state)"
+                        )
+                elif task is not None and task.status == TaskStatus.FAILED:
+                    project.status = ProjectStatus.FAILED
+                    project.error = task.error or 'Graph build failed'
+                    ProjectManager.save_project(project)
+                    logger.warning(
+                        f"[self-heal] Marked project {project_id} FAILED "
+                        f"(no graph_id, task {task.task_id} failed)"
+                    )
+            except Exception as heal_err:
+                # Self-heal is best-effort; never break the GET endpoint.
+                logger.warning(
+                    f"[self-heal] Could not reconcile project {project_id}: {heal_err}"
+                )
 
     return jsonify({
         "success": True,
