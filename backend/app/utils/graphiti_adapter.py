@@ -82,8 +82,77 @@ def _resolve_ref(schema: dict, root: dict) -> dict:
     return schema
 
 
+# ---------------------------------------------------------------------------
+# Explicit field name aliases for models that don't follow the schema.
+#
+# MiniMax M2.7 does NOT support response_format=json_schema (only Text-01
+# does). In json_object mode, M2.7 follows the prompt text, but may still
+# use "common" triple-store conventions (subject/predicate/object or IDs).
+# These aliases map every known variant to the graphiti-core field name.
+# ---------------------------------------------------------------------------
+_FIELD_ALIASES: dict[str, str] = {
+    # ExtractedEdges / Edge
+    'subject':              'source_entity_name',
+    'subject_id':           'source_entity_name',
+    'source':               'source_entity_name',
+    'source_id':            'source_entity_name',
+    'source_entity':        'source_entity_name',
+    'from':                 'source_entity_name',
+    'from_entity':          'source_entity_name',
+    'head':                 'source_entity_name',
+    'head_entity':          'source_entity_name',
+    'entity1':              'source_entity_name',
+
+    'object':               'target_entity_name',
+    'object_id':            'target_entity_name',
+    'target':               'target_entity_name',
+    'target_id':            'target_entity_name',
+    'target_entity':        'target_entity_name',
+    'to':                   'target_entity_name',
+    'to_entity':            'target_entity_name',
+    'tail':                 'target_entity_name',
+    'tail_entity':          'target_entity_name',
+    'entity2':              'target_entity_name',
+
+    'relation':             'relation_type',
+    'relationship':         'relation_type',
+    'relationship_type':    'relation_type',
+    'predicate':            'relation_type',
+    'edge_type':            'relation_type',
+    'type':                 'relation_type',
+
+    # ExtractedEntities / ExtractedEntity
+    'entity_text':          'name',
+    'entity_name':          'name',
+    'entity':               'name',
+    'label':                'name',
+    'text':                 'name',
+    'type_id':              'entity_type_id',
+    'entity_type':          'entity_type_id',
+
+    # NodeResolutions / NodeDuplicate
+    'duplication_idx':      'duplicate_idx',
+    'duplicate_id':         'duplicate_idx',
+    'dup_idx':              'duplicate_idx',
+    'idx':                  'duplicate_idx',
+
+    # EdgeDuplicate
+    'duplicate_fact':       'duplicate_fact_id',
+    'fact_id':              'duplicate_fact_id',
+    'contradicted':         'contradicted_facts',
+    'contradicting_facts':  'contradicted_facts',
+}
+
+
 def _normalize_json_to_schema(data, schema: dict, root: dict = None):
-    """Recursively rename dict keys to match schema field names (fuzzy)."""
+    """
+    Recursively rename / coerce dict keys to match schema field names.
+
+    Strategy (applied in order):
+    1. Explicit aliases (_FIELD_ALIASES) — covers all known LLM variants.
+    2. Fuzzy matching (difflib, cutoff 0.6) — catches novel variations.
+    3. Type coercion — if schema expects str but value is int/float, stringify.
+    """
     if root is None:
         root = schema
     schema = _resolve_ref(schema, root)
@@ -101,25 +170,41 @@ def _normalize_json_to_schema(data, schema: dict, root: dict = None):
 
     if isinstance(data, dict) and 'properties' in schema:
         expected = set(schema['properties'].keys())
-        # Rename unknown keys to their closest expected counterpart
+
+        # --- Pass 1: explicit aliases ---
+        for field in list(data.keys()):
+            if field not in expected:
+                alias_target = _FIELD_ALIASES.get(field)
+                if alias_target and alias_target in expected and alias_target not in data:
+                    data[alias_target] = data.pop(field)
+
+        # --- Pass 2: fuzzy matching ---
         for field in list(data.keys()):
             if field not in expected:
                 remaining = [f for f in expected if f not in data]
-                match = get_close_matches(field, remaining, n=1, cutoff=0.5)
+                match = get_close_matches(field, remaining, n=1, cutoff=0.6)
                 if match:
                     data[match[0]] = data.pop(field)
-        # Recurse into nested properties
+
+        # --- Pass 3: type coercion + recurse ---
         for key, val in list(data.items()):
-            if key in schema['properties']:
-                subschema = schema['properties'][key]
-                if isinstance(val, dict):
-                    _normalize_json_to_schema(val, subschema, root)
-                elif isinstance(val, list):
-                    item_schema = subschema.get('items') if isinstance(subschema, dict) else None
-                    if item_schema:
-                        for item in val:
-                            if isinstance(item, dict):
-                                _normalize_json_to_schema(item, item_schema, root)
+            if key not in schema['properties']:
+                continue
+            subschema = _resolve_ref(schema['properties'][key], root)
+            prop_type = subschema.get('type') if isinstance(subschema, dict) else None
+
+            # Coerce: schema expects string but model returned a number/bool
+            if prop_type == 'string' and not isinstance(val, str):
+                data[key] = str(val)
+            elif isinstance(val, dict):
+                _normalize_json_to_schema(val, subschema, root)
+            elif isinstance(val, list):
+                item_schema = subschema.get('items') if isinstance(subschema, dict) else None
+                if item_schema:
+                    for item in val:
+                        if isinstance(item, dict):
+                            _normalize_json_to_schema(item, item_schema, root)
+
     elif isinstance(data, list) and isinstance(schema, dict) and 'items' in schema:
         for item in data:
             if isinstance(item, dict):
@@ -152,10 +237,8 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         openai_messages = []
         for m in messages:
             m.content = self._clean_input(m.content)
-            if m.role == 'user':
-                openai_messages.append({'role': 'user', 'content': m.content})
-            elif m.role == 'system':
-                openai_messages.append({'role': 'system', 'content': m.content})
+            if m.role in ('user', 'system', 'assistant'):
+                openai_messages.append({'role': m.role, 'content': m.content})
 
         model = (
             (self.small_model or self.model)
@@ -170,27 +253,22 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             max_tokens=max_tokens or self.max_tokens,
         )
 
-        # Pass the Pydantic model's JSON schema as response_format so the model
-        # uses the exact field names (e.g. "name" not "entity_text").
-        # Most OpenAI-compatible providers (incl. MiniMax) support json_schema.
-        # If they don't, we fall back to json_object mode below.
+        # MiniMax M2.7 does NOT support response_format=json_schema (only the
+        # legacy MiniMax-Text-01 model does).  Using json_schema silently fails:
+        # M2.7 ignores the schema and generates its own field naming convention
+        # ("subject_id", "object_id" instead of "source_entity_name", etc.)
+        #
+        # json_object mode is supported and makes M2.7 follow the prompt text,
+        # which explicitly describes the expected field names (graphiti prompts
+        # are detailed).  Our normalization layer catches any remaining drift.
         if response_model is not None:
-            schema = response_model.model_json_schema()
-            kwargs['response_format'] = {
-                'type': 'json_schema',
-                'json_schema': {
-                    'name': schema.get('title', response_model.__name__),
-                    'schema': schema,
-                    'strict': False,
-                },
-            }
+            kwargs['response_format'] = {'type': 'json_object'}
 
         try:
             response = await self.client.chat.completions.create(**kwargs)
         except Exception:
-            # Provider doesn't support json_schema — fall back to json_object
-            if response_model is not None:
-                kwargs['response_format'] = {'type': 'json_object'}
+            # Some providers reject json_object too — retry without it
+            kwargs.pop('response_format', None)
             response = await self.client.chat.completions.create(**kwargs)
 
         content = response.choices[0].message.content or ""
