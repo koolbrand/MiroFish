@@ -3,6 +3,7 @@ Graphiti adapter — wraps graphiti-core async API in sync interface
 compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
+import inspect
 import json
 import logging
 import re
@@ -26,6 +27,30 @@ from neo4j import GraphDatabase
 from ..config import Config
 
 logger = logging.getLogger('mirofish.graphiti_adapter')
+
+
+# ---------------------------------------------------------------------------
+# Capability detection: `edge_types` and `edge_type_map` were added to
+# Graphiti.add_episode() in a later release than what we pin (0.11.x).
+# Inspect the signature once at import time and only pass kwargs the
+# installed version actually accepts. Falling back gracefully means the
+# graph still builds with entity labels; only custom edge typing is lost.
+# ---------------------------------------------------------------------------
+try:
+    _add_episode_params = set(inspect.signature(Graphiti.add_episode).parameters.keys())
+except (TypeError, ValueError):
+    _add_episode_params = set()
+
+_SUPPORTS_EDGE_TYPES = 'edge_types' in _add_episode_params
+_SUPPORTS_EDGE_TYPE_MAP = 'edge_type_map' in _add_episode_params
+_SUPPORTS_ENTITY_TYPES = 'entity_types' in _add_episode_params
+
+if not _SUPPORTS_EDGE_TYPES:
+    logger.warning(
+        "Installed graphiti-core does not accept edge_types/edge_type_map in "
+        "add_episode(); custom edge ontology will not be enforced. Upgrade "
+        "graphiti-core to restore the feature."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -881,11 +906,14 @@ class GraphitiGraphClient:
             group_id=graph_id,
             reference_time=datetime.now(timezone.utc),
         )
-        if entity_types:
+        # Only pass ontology kwargs the installed Graphiti version understands.
+        # In 0.11.x only `entity_types` is supported; `edge_types` and
+        # `edge_type_map` are silently dropped with a one-time warning on load.
+        if entity_types and _SUPPORTS_ENTITY_TYPES:
             kwargs['entity_types'] = entity_types
-        if edge_types:
+        if edge_types and _SUPPORTS_EDGE_TYPES:
             kwargs['edge_types'] = edge_types
-        if edge_type_map:
+        if edge_type_map and _SUPPORTS_EDGE_TYPE_MAP:
             kwargs['edge_type_map'] = edge_type_map
 
         _run(self._graphiti.add_episode(**kwargs))
