@@ -68,3 +68,28 @@ export function getProject(projectId) {
     method: 'get'
   })
 }
+
+/**
+ * 列出项目（用于管理页面）
+ * @param {Number} limit
+ * @returns {Promise}
+ */
+export function listProjects(limit = 100) {
+  return service({
+    url: `/api/graph/project/list`,
+    method: 'get',
+    params: { limit }
+  })
+}
+
+/**
+ * 删除项目
+ * @param {String} projectId
+ * @returns {Promise}
+ */
+export function deleteProject(projectId) {
+  return service({
+    url: `/api/graph/project/${projectId}`,
+    method: 'delete'
+  })
+}

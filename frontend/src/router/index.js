@@ -6,6 +6,7 @@ import SimulationRunView from '../views/SimulationRunView.vue'
 import ReportView from '../views/ReportView.vue'
 import InteractionView from '../views/InteractionView.vue'
 import LoginView from '../views/LoginView.vue'
+import ProjectsListView from '../views/ProjectsListView.vue'
 import { pb } from '../lib/pocketbase'
 
 const routes = [
@@ -54,6 +55,12 @@ const routes = [
     name: 'Interaction',
     component: InteractionView,
     props: true,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/projects',
+    name: 'ProjectsList',
+    component: ProjectsListView,
     meta: { requiresAuth: true }
   }
 ]

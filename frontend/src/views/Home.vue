@@ -6,6 +6,9 @@
       <div class="nav-links">
         <AppVersion />
         <LanguageSwitcher />
+        <router-link to="/projects" class="github-link">
+          {{ $t('nav.projects') }} <span class="arrow">→</span>
+        </router-link>
         <a href="https://github.com/666ghj/MiroFish" target="_blank" class="github-link">
           {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
         </a>
