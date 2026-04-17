@@ -627,18 +627,17 @@ class GraphitiGraphClient:
     """Main graph client — mimics Zep Cloud's client.graph interface."""
 
     def __init__(self):
-        # Use the dedicated Graphiti model (typically MiniMax-Text-01) for
-        # knowledge-graph extraction.  Reasoning models like MiniMax-M2.7
-        # don't honor response_format=json_schema, producing invalid output
-        # ~50% of the time.  Simulation code keeps using LLM_MODEL_NAME.
-        graphiti_model = Config.GRAPHITI_LLM_MODEL_NAME
-        llm_client = ThinkingAwareOpenAIClient(
-            config=LLMConfig(
-                api_key=Config.LLM_API_KEY,
-                base_url=Config.LLM_BASE_URL,
-                model=graphiti_model,
-            )
+        # Graphiti (graph extraction) uses a DIFFERENT provider than the
+        # simulation LLM.  Reasoning models like MiniMax-M2.7 don't honor
+        # response_format=json_schema → invalid extractions ~50% of calls.
+        # Each GRAPHITI_LLM_* var falls back to its LLM_* counterpart when
+        # unset, so single-provider setups still work.
+        graphiti_config = LLMConfig(
+            api_key=Config.GRAPHITI_LLM_API_KEY,
+            base_url=Config.GRAPHITI_LLM_BASE_URL,
+            model=Config.GRAPHITI_LLM_MODEL_NAME,
         )
+        llm_client = ThinkingAwareOpenAIClient(config=graphiti_config)
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(
                 api_key=Config.EMBEDDING_API_KEY,
@@ -646,13 +645,7 @@ class GraphitiGraphClient:
                 embedding_model=Config.EMBEDDING_MODEL,
             )
         )
-        cross_encoder = OpenAIRerankerClient(
-            config=LLMConfig(
-                api_key=Config.LLM_API_KEY,
-                base_url=Config.LLM_BASE_URL,
-                model=graphiti_model,
-            )
-        )
+        cross_encoder = OpenAIRerankerClient(config=graphiti_config)
         self._graphiti = Graphiti(
             Config.NEO4J_URI,
             Config.NEO4J_USER,

@@ -33,12 +33,24 @@ class Config:
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
 
     # Graphiti-specific LLM config (knowledge graph extraction).
-    # Uses a DIFFERENT model than the simulation LLM because graph extraction
-    # needs reliable structured output (response_format=json_schema).
-    # MiniMax-Text-01 supports json_schema natively; MiniMax-M2.7 (reasoning
-    # model) does NOT and falls back to json_object + prompt-steering, which
-    # produces very flaky extractions.
-    # Falls back to LLM_MODEL_NAME when the dedicated var is unset.
+    # Uses a DIFFERENT provider/model than the simulation LLM because graph
+    # extraction needs reliable structured output (response_format=json_schema).
+    # Reasoning models (MiniMax-M2.7, DeepSeek-R1) silently ignore json_schema
+    # and drift to invented field names → ~50% invalid extractions.
+    #
+    # Recommended setup: DeepSeek-V3 (deepseek-chat) or Qwen-Plus for graph
+    # extraction + MiniMax-M2.7 for simulation reasoning.
+    #
+    # Each var independently falls back to its LLM_* counterpart when unset,
+    # so a single-provider setup still works.
+    GRAPHITI_LLM_API_KEY = (
+        os.environ.get('GRAPHITI_LLM_API_KEY')
+        or os.environ.get('LLM_API_KEY')
+    )
+    GRAPHITI_LLM_BASE_URL = (
+        os.environ.get('GRAPHITI_LLM_BASE_URL')
+        or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
+    )
     GRAPHITI_LLM_MODEL_NAME = (
         os.environ.get('GRAPHITI_LLM_MODEL_NAME')
         or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')

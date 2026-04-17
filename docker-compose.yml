@@ -32,9 +32,12 @@ services:
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
-      # Graphiti graph-extraction LLM (needs reliable json_schema support).
-      # Defaults to MiniMax-Text-01; simulation keeps using LLM_MODEL_NAME.
-      - GRAPHITI_LLM_MODEL_NAME=${GRAPHITI_LLM_MODEL_NAME:-MiniMax-Text-01}
+      # Graphiti graph-extraction LLM (independent provider for reliable
+      # json_schema support — e.g. DeepSeek-V3 or Qwen-Plus).  Each var
+      # falls back to its LLM_* counterpart when unset.
+      - GRAPHITI_LLM_API_KEY=${GRAPHITI_LLM_API_KEY:-}
+      - GRAPHITI_LLM_BASE_URL=${GRAPHITI_LLM_BASE_URL:-}
+      - GRAPHITI_LLM_MODEL_NAME=${GRAPHITI_LLM_MODEL_NAME:-}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
       - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
