@@ -585,8 +585,14 @@ class SimulationConfigGenerator:
 - work_hours (int数组): 工作时段
 - reasoning (string): 简要说明为什么这样配置"""
 
-        system_prompt = "你是社交媒体模拟专家。返回纯JSON格式，时间配置需符合模拟场景中目标用户群体的作息习惯。"
-        system_prompt = f"{system_prompt}\n\n{get_language_instruction()}"
+        lang_instruction = get_language_instruction()
+        system_prompt = (
+            f"{lang_instruction}\n"
+            "CRITICAL: The 'reasoning' field (and any other free-text field) MUST be written in the language specified above. "
+            "Do NOT output Chinese unless that is the target language.\n\n"
+            "You are a social-media simulation expert. Return pure JSON. "
+            "Time configuration must match the daily rhythm of the target user group described in the simulation scenario."
+        )
 
         try:
             return self._call_llm_with_retry(prompt, system_prompt)
@@ -702,8 +708,15 @@ class SimulationConfigGenerator:
     "reasoning": "<简要说明>"
 }}"""
 
-        system_prompt = "你是舆论分析专家。返回纯JSON格式。注意 poster_type 必须精确匹配可用实体类型。"
-        system_prompt = f"{system_prompt}\n\n{get_language_instruction()}\nIMPORTANT: The 'poster_type' field value MUST be in English PascalCase exactly matching the available entity types. Only 'content', 'narrative_direction', 'hot_topics' and 'reasoning' fields should use the specified language."
+        lang_instruction = get_language_instruction()
+        system_prompt = (
+            f"{lang_instruction}\n"
+            "CRITICAL: The 'content', 'narrative_direction', 'hot_topics' and 'reasoning' fields MUST be written in the language specified above. "
+            "Do NOT output Chinese unless that is the target language.\n"
+            "IMPORTANT: The 'poster_type' field value MUST be in English PascalCase exactly matching the available entity types.\n\n"
+            "You are a public-opinion analysis expert. Return pure JSON. "
+            "Note: poster_type must exactly match one of the available entity types."
+        )
 
         try:
             return self._call_llm_with_retry(prompt, system_prompt)
@@ -866,8 +879,16 @@ class SimulationConfigGenerator:
     ]
 }}"""
 
-        system_prompt = "你是社交媒体行为分析专家。返回纯JSON，配置需符合模拟场景中目标用户群体的作息习惯。"
-        system_prompt = f"{system_prompt}\n\n{get_language_instruction()}\nIMPORTANT: The 'stance' field value MUST be one of the English strings: 'supportive', 'opposing', 'neutral', 'observer'. All JSON field names and numeric values must remain unchanged. Only natural language text fields should use the specified language."
+        lang_instruction = get_language_instruction()
+        system_prompt = (
+            f"{lang_instruction}\n"
+            "CRITICAL: All free-text / natural-language field values MUST be written in the language specified above. "
+            "Do NOT output Chinese unless that is the target language.\n"
+            "IMPORTANT: The 'stance' field value MUST be one of the English strings: 'supportive', 'opposing', 'neutral', 'observer'. "
+            "All JSON field names and numeric values must remain unchanged.\n\n"
+            "You are a social-media behaviour analysis expert. Return pure JSON. "
+            "Configurations must match the daily rhythm of the target user group described in the simulation scenario."
+        )
 
         try:
             result = self._call_llm_with_retry(prompt, system_prompt)
