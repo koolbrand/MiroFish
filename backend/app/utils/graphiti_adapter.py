@@ -205,8 +205,13 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             # Extract the first complete balanced JSON object from the cleaned
             # content.  Using a greedy regex can merge multiple JSON objects
             # into one string, causing JSONDecodeError "Extra data".
-            content = _extract_first_json_object(content)
-            data = json.loads(content)
+            json_str = _extract_first_json_object(content)
+            if not json_str or json_str == content and '{' not in json_str:
+                # No JSON object found — return an empty validated model so
+                # graphiti-core gets a valid (empty) response instead of a crash.
+                # graphiti will log the retry but continue gracefully.
+                return response_model().model_dump()
+            data = json.loads(json_str)
             # MiniMax (and other reasoning models) invent field name variants
             # even with json_schema response_format.  Fuzzy-rename unknown keys
             # to their closest expected match before Pydantic validates.
@@ -268,6 +273,11 @@ class FakeEdge:
     target_node_uuid: str = ""
     created_at: Optional[datetime] = None
     expired_at: Optional[datetime] = None
+    attributes: dict = None
+
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
 
 @dataclass
@@ -280,6 +290,22 @@ class FakeEpisode:
 class FakeSearchResult:
     edges: list
     nodes: list
+
+
+def _neo4j_val(v):
+    """Convert Neo4j driver types to plain Python JSON-serializable values."""
+    # neo4j.time types (DateTime, Date, Time, Duration) have isoformat()
+    if hasattr(v, 'isoformat'):
+        return v.isoformat()
+    # Neo4j Point or other exotic types → stringify
+    if hasattr(v, '__class__') and v.__class__.__module__.startswith('neo4j'):
+        return str(v)
+    return v
+
+
+def _neo4j_props(props: dict) -> dict:
+    """Recursively sanitize a Neo4j property dict for JSON serialization."""
+    return {k: _neo4j_val(v) for k, v in props.items()}
 
 
 class GraphitiNodeClient:
@@ -297,7 +323,7 @@ class GraphitiNodeClient:
             if not record:
                 return FakeNode(uuid_=uuid_, name="Unknown", labels=["Entity"])
             node = record["n"]
-            props = dict(node.items())
+            props = _neo4j_props(dict(node.items()))
             return FakeNode(
                 uuid_=uuid_,
                 name=props.get("name", "Unknown"),
@@ -321,7 +347,7 @@ class GraphitiNodeClient:
             edges = []
             for record in result:
                 rel = record["r"]
-                props = dict(rel.items())
+                props = _neo4j_props(dict(rel.items()))
                 edges.append(FakeEdge(
                     uuid_=props.get("uuid", str(uuid.uuid4())),
                     name=props.get("name", ""),
@@ -350,13 +376,13 @@ class GraphitiNodeClient:
             nodes = []
             for record in result:
                 node = record["n"]
-                props = dict(node.items())
+                props = _neo4j_props(dict(node.items()))
                 nodes.append(FakeNode(
                     uuid_=props.get("uuid", str(uuid.uuid4())),
                     name=props.get("name", "Unknown"),
                     labels=list(node.labels),
                     summary=props.get("summary", ""),
-                    attributes=props
+                    attributes={k: v for k, v in props.items() if k not in ("uuid", "name", "summary", "group_id")}
                 ))
             return nodes
 
@@ -389,7 +415,7 @@ class GraphitiEdgeClient:
             edges = []
             for record in result:
                 rel = record["r"]
-                props = dict(rel.items())
+                props = _neo4j_props(dict(rel.items()))
                 edges.append(FakeEdge(
                     uuid_=props.get("uuid", str(uuid.uuid4())),
                     name=props.get("name", ""),
@@ -398,6 +424,10 @@ class GraphitiEdgeClient:
                     target_node_uuid=record["tgt"],
                     created_at=props.get("created_at"),
                     expired_at=props.get("expired_at"),
+                    attributes={k: v for k, v in props.items()
+                                if k not in ("uuid", "name", "fact", "group_id",
+                                             "created_at", "expired_at", "source_node_uuid",
+                                             "target_node_uuid")},
                 ))
             return edges
 
