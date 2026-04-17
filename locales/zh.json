@@ -313,7 +313,8 @@
     "graphDataLoading": "图谱数据加载中...",
     "waitingOntology": "等待本体生成...",
     "toggleMaximize": "最大化/还原",
-    "closeHint": "关闭提示"
+    "closeHint": "关闭提示",
+    "showEdgeLabels": "显示关系标签"
   },
   "history": {
     "title": "推演记录",

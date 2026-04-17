@@ -230,7 +230,7 @@
         <input type="checkbox" v-model="showEdgeLabels" />
         <span class="slider"></span>
       </label>
-      <span class="toggle-label">Show Edge Labels</span>
+      <span class="toggle-label">{{ $t('graph.showEdgeLabels') }}</span>
     </div>
   </div>
 </template>
@@ -252,6 +252,25 @@ const graphContainer = ref(null)
 const graphSvg = ref(null)
 const selectedItem = ref(null)
 const showEdgeLabels = ref(true) // 默认显示边标签
+
+// Edge-label display formatter.
+// Backends produce SCREAMING_SNAKE_CASE predicates like
+// "GENERATED_PROFESSIONAL_BRAND_KIT_FOR" which overflow the canvas and
+// collide with neighbouring labels. Convert to a short, human-readable
+// form: strip underscores, lowercase words (keep first char uppercase),
+// then clamp to a max of ~18 chars with an ellipsis so long predicates
+// stay compact. The full label is still visible in the details panel.
+const MAX_EDGE_LABEL_CHARS = 18
+const formatEdgeLabel = (raw) => {
+  if (!raw) return ''
+  const humanized = String(raw)
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/^(.)/, c => c.toUpperCase())
+    .trim()
+  if (humanized.length <= MAX_EDGE_LABEL_CHARS) return humanized
+  return humanized.slice(0, MAX_EDGE_LABEL_CHARS - 1).trimEnd() + '…'
+}
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
 const wasSimulating = ref(false) // 追踪之前是否在模拟中
@@ -619,7 +638,7 @@ const renderGraph = () => {
   const linkLabels = linkGroup.selectAll('text')
     .data(edges)
     .enter().append('text')
-    .text(d => d.name)
+    .text(d => formatEdgeLabel(d.name))
     .attr('font-size', '9px')
     .attr('fill', '#666')
     .attr('text-anchor', 'middle')
@@ -636,12 +655,15 @@ const renderGraph = () => {
       // 高亮对应的边
       link.filter(l => l === d).attr('stroke', '#3498db').attr('stroke-width', 3)
       d3.select(event.target).attr('fill', '#3498db')
-      
+
       selectedItem.value = {
         type: 'edge',
         data: d.rawData
       }
     })
+  // Native SVG tooltip — hover over the truncated label to see the full
+  // predicate name, so shortening the display doesn't lose information.
+  linkLabels.append('title').text(d => d.name)
   
   // 保存引用供外部控制显隐
   linkLabelsRef = linkLabels

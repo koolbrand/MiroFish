@@ -313,7 +313,8 @@
     "graphDataLoading": "Loading graph data...",
     "waitingOntology": "Waiting for ontology generation...",
     "toggleMaximize": "Maximize/Restore",
-    "closeHint": "Close hint"
+    "closeHint": "Close hint",
+    "showEdgeLabels": "Show edge labels"
   },
   "history": {
     "title": "Simulation History",

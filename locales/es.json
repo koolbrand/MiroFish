@@ -313,7 +313,8 @@
     "graphDataLoading": "Cargando datos del grafo...",
     "waitingOntology": "Esperando generación de ontología...",
     "toggleMaximize": "Maximizar/Restaurar",
-    "closeHint": "Cerrar sugerencia"
+    "closeHint": "Cerrar sugerencia",
+    "showEdgeLabels": "Mostrar etiquetas de relación"
   },
   "history": {
     "title": "Historial de simulaciones",
