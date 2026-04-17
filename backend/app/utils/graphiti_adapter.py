@@ -57,12 +57,35 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             else self.model
         )
 
-        response = await self.client.chat.completions.create(
+        kwargs: dict = dict(
             model=model,
             messages=openai_messages,
             temperature=self.temperature,
             max_tokens=max_tokens or self.max_tokens,
         )
+
+        # Pass the Pydantic model's JSON schema as response_format so the model
+        # uses the exact field names (e.g. "name" not "entity_text").
+        # Most OpenAI-compatible providers (incl. MiniMax) support json_schema.
+        # If they don't, we fall back to json_object mode below.
+        if response_model is not None:
+            schema = response_model.model_json_schema()
+            kwargs['response_format'] = {
+                'type': 'json_schema',
+                'json_schema': {
+                    'name': schema.get('title', response_model.__name__),
+                    'schema': schema,
+                    'strict': False,
+                },
+            }
+
+        try:
+            response = await self.client.chat.completions.create(**kwargs)
+        except Exception:
+            # Provider doesn't support json_schema — fall back to json_object
+            if response_model is not None:
+                kwargs['response_format'] = {'type': 'json_object'}
+            response = await self.client.chat.completions.create(**kwargs)
 
         content = response.choices[0].message.content or ""
 
@@ -70,7 +93,7 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
 
         # Strip markdown code fences (```json ... ```)
-        content = re.sub(r'^```(?:json)?\s*', '', content).rstrip('` \n').strip()
+        content = re.sub(r'^```(?:json)?\s*', '', content).rstrip('`\n ').strip()
 
         if response_model is not None:
             # Extract the outermost JSON object from the cleaned content
