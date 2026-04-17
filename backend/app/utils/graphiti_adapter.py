@@ -11,7 +11,8 @@ from typing import Optional
 
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
-from graphiti_core.llm_client.openai_client import OpenAIClient, OpenAIClientConfig
+from graphiti_core.llm_client.openai_client import OpenAIClient
+from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from neo4j import GraphDatabase
 
@@ -200,7 +201,7 @@ class GraphitiGraphClient:
 
     def __init__(self):
         llm_client = OpenAIClient(
-            config=OpenAIClientConfig(
+            config=LLMConfig(
                 api_key=Config.LLM_API_KEY,
                 base_url=Config.LLM_BASE_URL,
                 model=Config.LLM_MODEL_NAME,
