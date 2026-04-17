@@ -3,6 +3,7 @@ Graphiti adapter — wraps graphiti-core async API in sync interface
 compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
+import re
 import threading
 import uuid
 from dataclasses import dataclass
@@ -12,12 +13,73 @@ from typing import Optional
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.llm_client.openai_client import OpenAIClient
-from graphiti_core.llm_client.config import LLMConfig
+from graphiti_core.llm_client.config import LLMConfig, ModelSize, DEFAULT_MAX_TOKENS
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from neo4j import GraphDatabase
 
 from ..config import Config
+
+
+# ---------------------------------------------------------------------------
+# Custom LLM client that handles reasoning models (e.g. MiniMax M2.7) which
+# prepend <think>...</think> tokens before the JSON payload.
+#
+# graphiti-core's OpenAIClient uses `beta.chat.completions.parse()` which
+# expects pure JSON.  MiniMax M2.7 (and other chain-of-thought models) return:
+#   <think>...reasoning...</think>{"entities": [...]}
+# which causes a Pydantic JSON validation error on the first character.
+#
+# Fix: use regular `chat.completions.create()`, strip the <think> block,
+# then validate the remaining JSON against the requested Pydantic model.
+# ---------------------------------------------------------------------------
+class ThinkingAwareOpenAIClient(OpenAIClient):
+    """OpenAIClient subclass that strips <think> reasoning tokens before parsing."""
+
+    async def _generate_response(
+        self,
+        messages,
+        response_model=None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        model_size: ModelSize = ModelSize.medium,
+    ):
+        openai_messages = []
+        for m in messages:
+            m.content = self._clean_input(m.content)
+            if m.role == 'user':
+                openai_messages.append({'role': 'user', 'content': m.content})
+            elif m.role == 'system':
+                openai_messages.append({'role': 'system', 'content': m.content})
+
+        model = (
+            (self.small_model or self.model)
+            if model_size == ModelSize.small
+            else self.model
+        )
+
+        response = await self.client.chat.completions.create(
+            model=model,
+            messages=openai_messages,
+            temperature=self.temperature,
+            max_tokens=max_tokens or self.max_tokens,
+        )
+
+        content = response.choices[0].message.content or ""
+
+        # Strip <think>...</think> reasoning blocks (MiniMax M2.7, DeepSeek-R1, etc.)
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+
+        # Strip markdown code fences (```json ... ```)
+        content = re.sub(r'^```(?:json)?\s*', '', content).rstrip('` \n').strip()
+
+        if response_model is not None:
+            # Extract the outermost JSON object from the cleaned content
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                content = match.group(0)
+            return response_model.model_validate_json(content).model_dump()
+
+        return {"content": content}
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +279,7 @@ class GraphitiGraphClient:
     """Main graph client — mimics Zep Cloud's client.graph interface."""
 
     def __init__(self):
-        llm_client = OpenAIClient(
+        llm_client = ThinkingAwareOpenAIClient(
             config=LLMConfig(
                 api_key=Config.LLM_API_KEY,
                 base_url=Config.LLM_BASE_URL,
