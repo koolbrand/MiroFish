@@ -3,7 +3,7 @@ Graphiti adapter — wraps graphiti-core async API in sync interface
 compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
-import time
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,18 +20,34 @@ from neo4j import GraphDatabase
 from ..config import Config
 
 
+# ---------------------------------------------------------------------------
+# Single persistent event loop running in a background daemon thread.
+# All Graphiti / Neo4j async calls are submitted here via
+# asyncio.run_coroutine_threadsafe(), which guarantees every coroutine
+# runs in the SAME loop regardless of which Flask worker thread calls it.
+# This fixes the "Future attached to a different loop" RuntimeError that
+# occurs when Flask's threaded mode creates a new event loop per thread.
+# ---------------------------------------------------------------------------
+_bg_loop: asyncio.AbstractEventLoop | None = None
+_bg_loop_lock = threading.Lock()
+
+
+def _get_bg_loop() -> asyncio.AbstractEventLoop:
+    """Return the shared background event loop, starting it if needed."""
+    global _bg_loop
+    with _bg_loop_lock:
+        if _bg_loop is None or not _bg_loop.is_running():
+            _bg_loop = asyncio.new_event_loop()
+            t = threading.Thread(target=_bg_loop.run_forever, daemon=True, name="graphiti-event-loop")
+            t.start()
+    return _bg_loop
+
+
 def _run(coro):
-    """Run async coroutine from sync context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
-        return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
+    """Run async coroutine from any sync context using the shared event loop."""
+    loop = _get_bg_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result()  # blocks until the coroutine finishes
 
 
 @dataclass
