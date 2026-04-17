@@ -144,14 +144,90 @@ _FIELD_ALIASES: dict[str, str] = {
 }
 
 
+def _default_for_type(type_name):
+    """Return a type-appropriate default value for a JSON schema type."""
+    return {
+        'string': '',
+        'integer': 0,
+        'number': 0.0,
+        'boolean': False,
+        'array': [],
+        'object': {},
+        'null': None,
+    }.get(type_name, None)
+
+
+def _autowrap_flat_response(data: dict, schema: dict, root: dict) -> dict:
+    """
+    Handle MiniMax's habit of returning a flat single item instead of the
+    expected wrapper-with-list.  E.g. for ExtractedEntities:
+      Got:      {"entity_text": "X", "entity_type_id": 0}
+      Expected: {"extracted_entities": [{"name": "X", "entity_type_id": 0}]}
+
+    Detect when the top-level keys don't match any wrapper property, but DO
+    match the inner item schema of a list property, and auto-wrap.
+    """
+    if not isinstance(data, dict) or not data or 'properties' not in schema:
+        return data
+    expected_top = set(schema['properties'].keys())
+    if set(data.keys()) & expected_top:
+        return data  # already has a valid wrapper key
+
+    # Find a single "list of object" property in the wrapper schema
+    for prop_name, prop_schema in schema['properties'].items():
+        resolved_prop = _resolve_ref(prop_schema, root)
+        if not isinstance(resolved_prop, dict) or resolved_prop.get('type') != 'array':
+            continue
+        item_schema = _resolve_ref(resolved_prop.get('items', {}), root)
+        item_props = set(item_schema.get('properties', {}).keys()) if isinstance(item_schema, dict) else set()
+        if not item_props:
+            continue
+        # Does our flat data look like an item of this list?
+        key_matches = sum(
+            1 for k in data
+            if k in item_props or _FIELD_ALIASES.get(k) in item_props
+        )
+        if key_matches >= 1:
+            wrapped = {prop_name: [dict(data)]}
+            data.clear()
+            data.update(wrapped)
+            return data
+    return data
+
+
+def _fill_missing_required(data: dict, schema: dict):
+    """
+    When the LLM returns {} or omits required fields, fill them with
+    type-appropriate defaults so Pydantic validation succeeds.
+    Applies only to fields marked as `required` in the JSON schema.
+    """
+    if not isinstance(data, dict) or 'properties' not in schema:
+        return
+    required = schema.get('required', [])
+    for field in required:
+        if field in data:
+            continue
+        field_schema = schema['properties'].get(field, {})
+        if not isinstance(field_schema, dict):
+            continue
+        type_name = field_schema.get('type')
+        # Handle anyOf with null union (Optional fields)
+        if type_name is None and 'anyOf' in field_schema:
+            types = [b.get('type') for b in field_schema['anyOf'] if isinstance(b, dict)]
+            type_name = next((t for t in types if t != 'null'), 'null')
+        data[field] = _default_for_type(type_name)
+
+
 def _normalize_json_to_schema(data, schema: dict, root: dict = None):
     """
     Recursively rename / coerce dict keys to match schema field names.
 
     Strategy (applied in order):
+    0. Auto-wrap flat responses into their expected list wrapper.
     1. Explicit aliases (_FIELD_ALIASES) — covers all known LLM variants.
     2. Fuzzy matching (difflib, cutoff 0.6) — catches novel variations.
     3. Type coercion — if schema expects str but value is int/float, stringify.
+    4. Fill missing required fields with type-appropriate defaults.
     """
     if root is None:
         root = schema
@@ -169,6 +245,9 @@ def _normalize_json_to_schema(data, schema: dict, root: dict = None):
                     break
 
     if isinstance(data, dict) and 'properties' in schema:
+        # --- Pass 0: auto-wrap flat responses ---
+        _autowrap_flat_response(data, schema, root)
+
         expected = set(schema['properties'].keys())
 
         # --- Pass 1: explicit aliases ---
@@ -194,7 +273,7 @@ def _normalize_json_to_schema(data, schema: dict, root: dict = None):
             prop_type = subschema.get('type') if isinstance(subschema, dict) else None
 
             # Coerce: schema expects string but model returned a number/bool
-            if prop_type == 'string' and not isinstance(val, str):
+            if prop_type == 'string' and not isinstance(val, str) and val is not None:
                 data[key] = str(val)
             elif isinstance(val, dict):
                 _normalize_json_to_schema(val, subschema, root)
@@ -204,6 +283,9 @@ def _normalize_json_to_schema(data, schema: dict, root: dict = None):
                     for item in val:
                         if isinstance(item, dict):
                             _normalize_json_to_schema(item, item_schema, root)
+
+        # --- Pass 4: fill missing required fields ---
+        _fill_missing_required(data, schema)
 
     elif isinstance(data, list) and isinstance(schema, dict) and 'items' in schema:
         for item in data:
