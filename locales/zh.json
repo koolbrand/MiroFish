@@ -82,7 +82,13 @@
     "layoutGraph": "图谱",
     "layoutSplit": "双栏",
     "layoutWorkbench": "工作台",
-    "stepNames": ["图谱构建", "环境搭建", "开始模拟", "报告生成", "深度互动"]
+    "stepNames": [
+      "图谱构建",
+      "环境搭建",
+      "开始模拟",
+      "报告生成",
+      "深度互动"
+    ]
   },
   "step1": {
     "ontologyGeneration": "本体生成",
@@ -398,7 +404,12 @@
     "envRunning": "环境正在运行，可以接收Interview命令",
     "envNotRunningShort": "环境未运行或已关闭",
     "requireGraphIdAndQuery": "请提供 graph_id 和 query",
-    "initReportAgent": "初始化Report Agent..."
+    "initReportAgent": "初始化Report Agent...",
+    "simRunnerExitCode": "模拟失败（退出码 {code}）。{hint}",
+    "simRunnerErrorDetail": "详情：{error}",
+    "simRunnerOutOfMemory": "模拟进程内存不足被系统终止。请减少 Agent 数量或模拟时长，或为服务器分配更多内存。",
+    "simRunnerKilled": "模拟进程被系统终止（信号 {code}）。",
+    "simRunnerGenericFail": "进程异常退出。"
   },
   "progress": {
     "initGraphService": "初始化图谱构建服务...",

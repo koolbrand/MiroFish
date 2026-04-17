@@ -20,7 +20,7 @@ from queue import Queue
 
 from ..config import Config
 from ..utils.logger import get_logger
-from ..utils.locale import get_locale, set_locale
+from ..utils.locale import get_locale, set_locale, t
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
@@ -539,8 +539,23 @@ class SimulationRunner:
                             error_info = f.read()[-2000:]  # 取最后2000字符
                 except Exception:
                     pass
-                state.error = f"进程退出码: {exit_code}, 错误: {error_info}"
-                logger.error(f"模拟失败: {simulation_id}, error={state.error}")
+
+                # Build a localized, actionable error message.
+                # exit_code < 0 means the process was killed by signal |exit_code|.
+                # -9 = SIGKILL (commonly the Linux OOM-killer);
+                # -15 = SIGTERM (shutdown/forced stop).
+                if exit_code == -9:
+                    hint = t('api.simRunnerOutOfMemory')
+                elif exit_code is not None and exit_code < 0:
+                    hint = t('api.simRunnerKilled', code=abs(exit_code))
+                else:
+                    hint = t('api.simRunnerGenericFail')
+
+                state.error = t('api.simRunnerExitCode', code=exit_code, hint=hint)
+                if error_info:
+                    state.error = f"{state.error} {t('api.simRunnerErrorDetail', error=error_info[-500:])}"
+
+                logger.error(f"模拟失败: {simulation_id}, exit_code={exit_code}")
             
             state.twitter_running = False
             state.reddit_running = False

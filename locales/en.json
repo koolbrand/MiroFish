@@ -82,7 +82,13 @@
     "layoutGraph": "Graph",
     "layoutSplit": "Split",
     "layoutWorkbench": "Workbench",
-    "stepNames": ["Graph Build", "Env Setup", "Run Simulation", "Report Generation", "Deep Interaction"]
+    "stepNames": [
+      "Graph Build",
+      "Env Setup",
+      "Run Simulation",
+      "Report Generation",
+      "Deep Interaction"
+    ]
   },
   "step1": {
     "ontologyGeneration": "Ontology Generation",
@@ -398,7 +404,12 @@
     "envRunning": "Environment is running and ready for Interview commands",
     "envNotRunningShort": "Environment not running or closed",
     "requireGraphIdAndQuery": "Please provide graph_id and query",
-    "initReportAgent": "Initializing Report Agent..."
+    "initReportAgent": "Initializing Report Agent...",
+    "simRunnerExitCode": "Simulation failed (exit code {code}). {hint}",
+    "simRunnerErrorDetail": "Details: {error}",
+    "simRunnerOutOfMemory": "The simulation ran out of memory and the system killed the process. Reduce the number of agents or the simulation duration, or give the server more RAM.",
+    "simRunnerKilled": "Simulation process was terminated (signal {code}).",
+    "simRunnerGenericFail": "The process exited with an error."
   },
   "progress": {
     "initGraphService": "Initializing graph build service...",

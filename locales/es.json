@@ -82,7 +82,13 @@
     "layoutGraph": "Grafo",
     "layoutSplit": "Dividido",
     "layoutWorkbench": "Mesa de trabajo",
-    "stepNames": ["Construir grafo", "Configurar entorno", "Ejecutar simulación", "Generar informe", "Interacción profunda"]
+    "stepNames": [
+      "Construir grafo",
+      "Configurar entorno",
+      "Ejecutar simulación",
+      "Generar informe",
+      "Interacción profunda"
+    ]
   },
   "step1": {
     "ontologyGeneration": "Generación de ontología",
@@ -398,7 +404,12 @@
     "envRunning": "El entorno está en ejecución y listo para comandos de entrevista",
     "envNotRunningShort": "Entorno no en ejecución o cerrado",
     "requireGraphIdAndQuery": "Por favor proporciona graph_id y query",
-    "initReportAgent": "Inicializando agente de informes..."
+    "initReportAgent": "Inicializando agente de informes...",
+    "simRunnerExitCode": "La simulación falló (código de salida {code}). {hint}",
+    "simRunnerErrorDetail": "Detalles: {error}",
+    "simRunnerOutOfMemory": "La simulación se quedó sin memoria y el sistema mató el proceso. Reduce el número de agentes o la duración de la simulación, o aumenta la RAM del servidor.",
+    "simRunnerKilled": "El proceso de simulación fue terminado (señal {code}).",
+    "simRunnerGenericFail": "El proceso terminó con error."
   },
   "progress": {
     "initGraphService": "Inicializando servicio de construcción del grafo...",
