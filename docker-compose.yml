@@ -5,14 +5,10 @@ services:
     image: neo4j:5.26.2
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-mirofish2026}
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
     volumes:
       - neo4j_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 12
-      start_period: 90s
 
   mirofish:
     build:
@@ -22,8 +18,7 @@ services:
       - "8000:8000"
     restart: unless-stopped
     depends_on:
-      neo4j:
-        condition: service_healthy
+      - neo4j
     environment:
       - PYTHONUNBUFFERED=1
       - NODE_ENV=production
@@ -42,7 +37,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 90s
+      start_period: 60s
 
 volumes:
   neo4j_data:
