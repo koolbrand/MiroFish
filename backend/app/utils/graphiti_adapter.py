@@ -14,6 +14,7 @@ from graphiti_core.nodes import EpisodeType
 from graphiti_core.llm_client.openai_client import OpenAIClient
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
+from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from neo4j import GraphDatabase
 
 from ..config import Config
@@ -214,12 +215,20 @@ class GraphitiGraphClient:
                 embedding_model=Config.EMBEDDING_MODEL,
             )
         )
+        cross_encoder = OpenAIRerankerClient(
+            config=LLMConfig(
+                api_key=Config.LLM_API_KEY,
+                base_url=Config.LLM_BASE_URL,
+                model=Config.LLM_MODEL_NAME,
+            )
+        )
         self._graphiti = Graphiti(
             Config.NEO4J_URI,
             Config.NEO4J_USER,
             Config.NEO4J_PASSWORD,
             llm_client=llm_client,
             embedder=embedder,
+            cross_encoder=cross_encoder,
         )
         self._driver = GraphDatabase.driver(
             Config.NEO4J_URI,
