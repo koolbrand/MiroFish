@@ -91,16 +91,19 @@
       </div>
 
       <div class="action-controls">
-        <!-- Stop button — visible only while simulation is running -->
+        <!-- Stop button — compact icon-only while simulation is running -->
         <button
           v-if="phase === 1"
-          class="action-btn danger"
+          class="action-btn danger icon-only"
           :disabled="isStopping"
+          :title="isStopping ? $t('common.processing') : $t('step3.stopSimulation')"
+          :aria-label="$t('step3.stopSimulation')"
           @click="handleStopSimulation"
         >
           <span v-if="isStopping" class="loading-spinner-small"></span>
-          <span v-else>⏹</span>
-          {{ isStopping ? $t('common.processing') : $t('step3.stopSimulation') }}
+          <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="1"></rect>
+          </svg>
         </button>
 
         <button
@@ -895,11 +898,20 @@ onUnmounted(() => {
 }
 
 /* Action Button */
+.action-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 20px;
+  height: 38px;
   font-size: 13px;
   font-weight: 600;
   border: none;
@@ -908,6 +920,8 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .action-btn.primary {
@@ -927,6 +941,17 @@ onUnmounted(() => {
 
 .action-btn.danger:hover:not(:disabled) {
   background: rgba(255, 68, 68, 0.1);
+}
+
+/* Compact icon-only variant (used for Stop button) */
+.action-btn.icon-only {
+  width: 38px;
+  padding: 0;
+  gap: 0;
+}
+
+.action-btn.icon-only svg {
+  display: block;
 }
 
 .action-btn:disabled {
