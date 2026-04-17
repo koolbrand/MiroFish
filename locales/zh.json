@@ -1,4 +1,11 @@
 {
+  "login": {
+    "email": "电子邮件",
+    "password": "密码",
+    "signIn": "登录",
+    "invalidCredentials": "凭据无效，请检查您的邮箱和密码。",
+    "protected": "由 PocketBase 身份验证保护"
+  },
   "common": {
     "confirm": "确认",
     "cancel": "取消",

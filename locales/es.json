@@ -1,4 +1,11 @@
 {
+  "login": {
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "invalidCredentials": "Credenciales incorrectas. Verifica tu email y contraseña.",
+    "protected": "Protegido por PocketBase Authentication"
+  },
   "common": {
     "confirm": "Confirmar",
     "cancel": "Cancelar",
