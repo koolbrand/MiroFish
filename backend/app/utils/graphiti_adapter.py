@@ -12,6 +12,7 @@ from typing import Optional
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 from graphiti_core.llm_client.openai_client import OpenAIClient, OpenAIClientConfig
+from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from neo4j import GraphDatabase
 
 from ..config import Config
@@ -205,11 +206,19 @@ class GraphitiGraphClient:
                 model=Config.LLM_MODEL_NAME,
             )
         )
+        embedder = OpenAIEmbedder(
+            config=OpenAIEmbedderConfig(
+                api_key=Config.LLM_API_KEY,
+                base_url=Config.LLM_BASE_URL,
+                embedding_model=Config.EMBEDDING_MODEL,
+            )
+        )
         self._graphiti = Graphiti(
             Config.NEO4J_URI,
             Config.NEO4J_USER,
             Config.NEO4J_PASSWORD,
             llm_client=llm_client,
+            embedder=embedder,
         )
         self._driver = GraphDatabase.driver(
             Config.NEO4J_URI,

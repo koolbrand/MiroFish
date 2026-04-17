@@ -36,6 +36,9 @@ class Config:
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
     NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'mirofish2026')
+
+    # Embedding配置（Graphiti用，默认复用LLM的API）
+    EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
     
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB

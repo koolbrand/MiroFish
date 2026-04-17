@@ -19,27 +19,45 @@
     "env_variables": [
       {
         "key": "LLM_API_KEY",
-        "description": "API Key for LLM provider",
+        "description": "API Key for LLM provider (MiniMax / OpenAI compatible)",
         "required": true,
-        "example": "sk-..."
+        "example": "eyJ..."
       },
       {
         "key": "LLM_BASE_URL",
         "description": "Base URL for LLM API",
         "required": true,
-        "default": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        "default": "https://api.minimaxi.chat/v1"
       },
       {
         "key": "LLM_MODEL_NAME",
-        "description": "Model name to use",
+        "description": "Chat model name",
         "required": true,
-        "default": "qwen-plus"
+        "default": "MiniMax-M2.7"
       },
       {
-        "key": "ZEP_API_KEY",
-        "description": "Zep Memory API Key",
+        "key": "EMBEDDING_MODEL",
+        "description": "Embedding model name (must be supported by LLM_BASE_URL provider)",
+        "required": false,
+        "default": "text-embedding-3-small"
+      },
+      {
+        "key": "NEO4J_URI",
+        "description": "Neo4j Bolt URI (auto-set by docker-compose)",
+        "required": false,
+        "default": "bolt://neo4j:7687"
+      },
+      {
+        "key": "NEO4J_USER",
+        "description": "Neo4j username",
+        "required": false,
+        "default": "neo4j"
+      },
+      {
+        "key": "NEO4J_PASSWORD",
+        "description": "Neo4j password — set a strong value",
         "required": true,
-        "example": "zep_..."
+        "example": "mirofish2026"
       },
       {
         "key": "DEBUG",
@@ -67,7 +85,7 @@
   },
   "requirements": {
     "cpu": "2 cores (recommended 4)",
-    "ram": "2GB (recommended 4GB)",
-    "disk": "10GB"
+    "ram": "4GB (Neo4j needs at least 1GB)",
+    "disk": "20GB"
   }
 }
