@@ -335,23 +335,47 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             max_tokens=max_tokens or self.max_tokens,
         )
 
-        # MiniMax M2.7 does NOT support response_format=json_schema (only the
-        # legacy MiniMax-Text-01 model does).  Using json_schema silently fails:
-        # M2.7 ignores the schema and generates its own field naming convention
-        # ("subject_id", "object_id" instead of "source_entity_name", etc.)
-        #
-        # json_object mode is supported and makes M2.7 follow the prompt text,
-        # which explicitly describes the expected field names (graphiti prompts
-        # are detailed).  Our normalization layer catches any remaining drift.
-        if response_model is not None:
-            kwargs['response_format'] = {'type': 'json_object'}
+        # Pick response_format mode based on model capability:
+        #   - MiniMax-Text-01, gpt-4o*, gpt-4-turbo → support json_schema
+        #     (strict, schema-enforced output — best for extraction quality)
+        #   - MiniMax-M2.7, DeepSeek-R1 (reasoning models) → only json_object
+        #     (schema is silently ignored → output drifts to odd field names)
+        # We try json_schema first when supported, then fall back step by step.
+        model_lower = (model or '').lower()
+        supports_json_schema = any(k in model_lower for k in (
+            'minimax-text', 'gpt-4o', 'gpt-4-turbo', 'gpt-4.1',
+        ))
 
-        try:
-            response = await self.client.chat.completions.create(**kwargs)
-        except Exception:
-            # Some providers reject json_object too — retry without it
-            kwargs.pop('response_format', None)
-            response = await self.client.chat.completions.create(**kwargs)
+        attempts: list[dict] = []
+        if response_model is not None:
+            if supports_json_schema:
+                attempts.append({
+                    'type': 'json_schema',
+                    'json_schema': {
+                        'name': response_model.__name__,
+                        'schema': response_model.model_json_schema(),
+                        'strict': False,  # strict=True rejects $ref/$defs
+                    },
+                })
+            attempts.append({'type': 'json_object'})
+        attempts.append(None)  # last resort: no response_format
+
+        response = None
+        last_exc: Exception | None = None
+        for rf in attempts:
+            try_kwargs = dict(kwargs)
+            if rf is None:
+                try_kwargs.pop('response_format', None)
+            else:
+                try_kwargs['response_format'] = rf
+            try:
+                response = await self.client.chat.completions.create(**try_kwargs)
+                break
+            except Exception as e:
+                last_exc = e
+                continue
+        if response is None:
+            raise last_exc  # type: ignore[misc]
 
         content = response.choices[0].message.content or ""
 
@@ -603,11 +627,16 @@ class GraphitiGraphClient:
     """Main graph client — mimics Zep Cloud's client.graph interface."""
 
     def __init__(self):
+        # Use the dedicated Graphiti model (typically MiniMax-Text-01) for
+        # knowledge-graph extraction.  Reasoning models like MiniMax-M2.7
+        # don't honor response_format=json_schema, producing invalid output
+        # ~50% of the time.  Simulation code keeps using LLM_MODEL_NAME.
+        graphiti_model = Config.GRAPHITI_LLM_MODEL_NAME
         llm_client = ThinkingAwareOpenAIClient(
             config=LLMConfig(
                 api_key=Config.LLM_API_KEY,
                 base_url=Config.LLM_BASE_URL,
-                model=Config.LLM_MODEL_NAME,
+                model=graphiti_model,
             )
         )
         embedder = OpenAIEmbedder(
@@ -621,7 +650,7 @@ class GraphitiGraphClient:
             config=LLMConfig(
                 api_key=Config.LLM_API_KEY,
                 base_url=Config.LLM_BASE_URL,
-                model=Config.LLM_MODEL_NAME,
+                model=graphiti_model,
             )
         )
         self._graphiti = Graphiti(

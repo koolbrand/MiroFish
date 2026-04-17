@@ -31,6 +31,18 @@ class Config:
     LLM_API_KEY = os.environ.get('LLM_API_KEY')
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+
+    # Graphiti-specific LLM config (knowledge graph extraction).
+    # Uses a DIFFERENT model than the simulation LLM because graph extraction
+    # needs reliable structured output (response_format=json_schema).
+    # MiniMax-Text-01 supports json_schema natively; MiniMax-M2.7 (reasoning
+    # model) does NOT and falls back to json_object + prompt-steering, which
+    # produces very flaky extractions.
+    # Falls back to LLM_MODEL_NAME when the dedicated var is unset.
+    GRAPHITI_LLM_MODEL_NAME = (
+        os.environ.get('GRAPHITI_LLM_MODEL_NAME')
+        or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+    )
     
     # Neo4j配置（自托管Graphiti）
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
