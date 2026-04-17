@@ -33,6 +33,8 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL_NAME=${LLM_MODEL_NAME}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
+      - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs

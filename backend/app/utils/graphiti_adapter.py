@@ -288,8 +288,8 @@ class GraphitiGraphClient:
         )
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(
-                api_key=Config.LLM_API_KEY,
-                base_url=Config.LLM_BASE_URL,
+                api_key=Config.EMBEDDING_API_KEY,
+                base_url=Config.EMBEDDING_BASE_URL,
                 embedding_model=Config.EMBEDDING_MODEL,
             )
         )

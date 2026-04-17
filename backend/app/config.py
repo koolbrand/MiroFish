@@ -37,8 +37,12 @@ class Config:
     NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'mirofish2026')
 
-    # Embedding配置（Graphiti用，默认复用LLM的API）
+    # Embedding配置（Graphiti用）
+    # Can use a different provider than the LLM (e.g. OpenAI or Aliyun for embeddings,
+    # MiniMax for LLM). Falls back to LLM credentials if not explicitly set.
     EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
+    EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY') or os.environ.get('LLM_API_KEY')
+    EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL') or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
