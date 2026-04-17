@@ -1,6 +1,21 @@
 version: '3.8'
 
 services:
+  neo4j:
+    image: neo4j:5.26.2
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-mirofish2026}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   mirofish:
     build:
       context: .
@@ -11,9 +26,15 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    depends_on:
+      neo4j:
+        condition: service_healthy
     environment:
       - PYTHONUNBUFFERED=1
       - NODE_ENV=production
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-mirofish2026}
     volumes:
       - ./backend/uploads:/app/backend/uploads
       - ./backend/logs:/app/backend/logs
@@ -26,6 +47,9 @@ services:
     # Para Coolify: descomenta esto si necesitas conectar a otros servicios
     # networks:
     #   - mirofish-network
+
+volumes:
+  neo4j_data:
 
 # networks:
 #   mirofish-network:

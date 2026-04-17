@@ -12,8 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from queue import Queue, Empty
 
-from zep_cloud.client import Zep
-
+from ..utils.graphiti_adapter import get_graphiti_client
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale
@@ -232,18 +231,13 @@ class ZepGraphMemoryUpdater:
     def __init__(self, graph_id: str, api_key: Optional[str] = None):
         """
         初始化更新器
-        
+
         Args:
-            graph_id: Zep图谱ID
-            api_key: Zep API Key（可选，默认从配置读取）
+            graph_id: 图谱ID
+            api_key: 已废弃，保留参数以保持兼容性
         """
         self.graph_id = graph_id
-        self.api_key = api_key or Config.ZEP_API_KEY
-        
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+        self.client = get_graphiti_client()
         
         # 活动队列
         self._activity_queue: Queue = Queue()

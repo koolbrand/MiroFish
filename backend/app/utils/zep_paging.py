@@ -1,7 +1,9 @@
-"""Zep Graph 分页读取工具。
+"""Graph 分页读取工具。
 
-Zep 的 node/edge 列表接口使用 UUID cursor 分页，
+node/edge 列表接口使用 UUID cursor 分页，
 本模块封装自动翻页逻辑（含单页重试），对调用方透明地返回完整列表。
+
+兼容 graphiti_adapter.GraphitiClient 接口（原Zep Cloud接口）。
 """
 
 from __future__ import annotations
@@ -9,9 +11,6 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from typing import Any
-
-from zep_cloud import InternalServerError
-from zep_cloud.client import Zep
 
 from .logger import get_logger
 
@@ -41,23 +40,23 @@ def _fetch_page_with_retry(
     for attempt in range(max_retries):
         try:
             return api_call(*args, **kwargs)
-        except (ConnectionError, TimeoutError, OSError, InternalServerError) as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             last_exception = e
             if attempt < max_retries - 1:
                 logger.warning(
-                    f"Zep {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {delay:.1f}s..."
+                    f"Graph {page_description} attempt {attempt + 1} failed: {str(e)[:100]}, retrying in {delay:.1f}s..."
                 )
                 time.sleep(delay)
                 delay *= 2
             else:
-                logger.error(f"Zep {page_description} failed after {max_retries} attempts: {str(e)}")
+                logger.error(f"Graph {page_description} failed after {max_retries} attempts: {str(e)}")
 
     assert last_exception is not None
     raise last_exception
 
 
 def fetch_all_nodes(
-    client: Zep,
+    client: Any,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_items: int = _MAX_NODES,
@@ -103,7 +102,7 @@ def fetch_all_nodes(
 
 
 def fetch_all_edges(
-    client: Zep,
+    client: Any,
     graph_id: str,
     page_size: int = _DEFAULT_PAGE_SIZE,
     max_retries: int = _DEFAULT_MAX_RETRIES,
