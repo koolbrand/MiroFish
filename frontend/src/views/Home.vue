@@ -46,40 +46,24 @@
         </div>
         
         <div class="hero-right">
-          <!-- Agent Network Visualization -->
+          <!-- Force-directed node simulation canvas -->
           <div class="agent-vis-panel">
-            <div class="vis-header">
+            <div class="vis-top-bar">
               <span class="vis-label">SIMULATION ENGINE</span>
               <span class="vis-live"><span class="live-dot"></span>ACTIVE</span>
             </div>
-
-            <div class="agent-grid">
-              <div
-                v-for="i in 88"
-                :key="i"
-                class="agent-node"
-                :class="nodeClass(i)"
-              ></div>
-            </div>
-
-            <div class="vis-footer">
-              <div class="vis-stats">
-                <div class="vis-stat">
-                  <span class="stat-val">1,000+</span>
-                  <span class="stat-lbl">agentes</span>
-                </div>
-                <div class="vis-stat">
-                  <span class="stat-val">5</span>
-                  <span class="stat-lbl">pasos</span>
-                </div>
-                <div class="vis-stat">
-                  <span class="stat-val">∞</span>
-                  <span class="stat-lbl">escenarios</span>
-                </div>
+            <div class="vis-canvas-wrap">
+              <canvas ref="simCanvas" class="sim-canvas"></canvas>
+              <div class="sim-brand-overlay">
+                <BrandLogo class="sim-logo" />
+                <div class="sim-brand-sub">by <strong>KOOLBRAND</strong></div>
               </div>
-              <div class="vis-brand">
-                <BrandLogo class="vis-logo" />
-                <div class="vis-brand-sub">by <strong>KOOLBRAND</strong></div>
+            </div>
+            <div class="vis-bottom-bar">
+              <div class="vis-stat-row">
+                <div class="vis-stat"><span class="stat-val">1,000+</span><span class="stat-lbl">agentes</span></div>
+                <div class="vis-stat"><span class="stat-val">5</span><span class="stat-lbl">pasos</span></div>
+                <div class="vis-stat"><span class="stat-val">∞</span><span class="stat-lbl">escenarios</span></div>
               </div>
             </div>
           </div>
@@ -247,7 +231,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
@@ -256,14 +240,131 @@ import BrandLogo from '../components/BrandLogo.vue'
 
 const router = useRouter()
 
-// Agent network visualization — preset active/highlight node indices (1-based)
-const HIGHLIGHT_NODES = new Set([5, 18, 27, 40, 52, 63, 74, 83])
-const ACTIVE_NODES = new Set([2, 9, 14, 23, 31, 36, 44, 47, 55, 60, 67, 71, 79, 86])
-const nodeClass = (i) => {
-  if (HIGHLIGHT_NODES.has(i)) return 'node-highlight'
-  if (ACTIVE_NODES.has(i)) return 'node-active'
-  return ''
+// ── Canvas node-simulation ──────────────────────────────────────────────────
+const simCanvas = ref(null)
+let _animFrame = null
+
+const NODE_COLORS = [
+  '#FF4500', '#0D9488', '#7C3AED', '#1D4ED8',
+  '#DC2626', '#D97706', '#059669', '#0EA5E9',
+  '#9333EA', '#F59E0B', '#2563EB', '#DB2777',
+]
+
+const initNetworkCanvas = () => {
+  const canvas = simCanvas.value
+  if (!canvas) return
+
+  const setSize = () => {
+    canvas.width  = canvas.offsetWidth
+    canvas.height = canvas.offsetHeight
+  }
+  setSize()
+
+  const W = () => canvas.width
+  const H = () => canvas.height
+
+  // 26 nodes with random sizes and colours
+  const nodes = Array.from({ length: 26 }, (_, i) => ({
+    x:     30 + Math.random() * (W() - 60),
+    y:     30 + Math.random() * (H() - 60),
+    vx:    (Math.random() - 0.5) * 0.7,
+    vy:    (Math.random() - 0.5) * 0.7,
+    r:     4 + Math.random() * 11,
+    color: NODE_COLORS[i % NODE_COLORS.length],
+  }))
+
+  // Sparse random edges
+  const edges = []
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (Math.random() < 0.13) edges.push([i, j])
+    }
+  }
+
+  const ctx = canvas.getContext('2d')
+
+  const tick = () => {
+    const w = W(), h = H()
+    // Background
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, w, h)
+
+    // Subtle dot grid
+    ctx.fillStyle = 'rgba(255,255,255,0.035)'
+    for (let x = 18; x < w; x += 22)
+      for (let y = 18; y < h; y += 22) {
+        ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill()
+      }
+
+    // Edges — fade with distance
+    for (const [a, b] of edges) {
+      const na = nodes[a], nb = nodes[b]
+      const d = Math.hypot(na.x - nb.x, na.y - nb.y)
+      const alpha = Math.max(0, 0.18 - d / 700)
+      if (alpha <= 0) continue
+      ctx.beginPath()
+      ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`
+      ctx.lineWidth = 0.8
+      ctx.moveTo(na.x, na.y)
+      ctx.lineTo(nb.x, nb.y)
+      ctx.stroke()
+    }
+
+    // Physics + draw
+    const cx = w / 2, cy = h / 2
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]
+
+      // Gentle center gravity
+      n.vx += (cx - n.x) * 0.00025
+      n.vy += (cy - n.y) * 0.00025
+
+      // Node-node repulsion
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue
+        const m = nodes[j]
+        const dx = n.x - m.x, dy = n.y - m.y
+        const d  = Math.hypot(dx, dy) || 1
+        if (d < 70) {
+          const f = 0.35 / (d * d) * 70
+          n.vx += dx * f; n.vy += dy * f
+        }
+      }
+
+      // Speed cap
+      const spd = Math.hypot(n.vx, n.vy)
+      if (spd > 1.1) { n.vx *= 1.1 / spd; n.vy *= 1.1 / spd }
+
+      n.x += n.vx; n.y += n.vy
+
+      // Boundary bounce
+      if (n.x < n.r)      { n.x = n.r;      n.vx =  Math.abs(n.vx) }
+      if (n.x > w - n.r)  { n.x = w - n.r;  n.vx = -Math.abs(n.vx) }
+      if (n.y < n.r)      { n.y = n.r;       n.vy =  Math.abs(n.vy) }
+      if (n.y > h - n.r)  { n.y = h - n.r;  n.vy = -Math.abs(n.vy) }
+
+      // Draw node
+      ctx.beginPath()
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
+      ctx.fillStyle = n.color
+      ctx.fill()
+    }
+
+    _animFrame = requestAnimationFrame(tick)
+  }
+
+  tick()
 }
+
+onMounted(async () => {
+  await nextTick()
+  initNetworkCanvas()
+})
+
+onUnmounted(() => {
+  if (_animFrame) cancelAnimationFrame(_animFrame)
+})
+// ────────────────────────────────────────────────────────────────────────────
 
 // 表单数据
 const formData = ref({
@@ -555,39 +656,35 @@ const startSimulation = () => {
 }
 
 .hero-right {
-  flex: 0.9;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
+  gap: 16px;
+  align-items: stretch;
 }
 
-/* ── Agent Visualization Panel ── */
+/* ── Canvas simulation panel ── */
 .agent-vis-panel {
   width: 100%;
   background: #000;
-  color: #fff;
-  padding: 28px;
+  border: 1px solid #1a1a1a;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  border: 1px solid #1a1a1a;
+  overflow: hidden;
 }
 
-.vis-header {
+.vis-top-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid #111;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   letter-spacing: 1.5px;
 }
 
-.vis-label {
-  color: #555;
-  font-weight: 600;
-}
+.vis-label { color: #444; font-weight: 600; }
 
 .vis-live {
   display: flex;
@@ -607,49 +704,53 @@ const startSimulation = () => {
 
 @keyframes pulse-live {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.4; transform: scale(0.7); }
+  50%       { opacity: 0.35; transform: scale(0.65); }
 }
 
-/* Agent dots grid */
-.agent-grid {
-  display: grid;
-  grid-template-columns: repeat(11, 1fr);
-  gap: 9px;
+.vis-canvas-wrap {
+  position: relative;
+  height: 310px;
+  flex-shrink: 0;
 }
 
-.agent-node {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #222;
-  transition: background 0.3s;
+.sim-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.agent-node.node-active {
-  background: #444;
-}
-
-.agent-node.node-highlight {
-  background: #FF4500;
-  box-shadow: 0 0 6px rgba(255, 69, 0, 0.6);
-  animation: pulse-node 2.4s ease-in-out infinite;
-}
-
-@keyframes pulse-node {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
-}
-
-/* Footer: stats + brand */
-.vis-footer {
+.sim-brand-overlay {
+  position: absolute;
+  bottom: 18px;
+  right: 20px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: flex-end;
-  border-top: 1px solid #1a1a1a;
-  padding-top: 20px;
+  gap: 4px;
+  pointer-events: none;
 }
 
-.vis-stats {
+.sim-logo {
+  font-size: 30px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sim-brand-sub {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.sim-brand-sub strong { color: #FF4500; }
+
+.vis-bottom-bar {
+  padding: 14px 20px;
+  border-top: 1px solid #111;
+}
+
+.vis-stat-row {
   display: flex;
   gap: 28px;
 }
@@ -662,7 +763,7 @@ const startSimulation = () => {
 
 .stat-val {
   font-family: var(--font-mono);
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #fff;
   line-height: 1;
@@ -670,35 +771,10 @@ const startSimulation = () => {
 
 .stat-lbl {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
-  color: #444;
+  font-size: 0.58rem;
+  color: #333;
   letter-spacing: 1px;
   text-transform: uppercase;
-}
-
-.vis-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.vis-logo {
-  font-size: 28px;
-  color: #fff;
-}
-
-.vis-brand-sub {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  color: #444;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.vis-brand-sub strong {
-  color: #FF4500;
-  font-weight: 700;
 }
 
 .scroll-down-btn {
@@ -1073,12 +1149,8 @@ const startSimulation = () => {
     align-items: stretch;
   }
 
-  .agent-vis-panel {
-    padding: 20px;
-  }
-
-  .agent-grid {
-    grid-template-columns: repeat(11, 1fr);
+  .vis-canvas-wrap {
+    height: 240px;
   }
 }
 </style>
