@@ -93,6 +93,8 @@ class LLMClient:
         )
         # 清理markdown代码块标记
         cleaned_response = response.strip()
+
+        # Caso 1: la respuesta entera es un bloque de código
         cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
         cleaned_response = re.sub(r'\n?```\s*$', '', cleaned_response)
         cleaned_response = cleaned_response.strip()
@@ -100,5 +102,25 @@ class LLMClient:
         try:
             return json.loads(cleaned_response)
         except json.JSONDecodeError:
-            raise ValueError(t('api.llmInvalidJson', response=cleaned_response))
+            pass
+
+        # Caso 2: el LLM devolvió markdown extenso con el JSON embebido en un code block
+        # Buscar el primer bloque ```json ... ``` o ``` ... ```
+        match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?```', response, re.IGNORECASE)
+        if match:
+            try:
+                return json.loads(match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+
+        # Caso 3: el JSON está suelto en el texto — extraer el objeto más externo { ... }
+        first_brace = response.find('{')
+        last_brace = response.rfind('}')
+        if first_brace != -1 and last_brace > first_brace:
+            try:
+                return json.loads(response[first_brace:last_brace + 1])
+            except json.JSONDecodeError:
+                pass
+
+        raise ValueError(t('api.llmInvalidJson', response=cleaned_response))
 
