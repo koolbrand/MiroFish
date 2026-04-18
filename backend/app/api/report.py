@@ -59,11 +59,15 @@ def generate_report():
             }), 400
 
         force_regenerate = data.get('force_regenerate', False)
-        
+        # `force=true` bypasses the completion guardrail so the user can
+        # generate a report from a partially-failed simulation that still
+        # has usable data (e.g. OOM kill after one platform finished).
+        force_from_partial = bool(data.get('force', False))
+
         # 获取模拟信息
         manager = SimulationManager()
         state = manager.get_simulation(simulation_id)
-        
+
         if not state:
             return jsonify({
                 "success": False,
@@ -71,28 +75,63 @@ def generate_report():
             }), 404
 
         # Guardrail: only allow report generation when the simulation has
-        # actually completed. Prevents generating reports for dead/running/
-        # partially-prepared simulations.
+        # actually completed — OR when the user explicitly forces generation
+        # from a failed sim that still has some data to analyze.
         run_state = SimulationRunner.get_run_state(simulation_id)
         runner_value = run_state.runner_status.value if run_state else None
         sim_status_value = state.status.value if state.status else None
 
         completed_runner = runner_value in ("completed", "stopped")
         completed_sim = sim_status_value in ("completed", "stopped")
+        is_running = runner_value in ("running", "starting", "pausing", "paused")
 
-        if not (completed_runner or completed_sim):
+        # Signals that there is enough usable data to justify a partial
+        # report: at least one platform hit simulation_end cleanly OR we
+        # captured a non-trivial number of actions before the crash.
+        twitter_actions = run_state.twitter_actions_count if run_state else 0
+        reddit_actions = run_state.reddit_actions_count if run_state else 0
+        twitter_done = bool(run_state and run_state.twitter_completed)
+        reddit_done = bool(run_state and run_state.reddit_completed)
+        total_actions = twitter_actions + reddit_actions
+        has_partial_data = twitter_done or reddit_done or total_actions >= 20
+
+        allow_via_force = force_from_partial and has_partial_data and not is_running
+
+        if not (completed_runner or completed_sim or allow_via_force):
             current_status = runner_value or sim_status_value or "unknown"
             logger.warning(
                 f"Report generation blocked for {simulation_id}: "
-                f"runner_status={runner_value}, status={sim_status_value}"
+                f"runner_status={runner_value}, status={sim_status_value}, "
+                f"force={force_from_partial}, has_partial_data={has_partial_data}, "
+                f"actions={total_actions}"
             )
+            # When the sim is terminal-but-failed with usable data, mark
+            # the response as recoverable so the frontend can offer a
+            # "generate anyway" confirmation instead of a dead end.
+            recoverable = has_partial_data and not is_running
             return jsonify({
                 "success": False,
                 "error": t('api.reportRequiresCompletedSim', status=current_status),
                 "status": current_status,
                 "runner_status": runner_value,
-                "sim_status": sim_status_value
+                "sim_status": sim_status_value,
+                "recoverable": recoverable,
+                "partial_data": {
+                    "twitter_completed": twitter_done,
+                    "reddit_completed": reddit_done,
+                    "twitter_actions": twitter_actions,
+                    "reddit_actions": reddit_actions,
+                    "total_actions": total_actions,
+                }
             }), 409
+
+        if allow_via_force:
+            logger.warning(
+                f"Report generation forced for partially-failed simulation "
+                f"{simulation_id}: runner_status={runner_value}, "
+                f"actions={total_actions}, twitter_done={twitter_done}, "
+                f"reddit_done={reddit_done}"
+            )
 
         # 检查是否已有报告
         if not force_regenerate:

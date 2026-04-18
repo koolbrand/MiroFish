@@ -53,13 +53,18 @@ service.interceptors.response.use(
 )
 
 // 带重试的请求函数
+// Retries network errors and 5xx responses. Does NOT retry 4xx —
+// those are deterministic rejections from the server (validation,
+// 409 conflict, 404 not found) and retrying them just spams the log.
 export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await requestFn()
     } catch (error) {
-      if (i === maxRetries - 1) throw error
-      
+      const status = error?.response?.status
+      const isClientError = typeof status === 'number' && status >= 400 && status < 500
+      if (isClientError || i === maxRetries - 1) throw error
+
       console.warn(`Request failed, retrying (${i + 1}/${maxRetries})...`)
       await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
     }

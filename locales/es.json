@@ -260,7 +260,11 @@
     "forceStopFailed": "Error al forzar detención: {error}",
     "startGenerateReportBtn": "Generar informe",
     "generatingReportBtn": "Iniciando...",
-    "stopSimulation": "Detener simulación"
+    "stopSimulation": "Detener simulación",
+    "platformReddit": "Topic Community",
+    "platformTwitter": "Info Plaza",
+    "platformNone": "ninguna",
+    "partialReportConfirm": "La simulación no finalizó correctamente, pero se capturaron {actions} acciones (plataformas completas: {platforms}).\n\n¿Generar el informe con los datos disponibles?"
   },
   "step4": {
     "generatingSection": "Generando {title}...",
@@ -657,6 +661,9 @@
     "reportGenTaskStarted": "✓ Tarea de generación de informe iniciada: {reportId}",
     "reportGenFailed": "✗ Error al iniciar la generación del informe: {error}",
     "reportGenException": "✗ Error en la generación del informe: {error}",
+    "reportGenPartialAvailable": "⚠ La simulación no finalizó limpiamente, pero hay datos utilizables: {actions} acciones (plataformas completas: {platforms}).",
+    "reportGenForced": "Generando informe a partir de los datos parciales...",
+    "reportGenCancelled": "Generación de informe cancelada por el usuario.",
     "step5Init": "Interacción profunda del Paso 5 inicializada",
     "selectChatTarget": "Destino de chat seleccionado: {name}",
     "sendFailed": "Error al enviar: {error}",

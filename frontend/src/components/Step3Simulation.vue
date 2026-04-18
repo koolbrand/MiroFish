@@ -667,6 +667,74 @@ const formatActionTime = (timestamp) => {
   }
 }
 
+// Pull the most informative message out of an axios error: prefer the
+// backend's localized `error` field, then other common shapes, and only
+// fall back to the generic axios message as a last resort.
+const extractApiError = (err) => {
+  const data = err?.response?.data
+  if (data) {
+    if (typeof data === 'string') return data
+    return data.error || data.message || err.message
+  }
+  return err?.message || t('common.unknownError')
+}
+
+const doGenerateReport = async ({ force = false } = {}) => {
+  try {
+    const res = await generateReport({
+      simulation_id: props.simulationId,
+      force_regenerate: true,
+      force,
+    })
+
+    if (res.success && res.data) {
+      const reportId = res.data.report_id
+      addLog(t('log.reportGenTaskStarted', { reportId }))
+      router.push({ name: 'Report', params: { reportId } })
+      return true
+    }
+    addLog(t('log.reportGenFailed', { error: res.error || t('common.unknownError') }))
+    return false
+  } catch (err) {
+    const status = err?.response?.status
+    const data = err?.response?.data || {}
+
+    // Recoverable 409: the sim failed but there is usable partial data.
+    // Offer the user a chance to generate the report anyway instead of
+    // leaving them stuck looking at an opaque error.
+    if (status === 409 && data.recoverable && !force) {
+      const partial = data.partial_data || {}
+      const totalActions = partial.total_actions ?? 0
+      const platformsDone = []
+      if (partial.reddit_completed) platformsDone.push(t('step3.platformReddit'))
+      if (partial.twitter_completed) platformsDone.push(t('step3.platformTwitter'))
+      const platformsText = platformsDone.length
+        ? platformsDone.join(', ')
+        : t('step3.platformNone')
+
+      addLog(t('log.reportGenPartialAvailable', {
+        actions: totalActions,
+        platforms: platformsText,
+      }))
+
+      const confirmed = window.confirm(t('step3.partialReportConfirm', {
+        actions: totalActions,
+        platforms: platformsText,
+      }))
+
+      if (confirmed) {
+        addLog(t('log.reportGenForced'))
+        return doGenerateReport({ force: true })
+      }
+      addLog(t('log.reportGenCancelled'))
+      return false
+    }
+
+    addLog(t('log.reportGenException', { error: extractApiError(err) }))
+    return false
+  }
+}
+
 const handleNextStep = async () => {
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
@@ -677,28 +745,12 @@ const handleNextStep = async () => {
     addLog(t('log.reportRequestSent'))
     return
   }
-  
+
   isGeneratingReport.value = true
   addLog(t('log.startingReportGen'))
-  
-  try {
-    const res = await generateReport({
-      simulation_id: props.simulationId,
-      force_regenerate: true
-    })
-    
-    if (res.success && res.data) {
-      const reportId = res.data.report_id
-      addLog(t('log.reportGenTaskStarted', { reportId }))
-      
-      // 跳转到报告页面
-      router.push({ name: 'Report', params: { reportId } })
-    } else {
-      addLog(t('log.reportGenFailed', { error: res.error || t('common.unknownError') }))
-      isGeneratingReport.value = false
-    }
-  } catch (err) {
-    addLog(t('log.reportGenException', { error: err.message }))
+
+  const ok = await doGenerateReport({ force: false })
+  if (!ok) {
     isGeneratingReport.value = false
   }
 }

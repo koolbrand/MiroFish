@@ -260,7 +260,11 @@
     "forceStopFailed": "Force stop failed: {error}",
     "startGenerateReportBtn": "Generate Report",
     "generatingReportBtn": "Starting...",
-    "stopSimulation": "Stop Simulation"
+    "stopSimulation": "Stop Simulation",
+    "platformReddit": "Topic Community",
+    "platformTwitter": "Info Plaza",
+    "platformNone": "none",
+    "partialReportConfirm": "The simulation didn't finish cleanly, but {actions} actions were captured (completed platforms: {platforms}).\n\nGenerate the report from the available data anyway?"
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -657,6 +661,9 @@
     "reportGenTaskStarted": "✓ Report generation task started: {reportId}",
     "reportGenFailed": "✗ Failed to start report generation: {error}",
     "reportGenException": "✗ Report generation error: {error}",
+    "reportGenPartialAvailable": "⚠ The simulation didn't finish cleanly, but usable data exists: {actions} actions (completed platforms: {platforms}).",
+    "reportGenForced": "Generating report from partial data...",
+    "reportGenCancelled": "Report generation cancelled by user.",
     "step5Init": "Step 5 deep interaction initialized",
     "selectChatTarget": "Selected chat target: {name}",
     "sendFailed": "Send failed: {error}",

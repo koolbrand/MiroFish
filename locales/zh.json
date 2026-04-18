@@ -260,7 +260,11 @@
     "forceStopFailed": "强制停止失败: {error}",
     "startGenerateReportBtn": "开始生成结果报告",
     "stopSimulation": "停止模拟",
-    "generatingReportBtn": "启动中..."
+    "generatingReportBtn": "启动中...",
+    "platformReddit": "Topic Community",
+    "platformTwitter": "Info Plaza",
+    "platformNone": "无",
+    "partialReportConfirm": "模拟未正常结束，但已捕获 {actions} 个动作（已完成平台：{platforms}）。\n\n是否基于现有数据继续生成报告？"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
@@ -657,6 +661,9 @@
     "reportGenTaskStarted": "✓ 报告生成任务已启动: {reportId}",
     "reportGenFailed": "✗ 启动报告生成失败: {error}",
     "reportGenException": "✗ 启动报告生成异常: {error}",
+    "reportGenPartialAvailable": "⚠ 模拟未正常结束，但有可用数据：{actions} 个动作（已完成平台：{platforms}）。",
+    "reportGenForced": "基于部分数据生成报告中...",
+    "reportGenCancelled": "用户已取消报告生成。",
     "step5Init": "Step5 深度互动初始化",
     "selectChatTarget": "选择对话对象: {name}",
     "sendFailed": "发送失败: {error}",
