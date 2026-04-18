@@ -1,131 +1,158 @@
 <div align="center">
 
-<img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="60%"/>
+# MIRROR — by Koolbrand
 
-# MiroFish — Production Fork by KoolBrand
+**Motor de simulación de opinión pública con IA multi-agente.**  
+*Predice reacciones de mercado, opinión pública y dinámicas sociales — antes de que ocurran.*
 
-**Next-generation AI prediction engine powered by multi-agent swarm intelligence.**
-*Predice opinión pública, reacciones de mercado y dinámicas sociales — antes de que ocurran.*
-
-> 🇪🇸 **Interfaz en español** · **Dual-LLM** (reasoning for simulation, structured-output for graph) · Memoria de grafo **100 % autoalojada** (sin Zep Cloud)
+> 🇪🇸 **Interfaz en español · inglés · chino** · Dual-LLM · Memoria de grafo 100 % autoalojada (sin Zep Cloud)
 
 [![GitHub Stars](https://img.shields.io/github/stars/koolbrand/MiroFish?style=flat-square&color=DAA520)](https://github.com/koolbrand/MiroFish/stargazers)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
-[![MiniMax](https://img.shields.io/badge/LLM-MiniMax%20M2.7-FF6B35?style=flat-square)](https://www.minimaxi.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/)
 [![Coolify](https://img.shields.io/badge/Coolify-One--click-6B46C1?style=flat-square)](https://coolify.io/)
 [![Neo4j](https://img.shields.io/badge/Neo4j-Self--hosted-008CC1?style=flat-square&logo=neo4j&logoColor=white)](https://neo4j.com/)
 
-[🇪🇸 Español](#quick-start) · [🇬🇧 English](#quick-start) · [Proyecto original ↗](https://github.com/666ghj/MiroFish)
+[Proyecto original ↗](https://github.com/666ghj/MiroFish)
 
 </div>
 
 ---
 
-## What is MiroFish?
+## ¿Qué es Mirror?
 
-MiroFish lets you upload real-world seed data — news articles, reports, documents — and simulate how thousands of AI agents with independent personalities, memories, and behaviors would react to it. The result: a detailed prediction report of social dynamics, public opinion, or market response **before events unfold**.
+Mirror te permite subir documentos del mundo real — informes, noticias, campañas — y simular cómo miles de agentes de IA con personalidades, memorias y comportamientos independientes reaccionarían a ellos. El resultado: un informe de predicción detallado sobre dinámicas sociales, opinión pública o respuesta de mercado **antes de que ocurran**.
 
-> Upload seed materials → describe your prediction in natural language → get a full simulation report with interactive agents
+> Sube documentos → describe tu hipótesis → obtén un informe completo con agentes interactivos
 
-**Built for:** brand managers, researchers, policy analysts, journalists, and anyone who wants to stress-test decisions before making them.
+**Ideal para:** equipos de marca, investigadores, analistas de mercado, periodistas y cualquiera que quiera validar decisiones antes de ejecutarlas.
 
 ---
 
-## 🚀 What KoolBrand Added to this Fork
+## 🚀 Qué añadió Koolbrand a este fork
 
-This fork takes the original MiroFish engine and makes it **production-ready**, **self-hosted**, and **enterprise-friendly**. Here's what changed:
+Este fork toma el motor original MiroFish y lo convierte en una herramienta **lista para producción**, **autoalojada** y **lista para demos con clientes**.
 
-### 🧬 Dual-LLM Architecture — reasoning for simulation, structured output for graph
+### 🪞 Rebrand — Mirror by Koolbrand
 
-The original project uses a single LLM for everything. In production this breaks: reasoning models like **MiniMax-M2.7** or **DeepSeek-R1** give great simulation reasoning but silently ignore `response_format: json_schema`, so ~50 % of graph extractions come back with invented field names and invalid JSON (we saw runs with 38 nodes / 2 edges that were effectively unusable).
+Rediseño completo de identidad visual:
+- Logo SVG propio `MIRЯOR` (wordmark con R invertida)
+- Hero animado con simulación D3 force-directed en tiempo real (idéntico al grafo de la app)
+- Paleta de marca: negro, blanco y naranja `#FF4500`
+- Tipografía: Space Grotesk + JetBrains Mono
+- Eliminadas todas las referencias a "MiroFish" en UI, locales y prompts LLM
 
-This fork splits the LLM in two, each optimized for its job:
+### 🧬 Dual-LLM — reasoning para simulación, structured output para grafo
 
-| Job | Why it needs what | Recommended model |
+El proyecto original usa un único LLM para todo. En producción esto falla: los modelos de razonamiento como **MiniMax-M2.7** o **DeepSeek-R1** ignoran `response_format: json_schema`, generando extracciones de grafo con JSON inválido (~50 % de fallos en nuestras pruebas).
+
+Este fork divide el LLM en dos, cada uno optimizado para su tarea:
+
+| Tarea | Por qué necesita lo que necesita | Modelo recomendado |
 |---|---|---|
-| **Simulation reasoning** (`LLM_*`) | Agents need chain-of-thought, nuance, persona fidelity | `MiniMax-M2.7`, `DeepSeek-R1`, `gpt-4o`, `qwen-plus` |
-| **Graph extraction** (`GRAPHITI_LLM_*`) | Graphiti requires strict JSON schema compliance — one invalid field = lost entity | `seed-2-0-lite-260228` (BytePlus), `deepseek-chat` v3, `qwen-plus` |
+| **Reasoning de simulación** (`LLM_*`) | Los agentes necesitan chain-of-thought, matices, fidelidad de persona | `MiniMax-M2.7`, `DeepSeek-R1`, `gpt-4o`, `qwen-plus` |
+| **Extracción de grafo** (`GRAPHITI_LLM_*`) | Graphiti requiere JSON schema estricto — un campo inválido = entidad perdida | `seed-2-0-lite-260228` (BytePlus), `deepseek-chat` v3, `qwen-plus` |
 
-Each `GRAPHITI_LLM_*` variable independently falls back to its `LLM_*` counterpart, so **single-provider setups still work out of the box** — you only need to override when you want the split. The adapter also auto-detects which `response_format` modes each model supports (`json_schema` → `json_object` → none) and retries gracefully.
+**Impacto real:** ratio aristas/nodos pasó de **0.05 (roto) a ~1.2 (saludable)**.
 
-**Real-world impact on our runs:** edge-to-node ratio jumped from **0.05 (broken) to ~1.2 (healthy)**, and the entity-type labels finally match the agent filter, so the simulation actually finds characters to instantiate.
+### 🧠 Memoria de grafo autoalojada (Graphiti + Neo4j)
 
-### 🧠 Self-Hosted Graph Memory (Graphiti + Neo4j)
+El proyecto original requiere **Zep Cloud** — servicio externo con límites de uso. Lo reemplazamos completamente con **Graphiti + Neo4j autoalojados**:
 
-The original project requires **Zep Cloud** — an external paid service with strict free-tier limits (5 episodes/min, monthly caps). We replaced it entirely with **self-hosted [Graphiti](https://github.com/getzep/graphiti) + Neo4j**:
+- ✅ Sin dependencias de API externas para memoria de grafo
+- ✅ Sin límites de uso — simula todo lo que quieras
+- ✅ Tus datos permanecen en tu infraestructura
+- ✅ Neo4j incluido como servicio Docker — sin configuración adicional
 
-- ✅ No external API dependency for graph memory
-- ✅ No usage limits — run as many simulations as you want
-- ✅ Your data stays in your infrastructure
-- ✅ Neo4j included as a Docker service — zero additional setup
+### 💬 Step 5 — Chat con agentes (con fallback LLM)
 
-This is the most impactful change for the community: **you can now run MiroFish fully self-hosted with no external services required** (beyond your LLM provider).
+Modo de interacción profunda después del informe:
 
-### 🔐 PocketBase Authentication
+- **Chat con el Agente de Informes** — versión conversacional del agente con acceso a 4 herramientas profesionales (InsightForge, PanoramaSearch, QuickSearch, InterviewSubAgent)
+- **Chat con cualquier agente simulado** — entrevista a cualquier individuo del mundo virtual
+- **Fallback LLM automático** — si la simulación ya terminó o el proceso fue eliminado por OOM, el backend genera respuestas directamente con LLM usando el perfil del agente (timeout reducido a 10s, sin esperas de 2 minutos)
+- **Contexto de simulación inyectado** — el LLM recibe el nombre del proyecto, la hipótesis y el resumen de análisis antes de responder, eliminando alucinaciones sobre el producto simulado
+- **Encuesta masiva** — envía una pregunta a todos los agentes seleccionados a la vez
 
-Added enterprise-ready authentication using [PocketBase](https://pocketbase.io/):
-- Secure login before accessing the simulation engine
-- Compatible with any PocketBase instance (self-hosted or cloud)
-- Configurable via `VITE_POCKETBASE_URL` env variable
+### 📊 Informe descargable
 
-### 🌍 Spanish Language Support
+Botón `↓ .md` en el header del informe (Step 5) que descarga el informe completo en formato Markdown — portable a Notion, Obsidian, Word, o convertible a PDF con Pandoc.
 
-Full Spanish translation (`es`) across all 17 UI sections. The app now supports **Spanish, English, and Chinese** — making it accessible to the entire Spanish-speaking market (500M+ speakers).
+### 🗂 Proyectos — Acceso rápido al Step 5
 
-### 🐳 Docker Compose — Deploy in One Click
+En la lista de proyectos (`/projects`), cada proyecto completado con informe generado muestra un botón **`Step 5 →`** que navega directamente a la vista de interacción (`/interaction/:reportId`) — sin tener que recorrer los 5 pasos del wizard.
 
-Complete multi-service `docker-compose.yml` with:
-- MiroFish app container
-- Neo4j graph database container with APOC plugin
-- Health checks and automatic restart policies
-- Compatible with [Coolify](https://coolify.io/) for zero-ops self-hosting
+### 🔐 Autenticación con PocketBase
 
-### ⏹ Stop Simulation
+Autenticación enterprise-ready con [PocketBase](https://pocketbase.io/):
+- Login seguro antes de acceder al motor de simulación
+- Compatible con cualquier instancia PocketBase (autoalojada o cloud)
+- Configurable via `VITE_POCKETBASE_URL`
 
-Added a **Stop** button to the simulation run view — you can now interrupt a simulation mid-run and still access the partial results and report.
+### 🌍 Soporte multiidioma (es · en · zh)
 
-### 🏷 Version Badge
+Traducción completa en español, inglés y chino en los 17 módulos de UI. Las respuestas del backend y los prompts LLM también están en español por defecto.
 
-Every page now shows the app version and build date — useful for tracking deployments in production.
+### 🐳 Docker Compose — despliegue en un click
 
-### 🔧 Production API Fix
+`docker-compose.yml` completo con:
+- Contenedor de la app Mirror
+- Contenedor Neo4j con plugin APOC
+- Health checks y restart automáticos
+- Compatible con [Coolify](https://coolify.io/) para self-hosting sin operaciones
 
-Fixed a critical bug where the frontend called `localhost:5001` in production (hardcoded URL), causing all API calls to fail when deployed. Now uses relative URLs that work on any host.
+### 🔒 Seguridad de logs
+
+- **Sanitización de request body** — campos sensibles (`api_key`, `token`, `password`…) se redactan como `***` antes de loguear
+- **Limpieza automática** — logs con más de 30 días se eliminan al iniciar el servidor
+- **RotatingFileHandler** — archivos de máx. 10MB × 5 backups por día
+
+### 🛠 Otras mejoras técnicas
+
+- **Extracción JSON robusta** — 3-pass parser en `LLMClient.chat_json()`: strip de fences → busca bloque ```json embebido → extrae `{}` externo. Nunca falla por respuestas LLM en markdown
+- **Recuperación post-OOM** — si el proceso de simulación fue eliminado por OOM, el backend detecta el estado corrupto y permite generar el informe con los datos parciales disponibles
+- **Graph building recovery** — detecta estado `graph_building` atascado en reinicios de servidor y recupera el progreso real del grafo
+- **Gestión de proyectos** — pantalla de administración con filtros, selección masiva y borrado en cascada (proyecto → simulaciones → informes)
+- **Stop simulation** — botón de parada en la vista de ejecución; acceso a resultados parciales
+- **Edge labels humanizados** — `GENERATED_PROFESSIONAL_BRAND_KIT_FOR` → `Generated professional...` con truncado a 18 chars
+- **Badge de versión y fecha** — visible en todas las vistas para tracking de despliegues
 
 ---
 
-## 🏗 Architecture
+## 🏗 Arquitectura
 
 ```
-Browser → Vue 3 + vue-i18n (es/en/zh)
+Browser → Vue 3 + vue-i18n (es/en/zh) + D3.js
          ↓ PocketBase auth guard
 Flask API (Python 3.11)
          ↓
    ┌──────────────┐    ┌──────────────────┐
    │  LLM Client  │    │  Graphiti Core   │
-   │  (any OpenAI │    │  (graph memory)  │
-   │  compatible) │    │        ↕         │
-   └──────────────┘    │     Neo4j        │
-                        └──────────────────┘
+   │  (reasoning) │    │  (graph memory)  │
+   │              │    │        ↕         │
+   │  Graph LLM   │    │     Neo4j        │
+   │  (structured)│    └──────────────────┘
+   └──────────────┘
          ↓
    OASIS Simulation Engine (CAMEL-AI)
          ↓
-   Report Agent → Prediction Report
+   Report Agent (5 secciones, 4 herramientas)
+         ↓
+   Step 5 — Chat interactivo + Fallback LLM
 ```
 
 ---
 
 ## ⚡ Quick Start
 
-### Prerequisites
+### Prerrequisitos
 
-| Tool | Version |
+| Herramienta | Versión |
 |------|---------|
 | Docker + Docker Compose | Latest |
-| LLM API key | Any OpenAI-compatible provider |
+| LLM API key | Cualquier proveedor compatible con OpenAI |
 
-### 1. Clone & Configure
+### 1. Clonar y configurar
 
 ```bash
 git clone https://github.com/koolbrand/MiroFish.git
@@ -133,143 +160,140 @@ cd MiroFish
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edita `.env`:
 
 ```env
-# ===== Simulation LLM — reasoning model for agents =====
+# ===== LLM de simulación — modelo de razonamiento para agentes =====
 LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://api.minimaxi.chat/v1       # or OpenAI, Qwen, DeepSeek…
+LLM_BASE_URL=https://api.minimaxi.chat/v1       # o OpenAI, Qwen, DeepSeek…
 LLM_MODEL_NAME=MiniMax-M2.7
 
-# ===== Graph-extraction LLM — needs json_schema support =====
-# Optional: if unset, falls back to the LLM_* vars above.
-# Recommended: BytePlus Seed-2-0-lite (cheap, reliable structured output) or DeepSeek-V3.
+# ===== LLM de extracción de grafo — necesita soporte json_schema =====
+# Opcional: si no se configura, usa los LLM_* anteriores.
 GRAPHITI_LLM_API_KEY=your_byteplus_key
 GRAPHITI_LLM_BASE_URL=https://ap-southeast.bytepluses.com/api/v3
 GRAPHITI_LLM_MODEL_NAME=seed-2-0-lite-260228
 
-# ===== Embeddings (used by Graphiti for graph search) =====
-# Falls back to LLM_* if unset.
+# ===== Embeddings (usados por Graphiti) =====
 EMBEDDING_MODEL=text-embedding-3-small
-# EMBEDDING_API_KEY=...
-# EMBEDDING_BASE_URL=...
 
-# ===== Neo4j — auto-started by docker-compose =====
+# ===== Neo4j — iniciado automáticamente por docker-compose =====
 NEO4J_PASSWORD=change_me_please
 
-# ===== PocketBase (optional — for authentication) =====
+# ===== PocketBase (opcional — para autenticación) =====
 # VITE_POCKETBASE_URL=https://your-pocketbase.example.com
 ```
 
-### 2. Start Everything
+### 2. Arrancar todo
 
 ```bash
 docker compose up -d
 ```
 
-This starts **two containers**: MiroFish app (port 8000) and Neo4j. Wait ~40s for Neo4j to initialize, then open:
+Esto inicia **dos contenedores**: la app Mirror (puerto 8000) y Neo4j. Espera ~40s para que Neo4j inicialice, luego abre:
 
 ```
 http://localhost:8000
 ```
 
-### 3. Run a Simulation
+### 3. Ejecutar una simulación (5 pasos)
 
-1. **Upload** a document (PDF, MD, or TXT) — a news article, report, anything real
-2. **Describe** what you want to predict in natural language
-3. **Review** the auto-generated entity ontology
-4. **Build** the knowledge graph (powered by Graphiti + Neo4j)
-5. **Run** the multi-agent simulation
-6. **Read** the prediction report — and interact with any agent
+1. **Sube** un documento (PDF, MD o TXT) — un artículo, informe, dossier de producto
+2. **Describe** qué quieres predecir en lenguaje natural
+3. **Revisa** la ontología de entidades generada automáticamente
+4. **Construye** el grafo de conocimiento (Graphiti + Neo4j)
+5. **Ejecuta** la simulación multi-agente y lee el informe de predicción
+6. **Interactúa** con cualquier agente del mundo virtual en el Step 5
 
 ---
 
-## 🛠 Development Setup
+## 🛠 Desarrollo local
 
 ```bash
-# Install all dependencies
+# Instalar todas las dependencias
 npm run setup:all
 
-# Start backend (port 8000) and frontend (port 3000) in dev mode
+# Iniciar backend (puerto 8000) y frontend (puerto 3000) en modo dev
 npm run dev
 ```
 
-Backend requires Python 3.11 and [`uv`](https://docs.astral.sh/uv/) package manager.
+El backend requiere Python 3.11 y [`uv`](https://docs.astral.sh/uv/).
 
 ---
 
-## 🌐 Deploy to Coolify (Recommended)
+## 🌐 Despliegue en Coolify (recomendado)
 
-[Coolify](https://coolify.io/) is an open-source self-hosted platform that makes deployment effortless. MiroFish + Neo4j deploy together in one step:
+1. Añade un recurso **Docker Compose** en Coolify
+2. Apunta a `https://github.com/koolbrand/MiroFish`
+3. Configura las variables de entorno
+4. Despliega — Coolify gestiona todo
 
-1. Add a new **Docker Compose** resource in Coolify
-2. Point to `https://github.com/koolbrand/MiroFish`
-3. Set the environment variables (see table below)
-4. Deploy — Coolify handles everything
-
-Full guide: [COOLIFY_DEPLOYMENT.md](./COOLIFY_DEPLOYMENT.md)
+Guía completa: [COOLIFY_DEPLOYMENT.md](./COOLIFY_DEPLOYMENT.md)
 
 ---
 
-## 🔧 Environment Variables Reference
+## 🔧 Variables de entorno
 
-| Variable | Required | Default | Description |
+| Variable | Requerida | Default | Descripción |
 |---|---|---|---|
-| `LLM_API_KEY` | ✅ | — | API key — **simulation** LLM (reasoning model) |
-| `LLM_BASE_URL` | ✅ | — | Base URL — simulation LLM (OpenAI-compatible) |
-| `LLM_MODEL_NAME` | ✅ | — | Simulation model name (e.g. `MiniMax-M2.7`, `gpt-4o`) |
-| `GRAPHITI_LLM_API_KEY` | ❌ | falls back to `LLM_API_KEY` | API key — **graph-extraction** LLM |
-| `GRAPHITI_LLM_BASE_URL` | ❌ | falls back to `LLM_BASE_URL` | Base URL — graph-extraction LLM |
-| `GRAPHITI_LLM_MODEL_NAME` | ❌ | falls back to `LLM_MODEL_NAME` | Graph-extraction model (must support `json_schema` — `seed-2-0-lite-260228`, `deepseek-chat`…) |
-| `EMBEDDING_MODEL` | ❌ | `text-embedding-3-small` | Embedding model for Graphiti graph search |
-| `EMBEDDING_API_KEY` | ❌ | falls back to `LLM_API_KEY` | API key for embeddings (if different provider) |
-| `EMBEDDING_BASE_URL` | ❌ | falls back to `LLM_BASE_URL` | Base URL for embeddings |
-| `NEO4J_PASSWORD` | ✅ | `mirofish2026` | Neo4j password — **change in production!** |
-| `NEO4J_URI` | ❌ | `bolt://neo4j:7687` | Neo4j Bolt URI |
-| `VITE_POCKETBASE_URL` | ❌ | — | PocketBase instance URL for authentication |
-| `DEBUG` | ❌ | `false` | Enable Flask debug mode |
+| `LLM_API_KEY` | ✅ | — | API key — LLM de **simulación** (modelo de razonamiento) |
+| `LLM_BASE_URL` | ✅ | — | Base URL — LLM de simulación (compatible con OpenAI) |
+| `LLM_MODEL_NAME` | ✅ | — | Modelo de simulación (ej. `MiniMax-M2.7`, `gpt-4o`) |
+| `GRAPHITI_LLM_API_KEY` | ❌ | = `LLM_API_KEY` | API key — LLM de **extracción de grafo** |
+| `GRAPHITI_LLM_BASE_URL` | ❌ | = `LLM_BASE_URL` | Base URL — LLM de grafo |
+| `GRAPHITI_LLM_MODEL_NAME` | ❌ | = `LLM_MODEL_NAME` | Modelo de grafo (debe soportar `json_schema`) |
+| `EMBEDDING_MODEL` | ❌ | `text-embedding-3-small` | Modelo de embeddings para búsqueda en grafo |
+| `EMBEDDING_API_KEY` | ❌ | = `LLM_API_KEY` | API key para embeddings |
+| `EMBEDDING_BASE_URL` | ❌ | = `LLM_BASE_URL` | Base URL para embeddings |
+| `NEO4J_PASSWORD` | ✅ | `mirofish2026` | Contraseña Neo4j — **cambiar en producción** |
+| `NEO4J_URI` | ❌ | `bolt://neo4j:7687` | URI Bolt de Neo4j |
+| `VITE_POCKETBASE_URL` | ❌ | — | URL de instancia PocketBase para autenticación |
+| `DEBUG` | ❌ | `false` | Modo debug de Flask |
 
 ---
 
-## 📋 What's New vs Original
+## 📋 Comparativa vs original
 
-| Feature | Original | This Fork |
+| Característica | Original | Este fork |
 |---|---|---|
-| LLM architecture | Single LLM | Dual-LLM — reasoning + structured-output split ✅ |
-| Graph extraction quality | ~50 % invalid JSON with reasoning models | Auto model-aware `response_format` chain ✅ |
-| Graph memory | Zep Cloud (external, limited) | Self-hosted Graphiti + Neo4j ✅ |
-| Authentication | None | PocketBase ✅ |
-| Languages | Chinese + English | + Spanish (es, default) ✅ |
-| Docker Compose | Single container | Multi-service (app + Neo4j) ✅ |
-| Coolify deploy | Manual | One-click ✅ |
+| Identidad visual | MiroFish genérico | Mirror by Koolbrand — logo + hero D3 ✅ |
+| Arquitectura LLM | LLM único | Dual-LLM — reasoning + structured-output ✅ |
+| Calidad extracción grafo | ~50 % JSON inválido | Parser robusto 3-pass + modelo separado ✅ |
+| Memoria de grafo | Zep Cloud (externo, limitado) | Graphiti + Neo4j autoalojado ✅ |
+| Autenticación | Ninguna | PocketBase ✅ |
+| Idiomas | Chino + inglés | + Español (es, default) ✅ |
+| Docker Compose | Contenedor único | Multi-servicio (app + Neo4j) ✅ |
+| Step 5 — Chat con agentes | ❌ | ✅ con fallback LLM (sin OOM hang) |
+| Contexto de simulación en chat | ❌ | ✅ elimina alucinaciones |
+| Descarga de informe | ❌ | ✅ formato Markdown |
+| Acceso rápido Step 5 | ❌ | ✅ botón en lista de proyectos |
+| Seguridad de logs | Body completo logueado | Campos sensibles redactados ✅ |
+| Retención de logs | Ilimitada | Auto-cleanup >30 días ✅ |
 | Stop simulation | ❌ | ✅ |
-| Production API URLs | Hardcoded localhost | Relative (works anywhere) ✅ |
-| Version tracking | ❌ | Build date badge ✅ |
+| Recuperación post-OOM | ❌ | ✅ |
+| Gestión de proyectos | ❌ | ✅ con borrado en cascada |
+| Edge labels | SCREAMING_SNAKE_CASE | Humanizados y truncados ✅ |
+| URLs API en producción | localhost hardcodeado | Relativas (funciona en cualquier host) ✅ |
+| Badge de versión | ❌ | ✅ |
 
 ---
 
-## 🤝 Community & Contributing
+## 🤝 Comunidad y contribuciones
 
-This fork is maintained by **[KoolBrand](https://koolbrand.com)** — a studio building AI-powered brand intelligence tools for the Spanish-speaking market and beyond.
+Este fork es mantenido por **[KoolBrand](https://koolbrand.com)** — un estudio construyendo herramientas de inteligencia de marca con IA para el mercado hispanohablante y más allá.
 
-We believe MiroFish is genuinely useful for:
-- **Brands** stress-testing campaigns and messaging before launch
-- **Researchers** studying how information spreads in social networks
-- **Journalists & analysts** modeling public reaction to events
-- **Writers & creators** exploring narrative possibilities
+Si usas este fork, nos encantaría saber qué estás construyendo. Abre un issue, inicia una discusión, o escríbenos a **hola@koolbrand.com**.
 
-If you use this fork, we'd love to hear what you're building. Open an issue, start a discussion, or reach out at **hola@koolbrand.com**.
-
-**PRs welcome.** If you add a feature, document it — that's the deal.
+**PRs bienvenidos.** Si añades una funcionalidad, documéntala.
 
 ---
 
-## 📄 Credits & Acknowledgments
+## 📄 Créditos
 
-- Original **MiroFish** engine by [666ghj](https://github.com/666ghj/MiroFish) — incubated by [Shanda Group](https://www.shanda.com/)
-- Simulation core powered by **[OASIS](https://github.com/camel-ai/oasis)** by the CAMEL-AI team
-- Graph memory powered by **[Graphiti](https://github.com/getzep/graphiti)** by the Zep team
-- Self-hosting via **[Coolify](https://coolify.io/)**
+- Motor original **MiroFish** por [666ghj](https://github.com/666ghj/MiroFish) — incubado por [Shanda Group](https://www.shanda.com/)
+- Núcleo de simulación: **[OASIS](https://github.com/camel-ai/oasis)** by CAMEL-AI
+- Memoria de grafo: **[Graphiti](https://github.com/getzep/graphiti)** by Zep
+- Self-hosting: **[Coolify](https://coolify.io/)**
 
 ---
 
@@ -277,6 +301,6 @@ If you use this fork, we'd love to hear what you're building. Open an issue, sta
 
 **Built with ❤️ by [KoolBrand](https://koolbrand.com)**
 
-*Making AI prediction accessible to everyone*
+*Primero ensaya. Después decide.*
 
 </div>
