@@ -1320,6 +1320,8 @@ watch(() => props.simulationId, (newId) => {
   border-bottom: 1px solid #E5E7EB;
   background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%);
   gap: 16px;
+  position: relative;
+  z-index: 50;
 }
 
 .action-bar-header {
