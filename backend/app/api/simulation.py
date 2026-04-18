@@ -2407,6 +2407,39 @@ def _load_simulation_profiles(simulation_id: str):
     return []
 
 
+def _load_simulation_context(simulation_id: str) -> dict:
+    """
+    Carga el contexto de la simulación (hipótesis, nombre del proyecto, descripción)
+    para enriquecer el system prompt del LLM fallback y reducir alucinaciones.
+    """
+    ctx = {
+        'simulation_requirement': '',
+        'project_name': '',
+        'analysis_summary': '',
+    }
+    try:
+        sim_dir = os.path.join(
+            os.path.dirname(__file__),
+            f'../../uploads/simulations/{simulation_id}'
+        )
+        config_path = os.path.join(sim_dir, 'simulation_config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            ctx['simulation_requirement'] = cfg.get('simulation_requirement', '')
+
+            # Intentar cargar nombre del proyecto
+            project_id = cfg.get('project_id', '')
+            if project_id:
+                project = ProjectManager.get_project(project_id)
+                if project:
+                    ctx['project_name'] = project.name or ''
+                    ctx['analysis_summary'] = project.analysis_summary or ''
+    except Exception as e:
+        logger.warning(f"No se pudo cargar contexto de simulación {simulation_id}: {e}")
+    return ctx
+
+
 def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
     """
     Cuando la simulación ya terminó, genera respuestas directamente con LLM
@@ -2415,9 +2448,32 @@ def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
     """
     try:
         profiles = _load_simulation_profiles(simulation_id)
+        sim_ctx = _load_simulation_context(simulation_id)
         llm = LLMClient()
         results = {}
         interviews_count = 0
+
+        # Bloque de contexto de la simulación (se añade una vez, no por agente)
+        simulation_requirement = sim_ctx.get('simulation_requirement', '').strip()
+        project_name = sim_ctx.get('project_name', '').strip()
+        analysis_summary = sim_ctx.get('analysis_summary', '').strip()
+
+        context_block = ""
+        if simulation_requirement or project_name:
+            lines = ["=== CONTEXTO DE LA SIMULACIÓN ==="]
+            if project_name:
+                lines.append(f"Proyecto/Producto: {project_name}")
+            if simulation_requirement:
+                lines.append(f"Hipótesis simulada: {simulation_requirement}")
+            if analysis_summary:
+                lines.append(f"Descripción: {analysis_summary[:500]}")
+            lines.append(
+                "\nIMPORTANTE: Responde SOLO con información coherente con el contexto "
+                "anterior. No inventes datos sobre el producto, la marca ni sus características. "
+                "Si no sabes algo con certeza, habla en términos generales o de tu propia experiencia."
+            )
+            lines.append("=================================\n")
+            context_block = "\n".join(lines) + "\n"
 
         for interview in interviews:
             agent_id = interview.get('agent_id', 0)
@@ -2429,6 +2485,7 @@ def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
             profession = profile.get('profession', 'Participante de la simulación')
 
             system_prompt = (
+                f"{context_block}"
                 f"Eres {username}, {profession}.\n"
                 f"Tu perfil: {bio[:600] if bio else 'Sin información adicional.'}\n\n"
                 "Responde siempre en español, en primera persona, con autenticidad y en el tono "
