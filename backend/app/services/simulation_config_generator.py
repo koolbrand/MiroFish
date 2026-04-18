@@ -233,7 +233,7 @@ class SimulationConfigGenerator:
         self.model_name = model_name or Config.LLM_MODEL_NAME
         
         if not self.api_key:
-            raise ValueError("LLM_API_KEY 未配置")
+            raise ValueError("LLM_API_KEY no está configurado")
         
         self.client = OpenAI(
             api_key=self.api_key,
@@ -391,8 +391,8 @@ class SimulationConfigGenerator:
         
         # 构建上下文
         context_parts = [
-            f"## 模拟需求\n{simulation_requirement}",
-            f"\n## 实体信息 ({len(entities)}个)\n{entity_summary}",
+            f"## Requisitos de simulación\n{simulation_requirement}",
+            f"\n## Información de entidades ({len(entities)} en total)\n{entity_summary}",
         ]
         
         current_length = sum(len(p) for p in context_parts)
@@ -401,8 +401,8 @@ class SimulationConfigGenerator:
         if remaining_length > 0 and document_text:
             doc_text = document_text[:remaining_length]
             if len(document_text) > remaining_length:
-                doc_text += "\n...(文档已截断)"
-            context_parts.append(f"\n## 原始文档内容\n{doc_text}")
+                doc_text += "\n...(documento truncado)"
+            context_parts.append(f"\n## Contenido del documento original\n{doc_text}")
         
         return "\n".join(context_parts)
     
@@ -419,7 +419,7 @@ class SimulationConfigGenerator:
             by_type[t].append(e)
         
         for entity_type, type_entities in by_type.items():
-            lines.append(f"\n### {entity_type} ({len(type_entities)}个)")
+            lines.append(f"\n### {entity_type} ({len(type_entities)} en total)")
             # 使用配置的显示数量和摘要长度
             display_count = self.ENTITIES_PER_TYPE_DISPLAY
             summary_len = self.ENTITY_SUMMARY_LENGTH
@@ -427,7 +427,7 @@ class SimulationConfigGenerator:
                 summary_preview = (e.summary[:summary_len] + "...") if len(e.summary) > summary_len else e.summary
                 lines.append(f"- {e.name}: {summary_preview}")
             if len(type_entities) > display_count:
-                lines.append(f"  ... 还有 {len(type_entities) - display_count} 个")
+                lines.append(f"  ... y {len(type_entities) - display_count} más")
         
         return "\n".join(lines)
     
@@ -478,7 +478,7 @@ class SimulationConfigGenerator:
                 import time
                 time.sleep(2 * (attempt + 1))
         
-        raise last_error or Exception("LLM调用失败")
+        raise last_error or Exception("Fallo en la llamada al LLM")
     
     def _fix_truncated_json(self, content: str) -> str:
         """修复被截断的JSON"""
@@ -540,28 +540,28 @@ class SimulationConfigGenerator:
         # 计算最大允许值（80%的agent数）
         max_agents_allowed = max(1, int(num_entities * 0.9))
         
-        prompt = f"""基于以下模拟需求，生成时间模拟配置。
+        prompt = f"""Basado en los siguientes requisitos de simulación, genera la configuración temporal de la simulación.
 
 {context_truncated}
 
-## 任务
-请生成时间配置JSON。
+## Tarea
+Por favor genera el JSON de configuración temporal.
 
-### 基本原则（仅供参考，需根据具体事件和参与群体灵活调整）：
-- 请根据模拟场景推断目标用户群体所在时区和作息习惯，以下为东八区(UTC+8)的参考示例
-- 凌晨0-5点几乎无人活动（活跃度系数0.05）
-- 早上6-8点逐渐活跃（活跃度系数0.4）
-- 工作时间9-18点中等活跃（活跃度系数0.7）
-- 晚间19-22点是高峰期（活跃度系数1.5）
-- 23点后活跃度下降（活跃度系数0.5）
-- 一般规律：凌晨低活跃、早间渐增、工作时段中等、晚间高峰
-- **重要**：以下示例值仅供参考，你需要根据事件性质、参与群体特点来调整具体时段
-  - 例如：学生群体高峰可能是21-23点；媒体全天活跃；官方机构只在工作时间
-  - 例如：突发热点可能导致深夜也有讨论，off_peak_hours 可适当缩短
+### Principios básicos (solo como referencia, ajusta según el evento específico y el grupo participante):
+- Infiere la zona horaria y los hábitos diarios del grupo de usuarios objetivo según el escenario de simulación. Lo siguiente es un ejemplo de referencia para UTC+8
+- De 0 a 5 de la madrugada casi no hay actividad (coeficiente de actividad 0.05)
+- De 6 a 8 de la mañana la actividad crece gradualmente (coeficiente de actividad 0.4)
+- Durante la jornada laboral (9-18) actividad media (coeficiente de actividad 0.7)
+- Entre las 19 y 22 es el horario pico (coeficiente de actividad 1.5)
+- Después de las 23 la actividad desciende (coeficiente de actividad 0.5)
+- Patrón general: madrugada baja, mañana creciente, jornada laboral media, noche pico
+- **Importante**: los valores de ejemplo anteriores son solo orientativos; debes ajustar los tramos horarios según la naturaleza del evento y las características del grupo participante
+  - Por ejemplo: el pico de los estudiantes puede ser de 21 a 23; los medios están activos todo el día; los organismos oficiales solo en horario laboral
+  - Por ejemplo: un tema viral repentino puede provocar discusión incluso de madrugada, por lo que off_peak_hours puede acortarse
 
-### 返回JSON格式（不要markdown）
+### Formato de salida JSON (sin markdown)
 
-示例：
+Ejemplo:
 {{
     "total_simulation_hours": 72,
     "minutes_per_round": 60,
@@ -571,19 +571,19 @@ class SimulationConfigGenerator:
     "off_peak_hours": [0, 1, 2, 3, 4, 5],
     "morning_hours": [6, 7, 8],
     "work_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-    "reasoning": "针对该事件的时间配置说明"
+    "reasoning": "Explicación de la configuración temporal para este evento"
 }}
 
-字段说明：
-- total_simulation_hours (int): 模拟总时长，24-168小时，突发事件短、持续话题长
-- minutes_per_round (int): 每轮时长，30-120分钟，建议60分钟
-- agents_per_hour_min (int): 每小时最少激活Agent数（取值范围: 1-{max_agents_allowed}）
-- agents_per_hour_max (int): 每小时最多激活Agent数（取值范围: 1-{max_agents_allowed}）
-- peak_hours (int数组): 高峰时段，根据事件参与群体调整
-- off_peak_hours (int数组): 低谷时段，通常深夜凌晨
-- morning_hours (int数组): 早间时段
-- work_hours (int数组): 工作时段
-- reasoning (string): 简要说明为什么这样配置"""
+Descripción de campos:
+- total_simulation_hours (int): Duración total de la simulación, 24-168 horas; eventos virales cortos, temas sostenidos más largos
+- minutes_per_round (int): Duración de cada ronda, 30-120 minutos; se recomiendan 60 minutos
+- agents_per_hour_min (int): Número mínimo de agentes activos por hora (rango: 1-{max_agents_allowed})
+- agents_per_hour_max (int): Número máximo de agentes activos por hora (rango: 1-{max_agents_allowed})
+- peak_hours (array de int): Horas pico, ajustadas según el grupo participante
+- off_peak_hours (array de int): Horas de valle, generalmente de madrugada
+- morning_hours (array de int): Horas de la mañana
+- work_hours (array de int): Horas de jornada laboral
+- reasoning (string): Explicación breve de por qué se configuró así"""
 
         lang_instruction = get_language_instruction()
         system_prompt = (
@@ -611,7 +611,7 @@ class SimulationConfigGenerator:
             "off_peak_hours": [0, 1, 2, 3, 4, 5],
             "morning_hours": [6, 7, 8],
             "work_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-            "reasoning": "使用默认中国人作息配置（每轮1小时）"
+            "reasoning": "Se usó la configuración horaria por defecto (1 hora por ronda)"
         }
     
     def _parse_time_config(self, result: Dict[str, Any], num_entities: int) -> TimeSimulationConfig:
@@ -679,33 +679,33 @@ class SimulationConfigGenerator:
         # 使用配置的上下文截断长度
         context_truncated = context[:self.EVENT_CONFIG_CONTEXT_LENGTH]
         
-        prompt = f"""基于以下模拟需求，生成事件配置。
+        prompt = f"""Basado en los siguientes requisitos de simulación, genera la configuración de eventos.
 
-模拟需求: {simulation_requirement}
+Requisitos de simulación: {simulation_requirement}
 
 {context_truncated}
 
-## 可用实体类型及示例
+## Tipos de entidad disponibles y ejemplos
 {type_info}
 
-## 任务
-请生成事件配置JSON：
-- 提取热点话题关键词
-- 描述舆论发展方向
-- 设计初始帖子内容，**每个帖子必须指定 poster_type（发布者类型）**
+## Tarea
+Por favor genera el JSON de configuración de eventos:
+- Extrae palabras clave de los temas candentes
+- Describe la dirección de desarrollo de la opinión pública
+- Diseña el contenido de las publicaciones iniciales; **cada publicación debe especificar poster_type (tipo de publicador)**
 
-**重要**: poster_type 必须从上面的"可用实体类型"中选择，这样初始帖子才能分配给合适的 Agent 发布。
-例如：官方声明应由 Official/University 类型发布，新闻由 MediaOutlet 发布，学生观点由 Student 发布。
+**Importante**: poster_type debe elegirse entre los "Tipos de entidad disponibles" listados arriba, para que la publicación inicial pueda asignarse al Agent adecuado.
+Por ejemplo: las declaraciones oficiales deben publicarlas tipos Official/University, las noticias MediaOutlet, las opiniones de estudiantes Student.
 
-返回JSON格式（不要markdown）：
+Formato de salida JSON (sin markdown):
 {{
-    "hot_topics": ["关键词1", "关键词2", ...],
-    "narrative_direction": "<舆论发展方向描述>",
+    "hot_topics": ["palabra clave 1", "palabra clave 2", ...],
+    "narrative_direction": "<descripción de la dirección de la opinión pública>",
     "initial_posts": [
-        {{"content": "帖子内容", "poster_type": "实体类型（必须从可用类型中选择）"}},
+        {{"content": "contenido de la publicación", "poster_type": "tipo de entidad (debe elegirse entre los tipos disponibles)"}},
         ...
     ],
-    "reasoning": "<简要说明>"
+    "reasoning": "<explicación breve>"
 }}"""
 
         lang_instruction = get_language_instruction()
@@ -726,7 +726,7 @@ class SimulationConfigGenerator:
                 "hot_topics": [],
                 "narrative_direction": "",
                 "initial_posts": [],
-                "reasoning": "使用默认配置"
+                "reasoning": "Se usó la configuración por defecto"
             }
     
     def _parse_event_config(self, result: Dict[str, Any]) -> EventConfig:
@@ -843,37 +843,37 @@ class SimulationConfigGenerator:
                 "summary": e.summary[:summary_len] if e.summary else ""
             })
         
-        prompt = f"""基于以下信息，为每个实体生成社交媒体活动配置。
+        prompt = f"""Basado en la siguiente información, genera la configuración de actividad en redes sociales para cada entidad.
 
-模拟需求: {simulation_requirement}
+Requisitos de simulación: {simulation_requirement}
 
-## 实体列表
+## Lista de entidades
 ```json
 {json.dumps(entity_list, ensure_ascii=False, indent=2)}
 ```
 
-## 任务
-为每个实体生成活动配置，注意：
-- **时间符合目标用户群体作息**：以下为参考（东八区），请根据模拟场景调整
-- **官方机构**（University/GovernmentAgency）：活跃度低(0.1-0.3)，工作时间(9-17)活动，响应慢(60-240分钟)，影响力高(2.5-3.0)
-- **媒体**（MediaOutlet）：活跃度中(0.4-0.6)，全天活动(8-23)，响应快(5-30分钟)，影响力高(2.0-2.5)
-- **个人**（Student/Person/Alumni）：活跃度高(0.6-0.9)，主要晚间活动(18-23)，响应快(1-15分钟)，影响力低(0.8-1.2)
-- **公众人物/专家**：活跃度中(0.4-0.6)，影响力中高(1.5-2.0)
+## Tarea
+Genera la configuración de actividad para cada entidad, teniendo en cuenta:
+- **El horario debe coincidir con los hábitos del grupo de usuarios objetivo**: lo siguiente es una referencia (UTC+8), ajústalo al escenario de simulación
+- **Organismos oficiales** (University/GovernmentAgency): actividad baja (0.1-0.3), en horario laboral (9-17), respuesta lenta (60-240 minutos), influencia alta (2.5-3.0)
+- **Medios** (MediaOutlet): actividad media (0.4-0.6), activos todo el día (8-23), respuesta rápida (5-30 minutos), influencia alta (2.0-2.5)
+- **Individuos** (Student/Person/Alumni): actividad alta (0.6-0.9), principalmente por la noche (18-23), respuesta rápida (1-15 minutos), influencia baja (0.8-1.2)
+- **Figuras públicas/expertos**: actividad media (0.4-0.6), influencia media-alta (1.5-2.0)
 
-返回JSON格式（不要markdown）：
+Formato de salida JSON (sin markdown):
 {{
     "agent_configs": [
         {{
-            "agent_id": <必须与输入一致>,
+            "agent_id": <debe coincidir con la entrada>,
             "activity_level": <0.0-1.0>,
-            "posts_per_hour": <发帖频率>,
-            "comments_per_hour": <评论频率>,
-            "active_hours": [<活跃小时列表，考虑中国人作息>],
-            "response_delay_min": <最小响应延迟分钟>,
-            "response_delay_max": <最大响应延迟分钟>,
-            "sentiment_bias": <-1.0到1.0>,
+            "posts_per_hour": <frecuencia de publicaciones>,
+            "comments_per_hour": <frecuencia de comentarios>,
+            "active_hours": [<lista de horas activas, considerando los hábitos del grupo objetivo>],
+            "response_delay_min": <retraso mínimo de respuesta en minutos>,
+            "response_delay_max": <retraso máximo de respuesta en minutos>,
+            "sentiment_bias": <-1.0 a 1.0>,
             "stance": "<supportive/opposing/neutral/observer>",
-            "influence_weight": <影响力权重>
+            "influence_weight": <peso de influencia>
         }},
         ...
     ]

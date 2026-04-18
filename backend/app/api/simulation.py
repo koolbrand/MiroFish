@@ -811,19 +811,68 @@ def get_simulation(simulation_id: str):
     try:
         manager = SimulationManager()
         state = manager.get_simulation(simulation_id)
-        
+
         if not state:
             return jsonify({
                 "success": False,
                 "error": t('api.simulationNotFound', id=simulation_id)
             }), 404
-        
+
+        # Self-heal: reconcile stale `state.status` against the live runner
+        # state. If the runner finished (completed/failed/stopped) but the
+        # persisted SimulationState still says RUNNING/PREPARING, patch it.
+        run_state = None
+        try:
+            run_state = SimulationRunner.get_run_state(simulation_id)
+            if run_state:
+                runner_value = run_state.runner_status.value
+                stale_running = state.status in (
+                    SimulationStatus.RUNNING,
+                    SimulationStatus.PREPARING,
+                )
+                if runner_value == "completed" and state.status != SimulationStatus.COMPLETED:
+                    logger.info(
+                        f"Reconciling {simulation_id}: state.status={state.status.value} "
+                        f"-> completed (runner reported completed)"
+                    )
+                    state.status = SimulationStatus.COMPLETED
+                    manager._save_simulation_state(state)
+                elif runner_value == "failed" and stale_running:
+                    logger.info(
+                        f"Reconciling {simulation_id}: state.status={state.status.value} "
+                        f"-> failed (runner reported failed)"
+                    )
+                    state.status = SimulationStatus.FAILED
+                    if not state.error and run_state.error:
+                        state.error = run_state.error
+                    manager._save_simulation_state(state)
+                elif runner_value == "stopped" and stale_running:
+                    logger.info(
+                        f"Reconciling {simulation_id}: state.status={state.status.value} "
+                        f"-> stopped (runner reported stopped)"
+                    )
+                    state.status = SimulationStatus.STOPPED
+                    manager._save_simulation_state(state)
+        except Exception as reconcile_err:
+            # Reconciliation is best-effort; never block the GET.
+            logger.warning(f"Status reconciliation failed for {simulation_id}: {reconcile_err}")
+
         result = state.to_dict()
-        
+
         # 如果模拟已准备好，附加运行说明
         if state.status == SimulationStatus.READY:
             result["run_instructions"] = manager.get_run_instructions(simulation_id)
-        
+
+        # Surface live runner_status to the frontend so it can render
+        # the real state without a second request.
+        if run_state:
+            try:
+                result["runner_status"] = run_state.runner_status.value
+                result["current_round"] = run_state.current_round
+                result["total_rounds"] = run_state.total_rounds
+            except Exception:
+                pass
+
         return jsonify({
             "success": True,
             "data": result

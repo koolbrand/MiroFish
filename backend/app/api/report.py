@@ -11,7 +11,8 @@ from flask import request, jsonify, send_file
 from . import report_bp
 from ..config import Config
 from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
-from ..services.simulation_manager import SimulationManager
+from ..services.simulation_manager import SimulationManager, SimulationStatus
+from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 from ..utils.logger import get_logger
@@ -68,6 +69,30 @@ def generate_report():
                 "success": False,
                 "error": t('api.simulationNotFound', id=simulation_id)
             }), 404
+
+        # Guardrail: only allow report generation when the simulation has
+        # actually completed. Prevents generating reports for dead/running/
+        # partially-prepared simulations.
+        run_state = SimulationRunner.get_run_state(simulation_id)
+        runner_value = run_state.runner_status.value if run_state else None
+        sim_status_value = state.status.value if state.status else None
+
+        completed_runner = runner_value in ("completed", "stopped")
+        completed_sim = sim_status_value in ("completed", "stopped")
+
+        if not (completed_runner or completed_sim):
+            current_status = runner_value or sim_status_value or "unknown"
+            logger.warning(
+                f"Report generation blocked for {simulation_id}: "
+                f"runner_status={runner_value}, status={sim_status_value}"
+            )
+            return jsonify({
+                "success": False,
+                "error": t('api.reportRequiresCompletedSim', status=current_status),
+                "status": current_status,
+                "runner_status": runner_value,
+                "sim_status": sim_status_value
+            }), 409
 
         # 检查是否已有报告
         if not force_regenerate:
