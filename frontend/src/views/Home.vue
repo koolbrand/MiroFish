@@ -2,14 +2,14 @@
   <div class="home-container">
     <!-- 顶部导航栏 -->
     <nav class="navbar">
-      <div class="nav-brand">MIROFISH</div>
+      <BrandLogo class="nav-brand" />
       <div class="nav-links">
         <AppVersion />
         <LanguageSwitcher />
         <router-link to="/projects" class="github-link">
           {{ $t('nav.projects') }} <span class="arrow">→</span>
         </router-link>
-        <a href="https://github.com/666ghj/MiroFish" target="_blank" class="github-link">
+        <a href="https://github.com/koolbrand/MiroFish" target="_blank" class="github-link">
           {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
         </a>
       </div>
@@ -46,11 +46,12 @@
         </div>
         
         <div class="hero-right">
-          <!-- Logo 区域 -->
+          <!-- Wordmark -->
           <div class="logo-container">
-            <img src="../assets/logo/MiroFish_logo_left.jpeg" alt="MiroFish Logo" class="hero-logo" />
+            <BrandLogo class="hero-logo" aria-label="Mirror" />
+            <p class="logo-tagline">Mirror <span class="logo-tagline-by">by</span> <span class="logo-tagline-brand">Koolbrand</span></p>
           </div>
-          
+
           <button class="scroll-down-btn" @click="scrollToBottom">
             ↓
           </button>
@@ -221,6 +222,7 @@ import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
+import BrandLogo from '../components/BrandLogo.vue'
 
 const router = useRouter()
 
@@ -353,10 +355,16 @@ const startSimulation = () => {
 }
 
 .nav-brand {
-  font-family: var(--font-mono);
-  font-weight: 800;
-  letter-spacing: 1px;
-  font-size: 1.2rem;
+  font-size: 24px;
+  color: var(--white);
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.15s ease;
+  cursor: pointer;
+}
+
+.nav-brand:hover {
+  opacity: 0.7;
 }
 
 .nav-links {
@@ -518,13 +526,37 @@ const startSimulation = () => {
 .logo-container {
   width: 100%;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
   padding-right: 40px;
 }
 
 .hero-logo {
-  max-width: 500px; /* 调整logo大小 */
-  width: 100%;
+  font-size: 120px;
+  width: auto;
+  max-width: 100%;
+  color: var(--black);
+}
+
+.logo-tagline {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--gray-text);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0;
+  padding-right: 4px;
+}
+
+.logo-tagline-by {
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+.logo-tagline-brand {
+  color: var(--orange);
+  font-weight: 700;
 }
 
 .scroll-down-btn {
@@ -895,7 +927,7 @@ const startSimulation = () => {
   }
   
   .hero-logo {
-    max-width: 200px;
+    font-size: 64px;
     margin-bottom: 20px;
   }
 }

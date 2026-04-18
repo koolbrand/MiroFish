@@ -2,7 +2,7 @@
   <div class="projects-container">
     <!-- Navbar -->
     <nav class="navbar">
-      <router-link to="/" class="nav-brand">MIROFISH</router-link>
+      <router-link to="/" class="nav-brand"><BrandLogo /></router-link>
       <div class="nav-links">
         <LanguageSwitcher />
         <router-link to="/" class="nav-link">{{ $t('projects.backToHome') }}</router-link>
@@ -171,6 +171,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { listProjects, deleteProject } from '../api/graph'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import BrandLogo from '../components/BrandLogo.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -358,12 +359,15 @@ onMounted(refresh)
   padding: 0 40px;
 }
 .nav-brand {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 800;
-  letter-spacing: 1px;
-  font-size: 1.2rem;
+  font-size: 24px;
   color: #fff;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.15s ease;
+}
+.nav-brand:hover {
+  opacity: 0.7;
 }
 .nav-links { display: flex; align-items: center; gap: 16px; }
 .nav-link {

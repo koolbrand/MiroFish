@@ -4,9 +4,9 @@
 
       <!-- Logo -->
       <div class="login-logo">
-        <div class="login-logo-icon">🐟</div>
-        <h1 class="login-title">MiroFish</h1>
+        <BrandLogo class="login-wordmark" aria-label="Mirror" />
         <p class="login-subtitle">Swarm Intelligence Engine</p>
+        <p class="login-byline">by <span class="login-byline-brand">Koolbrand</span></p>
       </div>
 
       <!-- Form -->
@@ -65,6 +65,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { pb } from '../lib/pocketbase'
+import BrandLogo from '../components/BrandLogo.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -113,10 +114,11 @@ const handleLogin = async () => {
   text-align: center;
 }
 
-.login-logo-icon {
-  font-size: 3rem;
+.login-wordmark {
+  font-size: 56px;
+  color: #ffffff;
   margin-bottom: 0.5rem;
-  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.4));
+  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.25));
 }
 
 .login-title {
@@ -133,6 +135,20 @@ const handleLogin = async () => {
   letter-spacing: 0.15em;
   margin: 0.25rem 0 0;
   text-transform: uppercase;
+}
+
+.login-byline {
+  color: #444;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  margin: 0.4rem 0 0;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.login-byline-brand {
+  color: #ff4500;
+  font-weight: 700;
 }
 
 .login-card {

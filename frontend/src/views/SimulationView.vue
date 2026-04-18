@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
+        <BrandLogo class="brand" @click="router.push('/')" />
       </div>
       
       <div class="header-center">
@@ -75,6 +75,7 @@ import { getProject, getGraphData } from '../api/graph'
 import { getSimulation, stopSimulation, getEnvStatus, closeSimulationEnv } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
+import BrandLogo from '../components/BrandLogo.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -328,11 +329,14 @@ onMounted(async () => {
 }
 
 .brand {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: 1px;
+  font-size: 22px;
   cursor: pointer;
+  color: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.brand:hover {
+  opacity: 0.7;
 }
 
 .header-center {
