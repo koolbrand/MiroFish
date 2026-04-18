@@ -46,14 +46,14 @@
         </div>
         
         <div class="hero-right">
-          <!-- Force-directed node simulation canvas -->
+          <!-- D3 force-directed graph — same style as in-app graph -->
           <div class="agent-vis-panel">
             <div class="vis-top-bar">
               <span class="vis-label">SIMULATION ENGINE</span>
               <span class="vis-live"><span class="live-dot"></span>ACTIVE</span>
             </div>
-            <div class="vis-canvas-wrap">
-              <canvas ref="simCanvas" class="sim-canvas"></canvas>
+            <div class="vis-svg-wrap">
+              <svg ref="simSvg" class="sim-svg"></svg>
               <div class="sim-brand-overlay">
                 <BrandLogo class="sim-logo" />
                 <div class="sim-brand-sub">by <strong>KOOLBRAND</strong></div>
@@ -232,6 +232,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import * as d3 from 'd3'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
@@ -240,129 +241,148 @@ import BrandLogo from '../components/BrandLogo.vue'
 
 const router = useRouter()
 
-// ── Canvas node-simulation ──────────────────────────────────────────────────
-const simCanvas = ref(null)
-let _animFrame = null
+// ── D3 force-directed graph (same style as in-app GraphPanel) ───────────────
+const simSvg = ref(null)
+let _d3sim = null
 
-const NODE_COLORS = [
-  '#FF4500', '#0D9488', '#7C3AED', '#1D4ED8',
-  '#DC2626', '#D97706', '#059669', '#0EA5E9',
-  '#9333EA', '#F59E0B', '#2563EB', '#DB2777',
+// Predefined demo graph — looks like a real simulation output
+const DEMO_NODES = [
+  { id: 'n1',  name: 'KoolBrand',  type: 'Brand' },
+  { id: 'n2',  name: 'BrandMind',  type: 'Product' },
+  { id: 'n3',  name: 'AI',         type: 'Tech' },
+  { id: 'n4',  name: 'Marketing',  type: 'Domain' },
+  { id: 'n5',  name: 'Startup...',  type: 'Entity' },
+  { id: 'n6',  name: 'Canva',      type: 'Competitor' },
+  { id: 'n7',  name: 'Designer...', type: 'Agent' },
+  { id: 'n8',  name: 'LatAm',      type: 'Market' },
+  { id: 'n9',  name: 'Social m...',type: 'Platform' },
+  { id: 'n10', name: 'PIX',        type: 'Entity' },
+  { id: 'n11', name: 'Carlos R...', type: 'Agent' },
+  { id: 'n12', name: 'SaaS Ent...',type: 'Segment' },
+  { id: 'n13', name: 'r/Entrep...', type: 'Community' },
+  { id: 'n14', name: 'Colombia',   type: 'Location' },
+  { id: 'n15', name: 'Freelanc...', type: 'Agent' },
+  { id: 'n16', name: 'Angel in...',type: 'Investor' },
+  { id: 'n17', name: 'Maria Lo...', type: 'Agent' },
+  { id: 'n18', name: 'Traditio...', type: 'Competitor' },
 ]
+const DEMO_EDGES = [
+  { source: 'n1', target: 'n2', label: 'Owns' },
+  { source: 'n1', target: 'n3', label: 'Uses' },
+  { source: 'n2', target: 'n3', label: 'Powered by' },
+  { source: 'n2', target: 'n6', label: 'Has competitor' },
+  { source: 'n2', target: 'n9', label: 'Targets' },
+  { source: 'n2', target: 'n12', label: 'Serves' },
+  { source: 'n2', target: 'n13', label: 'Discussed in' },
+  { source: 'n4', target: 'n1', label: 'Supports' },
+  { source: 'n5', target: 'n2', label: 'Evaluates' },
+  { source: 'n7', target: 'n2', label: 'Reviews' },
+  { source: 'n8', target: 'n1', label: 'Is market of' },
+  { source: 'n10', target: 'n2', label: 'Integrates' },
+  { source: 'n11', target: 'n2', label: 'Advocates' },
+  { source: 'n14', target: 'n1', label: 'Located in' },
+  { source: 'n15', target: 'n7', label: 'Works with' },
+  { source: 'n16', target: 'n5', label: 'Funds' },
+  { source: 'n17', target: 'n2', label: 'Promotes' },
+  { source: 'n18', target: 'n2', label: 'Competes' },
+  { source: 'n3', target: 'n5', label: 'Enables' },
+]
+const DEMO_COLOR_MAP = {
+  Brand: '#FF6B35', Product: '#FF4500', Tech: '#E9724C',
+  Domain: '#004E89', Entity: '#7B2D8E', Competitor: '#C5283D',
+  Agent: '#3498db', Market: '#1A936F', Platform: '#9b59b6',
+  Segment: '#27ae60', Community: '#f39c12', Location: '#0D9488',
+  Investor: '#e74c3c',
+}
+const getNodeColor = (type) => DEMO_COLOR_MAP[type] || '#999'
 
-const initNetworkCanvas = () => {
-  const canvas = simCanvas.value
-  if (!canvas) return
+const initNetworkSvg = () => {
+  const el = simSvg.value
+  if (!el) return
 
-  const setSize = () => {
-    canvas.width  = canvas.offsetWidth
-    canvas.height = canvas.offsetHeight
-  }
-  setSize()
+  const W = el.clientWidth || 500
+  const H = el.clientHeight || 310
 
-  const W = () => canvas.width
-  const H = () => canvas.height
+  const svg = d3.select(el)
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `0 0 ${W} ${H}`)
 
-  // 26 nodes with random sizes and colours
-  const nodes = Array.from({ length: 26 }, (_, i) => ({
-    x:     30 + Math.random() * (W() - 60),
-    y:     30 + Math.random() * (H() - 60),
-    vx:    (Math.random() - 0.5) * 0.7,
-    vy:    (Math.random() - 0.5) * 0.7,
-    r:     4 + Math.random() * 11,
-    color: NODE_COLORS[i % NODE_COLORS.length],
-  }))
+  svg.selectAll('*').remove()
 
-  // Sparse random edges
-  const edges = []
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (Math.random() < 0.13) edges.push([i, j])
-    }
-  }
+  // Deep-copy nodes so D3 can mutate them freely
+  const nodes = DEMO_NODES.map(n => ({ ...n }))
+  const edges = DEMO_EDGES.map(e => ({ ...e }))
 
-  const ctx = canvas.getContext('2d')
+  const sim = d3.forceSimulation(nodes)
+    .force('link',    d3.forceLink(edges).id(d => d.id).distance(110))
+    .force('charge',  d3.forceManyBody().strength(-320))
+    .force('center',  d3.forceCenter(W / 2, H / 2))
+    .force('collide', d3.forceCollide(40))
+    .force('x',       d3.forceX(W / 2).strength(0.05))
+    .force('y',       d3.forceY(H / 2).strength(0.05))
+    .alphaDecay(0)         // run forever — gentle continuous drift
+    .velocityDecay(0.45)
 
-  const tick = () => {
-    const w = W(), h = H()
-    // Background
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, w, h)
+  _d3sim = sim
 
-    // Subtle dot grid
-    ctx.fillStyle = 'rgba(255,255,255,0.035)'
-    for (let x = 18; x < w; x += 22)
-      for (let y = 18; y < h; y += 22) {
-        ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill()
-      }
+  const g = svg.append('g')
 
-    // Edges — fade with distance
-    for (const [a, b] of edges) {
-      const na = nodes[a], nb = nodes[b]
-      const d = Math.hypot(na.x - nb.x, na.y - nb.y)
-      const alpha = Math.max(0, 0.18 - d / 700)
-      if (alpha <= 0) continue
-      ctx.beginPath()
-      ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`
-      ctx.lineWidth = 0.8
-      ctx.moveTo(na.x, na.y)
-      ctx.lineTo(nb.x, nb.y)
-      ctx.stroke()
-    }
+  // Edges
+  const link = g.append('g').selectAll('line')
+    .data(edges).enter().append('line')
+    .attr('stroke', '#C0C0C0')
+    .attr('stroke-width', 1.5)
 
-    // Physics + draw
-    const cx = w / 2, cy = h / 2
-    for (let i = 0; i < nodes.length; i++) {
-      const n = nodes[i]
+  // Edge labels
+  const linkLabel = g.append('g').selectAll('text')
+    .data(edges).enter().append('text')
+    .text(d => d.label)
+    .attr('font-size', '8px')
+    .attr('fill', '#999')
+    .attr('text-anchor', 'middle')
+    .style('font-family', 'system-ui, sans-serif')
+    .style('pointer-events', 'none')
 
-      // Gentle center gravity
-      n.vx += (cx - n.x) * 0.00025
-      n.vy += (cy - n.y) * 0.00025
+  // Nodes
+  const node = g.append('g').selectAll('circle')
+    .data(nodes).enter().append('circle')
+    .attr('r', 10)
+    .attr('fill', d => getNodeColor(d.type))
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 2.5)
 
-      // Node-node repulsion
-      for (let j = 0; j < nodes.length; j++) {
-        if (i === j) continue
-        const m = nodes[j]
-        const dx = n.x - m.x, dy = n.y - m.y
-        const d  = Math.hypot(dx, dy) || 1
-        if (d < 70) {
-          const f = 0.35 / (d * d) * 70
-          n.vx += dx * f; n.vy += dy * f
-        }
-      }
+  // Node labels
+  const nodeLabel = g.append('g').selectAll('text')
+    .data(nodes).enter().append('text')
+    .text(d => d.name)
+    .attr('font-size', '11px')
+    .attr('fill', '#333')
+    .attr('font-weight', '500')
+    .attr('dx', 14).attr('dy', 4)
+    .style('font-family', 'system-ui, sans-serif')
+    .style('pointer-events', 'none')
 
-      // Speed cap
-      const spd = Math.hypot(n.vx, n.vy)
-      if (spd > 1.1) { n.vx *= 1.1 / spd; n.vy *= 1.1 / spd }
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
 
-      n.x += n.vx; n.y += n.vy
+    linkLabel
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2)
 
-      // Boundary bounce
-      if (n.x < n.r)      { n.x = n.r;      n.vx =  Math.abs(n.vx) }
-      if (n.x > w - n.r)  { n.x = w - n.r;  n.vx = -Math.abs(n.vx) }
-      if (n.y < n.r)      { n.y = n.r;       n.vy =  Math.abs(n.vy) }
-      if (n.y > h - n.r)  { n.y = h - n.r;  n.vy = -Math.abs(n.vy) }
-
-      // Draw node
-      ctx.beginPath()
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
-      ctx.fillStyle = n.color
-      ctx.fill()
-    }
-
-    _animFrame = requestAnimationFrame(tick)
-  }
-
-  tick()
+    node.attr('cx', d => d.x).attr('cy', d => d.y)
+    nodeLabel.attr('x', d => d.x).attr('y', d => d.y)
+  })
 }
 
 onMounted(async () => {
   await nextTick()
-  initNetworkCanvas()
+  initNetworkSvg()
 })
 
 onUnmounted(() => {
-  if (_animFrame) cancelAnimationFrame(_animFrame)
+  if (_d3sim) _d3sim.stop()
 })
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -663,11 +683,11 @@ const startSimulation = () => {
   align-items: stretch;
 }
 
-/* ── Canvas simulation panel ── */
+/* ── D3 graph panel ── */
 .agent-vis-panel {
   width: 100%;
-  background: #000;
-  border: 1px solid #1a1a1a;
+  background: #fff;
+  border: 1px solid #E5E5E5;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -677,14 +697,15 @@ const startSimulation = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
-  border-bottom: 1px solid #111;
+  padding: 12px 18px;
+  border-bottom: 1px solid #EBEBEB;
   font-family: var(--font-mono);
   font-size: 0.68rem;
   letter-spacing: 1.5px;
+  background: #fff;
 }
 
-.vis-label { color: #444; font-weight: 600; }
+.vis-label { color: #999; font-weight: 600; }
 
 .vis-live {
   display: flex;
@@ -707,13 +728,18 @@ const startSimulation = () => {
   50%       { opacity: 0.35; transform: scale(0.65); }
 }
 
-.vis-canvas-wrap {
+.vis-svg-wrap {
   position: relative;
   height: 310px;
   flex-shrink: 0;
+  /* Exact same background as in-app GraphPanel */
+  background-color: #FAFAFA;
+  background-image: radial-gradient(#D0D0D0 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  overflow: hidden;
 }
 
-.sim-canvas {
+.sim-svg {
   width: 100%;
   height: 100%;
   display: block;
@@ -721,24 +747,28 @@ const startSimulation = () => {
 
 .sim-brand-overlay {
   position: absolute;
-  bottom: 18px;
-  right: 20px;
+  bottom: 14px;
+  right: 16px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 3px;
   pointer-events: none;
+  background: rgba(250, 250, 250, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 8px 12px;
+  border: 1px solid #E8E8E8;
 }
 
 .sim-logo {
-  font-size: 30px;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: 26px;
+  color: #000;
 }
 
 .sim-brand-sub {
   font-family: var(--font-mono);
-  font-size: 0.58rem;
-  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.57rem;
+  color: #999;
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
@@ -746,8 +776,9 @@ const startSimulation = () => {
 .sim-brand-sub strong { color: #FF4500; }
 
 .vis-bottom-bar {
-  padding: 14px 20px;
-  border-top: 1px solid #111;
+  padding: 12px 18px;
+  border-top: 1px solid #EBEBEB;
+  background: #fff;
 }
 
 .vis-stat-row {
@@ -765,14 +796,14 @@ const startSimulation = () => {
   font-family: var(--font-mono);
   font-size: 1.15rem;
   font-weight: 700;
-  color: #fff;
+  color: #111;
   line-height: 1;
 }
 
 .stat-lbl {
   font-family: var(--font-mono);
   font-size: 0.58rem;
-  color: #333;
+  color: #999;
   letter-spacing: 1px;
   text-transform: uppercase;
 }
