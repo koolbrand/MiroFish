@@ -2523,7 +2523,9 @@ def interview_agents_batch():
         simulation_id = data.get('simulation_id')
         interviews = data.get('interviews')
         platform = data.get('platform')  # 可选：twitter/reddit/None
-        timeout = data.get('timeout', 120)
+        # Timeout corto para chat interactivo: si la simulación murió sin actualizar
+        # env_status.json, no queremos esperar 120s antes de activar el fallback LLM.
+        timeout = data.get('timeout', 10)
 
         if not simulation_id:
             return jsonify({
@@ -2593,11 +2595,14 @@ def interview_agents_batch():
             "error": str(e)
         }), 400
 
-    except TimeoutError as e:
-        return jsonify({
-            "success": False,
-            "error": t('api.batchInterviewTimeout', error=str(e))
-        }), 504
+    except TimeoutError:
+        # La simulación no respondió en tiempo (proceso muerto pero env_status.json
+        # aún dice "alive"). Usar fallback LLM en lugar de devolver 504.
+        logger.warning(f"interview_agents_batch timeout para sim={data.get('simulation_id')} — usando fallback LLM")
+        return _interview_batch_llm_fallback(
+            data.get('simulation_id', ''),
+            data.get('interviews', [])
+        )
 
     except Exception as e:
         logger.error(f"Fallo en la Interview por lotes: {str(e)}")
