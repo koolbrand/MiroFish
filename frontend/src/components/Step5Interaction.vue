@@ -10,6 +10,14 @@
             <div class="report-meta">
               <span class="report-tag">Prediction Report</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
+              <button class="download-btn" @click="downloadReport" :title="$t('step5.downloadReport')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                .md
+              </button>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
@@ -475,6 +483,11 @@ const rightPanel = ref(null)
 // Methods
 const addLog = (msg) => {
   emit('add-log', msg)
+}
+
+const downloadReport = () => {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  window.open(`${base}/api/report/${props.reportId}/download`, '_blank')
 }
 
 const toggleSectionCollapse = (idx) => {
@@ -1056,6 +1069,29 @@ watch(() => props.simulationId, (newId) => {
   align-items: center;
   gap: 12px;
   margin-bottom: 24px;
+}
+
+.download-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid #D1D5DB;
+  color: #6B7280;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+  transition: all 0.15s ease;
+}
+.download-btn:hover {
+  border-color: #000;
+  color: #000;
+  background: #F9FAFB;
 }
 
 .report-tag {

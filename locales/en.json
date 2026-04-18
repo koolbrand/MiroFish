@@ -347,7 +347,8 @@
     "errorOccurred": "Sorry, an error occurred: {error}",
     "noResponse": "No response",
     "requestFailed": "Request failed",
-    "selectAgentFirst": "Please select a simulated individual first"
+    "selectAgentFirst": "Please select a simulated individual first",
+    "downloadReport": "Download report (.md)"
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",

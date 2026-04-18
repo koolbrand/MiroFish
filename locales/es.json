@@ -347,7 +347,8 @@
     "errorOccurred": "Lo sentimos, ocurrió un error: {error}",
     "noResponse": "Sin respuesta",
     "requestFailed": "Solicitud fallida",
-    "selectAgentFirst": "Por favor selecciona un individuo simulado primero"
+    "selectAgentFirst": "Por favor selecciona un individuo simulado primero",
+    "downloadReport": "Descargar informe (.md)"
   },
   "graph": {
     "panelTitle": "Visualización de relaciones del grafo",
