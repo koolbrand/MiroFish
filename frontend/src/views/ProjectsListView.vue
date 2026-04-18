@@ -119,6 +119,19 @@
             <span v-else class="sub mono">—</span>
           </div>
           <div class="col col-actions">
+            <!-- Step 5 direct access if a report already exists -->
+            <button
+              v-if="reportMap[p.project_id]"
+              class="row-btn primary"
+              @click="openInteraction(p.project_id)"
+            >
+              Step 5 →
+            </button>
+            <span
+              v-else-if="reportMapLoading && p.status === 'graph_completed'"
+              class="report-checking"
+            >···</span>
+            <!-- Open wizard -->
             <button
               v-if="p.status === 'graph_completed' && p.graph_id"
               class="row-btn"
@@ -170,6 +183,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { listProjects, deleteProject } from '../api/graph'
+import { getSimulationHistory } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 
@@ -183,6 +197,10 @@ const deleting = ref(false)
 const statusFilter = ref('all')
 const selectedIds = ref(new Set())
 const confirmState = ref(null) // { ids: [], message: '' }
+
+// Map project_id → report_id for completed simulations
+const reportMap = ref({})
+const reportMapLoading = ref(false)
 
 const filters = computed(() => [
   { value: 'all', label: t('projects.filterAll') },
@@ -215,6 +233,30 @@ const someSelected = computed(() =>
   filteredProjects.value.some(p => selectedIds.value.has(p.project_id))
 )
 
+const loadReportMap = async () => {
+  reportMapLoading.value = true
+  try {
+    const res = await getSimulationHistory(200)
+    if (res.success && Array.isArray(res.data)) {
+      // Sort newest first so first-seen per project wins
+      const sorted = [...res.data].sort((a, b) =>
+        (b.created_at || '').localeCompare(a.created_at || '')
+      )
+      const map = {}
+      for (const sim of sorted) {
+        if (sim.report_id && sim.project_id && !map[sim.project_id]) {
+          map[sim.project_id] = sim.report_id
+        }
+      }
+      reportMap.value = map
+    }
+  } catch {
+    // silently ignore — Step 5 button just won't appear
+  } finally {
+    reportMapLoading.value = false
+  }
+}
+
 const refresh = async () => {
   loading.value = true
   errorMsg.value = ''
@@ -235,6 +277,7 @@ const refresh = async () => {
   } finally {
     loading.value = false
   }
+  loadReportMap() // fire-and-forget, doesn't block table render
 }
 
 const toggleOne = (id) => {
@@ -297,6 +340,11 @@ const runConfirm = async () => {
 
 const openProject = (id) => {
   router.push({ name: 'Process', params: { projectId: id } })
+}
+
+const openInteraction = (projectId) => {
+  const reportId = reportMap.value[projectId]
+  if (reportId) router.push({ name: 'Interaction', params: { reportId } })
 }
 
 // --- helpers ---
@@ -524,7 +572,7 @@ onMounted(refresh)
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: 40px 100px 1.5fr 130px 140px 1.5fr 160px;
+  grid-template-columns: 40px 100px 1.5fr 130px 140px 1.5fr 220px;
   gap: 12px;
   padding: 12px 16px;
   align-items: center;
@@ -594,10 +642,24 @@ onMounted(refresh)
   font-size: 0.72rem;
   cursor: pointer;
   color: #374151;
+  white-space: nowrap;
 }
 .row-btn:hover { border-color: #000; color: #000; }
+.row-btn.primary {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+  font-weight: 700;
+}
+.row-btn.primary:hover { background: #333; border-color: #333; }
 .row-btn.danger { border-color: #fecaca; color: #dc2626; }
 .row-btn.danger:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+.report-checking {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 2px;
+}
 
 /* Modal */
 .modal-overlay {
@@ -683,7 +745,7 @@ onMounted(refresh)
 
 @media (max-width: 900px) {
   .table-head, .table-row {
-    grid-template-columns: 32px 80px 1fr 110px 110px 110px;
+    grid-template-columns: 32px 80px 1fr 110px 110px 180px;
   }
   .col-info { display: none; }
 }
