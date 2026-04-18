@@ -101,7 +101,7 @@ class FileParser:
         try:
             import fitz  # PyMuPDF
         except ImportError:
-            raise ImportError("需要安装PyMuPDF: pip install PyMuPDF")
+            raise ImportError("Se necesita instalar PyMuPDF: pip install PyMuPDF")
         
         text_parts = []
         with fitz.open(file_path) as doc:
@@ -139,9 +139,9 @@ class FileParser:
             try:
                 text = cls.extract_text(file_path)
                 filename = Path(file_path).name
-                all_texts.append(f"=== 文档 {i}: {filename} ===\n{text}")
+                all_texts.append(f"=== Documento {i}: {filename} ===\n{text}")
             except Exception as e:
-                all_texts.append(f"=== 文档 {i}: {file_path} (提取失败: {str(e)}) ===")
+                all_texts.append(f"=== Documento {i}: {file_path} (fallo en la extracción: {str(e)}) ===")
         
         return "\n\n".join(all_texts)
 

@@ -101,6 +101,6 @@ class Config:
         """验证必要配置"""
         errors = []
         if not cls.LLM_API_KEY:
-            errors.append("LLM_API_KEY 未配置")
+            errors.append("LLM_API_KEY no está configurada")
         return errors
 

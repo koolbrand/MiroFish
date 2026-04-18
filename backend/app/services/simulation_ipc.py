@@ -24,9 +24,9 @@ logger = get_logger('mirofish.simulation_ipc')
 
 class CommandType(str, Enum):
     """命令类型"""
-    INTERVIEW = "interview"           # 单个Agent采访
-    BATCH_INTERVIEW = "batch_interview"  # 批量采访
-    CLOSE_ENV = "close_env"           # 关闭环境
+    INTERVIEW = "interview"           # Entrevista a un solo Agent
+    BATCH_INTERVIEW = "batch_interview"  # Entrevista por lotes
+    CLOSE_ENV = "close_env"           # Cerrar el entorno
 
 
 class CommandStatus(str, Enum):
@@ -148,7 +148,7 @@ class SimulationIPCClient:
         with open(command_file, 'w', encoding='utf-8') as f:
             json.dump(command.to_dict(), f, ensure_ascii=False, indent=2)
         
-        logger.info(f"发送IPC命令: {command_type.value}, command_id={command_id}")
+        logger.info(f"Enviando comando IPC: {command_type.value}, command_id={command_id}")
         
         # 等待响应
         response_file = os.path.join(self.responses_dir, f"{command_id}.json")
@@ -168,15 +168,15 @@ class SimulationIPCClient:
                     except OSError:
                         pass
                     
-                    logger.info(f"收到IPC响应: command_id={command_id}, status={response.status.value}")
+                    logger.info(f"Respuesta IPC recibida: command_id={command_id}, status={response.status.value}")
                     return response
                 except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"解析响应失败: {e}")
-            
+                    logger.warning(f"Fallo al parsear la respuesta: {e}")
+
             time.sleep(poll_interval)
-        
-        # 超时
-        logger.error(f"等待IPC响应超时: command_id={command_id}")
+
+        # Timeout
+        logger.error(f"Timeout esperando la respuesta IPC: command_id={command_id}")
         
         # 清理命令文件
         try:
@@ -184,7 +184,7 @@ class SimulationIPCClient:
         except OSError:
             pass
         
-        raise TimeoutError(f"等待命令响应超时 ({timeout}秒)")
+        raise TimeoutError(f"Timeout esperando la respuesta del comando ({timeout} s)")
     
     def send_interview(
         self,
@@ -354,7 +354,7 @@ class SimulationIPCServer:
                     data = json.load(f)
                 return IPCCommand.from_dict(data)
             except (json.JSONDecodeError, KeyError, OSError) as e:
-                logger.warning(f"读取命令文件失败: {filepath}, {e}")
+                logger.warning(f"Fallo al leer el archivo de comando: {filepath}, {e}")
                 continue
         
         return None

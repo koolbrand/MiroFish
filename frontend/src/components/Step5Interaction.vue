@@ -722,9 +722,9 @@ const sendToAgent = async (message) => {
     const historyContext = chatHistory.value
       .filter(msg => msg.content !== message)
       .slice(-6)
-      .map(msg => `${msg.role === 'user' ? '提问者' : '你'}：${msg.content}`)
+      .map(msg => `${msg.role === 'user' ? 'Entrevistador' : 'Tú'}: ${msg.content}`)
       .join('\n')
-    prompt = `以下是我们之前的对话：\n${historyContext}\n\n现在我的新问题是：${message}`
+    prompt = `A continuación está nuestra conversación anterior:\n${historyContext}\n\nAhora mi nueva pregunta es: ${message}`
   }
   
   const res = await interviewAgents({

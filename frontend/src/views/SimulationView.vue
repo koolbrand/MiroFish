@@ -222,7 +222,7 @@ const checkAndStopRunningSimulation = async () => {
     }
   } catch (err) {
     // 检查环境状态失败不影响后续流程
-    console.warn('检查模拟状态失败:', err)
+    console.warn('Error al verificar el estado de la simulación:', err)
   }
 }
 

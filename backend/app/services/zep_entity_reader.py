@@ -109,13 +109,13 @@ class ZepEntityReader:
                 last_exception = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        f"Zep {operation_name} 第 {attempt + 1} 次尝试失败: {str(e)[:100]}, "
-                        f"{delay:.1f}秒后重试..."
+                        f"Intento {attempt + 1} de Zep {operation_name} fallido: {str(e)[:100]}, "
+                        f"reintentando en {delay:.1f} s..."
                     )
                     time.sleep(delay)
-                    delay *= 2  # 指数退避
+                    delay *= 2  # Backoff exponencial
                 else:
-                    logger.error(f"Zep {operation_name} 在 {max_retries} 次尝试后仍失败: {str(e)}")
+                    logger.error(f"Zep {operation_name} ha fallado tras {max_retries} intentos: {str(e)}")
         
         raise last_exception
     
@@ -129,7 +129,7 @@ class ZepEntityReader:
         Returns:
             节点列表
         """
-        logger.info(f"获取图谱 {graph_id} 的所有节点...")
+        logger.info(f"Obteniendo todos los nodos del grafo {graph_id}...")
 
         nodes = fetch_all_nodes(self.client, graph_id)
 
@@ -143,7 +143,7 @@ class ZepEntityReader:
                 "attributes": node.attributes or {},
             })
 
-        logger.info(f"共获取 {len(nodes_data)} 个节点")
+        logger.info(f"Obtenidos {len(nodes_data)} nodos en total")
         return nodes_data
 
     def get_all_edges(self, graph_id: str) -> List[Dict[str, Any]]:
@@ -156,7 +156,7 @@ class ZepEntityReader:
         Returns:
             边列表
         """
-        logger.info(f"获取图谱 {graph_id} 的所有边...")
+        logger.info(f"Obteniendo todas las aristas del grafo {graph_id}...")
 
         edges = fetch_all_edges(self.client, graph_id)
 
@@ -171,7 +171,7 @@ class ZepEntityReader:
                 "attributes": edge.attributes or {},
             })
 
-        logger.info(f"共获取 {len(edges_data)} 条边")
+        logger.info(f"Obtenidas {len(edges_data)} aristas en total")
         return edges_data
     
     def get_node_edges(self, node_uuid: str) -> List[Dict[str, Any]]:
@@ -188,7 +188,7 @@ class ZepEntityReader:
             # 使用重试机制调用Zep API
             edges = self._call_with_retry(
                 func=lambda: self.client.graph.node.get_entity_edges(node_uuid=node_uuid),
-                operation_name=f"获取节点边(node={node_uuid[:8]}...)"
+                operation_name=f"obtener aristas del nodo (node={node_uuid[:8]}...)"
             )
             
             edges_data = []
@@ -204,7 +204,7 @@ class ZepEntityReader:
             
             return edges_data
         except Exception as e:
-            logger.warning(f"获取节点 {node_uuid} 的边失败: {str(e)}")
+            logger.warning(f"Fallo al obtener las aristas del nodo {node_uuid}: {str(e)}")
             return []
     
     def filter_defined_entities(
@@ -228,7 +228,7 @@ class ZepEntityReader:
         Returns:
             FilteredEntities: 过滤后的实体集合
         """
-        logger.info(f"开始筛选图谱 {graph_id} 的实体...")
+        logger.info(f"Iniciando el filtrado de entidades del grafo {graph_id}...")
 
         # 获取所有节点
         all_nodes = self.get_all_nodes(graph_id)
@@ -254,8 +254,9 @@ class ZepEntityReader:
         use_entity_fallback = (not any_custom_label) and (not defined_entity_types)
         if use_entity_fallback and all_nodes:
             logger.warning(
-                f"图谱 {graph_id} 的所有节点只有通用标签 'Entity'（提取器未赋予自定义类型）。"
-                f"将使用 'Entity' 作为兜底类型以允许模拟继续运行。"
+                f"Todos los nodos del grafo {graph_id} tienen únicamente la etiqueta genérica 'Entity' "
+                f"(el extractor no asignó tipos personalizados). "
+                f"Se usará 'Entity' como tipo de reserva para que la simulación pueda continuar."
             )
 
         # 筛选符合条件的实体
@@ -339,8 +340,8 @@ class ZepEntityReader:
             
             filtered_entities.append(entity)
         
-        logger.info(f"筛选完成: 总节点 {total_count}, 符合条件 {len(filtered_entities)}, "
-                   f"实体类型: {entity_types_found}")
+        logger.info(f"Filtrado completado: nodos totales {total_count}, coincidentes {len(filtered_entities)}, "
+                   f"tipos de entidad: {entity_types_found}")
         
         return FilteredEntities(
             entities=filtered_entities,
@@ -368,7 +369,7 @@ class ZepEntityReader:
             # 使用重试机制获取节点
             node = self._call_with_retry(
                 func=lambda: self.client.graph.node.get(uuid_=entity_uuid),
-                operation_name=f"获取节点详情(uuid={entity_uuid[:8]}...)"
+                operation_name=f"obtener detalles del nodo (uuid={entity_uuid[:8]}...)"
             )
             
             if not node:
@@ -426,7 +427,7 @@ class ZepEntityReader:
             )
             
         except Exception as e:
-            logger.error(f"获取实体 {entity_uuid} 失败: {str(e)}")
+            logger.error(f"Fallo al obtener la entidad {entity_uuid}: {str(e)}")
             return None
     
     def get_entities_by_type(

@@ -269,7 +269,7 @@ class SimulationConfigGenerator:
         Returns:
             SimulationParameters: 完整的模拟参数
         """
-        logger.info(f"开始智能生成模拟配置: simulation_id={simulation_id}, 实体数={len(entities)}")
+        logger.info(f"Iniciando la generación inteligente de configuración de simulación: simulation_id={simulation_id}, nº de entidades={len(entities)}")
         
         # 计算总步骤数
         num_batches = math.ceil(len(entities) / self.AGENTS_PER_BATCH)
@@ -327,8 +327,8 @@ class SimulationConfigGenerator:
         
         reasoning_parts.append(t('progress.agentConfigResult', count=len(all_agent_configs)))
         
-        # ========== 为初始帖子分配发布者 Agent ==========
-        logger.info("为初始帖子分配合适的发布者 Agent...")
+        # ========== Asignar Agent publicador para los posts iniciales ==========
+        logger.info("Asignando el Agent publicador adecuado para los posts iniciales...")
         event_config = self._assign_initial_post_agents(event_config, all_agent_configs)
         assigned_count = len([p for p in event_config.initial_posts if p.get("poster_agent_id") is not None])
         reasoning_parts.append(t('progress.postAssignResult', count=assigned_count))
@@ -374,7 +374,7 @@ class SimulationConfigGenerator:
             generation_reasoning=" | ".join(reasoning_parts)
         )
         
-        logger.info(f"模拟配置生成完成: {len(params.agent_configs)} 个Agent配置")
+        logger.info(f"Configuración de simulación generada: {len(params.agent_configs)} configuraciones de Agent")
         
         return params
     
@@ -456,14 +456,14 @@ class SimulationConfigGenerator:
                 
                 # 检查是否被截断
                 if finish_reason == 'length':
-                    logger.warning(f"LLM输出被截断 (attempt {attempt+1})")
+                    logger.warning(f"Salida del LLM truncada (intento {attempt+1})")
                     content = self._fix_truncated_json(content)
                 
                 # 尝试解析JSON
                 try:
                     return json.loads(content)
                 except json.JSONDecodeError as e:
-                    logger.warning(f"JSON解析失败 (attempt {attempt+1}): {str(e)[:80]}")
+                    logger.warning(f"Fallo al parsear JSON (intento {attempt+1}): {str(e)[:80]}")
                     
                     # 尝试修复JSON
                     fixed = self._try_fix_config_json(content)
@@ -473,7 +473,7 @@ class SimulationConfigGenerator:
                     last_error = e
                     
             except Exception as e:
-                logger.warning(f"LLM调用失败 (attempt {attempt+1}): {str(e)[:80]}")
+                logger.warning(f"Fallo en la llamada al LLM (intento {attempt+1}): {str(e)[:80]}")
                 last_error = e
                 import time
                 time.sleep(2 * (attempt + 1))
@@ -597,7 +597,7 @@ Descripción de campos:
         try:
             return self._call_llm_with_retry(prompt, system_prompt)
         except Exception as e:
-            logger.warning(f"时间配置LLM生成失败: {e}, 使用默认配置")
+            logger.warning(f"Fallo al generar la configuración temporal con el LLM: {e}, se usará la configuración por defecto")
             return self._get_default_time_config(num_entities)
     
     def _get_default_time_config(self, num_entities: int) -> Dict[str, Any]:
@@ -622,17 +622,17 @@ Descripción de campos:
         
         # 验证并修正：确保不超过总agent数
         if agents_per_hour_min > num_entities:
-            logger.warning(f"agents_per_hour_min ({agents_per_hour_min}) 超过总Agent数 ({num_entities})，已修正")
+            logger.warning(f"agents_per_hour_min ({agents_per_hour_min}) supera el total de Agents ({num_entities}); se ha corregido")
             agents_per_hour_min = max(1, num_entities // 10)
-        
+
         if agents_per_hour_max > num_entities:
-            logger.warning(f"agents_per_hour_max ({agents_per_hour_max}) 超过总Agent数 ({num_entities})，已修正")
+            logger.warning(f"agents_per_hour_max ({agents_per_hour_max}) supera el total de Agents ({num_entities}); se ha corregido")
             agents_per_hour_max = max(agents_per_hour_min + 1, num_entities // 2)
-        
+
         # 确保 min < max
         if agents_per_hour_min >= agents_per_hour_max:
             agents_per_hour_min = max(1, agents_per_hour_max // 2)
-            logger.warning(f"agents_per_hour_min >= max，已修正为 {agents_per_hour_min}")
+            logger.warning(f"agents_per_hour_min >= max; se ha corregido a {agents_per_hour_min}")
         
         return TimeSimulationConfig(
             total_simulation_hours=result.get("total_simulation_hours", 72),
@@ -721,7 +721,7 @@ Formato de salida JSON (sin markdown):
         try:
             return self._call_llm_with_retry(prompt, system_prompt)
         except Exception as e:
-            logger.warning(f"事件配置LLM生成失败: {e}, 使用默认配置")
+            logger.warning(f"Fallo al generar la configuración de eventos con el LLM: {e}, se usará la configuración por defecto")
             return {
                 "hot_topics": [],
                 "narrative_direction": "",
@@ -804,7 +804,7 @@ Formato de salida JSON (sin markdown):
             
             # 3. 如果仍未找到，使用影响力最高的 agent
             if matched_agent_id is None:
-                logger.warning(f"未找到类型 '{poster_type}' 的匹配 Agent，使用影响力最高的 Agent")
+                logger.warning(f"No se encontró un Agent del tipo '{poster_type}'; se usará el Agent de mayor influencia")
                 if agent_configs:
                     # 按影响力排序，选择影响力最高的
                     sorted_agents = sorted(agent_configs, key=lambda a: a.influence_weight, reverse=True)
@@ -818,7 +818,7 @@ Formato de salida JSON (sin markdown):
                 "poster_agent_id": matched_agent_id
             })
             
-            logger.info(f"初始帖子分配: poster_type='{poster_type}' -> agent_id={matched_agent_id}")
+            logger.info(f"Asignación de post inicial: poster_type='{poster_type}' -> agent_id={matched_agent_id}")
         
         event_config.initial_posts = updated_posts
         return event_config
@@ -894,7 +894,7 @@ Formato de salida JSON (sin markdown):
             result = self._call_llm_with_retry(prompt, system_prompt)
             llm_configs = {cfg["agent_id"]: cfg for cfg in result.get("agent_configs", [])}
         except Exception as e:
-            logger.warning(f"Agent配置批次LLM生成失败: {e}, 使用规则生成")
+            logger.warning(f"Fallo al generar el lote de configuración de Agents con el LLM: {e}, se usará la generación por reglas")
             llm_configs = {}
         
         # 构建AgentActivityConfig对象

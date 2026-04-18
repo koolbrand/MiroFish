@@ -417,8 +417,8 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
         """
         code_lines = [
             '"""',
-            '自定义实体类型定义',
-            '由MiroFish自动生成，用于社会舆论模拟',
+            'Definición personalizada de tipos de entidad',
+            'Generada automáticamente por MiroFish para la simulación de opinión pública',
             '"""',
             '',
             'from pydantic import Field, BaseModel',
@@ -434,7 +434,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
             '    pass',
             '',
             '',
-            '# ============== 实体类型定义 ==============',
+            '# ============== Definición de tipos de entidad ==============',
             '',
         ]
         
@@ -461,7 +461,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
             code_lines.append('')
             code_lines.append('')
         
-        code_lines.append('# ============== 关系类型定义 ==============')
+        code_lines.append('# ============== Definición de tipos de relación ==============')
         code_lines.append('')
         
         # 生成关系类型
@@ -490,7 +490,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
             code_lines.append('')
         
         # 生成类型字典
-        code_lines.append('# ============== 类型配置 ==============')
+        code_lines.append('# ============== Configuración de tipos ==============')
         code_lines.append('')
         code_lines.append('ENTITY_TYPES = {')
         for entity in ontology.get("entity_types", []):

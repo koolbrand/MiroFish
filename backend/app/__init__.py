@@ -36,7 +36,7 @@ def create_app(config_class=Config):
     
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info("Arrancando MiroFish Backend...")
         logger.info("=" * 50)
     
     # 启用CORS
@@ -46,20 +46,20 @@ def create_app(config_class=Config):
     from .services.simulation_runner import SimulationRunner
     SimulationRunner.register_cleanup()
     if should_log_startup:
-        logger.info("已注册模拟进程清理函数")
+        logger.info("Función de limpieza de procesos de simulación registrada")
     
     # 请求日志中间件
     @app.before_request
     def log_request():
         logger = get_logger('mirofish.request')
-        logger.debug(f"请求: {request.method} {request.path}")
+        logger.debug(f"Petición: {request.method} {request.path}")
         if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
-    
+            logger.debug(f"Cuerpo de la petición: {request.get_json(silent=True)}")
+
     @app.after_request
     def log_response(response):
         logger = get_logger('mirofish.request')
-        logger.debug(f"响应: {response.status_code}")
+        logger.debug(f"Respuesta: {response.status_code}")
         return response
     
     # 注册蓝图
@@ -94,7 +94,7 @@ def create_app(config_class=Config):
             logger.info("Frontend dist no encontrado, solo API disponible")
 
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info("MiroFish Backend arrancado correctamente")
 
     return app
 

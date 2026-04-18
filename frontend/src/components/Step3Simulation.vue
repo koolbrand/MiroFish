@@ -555,7 +555,7 @@ const fetchRunStatus = async () => {
       }
     }
   } catch (err) {
-    console.warn('获取运行状态失败:', err)
+    console.warn('Error al obtener el estado de ejecución:', err)
   }
 }
 
@@ -613,7 +613,7 @@ const fetchRunStatusDetail = async () => {
       // 新动作会在底部追加
     }
   } catch (err) {
-    console.warn('获取详细状态失败:', err)
+    console.warn('Error al obtener el estado detallado:', err)
   }
 }
 

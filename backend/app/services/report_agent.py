@@ -680,29 +680,29 @@ Tu tarea es:
 
 **Ejemplo correcto:**
 ```
-本章节分析了事件的舆论传播态势。通过对模拟数据的深入分析，我们发现...
+Esta sección analiza la dinámica de propagación de la opinión pública sobre el evento. Tras un análisis profundo de los datos simulados, encontramos...
 
-**首发引爆阶段**
+**Fase de detonación inicial**
 
-微博作为舆情的第一现场，承担了信息首发的核心功能：
+Twitter actuó como el primer escenario de la crisis y asumió la función núcleo de difusión inicial de la información:
 
-> "微博贡献了68%的首发声量..."
+> "Twitter aportó el 68% del volumen inicial de menciones..."
 
-**情绪放大阶段**
+**Fase de amplificación emocional**
 
-抖音平台进一步放大了事件影响力：
+La plataforma de video corto amplificó aún más el impacto del evento:
 
-- 视觉冲击力强
-- 情绪共鸣度高
+- Alto impacto visual
+- Alta resonancia emocional
 ```
 
 **Ejemplo incorrecto:**
 ```
-## 执行摘要          ← ¡error! no agregues ningún encabezado
-### 一、首发阶段     ← ¡error! no uses ### para subsecciones
-#### 1.1 详细分析   ← ¡error! no uses #### para sub-subsecciones
+## Resumen ejecutivo      ← ¡error! no agregues ningún encabezado
+### 1. Fase inicial       ← ¡error! no uses ### para subsecciones
+#### 1.1 Análisis detallado  ← ¡error! no uses #### para sub-subsecciones
 
-本章节分析了...
+Esta sección analiza...
 ```
 
 ═══════════════════════════════════════════════════════════════
@@ -923,38 +923,38 @@ class ReportAgent:
         logger.info(t('report.agentInitDone', graphId=graph_id, simulationId=simulation_id))
     
     def _define_tools(self) -> Dict[str, Dict[str, Any]]:
-        """定义可用工具"""
+        """Define available tools (LLM-facing schema in Spanish)."""
         return {
             "insight_forge": {
                 "name": "insight_forge",
                 "description": TOOL_DESC_INSIGHT_FORGE,
                 "parameters": {
-                    "query": "你想深入分析的问题或话题",
-                    "report_context": "当前报告章节的上下文（可选，有助于生成更精准的子问题）"
+                    "query": "La pregunta o tema que quieres analizar en profundidad",
+                    "report_context": "Contexto del capítulo actual del informe (opcional, ayuda a generar sub-preguntas más precisas)"
                 }
             },
             "panorama_search": {
                 "name": "panorama_search",
                 "description": TOOL_DESC_PANORAMA_SEARCH,
                 "parameters": {
-                    "query": "搜索查询，用于相关性排序",
-                    "include_expired": "是否包含过期/历史内容（默认True）"
+                    "query": "Consulta de búsqueda utilizada para ordenar por relevancia",
+                    "include_expired": "Indica si se incluye contenido caducado/histórico (por defecto True)"
                 }
             },
             "quick_search": {
                 "name": "quick_search",
                 "description": TOOL_DESC_QUICK_SEARCH,
                 "parameters": {
-                    "query": "搜索查询字符串",
-                    "limit": "返回结果数量（可选，默认10）"
+                    "query": "Cadena de búsqueda",
+                    "limit": "Número de resultados a devolver (opcional, por defecto 10)"
                 }
             },
             "interview_agents": {
                 "name": "interview_agents",
                 "description": TOOL_DESC_INTERVIEW_AGENTS,
                 "parameters": {
-                    "interview_topic": "采访主题或需求描述（如：'了解学生对宿舍甲醛事件的看法'）",
-                    "max_agents": "最多采访的Agent数量（可选，默认5，最大10）"
+                    "interview_topic": "Tema o descripción de la necesidad de la entrevista (p. ej.: 'conocer la opinión de los estudiantes sobre el incidente del formaldehído en las residencias')",
+                    "max_agents": "Número máximo de agentes a entrevistar (opcional, por defecto 5, máximo 10)"
                 }
             }
         }
@@ -1079,11 +1079,11 @@ class ReportAgent:
                 return json.dumps(result, ensure_ascii=False, indent=2)
             
             else:
-                return f"未知工具: {tool_name}。请使用以下工具之一: insight_forge, panorama_search, quick_search"
-                
+                return f"Herramienta desconocida: {tool_name}. Usa una de las siguientes: insight_forge, panorama_search, quick_search"
+
         except Exception as e:
             logger.error(t('report.toolExecFailed', toolName=tool_name, error=str(e)))
-            return f"工具执行失败: {str(e)}"
+            return f"Fallo al ejecutar la herramienta: {str(e)}"
 
     @staticmethod
     def _is_interview_failure(text: str) -> bool:
@@ -1101,19 +1101,19 @@ class ReportAgent:
 
         # Strong textual failure signals from the zep_tools layer.
         failure_substrings = (
-            "未找到可采访的Agent",
-            "采访失败",
-            "采访API调用失败",
-            "采访过程发生错误",
+            "No se encontraron agentes para entrevistar",
+            "No se pueden realizar entrevistas",
+            "Fallo en la API de entrevistas",
+            "Error al ejecutar entrevistas",
         )
         for sig in failure_substrings:
             if sig in text:
                 return True
 
-        # Structured failure: the formatted "## 深度采访报告" header with
-        # zero agents actually interviewed.
-        if text.lstrip().startswith("## 深度采访报告"):
-            if "采访人数:** 0 /" in text or "采访人数:** 0/" in text:
+        # Structured failure: the formatted "## Reporte de Entrevistas" header
+        # with zero agents actually interviewed.
+        if text.lstrip().startswith("## Reporte de Entrevistas"):
+            if "Agentes entrevistados:** 0 /" in text or "Agentes entrevistados:** 0/" in text:
                 return True
             if "interviewed_count=0" in text:
                 return True
@@ -1189,12 +1189,12 @@ class ReportAgent:
     
     def _get_tools_description(self) -> str:
         """生成工具描述文本"""
-        desc_parts = ["可用工具："]
+        desc_parts = ["Herramientas disponibles:"]
         for name, tool in self.tools.items():
             params_desc = ", ".join([f"{k}: {v}" for k, v in tool["parameters"].items()])
             desc_parts.append(f"- {name}: {tool['description']}")
             if params_desc:
-                desc_parts.append(f"  参数: {params_desc}")
+                desc_parts.append(f"  Parámetros: {params_desc}")
         return "\n".join(desc_parts)
     
     def plan_outline(
@@ -1333,7 +1333,7 @@ class ReportAgent:
                 previous_parts.append(truncated)
             previous_content = "\n\n---\n\n".join(previous_parts)
         else:
-            previous_content = "（这是第一个章节）"
+            previous_content = "(Este es el primer capítulo)"
         
         user_prompt = SECTION_USER_PROMPT_TEMPLATE.format(
             previous_content=previous_content,
@@ -1354,7 +1354,7 @@ class ReportAgent:
         all_tools = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
 
         # 报告上下文，用于InsightForge的子问题生成
-        report_context = f"章节标题: {section.title}\n模拟需求: {self.simulation_requirement}"
+        report_context = f"Título del capítulo: {section.title}\nRequisitos de la simulación: {self.simulation_requirement}"
         
         for iteration in range(max_iterations):
             if progress_callback:
@@ -1382,7 +1382,7 @@ class ReportAgent:
                 # 最后一次迭代也返回 None，跳出循环进入强制收尾
                 break
 
-            logger.debug(f"LLM响应: {response[:200]}...")
+            logger.debug(f"Respuesta del LLM: {response[:200]}...")
 
             # 解析一次，复用结果
             tool_calls = self._parse_tool_calls(response)
@@ -1402,11 +1402,11 @@ class ReportAgent:
                     messages.append({
                         "role": "user",
                         "content": (
-                            "【格式错误】你在一次回复中同时包含了工具调用和 Final Answer，这是不允许的。\n"
-                            "每次回复只能做以下两件事之一：\n"
-                            "- 调用一个工具（输出一个 <tool_call> 块，不要写 Final Answer）\n"
-                            "- 输出最终内容（以 'Final Answer:' 开头，不要包含 <tool_call>）\n"
-                            "请重新回复，只做其中一件事。"
+                            "[Error de formato] En una misma respuesta incluiste una llamada a herramienta y un Final Answer, lo cual no está permitido.\n"
+                            "Cada respuesta solo puede hacer una de las dos cosas siguientes:\n"
+                            "- Llamar a una herramienta (emite un único bloque <tool_call> y no escribas Final Answer).\n"
+                            "- Entregar el contenido final (empezando por 'Final Answer:' y sin ningún <tool_call>).\n"
+                            "Vuelve a responder y haz solo una de ellas."
                         ),
                     })
                     continue
@@ -1440,7 +1440,7 @@ class ReportAgent:
                 if tool_calls_count < min_tool_calls:
                     messages.append({"role": "assistant", "content": response})
                     unused_tools = all_tools - used_tools
-                    unused_hint = f"（这些工具还未使用，推荐用一下他们: {', '.join(unused_tools)}）" if unused_tools else ""
+                    unused_hint = f"(Estas herramientas aún no se han usado, te recomiendo probarlas: {', '.join(unused_tools)})" if unused_tools else ""
                     messages.append({
                         "role": "user",
                         "content": REACT_INSUFFICIENT_TOOLS_MSG.format(
@@ -1536,7 +1536,7 @@ class ReportAgent:
             if tool_calls_count < min_tool_calls:
                 # 工具调用次数不足，推荐未用过的工具
                 unused_tools = all_tools - used_tools
-                unused_hint = f"（这些工具还未使用，推荐用一下他们: {', '.join(unused_tools)}）" if unused_tools else ""
+                unused_hint = f"(Estas herramientas aún no se han usado, te recomiendo probarlas: {', '.join(unused_tools)})" if unused_tools else ""
 
                 messages.append({
                     "role": "user",
@@ -1884,7 +1884,7 @@ class ReportAgent:
                 # 限制报告长度，避免上下文过长
                 report_content = report.markdown_content[:15000]
                 if len(report.markdown_content) > 15000:
-                    report_content += "\n\n... [报告内容已截断] ..."
+                    report_content += "\n\n... [Contenido del informe truncado] ..."
         except Exception as e:
             logger.warning(t('report.fetchReportFailed', error=e))
         
@@ -1946,7 +1946,7 @@ class ReportAgent:
             
             # 将结果添加到消息
             messages.append({"role": "assistant", "content": response})
-            observation = "\n".join([f"[{r['tool']}结果]\n{r['result']}" for r in tool_results])
+            observation = "\n".join([f"[Resultado de {r['tool']}]\n{r['result']}" for r in tool_results])
             messages.append({
                 "role": "user",
                 "content": observation + CHAT_OBSERVATION_SUFFIX

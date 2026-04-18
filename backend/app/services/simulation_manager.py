@@ -223,7 +223,7 @@ class SimulationManager:
         )
         
         self._save_simulation_state(state)
-        logger.info(f"创建模拟: {simulation_id}, project={project_id}, graph={graph_id}")
+        logger.info(f"Simulación creada: {simulation_id}, project={project_id}, graph={graph_id}")
         
         return state
     
@@ -261,8 +261,8 @@ class SimulationManager:
         """
         state = self._load_simulation_state(simulation_id)
         if not state:
-            raise ValueError(f"模拟不存在: {simulation_id}")
-        
+            raise ValueError(f"La simulación no existe: {simulation_id}")
+
         try:
             state.status = SimulationStatus.PREPARING
             self._save_simulation_state(state)
@@ -442,13 +442,13 @@ class SimulationManager:
             state.status = SimulationStatus.READY
             self._save_simulation_state(state)
             
-            logger.info(f"模拟准备完成: {simulation_id}, "
+            logger.info(f"Simulación preparada: {simulation_id}, "
                        f"entities={state.entities_count}, profiles={state.profiles_count}")
-            
+
             return state
-            
+
         except Exception as e:
-            logger.error(f"模拟准备失败: {simulation_id}, error={str(e)}")
+            logger.error(f"Fallo en la preparación de la simulación: {simulation_id}, error={str(e)}")
             import traceback
             logger.error(traceback.format_exc())
             state.status = SimulationStatus.FAILED
@@ -497,15 +497,15 @@ class SimulationManager:
             return False
 
         shutil.rmtree(sim_dir, ignore_errors=True)
-        logger.info(f"已删除模拟: {simulation_id}")
+        logger.info(f"Simulación eliminada: {simulation_id}")
         return True
     
     def get_profiles(self, simulation_id: str, platform: str = "reddit") -> List[Dict[str, Any]]:
         """获取模拟的Agent Profile"""
         state = self._load_simulation_state(simulation_id)
         if not state:
-            raise ValueError(f"模拟不存在: {simulation_id}")
-        
+            raise ValueError(f"La simulación no existe: {simulation_id}")
+
         sim_dir = self._get_simulation_dir(simulation_id)
         profile_path = os.path.join(sim_dir, f"{platform}_profiles.json")
         
@@ -542,10 +542,10 @@ class SimulationManager:
                 "parallel": f"python {scripts_dir}/run_parallel_simulation.py --config {config_path}",
             },
             "instructions": (
-                f"1. 激活conda环境: conda activate MiroFish\n"
-                f"2. 运行模拟 (脚本位于 {scripts_dir}):\n"
-                f"   - 单独运行Twitter: python {scripts_dir}/run_twitter_simulation.py --config {config_path}\n"
-                f"   - 单独运行Reddit: python {scripts_dir}/run_reddit_simulation.py --config {config_path}\n"
-                f"   - 并行运行双平台: python {scripts_dir}/run_parallel_simulation.py --config {config_path}"
+                f"1. Activar el entorno conda: conda activate MiroFish\n"
+                f"2. Ejecutar la simulación (los scripts están en {scripts_dir}):\n"
+                f"   - Ejecutar solo Twitter: python {scripts_dir}/run_twitter_simulation.py --config {config_path}\n"
+                f"   - Ejecutar solo Reddit: python {scripts_dir}/run_reddit_simulation.py --config {config_path}\n"
+                f"   - Ejecutar ambas plataformas en paralelo: python {scripts_dir}/run_parallel_simulation.py --config {config_path}"
             )
         }

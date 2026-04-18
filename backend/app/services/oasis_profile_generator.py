@@ -191,7 +191,7 @@ class OasisProfileGenerator:
         self.model_name = model_name or Config.LLM_MODEL_NAME
 
         if not self.api_key:
-            raise ValueError("LLM_API_KEY 未配置")
+            raise ValueError("LLM_API_KEY no está configurada")
 
         self.client = OpenAI(
             api_key=self.api_key,
@@ -203,7 +203,7 @@ class OasisProfileGenerator:
         try:
             self.zep_client = get_graphiti_client()
         except Exception as e:
-            logger.warning(f"Graphiti客户端初始化失败: {e}")
+            logger.warning(f"Fallo al inicializar el cliente Graphiti: {e}")
             self.zep_client = None
     
     def generate_profile_from_entity(
@@ -308,7 +308,7 @@ class OasisProfileGenerator:
         
         # 必须有graph_id才能进行搜索
         if not self.graph_id:
-            logger.debug(f"跳过Zep检索：未设置graph_id")
+            logger.debug(f"Se omite la búsqueda en Zep: graph_id no está configurado")
             return results
         
         comprehensive_query = t('progress.zepSearchQuery', name=entity_name)
@@ -331,11 +331,11 @@ class OasisProfileGenerator:
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries - 1:
-                        logger.debug(f"Zep边搜索第 {attempt + 1} 次失败: {str(e)[:80]}, 重试中...")
+                        logger.debug(f"Búsqueda de aristas en Zep falló en el intento {attempt + 1}: {str(e)[:80]}, reintentando...")
                         time.sleep(delay)
                         delay *= 2
                     else:
-                        logger.debug(f"Zep边搜索在 {max_retries} 次尝试后仍失败: {e}")
+                        logger.debug(f"La búsqueda de aristas en Zep siguió fallando tras {max_retries} intentos: {e}")
             return None
         
         def search_nodes():
@@ -356,11 +356,11 @@ class OasisProfileGenerator:
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries - 1:
-                        logger.debug(f"Zep节点搜索第 {attempt + 1} 次失败: {str(e)[:80]}, 重试中...")
+                        logger.debug(f"Búsqueda de nodos en Zep falló en el intento {attempt + 1}: {str(e)[:80]}, reintentando...")
                         time.sleep(delay)
                         delay *= 2
                     else:
-                        logger.debug(f"Zep节点搜索在 {max_retries} 次尝试后仍失败: {e}")
+                        logger.debug(f"La búsqueda de nodos en Zep siguió fallando tras {max_retries} intentos: {e}")
             return None
         
         try:
@@ -388,23 +388,23 @@ class OasisProfileGenerator:
                     if hasattr(node, 'summary') and node.summary:
                         all_summaries.add(node.summary)
                     if hasattr(node, 'name') and node.name and node.name != entity_name:
-                        all_summaries.add(f"相关实体: {node.name}")
+                        all_summaries.add(f"Entidad relacionada: {node.name}")
             results["node_summaries"] = list(all_summaries)
-            
-            # 构建综合上下文
+
+            # Build combined LLM-facing context in Spanish
             context_parts = []
             if results["facts"]:
-                context_parts.append("事实信息:\n" + "\n".join(f"- {f}" for f in results["facts"][:20]))
+                context_parts.append("Información factual:\n" + "\n".join(f"- {f}" for f in results["facts"][:20]))
             if results["node_summaries"]:
-                context_parts.append("相关实体:\n" + "\n".join(f"- {s}" for s in results["node_summaries"][:10]))
+                context_parts.append("Entidades relacionadas:\n" + "\n".join(f"- {s}" for s in results["node_summaries"][:10]))
             results["context"] = "\n\n".join(context_parts)
             
-            logger.info(f"Zep混合检索完成: {entity_name}, 获取 {len(results['facts'])} 条事实, {len(results['node_summaries'])} 个相关节点")
+            logger.info(f"Búsqueda híbrida en Zep completada: {entity_name}, se obtuvieron {len(results['facts'])} hechos y {len(results['node_summaries'])} nodos relacionados")
             
         except concurrent.futures.TimeoutError:
-            logger.warning(f"Zep检索超时 ({entity_name})")
+            logger.warning(f"Tiempo de espera agotado en la búsqueda de Zep ({entity_name})")
         except Exception as e:
-            logger.warning(f"Zep检索失败 ({entity_name}): {e}")
+            logger.warning(f"Fallo en la búsqueda de Zep ({entity_name}): {e}")
         
         return results
     
@@ -426,7 +426,7 @@ class OasisProfileGenerator:
                 if value and str(value).strip():
                     attrs.append(f"- {key}: {value}")
             if attrs:
-                context_parts.append("### 实体属性\n" + "\n".join(attrs))
+                context_parts.append("### Atributos de la entidad\n" + "\n".join(attrs))
         
         # 2. 添加相关边信息（事实/关系）
         existing_facts = set()
@@ -442,12 +442,12 @@ class OasisProfileGenerator:
                     existing_facts.add(fact)
                 elif edge_name:
                     if direction == "outgoing":
-                        relationships.append(f"- {entity.name} --[{edge_name}]--> (相关实体)")
+                        relationships.append(f"- {entity.name} --[{edge_name}]--> (entidad relacionada)")
                     else:
-                        relationships.append(f"- (相关实体) --[{edge_name}]--> {entity.name}")
-            
+                        relationships.append(f"- (entidad relacionada) --[{edge_name}]--> {entity.name}")
+
             if relationships:
-                context_parts.append("### 相关事实和关系\n" + "\n".join(relationships))
+                context_parts.append("### Hechos y relaciones relevantes\n" + "\n".join(relationships))
         
         # 3. 添加关联节点的详细信息
         if entity.related_nodes:
@@ -467,7 +467,7 @@ class OasisProfileGenerator:
                     related_info.append(f"- **{node_name}**{label_str}")
             
             if related_info:
-                context_parts.append("### 关联实体信息\n" + "\n".join(related_info))
+                context_parts.append("### Información de entidades asociadas\n" + "\n".join(related_info))
         
         # 4. 使用Zep混合检索获取更丰富的信息
         zep_results = self._search_zep_for_entity(entity)
@@ -476,10 +476,10 @@ class OasisProfileGenerator:
             # 去重：排除已存在的事实
             new_facts = [f for f in zep_results["facts"] if f not in existing_facts]
             if new_facts:
-                context_parts.append("### Zep检索到的事实信息\n" + "\n".join(f"- {f}" for f in new_facts[:15]))
-        
+                context_parts.append("### Hechos obtenidos de Zep\n" + "\n".join(f"- {f}" for f in new_facts[:15]))
+
         if zep_results.get("node_summaries"):
-            context_parts.append("### Zep检索到的相关节点\n" + "\n".join(f"- {s}" for s in zep_results["node_summaries"][:10]))
+            context_parts.append("### Nodos relacionados obtenidos de Zep\n" + "\n".join(f"- {s}" for s in zep_results["node_summaries"][:10]))
         
         return "\n\n".join(context_parts)
     
@@ -540,7 +540,7 @@ class OasisProfileGenerator:
                 # 检查是否被截断（finish_reason不是'stop'）
                 finish_reason = response.choices[0].finish_reason
                 if finish_reason == 'length':
-                    logger.warning(f"LLM输出被截断 (attempt {attempt+1}), 尝试修复...")
+                    logger.warning(f"La salida del LLM fue truncada (attempt {attempt+1}), intentando repararla...")
                     content = self._fix_truncated_json(content)
                 
                 # 尝试解析JSON
@@ -551,12 +551,12 @@ class OasisProfileGenerator:
                     if "bio" not in result or not result["bio"]:
                         result["bio"] = entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}"
                     if "persona" not in result or not result["persona"]:
-                        result["persona"] = entity_summary or f"{entity_name}是一个{entity_type}。"
+                        result["persona"] = entity_summary or f"{entity_name} es un(a) {entity_type}."
                     
                     return result
                     
                 except json.JSONDecodeError as je:
-                    logger.warning(f"JSON解析失败 (attempt {attempt+1}): {str(je)[:80]}")
+                    logger.warning(f"Fallo al parsear JSON (attempt {attempt+1}): {str(je)[:80]}")
                     
                     # 尝试修复JSON
                     result = self._try_fix_json(content, entity_name, entity_type, entity_summary)
@@ -567,12 +567,12 @@ class OasisProfileGenerator:
                     last_error = je
                     
             except Exception as e:
-                logger.warning(f"LLM调用失败 (attempt {attempt+1}): {str(e)[:80]}")
+                logger.warning(f"Fallo en la llamada al LLM (attempt {attempt+1}): {str(e)[:80]}")
                 last_error = e
                 import time
                 time.sleep(1 * (attempt + 1))  # 指数退避
         
-        logger.warning(f"LLM生成人设失败（{max_attempts}次尝试）: {last_error}, 使用规则生成")
+        logger.warning(f"Fallo al generar el perfil con el LLM ({max_attempts} intentos): {last_error}, se usará la generación basada en reglas")
         return self._generate_profile_rule_based(
             entity_name, entity_type, entity_summary, entity_attributes
         )
@@ -648,11 +648,11 @@ class OasisProfileGenerator:
         persona_match = re.search(r'"persona"\s*:\s*"([^"]*)', content)  # 可能被截断
         
         bio = bio_match.group(1) if bio_match else (entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}")
-        persona = persona_match.group(1) if persona_match else (entity_summary or f"{entity_name}是一个{entity_type}。")
+        persona = persona_match.group(1) if persona_match else (entity_summary or f"{entity_name} es un(a) {entity_type}.")
         
         # 如果提取到了有意义的内容，标记为已修复
         if bio_match or persona_match:
-            logger.info(f"从损坏的JSON中提取了部分信息")
+            logger.info(f"Se extrajo información parcial de un JSON dañado")
             return {
                 "bio": bio,
                 "persona": persona,
@@ -660,10 +660,10 @@ class OasisProfileGenerator:
             }
         
         # 7. 完全失败，返回基础结构
-        logger.warning(f"JSON修复失败，返回基础结构")
+        logger.warning(f"No se pudo reparar el JSON; se devuelve la estructura básica")
         return {
             "bio": entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}",
-            "persona": entity_summary or f"{entity_name}是一个{entity_type}。"
+            "persona": entity_summary or f"{entity_name} es un(a) {entity_type}."
         }
     
     def _get_system_prompt(self, is_individual: bool) -> str:
@@ -931,7 +931,7 @@ Rules:
                                 writer.writeheader()
                                 writer.writerows(profiles_data)
                 except Exception as e:
-                    logger.warning(f"实时保存 profiles 失败: {e}")
+                    logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
         # Capture locale before spawning thread pool workers
         current_locale = get_locale()
@@ -954,7 +954,7 @@ Rules:
                 return idx, profile, None
                 
             except Exception as e:
-                logger.error(f"生成实体 {entity.name} 的人设失败: {str(e)}")
+                logger.error(f"Fallo al generar el perfil de la entidad {entity.name}: {str(e)}")
                 # 创建一个基础profile
                 fallback_profile = OasisAgentProfile(
                     user_id=idx,
@@ -967,9 +967,9 @@ Rules:
                 )
                 return idx, fallback_profile, str(e)
         
-        logger.info(f"开始并行生成 {total} 个Agent人设（并行数: {parallel_count}）...")
+        logger.info(f"Iniciando generación paralela de {total} perfiles de Agent (paralelismo: {parallel_count})...")
         print(f"\n{'='*60}")
-        print(f"开始生成Agent人设 - 共 {total} 个实体，并行数: {parallel_count}")
+        print(f"Iniciando generación de perfiles de Agent - {total} entidades en total, paralelismo: {parallel_count}")
         print(f"{'='*60}\n")
         
         # 使用线程池并行执行
@@ -1000,16 +1000,16 @@ Rules:
                         progress_callback(
                             current, 
                             total, 
-                            f"已完成 {current}/{total}: {entity.name}（{entity_type}）"
+                            f"Completado {current}/{total}: {entity.name} ({entity_type})"
                         )
                     
                     if error:
-                        logger.warning(f"[{current}/{total}] {entity.name} 使用备用人设: {error}")
+                        logger.warning(f"[{current}/{total}] {entity.name} usando perfil de respaldo: {error}")
                     else:
-                        logger.info(f"[{current}/{total}] 成功生成人设: {entity.name} ({entity_type})")
+                        logger.info(f"[{current}/{total}] Perfil generado correctamente: {entity.name} ({entity_type})")
                         
                 except Exception as e:
-                    logger.error(f"处理实体 {entity.name} 时发生异常: {str(e)}")
+                    logger.error(f"Excepción al procesar la entidad {entity.name}: {str(e)}")
                     with lock:
                         completed_count[0] += 1
                     profiles[idx] = OasisAgentProfile(
@@ -1025,7 +1025,7 @@ Rules:
                     save_profiles_realtime()
         
         print(f"\n{'='*60}")
-        print(f"人设生成完成！共生成 {len([p for p in profiles if p])} 个Agent")
+        print(f"Generación de perfiles completada. Se generaron {len([p for p in profiles if p])} Agents en total")
         print(f"{'='*60}\n")
         
         return profiles
@@ -1035,24 +1035,24 @@ Rules:
         separator = "-" * 70
         
         # 构建完整输出内容（不截断）
-        topics_str = ', '.join(profile.interested_topics) if profile.interested_topics else '无'
-        
+        topics_str = ', '.join(profile.interested_topics) if profile.interested_topics else 'ninguno'
+
         output_lines = [
             f"\n{separator}",
             t('progress.profileGenerated', name=entity_name, type=entity_type),
             f"{separator}",
-            f"用户名: {profile.user_name}",
+            f"Usuario: {profile.user_name}",
             f"",
-            f"【简介】",
+            f"[Biografía]",
             f"{profile.bio}",
             f"",
-            f"【详细人设】",
+            f"[Perfil detallado]",
             f"{profile.persona}",
             f"",
-            f"【基本属性】",
-            f"年龄: {profile.age} | 性别: {profile.gender} | MBTI: {profile.mbti}",
-            f"职业: {profile.profession} | 国家: {profile.country}",
-            f"兴趣话题: {topics_str}",
+            f"[Atributos básicos]",
+            f"Edad: {profile.age} | Género: {profile.gender} | MBTI: {profile.mbti}",
+            f"Profesión: {profile.profession} | País: {profile.country}",
+            f"Intereses: {topics_str}",
             separator
         ]
         
@@ -1133,7 +1133,7 @@ Rules:
                 ]
                 writer.writerow(row)
         
-        logger.info(f"已保存 {len(profiles)} 个Twitter Profile到 {file_path} (OASIS CSV格式)")
+        logger.info(f"Se guardaron {len(profiles)} perfiles de Twitter en {file_path} (formato CSV de OASIS)")
     
     def _normalize_gender(self, gender: Optional[str]) -> str:
         """
@@ -1207,7 +1207,7 @@ Rules:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"已保存 {len(profiles)} 个Reddit Profile到 {file_path} (JSON格式，包含user_id字段)")
+        logger.info(f"Se guardaron {len(profiles)} perfiles de Reddit en {file_path} (formato JSON, incluye el campo user_id)")
     
     # 保留旧方法名作为别名，保持向后兼容
     def save_profiles_to_json(
@@ -1216,7 +1216,7 @@ Rules:
         file_path: str,
         platform: str = "reddit"
     ):
-        """[已废弃] 请使用 save_profiles() 方法"""
-        logger.warning("save_profiles_to_json已废弃，请使用save_profiles方法")
+        """[Obsoleto] Utilice el método save_profiles()."""
+        logger.warning("save_profiles_to_json está obsoleto; utilice el método save_profiles")
         self.save_profiles(profiles, file_path, platform)
 
