@@ -46,15 +46,45 @@
         </div>
         
         <div class="hero-right">
-          <!-- Wordmark -->
-          <div class="logo-container">
-            <BrandLogo class="hero-logo" aria-label="Mirror" />
-            <p class="logo-tagline">Mirror <span class="logo-tagline-by">by</span> <span class="logo-tagline-brand">Koolbrand</span></p>
+          <!-- Agent Network Visualization -->
+          <div class="agent-vis-panel">
+            <div class="vis-header">
+              <span class="vis-label">SIMULATION ENGINE</span>
+              <span class="vis-live"><span class="live-dot"></span>ACTIVE</span>
+            </div>
+
+            <div class="agent-grid">
+              <div
+                v-for="i in 88"
+                :key="i"
+                class="agent-node"
+                :class="nodeClass(i)"
+              ></div>
+            </div>
+
+            <div class="vis-footer">
+              <div class="vis-stats">
+                <div class="vis-stat">
+                  <span class="stat-val">1,000+</span>
+                  <span class="stat-lbl">agentes</span>
+                </div>
+                <div class="vis-stat">
+                  <span class="stat-val">5</span>
+                  <span class="stat-lbl">pasos</span>
+                </div>
+                <div class="vis-stat">
+                  <span class="stat-val">∞</span>
+                  <span class="stat-lbl">escenarios</span>
+                </div>
+              </div>
+              <div class="vis-brand">
+                <BrandLogo class="vis-logo" />
+                <div class="vis-brand-sub">by <strong>KOOLBRAND</strong></div>
+              </div>
+            </div>
           </div>
 
-          <button class="scroll-down-btn" @click="scrollToBottom">
-            ↓
-          </button>
+          <button class="scroll-down-btn" @click="scrollToBottom">↓</button>
         </div>
       </section>
 
@@ -225,6 +255,15 @@ import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 
 const router = useRouter()
+
+// Agent network visualization — preset active/highlight node indices (1-based)
+const HIGHLIGHT_NODES = new Set([5, 18, 27, 40, 52, 63, 74, 83])
+const ACTIVE_NODES = new Set([2, 9, 14, 23, 31, 36, 44, 47, 55, 60, 67, 71, 79, 86])
+const nodeClass = (i) => {
+  if (HIGHLIGHT_NODES.has(i)) return 'node-highlight'
+  if (ACTIVE_NODES.has(i)) return 'node-active'
+  return ''
+}
 
 // 表单数据
 const formData = ref({
@@ -516,46 +555,149 @@ const startSimulation = () => {
 }
 
 .hero-right {
-  flex: 0.8;
+  flex: 0.9;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 20px;
 }
 
-.logo-container {
+/* ── Agent Visualization Panel ── */
+.agent-vis-panel {
   width: 100%;
+  background: #000;
+  color: #fff;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  border: 1px solid #1a1a1a;
+}
+
+.vis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+}
+
+.vis-label {
+  color: #555;
+  font-weight: 600;
+}
+
+.vis-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #FF4500;
+  font-weight: 700;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF4500;
+  animation: pulse-live 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* Agent dots grid */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 9px;
+}
+
+.agent-node {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #222;
+  transition: background 0.3s;
+}
+
+.agent-node.node-active {
+  background: #444;
+}
+
+.agent-node.node-highlight {
+  background: #FF4500;
+  box-shadow: 0 0 6px rgba(255, 69, 0, 0.6);
+  animation: pulse-node 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-node {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* Footer: stats + brand */
+.vis-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px solid #1a1a1a;
+  padding-top: 20px;
+}
+
+.vis-stats {
+  display: flex;
+  gap: 28px;
+}
+
+.vis-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: #444;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.vis-brand {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 16px;
-  padding-right: 40px;
+  gap: 4px;
 }
 
-.hero-logo {
-  font-size: 120px;
-  width: auto;
-  max-width: 100%;
-  color: var(--black);
+.vis-logo {
+  font-size: 28px;
+  color: #fff;
 }
 
-.logo-tagline {
+.vis-brand-sub {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--gray-text);
-  letter-spacing: 1.5px;
+  font-size: 0.62rem;
+  color: #444;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  margin: 0;
-  padding-right: 4px;
 }
 
-.logo-tagline-by {
-  opacity: 0.5;
-  font-weight: 400;
-}
-
-.logo-tagline-brand {
-  color: var(--orange);
+.vis-brand-sub strong {
+  color: #FF4500;
   font-weight: 700;
 }
 
@@ -925,10 +1067,18 @@ const startSimulation = () => {
     padding-right: 0;
     margin-bottom: 40px;
   }
-  
-  .hero-logo {
-    font-size: 64px;
-    margin-bottom: 20px;
+
+  .hero-right {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .agent-vis-panel {
+    padding: 20px;
+  }
+
+  .agent-grid {
+    grid-template-columns: repeat(11, 1fr);
   }
 }
 </style>

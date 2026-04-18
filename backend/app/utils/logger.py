@@ -6,7 +6,7 @@
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 
 
@@ -27,6 +27,23 @@ def _ensure_utf8_stdout():
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
 
 
+def _cleanup_old_logs(max_days: int = 30) -> None:
+    """Elimina archivos de log con más de max_days días de antigüedad."""
+    if not os.path.exists(LOG_DIR):
+        return
+    cutoff = datetime.now() - timedelta(days=max_days)
+    for fname in os.listdir(LOG_DIR):
+        if not fname.endswith('.log'):
+            continue
+        fpath = os.path.join(LOG_DIR, fname)
+        try:
+            mtime = datetime.fromtimestamp(os.path.getmtime(fpath))
+            if mtime < cutoff:
+                os.remove(fpath)
+        except OSError:
+            pass
+
+
 def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.Logger:
     """
     设置日志器
@@ -40,7 +57,11 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     """
     # 确保日志目录存在
     os.makedirs(LOG_DIR, exist_ok=True)
-    
+
+    # Limpieza de logs antiguos (solo al iniciar el logger principal)
+    if name == 'mirofish':
+        _cleanup_old_logs(max_days=30)
+
     # 创建日志器
     logger = logging.getLogger(name)
     logger.setLevel(level)

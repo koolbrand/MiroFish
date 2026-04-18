@@ -49,12 +49,25 @@ def create_app(config_class=Config):
         logger.info("Función de limpieza de procesos de simulación registrada")
     
     # 请求日志中间件
+    _SENSITIVE_KEYS = {'api_key', 'llm_api_key', 'password', 'token', 'secret', 'authorization', 'key'}
+
+    def _sanitize_body(body: dict) -> dict:
+        """Redacta campos sensibles antes de loguear el cuerpo de la petición."""
+        if not isinstance(body, dict):
+            return body
+        return {
+            k: '***' if k.lower() in _SENSITIVE_KEYS else v
+            for k, v in body.items()
+        }
+
     @app.before_request
     def log_request():
         logger = get_logger('mirofish.request')
         logger.debug(f"Petición: {request.method} {request.path}")
         if request.content_type and 'json' in request.content_type:
-            logger.debug(f"Cuerpo de la petición: {request.get_json(silent=True)}")
+            body = request.get_json(silent=True)
+            if body:
+                logger.debug(f"Cuerpo de la petición: {_sanitize_body(body)}")
 
     @app.after_request
     def log_response(response):
