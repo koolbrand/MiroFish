@@ -4,7 +4,10 @@ Step2: Zep实体读取与过滤、OASIS模拟准备与运行（全程自动化�
 """
 
 import os
+import csv
+import json
 import traceback
+from datetime import datetime
 from flask import request, jsonify, send_file
 
 from . import simulation_bp
@@ -15,6 +18,7 @@ from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
+from ..utils.llm_client import LLMClient
 from ..models.project import ProjectManager
 
 logger = get_logger('mirofish.api.simulation')
@@ -2373,6 +2377,102 @@ def interview_agent():
         }), 500
 
 
+def _load_simulation_profiles(simulation_id: str):
+    """Carga los perfiles de agentes desde el directorio de la simulación."""
+    sim_dir = os.path.join(
+        os.path.dirname(__file__),
+        f'../../uploads/simulations/{simulation_id}'
+    )
+    reddit_path = os.path.join(sim_dir, 'reddit_profiles.json')
+    twitter_path = os.path.join(sim_dir, 'twitter_profiles.csv')
+
+    if os.path.exists(reddit_path):
+        with open(reddit_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    if os.path.exists(twitter_path):
+        profiles = []
+        with open(twitter_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                profiles.append({
+                    'realname': row.get('name', ''),
+                    'username': row.get('username', ''),
+                    'bio': row.get('description', ''),
+                    'persona': row.get('user_char', ''),
+                    'profession': 'Desconocido'
+                })
+        return profiles
+
+    return []
+
+
+def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
+    """
+    Cuando la simulación ya terminó, genera respuestas directamente con LLM
+    usando el perfil almacenado del agente. Devuelve el mismo formato JSON
+    que el endpoint normal para que el frontend no necesite cambios.
+    """
+    try:
+        profiles = _load_simulation_profiles(simulation_id)
+        llm = LLMClient()
+        results = {}
+        interviews_count = 0
+
+        for interview in interviews:
+            agent_id = interview.get('agent_id', 0)
+            prompt = interview.get('prompt', '')
+
+            profile = profiles[agent_id] if agent_id < len(profiles) else {}
+            username = profile.get('username', f'Agent_{agent_id}')
+            bio = profile.get('bio', profile.get('persona', ''))
+            profession = profile.get('profession', 'Participante de la simulación')
+
+            system_prompt = (
+                f"Eres {username}, {profession}.\n"
+                f"Tu perfil: {bio[:600] if bio else 'Sin información adicional.'}\n\n"
+                "Responde siempre en español, en primera persona, con autenticidad y en el tono "
+                "propio de tu profesión e identidad. No uses prefijos ni introducciones: ve directo "
+                "al grano como si fuera una conversación real."
+            )
+
+            response = llm.chat(
+                messages=[
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': prompt}
+                ],
+                temperature=0.85,
+                max_tokens=600
+            )
+
+            results[f'reddit_{agent_id}'] = {
+                'agent_id': agent_id,
+                'response': response,
+                'platform': 'reddit'
+            }
+            interviews_count += 1
+
+        logger.info(f"LLM fallback interview: {interviews_count} agentes respondieron (sim={simulation_id})")
+        return jsonify({
+            'success': True,
+            'data': {
+                'interviews_count': interviews_count,
+                'result': {
+                    'interviews_count': interviews_count,
+                    'results': results
+                },
+                'timestamp': datetime.utcnow().isoformat()
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"LLM fallback para interview_batch falló: {e}")
+        return jsonify({
+            'success': False,
+            'error': t('api.envNotRunning')
+        }), 400
+
+
 @simulation_bp.route('/interview/batch', methods=['POST'])
 def interview_agents_batch():
     """
@@ -2464,12 +2564,9 @@ def interview_agents_batch():
                     "error": t('api.interviewListInvalidPlatform', index=i+1)
                 }), 400
 
-        # 检查环境状态
+        # Si la simulación ya terminó → fallback directo con LLM usando el perfil del agente
         if not SimulationRunner.check_env_alive(simulation_id):
-            return jsonify({
-                "success": False,
-                "error": t('api.envNotRunning')
-            }), 400
+            return _interview_batch_llm_fallback(simulation_id, interviews)
 
         # 优化每个采访项的prompt，添加前缀避免Agent调用工具
         optimized_interviews = []
