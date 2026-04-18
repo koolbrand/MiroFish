@@ -101,10 +101,11 @@
               <span>{{ $t('step5.chatWithReportAgent') }}</span>
             </button>
             <div class="agent-dropdown" v-if="profiles.length > 0">
-              <button 
+              <button
                 class="tab-pill agent-pill"
                 :class="{ active: activeTab === 'chat' && chatTarget === 'agent' }"
                 @click="toggleAgentDropdown"
+                ref="agentPillRef"
               >
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -115,21 +116,24 @@
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
-              <div v-if="showAgentDropdown" class="dropdown-menu">
-                <div class="dropdown-header">{{ $t('step5.selectChatTarget') }}</div>
-                <div 
-                  v-for="(agent, idx) in profiles" 
-                  :key="idx"
-                  class="dropdown-item"
-                  @click="selectAgent(agent, idx)"
-                >
-                  <div class="agent-avatar">{{ (agent.username || 'A')[0] }}</div>
-                  <div class="agent-info">
-                    <span class="agent-name">{{ agent.username }}</span>
-                    <span class="agent-role">{{ agent.profession || $t('step2.unknownProfession') }}</span>
+              <!-- Teleport: escapa el overflow:hidden de los paneles ancestros -->
+              <Teleport to="body">
+                <div v-if="showAgentDropdown" class="dropdown-menu-global" :style="dropdownGlobalStyle">
+                  <div class="dropdown-header-g">{{ $t('step5.selectChatTarget') }}</div>
+                  <div
+                    v-for="(agent, idx) in profiles"
+                    :key="idx"
+                    class="dropdown-item-g"
+                    @click="selectAgent(agent, idx)"
+                  >
+                    <div class="agent-avatar-g">{{ (agent.username || 'A')[0] }}</div>
+                    <div class="agent-info-g">
+                      <span class="agent-name-g">{{ agent.username }}</span>
+                      <span class="agent-role-g">{{ agent.profession || $t('step2.unknownProfession') }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Teleport>
             </div>
             <div class="tab-divider"></div>
             <button
@@ -430,6 +434,10 @@ const activeTab = ref('chat')
 const chatTarget = ref('report_agent')
 const showAgentDropdown = ref(false)
 const selectedAgent = ref(null)
+
+// Dropdown teleported positioning
+const agentPillRef = ref(null)
+const dropdownGlobalStyle = ref({})
 const selectedAgentIndex = ref(null)
 const showFullProfile = ref(true)
 const showToolsDetail = ref(true)
@@ -524,6 +532,18 @@ const toggleAgentDropdown = () => {
   if (showAgentDropdown.value) {
     activeTab.value = 'chat'
     chatTarget.value = 'agent'
+    // Calcular posición del dropdown en coordenadas del viewport (fixed)
+    nextTick(() => {
+      if (agentPillRef.value) {
+        const rect = agentPillRef.value.getBoundingClientRect()
+        dropdownGlobalStyle.value = {
+          position: 'fixed',
+          top: `${rect.bottom + 6}px`,
+          right: `${window.innerWidth - rect.right}px`,
+          zIndex: 9999
+        }
+      }
+    })
   }
 }
 
@@ -928,10 +948,13 @@ const loadProfiles = async () => {
   }
 }
 
-// Click outside to close dropdown
+// Click outside to close dropdown (incluye el menú teleportado al body)
 const handleClickOutside = (e) => {
-  const dropdown = document.querySelector('.agent-dropdown')
-  if (dropdown && !dropdown.contains(e.target)) {
+  const trigger = document.querySelector('.agent-dropdown')
+  const menu = document.querySelector('.dropdown-menu-global')
+  const clickedInsideTrigger = trigger && trigger.contains(e.target)
+  const clickedInsideMenu = menu && menu.contains(e.target)
+  if (!clickedInsideTrigger && !clickedInsideMenu) {
     showAgentDropdown.value = false
   }
 }
@@ -2581,5 +2604,85 @@ watch(() => props.simulationId, (newId) => {
 /* English locale: smaller report title */
 html[lang="en"] .report-header-block .main-title {
   font-size: 28px;
+}
+
+/* ── Dropdown teleportado al body (sin scoped, para escapar overflow:hidden) ── */
+.dropdown-menu-global {
+  min-width: 260px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.dropdown-header-g {
+  padding: 12px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.dropdown-item-g {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-left-color 0.15s ease;
+  border-left: 3px solid transparent;
+}
+
+.dropdown-item-g:hover {
+  background: #F9FAFB;
+  border-left-color: #1F2937;
+}
+
+.dropdown-item-g:first-of-type { margin-top: 4px; }
+.dropdown-item-g:last-child    { margin-bottom: 4px; }
+
+.agent-avatar-g {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  background: linear-gradient(135deg, #1F2937 0%, #374151 100%);
+  color: #FFFFFF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.agent-info-g {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-name-g {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1F2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-role-g {
+  font-size: 11px;
+  color: #9CA3AF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
