@@ -1,8 +1,10 @@
 """
 文件解析工具
-支持PDF、Markdown、TXT文件的文本提取
+支持PDF、Markdown、TXT文件的文本提取，以及图像识别（vía LLM de visión）
 """
 
+import base64
+import io
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -62,22 +64,24 @@ def _read_text_with_fallback(file_path: str) -> str:
 
 class FileParser:
     """文件解析器"""
-    
-    SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt'}
-    
+
+    SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt',
+                             '.png', '.jpg', '.jpeg', '.webp', '.gif'}
+    IMAGE_EXTENSIONS     = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+
     @classmethod
     def extract_text(cls, file_path: str) -> str:
         """
-        从文件中提取文本
-        
+        从文件中提取文本。图像文件通过视觉LLM描述后返回文本。
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             提取的文本内容
         """
         path = Path(file_path)
-        
+
         if not path.exists():
             raise FileNotFoundError(t('api.fileNotFound', path=file_path))
 
@@ -86,7 +90,9 @@ class FileParser:
         if suffix not in cls.SUPPORTED_EXTENSIONS:
             raise ValueError(t('api.fileUnsupported', ext=suffix))
 
-        if suffix == '.pdf':
+        if suffix in cls.IMAGE_EXTENSIONS:
+            return cls._extract_from_image(file_path)
+        elif suffix == '.pdf':
             return cls._extract_from_pdf(file_path)
         elif suffix in {'.md', '.markdown'}:
             return cls._extract_from_md(file_path)
@@ -95,6 +101,83 @@ class FileParser:
 
         raise ValueError(t('api.fileUnsupported', ext=suffix))
     
+    @staticmethod
+    def _extract_from_image(file_path: str) -> str:
+        """
+        Describe una imagen usando el LLM de visión configurado (por defecto MiniMax-VL-01).
+
+        Flujo:
+          1. Abre la imagen con Pillow y la redimensiona a max 1024 px en el lado mayor.
+          2. La convierte a JPEG y la codifica en base64.
+          3. Llama al LLM de visión usando el formato especial de MiniMax:
+             el data URI se incrusta directamente en el string de content, seguido del prompt.
+          4. Devuelve la descripción como texto plano para el pipeline normal.
+        """
+        try:
+            from PIL import Image
+        except ImportError:
+            raise ImportError("Se necesita Pillow para procesar imágenes: pip install pillow")
+
+        import requests as _requests
+        from ..config import Config
+
+        # ── 1. Redimensionar y convertir a JPEG ────────────────────────────
+        MAX_PX = 1024
+        with Image.open(file_path) as img:
+            img = img.convert('RGB')
+            w, h = img.size
+            if max(w, h) > MAX_PX:
+                scale = MAX_PX / max(w, h)
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=85)
+            img_bytes = buf.getvalue()
+
+        # ── 2. Codificar en base64 ──────────────────────────────────────────
+        b64 = base64.b64encode(img_bytes).decode('utf-8')
+        data_uri = f"data:image/jpeg;base64,{b64}"
+
+        # ── 3. Llamar al LLM de visión ──────────────────────────────────────
+        # MiniMax-VL-01 usa un formato especial: el data URI se embebe directamente
+        # en el campo content como string (no como bloque image_url de OpenAI).
+        vision_prompt = (
+            f"{data_uri}\n\n"
+            "Analiza esta imagen en detalle para su uso en una simulación de opinión pública. "
+            "Describe de forma estructurada:\n"
+            "- Identidad visual: colores principales, tipografía, logo o símbolo, estilo gráfico\n"
+            "- Mensaje o concepto comunicado\n"
+            "- Público objetivo aparente\n"
+            "- Tono emocional (moderno, clásico, disruptivo, etc.)\n"
+            "- Texto visible en la imagen (transcríbelo literalmente)\n"
+            "- Cualquier otro elemento relevante para entender la propuesta de valor\n"
+            "Responde en español, de forma clara y detallada."
+        )
+
+        base_url = Config.LLM_BASE_URL.rstrip('/')
+        resp = _requests.post(
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {Config.LLM_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": Config.VISION_LLM_MODEL_NAME,
+                "messages": [{"role": "user", "content": vision_prompt}],
+                "max_tokens": 1200,
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+
+        description = resp.json()["choices"][0]["message"]["content"]
+
+        # ── 4. Formatear como documento de texto ───────────────────────────
+        filename = Path(file_path).name
+        return (
+            f"=== Análisis visual de imagen: {filename} ===\n\n"
+            f"{description}\n"
+        )
+
     @staticmethod
     def _extract_from_pdf(file_path: str) -> str:
         """从PDF提取文本"""

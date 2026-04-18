@@ -164,7 +164,7 @@
                   ref="fileInput"
                   type="file"
                   multiple
-                  accept=".pdf,.md,.txt"
+                  accept=".pdf,.md,.txt,.png,.jpg,.jpeg,.webp,.gif"
                   @change="handleFileSelect"
                   style="display: none"
                   :disabled="loading"
