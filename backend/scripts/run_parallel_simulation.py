@@ -327,18 +327,18 @@ class ParallelIPCHandler:
             return {"platform": platform, "error": f"Plataforma {platform} no disponible"}
         
         try:
-            agent = agent_graph.get_agent(agent_id)
+            actual_id, agent = self._resolve_agent_by_profile_idx(agent_graph, agent_id)
             interview_action = ManualAction(
                 action_type=ActionType.INTERVIEW,
                 action_args={"prompt": prompt}
             )
             actions = {agent: interview_action}
             await env.step(actions)
-            
-            result = self._get_interview_result(agent_id, actual_platform)
+
+            result = self._get_interview_result(actual_id, actual_platform)
             result["platform"] = actual_platform
             return result
-            
+
         except Exception as e:
             return {"platform": platform, "error": str(e)}
     
@@ -413,10 +413,51 @@ class ParallelIPCHandler:
             print(f"  Entrevista fallida: agent_id={agent_id}, todas las plataformas fallaron")
             return False
     
+    def _resolve_agent_by_profile_idx(self, agent_graph, profile_idx: int):
+        """
+        Resolve a 0-based profile index to the actual OASIS (agent_id, agent) pair.
+
+        OASIS may assign internal IDs that differ from the 0-based indices we
+        store in the interview request (e.g. SQLite auto-increment starts at 1,
+        or the agent graph stores them differently). This helper:
+          1. Tries get_agent(profile_idx) directly (fast path, works when IDs match).
+          2. Falls back to a positional lookup: sorts all agents by their OASIS ID
+             and returns the one at position `profile_idx`.
+
+        Returns:
+            (actual_oasis_agent_id, agent) tuple
+        Raises:
+            ValueError if no agent can be found for the given index.
+        """
+        try:
+            agent = agent_graph.get_agent(profile_idx)
+            return profile_idx, agent
+        except Exception:
+            pass
+
+        # Fallback: positional lookup independent of the actual OASIS-assigned IDs
+        try:
+            all_agents = sorted(agent_graph.get_agents(), key=lambda x: x[0])
+        except Exception as e:
+            raise ValueError(f"No se pudo listar agentes del grafo: {e}")
+
+        if profile_idx < len(all_agents):
+            actual_id, agent = all_agents[profile_idx]
+            print(
+                f"  [interview] perfil idx={profile_idx} → OASIS agent_id={actual_id} "
+                f"(total agents={len(all_agents)})"
+            )
+            return actual_id, agent
+
+        raise ValueError(
+            f"Índice de perfil {profile_idx} fuera de rango "
+            f"(agentes disponibles: {len(all_agents)})"
+        )
+
     async def handle_batch_interview(self, command_id: str, interviews: List[Dict], platform: str = None) -> bool:
         """
         处理批量采访命令
-        
+
         Args:
             command_id: 命令ID
             interviews: [{"agent_id": int, "prompt": str, "platform": str(optional)}, ...]
@@ -429,7 +470,7 @@ class ParallelIPCHandler:
         twitter_interviews = []
         reddit_interviews = []
         both_platforms_interviews = []  # 需要同时采访两个平台的
-        
+
         for interview in interviews:
             item_platform = interview.get("platform", platform)
             if item_platform == "twitter":
@@ -439,70 +480,82 @@ class ParallelIPCHandler:
             else:
                 # 未指定平台：两个平台都采访
                 both_platforms_interviews.append(interview)
-        
+
         # 把 both_platforms_interviews 拆分到两个平台
         if both_platforms_interviews:
             if self.twitter_env:
                 twitter_interviews.extend(both_platforms_interviews)
             if self.reddit_env:
                 reddit_interviews.extend(both_platforms_interviews)
-        
+
         results = {}
-        
+
         # 处理Twitter平台的采访
         if twitter_interviews and self.twitter_env:
             try:
                 twitter_actions = {}
+                # Map: actual OASIS agent_id → profile_idx (for DB lookup later)
+                twitter_actual_ids = {}
                 for interview in twitter_interviews:
-                    agent_id = interview.get("agent_id")
+                    profile_idx = interview.get("agent_id")
                     prompt = interview.get("prompt", "")
                     try:
-                        agent = self.twitter_agent_graph.get_agent(agent_id)
+                        actual_id, agent = self._resolve_agent_by_profile_idx(
+                            self.twitter_agent_graph, profile_idx
+                        )
                         twitter_actions[agent] = ManualAction(
                             action_type=ActionType.INTERVIEW,
                             action_args={"prompt": prompt}
                         )
+                        twitter_actual_ids[profile_idx] = actual_id
                     except Exception as e:
-                        print(f"  Advertencia: no se pudo obtener el agente Twitter {agent_id}: {e}")
-                
+                        print(f"  Advertencia: no se pudo resolver agente Twitter idx={profile_idx}: {e}")
+
                 if twitter_actions:
                     await self.twitter_env.step(twitter_actions)
-                    
+
                     for interview in twitter_interviews:
-                        agent_id = interview.get("agent_id")
-                        result = self._get_interview_result(agent_id, "twitter")
+                        profile_idx = interview.get("agent_id")
+                        actual_id = twitter_actual_ids.get(profile_idx, profile_idx)
+                        result = self._get_interview_result(actual_id, "twitter")
                         result["platform"] = "twitter"
-                        results[f"twitter_{agent_id}"] = result
+                        results[f"twitter_{profile_idx}"] = result
             except Exception as e:
                 print(f"  Fallo en la entrevista por lotes de Twitter: {e}")
-        
+
         # 处理Reddit平台的采访
         if reddit_interviews and self.reddit_env:
             try:
                 reddit_actions = {}
+                # Map: profile_idx → actual OASIS agent_id (for DB lookup later)
+                reddit_actual_ids = {}
                 for interview in reddit_interviews:
-                    agent_id = interview.get("agent_id")
+                    profile_idx = interview.get("agent_id")
                     prompt = interview.get("prompt", "")
                     try:
-                        agent = self.reddit_agent_graph.get_agent(agent_id)
+                        actual_id, agent = self._resolve_agent_by_profile_idx(
+                            self.reddit_agent_graph, profile_idx
+                        )
                         reddit_actions[agent] = ManualAction(
                             action_type=ActionType.INTERVIEW,
                             action_args={"prompt": prompt}
                         )
+                        reddit_actual_ids[profile_idx] = actual_id
                     except Exception as e:
-                        print(f"  Advertencia: no se pudo obtener el agente Reddit {agent_id}: {e}")
-                
+                        print(f"  Advertencia: no se pudo resolver agente Reddit idx={profile_idx}: {e}")
+
                 if reddit_actions:
                     await self.reddit_env.step(reddit_actions)
-                    
+
                     for interview in reddit_interviews:
-                        agent_id = interview.get("agent_id")
-                        result = self._get_interview_result(agent_id, "reddit")
+                        profile_idx = interview.get("agent_id")
+                        actual_id = reddit_actual_ids.get(profile_idx, profile_idx)
+                        result = self._get_interview_result(actual_id, "reddit")
                         result["platform"] = "reddit"
-                        results[f"reddit_{agent_id}"] = result
+                        results[f"reddit_{profile_idx}"] = result
             except Exception as e:
                 print(f"  Fallo en la entrevista por lotes de Reddit: {e}")
-        
+
         if results:
             self.send_response(command_id, "completed", result={
                 "interviews_count": len(results),
