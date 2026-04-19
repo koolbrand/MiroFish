@@ -192,22 +192,12 @@ class FileParser:
             resp.raise_for_status()
             description = resp.json()["choices"][0]["message"]["content"]
 
-        except httpx.HTTPStatusError as exc:
-            # El modelo de visión no está disponible en este endpoint/plan.
-            # Devolvemos un placeholder en lugar de bloquear toda la subida.
-            status = exc.response.status_code
-            try:
-                detail = exc.response.json().get("error", {}).get("message", str(exc))
-            except Exception:
-                detail = str(exc)
-            description = (
-                f"[Análisis visual no disponible — error {status}: {detail}]\n\n"
-                f"Archivo de imagen: {filename}\n"
-                "Para activar el análisis visual configura VISION_LLM_BASE_URL y "
-                "VISION_LLM_MODEL_NAME con un modelo que soporte visión. "
-                "Si usas MiniMax-VL-01, apunta VISION_LLM_BASE_URL a "
-                "https://api.minimaxi.chat/v1 (endpoint chino)."
-            )
+        except Exception:
+            # El modelo de visión no está disponible (error HTTP, timeout, etc.).
+            # Devolvemos un placeholder MÍNIMO para no contaminar el grafo de
+            # conocimiento con nombres de proveedores / URLs / variables de entorno
+            # que Graphiti extraería erróneamente como entidades del dominio.
+            description = "[Análisis visual no disponible para esta imagen]"
 
         # ── 4. Formatear como documento de texto ───────────────────────────
         return (
