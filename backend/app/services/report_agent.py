@@ -22,6 +22,7 @@ from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, t
+from .simulation_runner import SimulationRunner
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -1018,6 +1019,18 @@ class ReportAgent:
                 if isinstance(max_agents, str):
                     max_agents = int(max_agents)
                 max_agents = min(max_agents, 10)
+                # Fast pre-flight: if simulation subprocess is already dead,
+                # skip the expensive IPC call (which blocks ~60 s on timeout).
+                if not SimulationRunner.check_env_alive(self.simulation_id):
+                    logger.warning(
+                        "interview_agents skipped — simulation env not alive: %s",
+                        self.simulation_id,
+                    )
+                    return (
+                        "[interview_agents] El entorno de simulación ya no está en "
+                        "ejecución (simulación completada). Usa InsightForge o "
+                        "PanoramaSearch en su lugar para esta sección."
+                    )
                 result = self.zep_tools.interview_agents(
                     simulation_id=self.simulation_id,
                     interview_requirement=interview_topic,
