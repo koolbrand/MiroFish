@@ -1,5 +1,6 @@
 import axios from 'axios'
 import i18n from '../i18n'
+import { pb } from '../lib/pocketbase'
 
 // 创建axios实例
 const service = axios.create({
@@ -37,17 +38,31 @@ service.interceptors.response.use(
   },
   error => {
     console.error('Response error:', error)
-    
+
+    const status = error?.response?.status
+
+    // 401/403 → sesión inválida: limpiar store y enviar a /login
+    // Import lazy del router para evitar ciclos (api → router → views → api)
+    if (status === 401 || status === 403) {
+      import('../router').then(({ default: router }) => {
+        const onLoginRoute = router.currentRoute.value?.path === '/login'
+        if (!onLoginRoute) {
+          pb.authStore.clear()
+          router.push('/login')
+        }
+      })
+    }
+
     // 处理超时
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
       console.error('Request timeout')
     }
-    
+
     // 处理网络错误
     if (error.message === 'Network Error') {
       console.error('Network error - please check your connection')
     }
-    
+
     return Promise.reject(error)
   }
 )

@@ -3,7 +3,27 @@
 </template>
 
 <script setup>
-// 使用 Vue Router 来管理页面
+import { onMounted, onUnmounted } from 'vue'
+import { refreshAuth } from './composables/useAuth'
+
+// Cuando la pestaña vuelve a ser visible tras una suspensión del
+// equipo (tapa del portátil cerrada, monitor apagado, o simplemente
+// estar en segundo plano mucho tiempo), refrescamos el token de
+// PocketBase para que la sesión no muera silenciosamente ni se quede
+// con datos obsoletos.
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    refreshAuth()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
 </script>
 
 <style>
