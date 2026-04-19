@@ -277,7 +277,17 @@
     "platformReddit": "Topic Community",
     "platformTwitter": "Info Plaza",
     "platformNone": "none",
-    "partialReportConfirm": "The simulation didn't finish cleanly, but {actions} actions were captured (completed platforms: {platforms}).\n\nGenerate the report from the available data anyway?"
+    "partialReportConfirm": "The simulation didn't finish cleanly, but {actions} actions were captured (completed platforms: {platforms}).\n\nGenerate the report from the available data anyway?",
+    "totalEvents": "TOTAL EVENTS",
+    "filterPlatform": "Platform",
+    "filterActionType": "Action",
+    "filterAll": "All",
+    "filterGroupPosts": "Posts",
+    "filterGroupInteractions": "Interactions",
+    "filterGroupComments": "Comments",
+    "searchFeedPlaceholder": "Search agent or content...",
+    "clearFilters": "Clear",
+    "noMatchingActions": "No actions match the current filters"
   },
   "step4": {
     "generatingSection": "Generating {title}...",

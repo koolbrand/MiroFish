@@ -123,7 +123,11 @@
       <!-- Timeline Header -->
       <div class="timeline-header" v-if="allActions.length > 0">
         <div class="timeline-stats">
-          <span class="total-count">TOTAL EVENTS: <span class="mono">{{ allActions.length }}</span></span>
+          <span class="total-count">
+            {{ $t('step3.totalEvents') }}:
+            <span class="mono">{{ filteredActionsCount }}</span>
+            <span v-if="hasActiveFilters" class="stats-total-hint">/ {{ allActions.length }}</span>
+          </span>
           <span class="platform-breakdown">
             <span class="breakdown-item twitter">
               <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
@@ -135,6 +139,62 @@
               <span class="mono">{{ redditActionsCount }}</span>
             </span>
           </span>
+        </div>
+      </div>
+
+      <!-- Feed Filters -->
+      <div class="feed-filters" v-if="allActions.length > 0">
+        <div class="filter-group">
+          <span class="filter-label">{{ $t('step3.filterPlatform') }}</span>
+          <button
+            v-for="opt in [
+              { key: 'all', label: $t('step3.filterAll') },
+              { key: 'twitter', label: $t('step3.platformTwitter') },
+              { key: 'reddit', label: $t('step3.platformReddit') }
+            ]"
+            :key="opt.key"
+            class="filter-chip"
+            :class="{ active: feedFilters.platform === opt.key }"
+            @click="feedFilters.platform = opt.key"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">{{ $t('step3.filterActionType') }}</span>
+          <button
+            v-for="opt in [
+              { key: 'all', label: $t('step3.filterAll') },
+              { key: 'posts', label: $t('step3.filterGroupPosts') },
+              { key: 'interactions', label: $t('step3.filterGroupInteractions') },
+              { key: 'comments', label: $t('step3.filterGroupComments') }
+            ]"
+            :key="opt.key"
+            class="filter-chip"
+            :class="{ active: feedFilters.actionGroup === opt.key }"
+            @click="feedFilters.actionGroup = opt.key"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+
+        <div class="filter-search">
+          <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input
+            type="text"
+            v-model="feedFilters.query"
+            :placeholder="$t('step3.searchFeedPlaceholder')"
+            :aria-label="$t('step3.searchFeedPlaceholder')"
+          />
+          <button
+            v-if="hasActiveFilters"
+            class="clear-filters-btn"
+            @click="clearFeedFilters"
+            :title="$t('step3.clearFilters')"
+          >
+            {{ $t('step3.clearFilters') }}
+          </button>
         </div>
       </div>
       
@@ -279,7 +339,16 @@
 
         <div v-if="allActions.length === 0" class="waiting-state">
           <div class="pulse-ring"></div>
-          <span>Waiting for agent actions...</span>
+          <span>{{ $t('step3.waitingForActions') }}</span>
+        </div>
+        <div
+          v-else-if="filteredActionsCount === 0 && hasActiveFilters"
+          class="waiting-state feed-empty"
+        >
+          <span>{{ $t('step3.noMatchingActions') }}</span>
+          <button class="clear-filters-btn inline" @click="clearFeedFilters">
+            {{ $t('step3.clearFilters') }}
+          </button>
         </div>
       </div>
     </div>
@@ -341,10 +410,55 @@ const allActions = ref([]) // 所有动作（增量累积）
 const actionIds = ref(new Set()) // 用于去重的动作ID集合
 const scrollContainer = ref(null)
 
+// Feed filters (platform / action-type group / free-text search)
+const feedFilters = ref({
+  platform: 'all',     // 'all' | 'twitter' | 'reddit'
+  actionGroup: 'all',  // 'all' | 'posts' | 'interactions' | 'comments'
+  query: ''
+})
+
+const ACTION_GROUPS = {
+  posts: new Set(['CREATE_POST', 'QUOTE_POST', 'REPOST']),
+  interactions: new Set(['LIKE_POST', 'LIKE_COMMENT', 'UPVOTE_POST', 'DOWNVOTE_POST', 'FOLLOW', 'SEARCH_POSTS']),
+  comments: new Set(['CREATE_COMMENT'])
+}
+
+const matchesQuery = (action, q) => {
+  if (!q) return true
+  const needle = q.toLowerCase()
+  const args = action.action_args || {}
+  const haystacks = [
+    action.agent_name,
+    action.action_type,
+    args.content,
+    args.quote_content,
+    args.original_content,
+    args.post_content,
+    args.query,
+    args.original_author_name,
+    args.post_author_name,
+    args.target_user
+  ]
+  return haystacks.some(v => v && String(v).toLowerCase().includes(needle))
+}
+
 // Computed
 // 按时间顺序显示动作（最新的在最后面，即底部）
 const chronologicalActions = computed(() => {
-  return allActions.value
+  const { platform, actionGroup, query } = feedFilters.value
+  const group = ACTION_GROUPS[actionGroup]
+  const q = query.trim()
+
+  if (platform === 'all' && !group && !q) {
+    return allActions.value
+  }
+
+  return allActions.value.filter(action => {
+    if (platform !== 'all' && action.platform !== platform) return false
+    if (group && !group.has(action.action_type)) return false
+    if (q && !matchesQuery(action, q)) return false
+    return true
+  })
 })
 
 // 各平台动作计数
@@ -355,6 +469,17 @@ const twitterActionsCount = computed(() => {
 const redditActionsCount = computed(() => {
   return allActions.value.filter(a => a.platform === 'reddit').length
 })
+
+// 当过滤器生效时，显示的数量
+const filteredActionsCount = computed(() => chronologicalActions.value.length)
+const hasActiveFilters = computed(() => {
+  const { platform, actionGroup, query } = feedFilters.value
+  return platform !== 'all' || actionGroup !== 'all' || query.trim() !== ''
+})
+
+const clearFeedFilters = () => {
+  feedFilters.value = { platform: 'all', actionGroup: 'all', query: '' }
+}
 
 // 格式化模拟流逝时间（根据轮次和每轮分钟数计算）
 const formatElapsedTime = (currentRound) => {
@@ -1085,6 +1210,139 @@ onUnmounted(() => {
 .breakdown-divider { color: #DDD; }
 .breakdown-item.twitter { color: #000; }
 .breakdown-item.reddit { color: #000; }
+
+.stats-total-hint {
+  color: #999;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+/* --- Feed Filters --- */
+.feed-filters {
+  position: sticky;
+  top: 44px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #EAEAEA;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+
+.filter-chip {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid #EAEAEA;
+  background: #FFF;
+  color: #666;
+  border-radius: 999px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: all 0.15s ease;
+}
+
+.filter-chip:hover {
+  border-color: #CCC;
+  color: #000;
+}
+
+.filter-chip.active {
+  background: #000;
+  color: #FFF;
+  border-color: #000;
+}
+
+.filter-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 1 1 220px;
+  max-width: 360px;
+  padding: 4px 10px;
+  border: 1px solid #EAEAEA;
+  border-radius: 999px;
+  background: #FFF;
+}
+
+.filter-search:focus-within {
+  border-color: #000;
+}
+
+.filter-search .search-icon {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.filter-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: #000;
+  padding: 2px 0;
+}
+
+.filter-search input::placeholder {
+  color: #AAA;
+}
+
+.clear-filters-btn {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #EAEAEA;
+  border-radius: 999px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.clear-filters-btn:hover {
+  border-color: #000;
+  color: #000;
+}
+
+.clear-filters-btn.inline {
+  margin-top: 12px;
+}
+
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #666;
+}
 
 /* --- Timeline Feed --- */
 .timeline-feed {

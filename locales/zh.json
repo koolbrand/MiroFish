@@ -277,7 +277,17 @@
     "platformReddit": "Topic Community",
     "platformTwitter": "Info Plaza",
     "platformNone": "无",
-    "partialReportConfirm": "模拟未正常结束，但已捕获 {actions} 个动作（已完成平台：{platforms}）。\n\n是否基于现有数据继续生成报告？"
+    "partialReportConfirm": "模拟未正常结束，但已捕获 {actions} 个动作（已完成平台：{platforms}）。\n\n是否基于现有数据继续生成报告？",
+    "totalEvents": "总事件",
+    "filterPlatform": "平台",
+    "filterActionType": "操作",
+    "filterAll": "全部",
+    "filterGroupPosts": "帖子",
+    "filterGroupInteractions": "互动",
+    "filterGroupComments": "评论",
+    "searchFeedPlaceholder": "搜索智能体或内容...",
+    "clearFilters": "清除",
+    "noMatchingActions": "没有符合筛选条件的动作"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
