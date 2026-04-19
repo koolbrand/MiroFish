@@ -1459,8 +1459,11 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  row-gap: 6px;
 }
 
 .tab-pill {
