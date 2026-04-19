@@ -54,6 +54,60 @@ if not _SUPPORTS_EDGE_TYPES:
 
 
 # ---------------------------------------------------------------------------
+# Embedder input sanitizer
+# ---------------------------------------------------------------------------
+# OpenAI's /embeddings endpoint 400s on any empty string in the input list:
+#   "Invalid 'input[N]': input cannot be an empty string."
+# Graphiti occasionally asks to embed a blank entity name or summary after a
+# noisy LLM extraction, which — without mitigation — aborts the whole batch.
+# We wrap the embedder's `create` / `create_batch` coroutines so that any
+# blank/whitespace-only string gets replaced with a single space, which the
+# endpoint accepts.
+_EMBED_PLACEHOLDER = ' '  # OpenAI accepts any non-empty string
+
+
+def _sanitize_embed_arg(arg):
+    """Replace blank strings (and blanks inside sequences) with a placeholder."""
+    if isinstance(arg, str):
+        return arg if arg.strip() else _EMBED_PLACEHOLDER
+    if isinstance(arg, (list, tuple)):
+        cleaned = [
+            (item if (isinstance(item, str) and item.strip()) else
+             (_EMBED_PLACEHOLDER if isinstance(item, str) else item))
+            for item in arg
+        ]
+        return type(arg)(cleaned) if isinstance(arg, tuple) else cleaned
+    return arg
+
+
+def _sanitize_embed_inputs(embedder):
+    """Wrap embedder.create / create_batch so empty strings can't reach the API."""
+    for method_name in ('create', 'create_batch'):
+        original = getattr(embedder, method_name, None)
+        if original is None or not callable(original):
+            continue
+
+        if inspect.iscoroutinefunction(original):
+            async def _wrapped(*args, __orig=original, **kwargs):
+                args = tuple(_sanitize_embed_arg(a) for a in args)
+                kwargs = {k: _sanitize_embed_arg(v) for k, v in kwargs.items()}
+                return await __orig(*args, **kwargs)
+        else:
+            def _wrapped(*args, __orig=original, **kwargs):
+                args = tuple(_sanitize_embed_arg(a) for a in args)
+                kwargs = {k: _sanitize_embed_arg(v) for k, v in kwargs.items()}
+                return __orig(*args, **kwargs)
+
+        try:
+            setattr(embedder, method_name, _wrapped)
+        except AttributeError:
+            logger.debug(
+                "Could not attach sanitizer to embedder.%s (read-only attr)",
+                method_name,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Build Pydantic models dynamically from the ontology dict produced by
 # OntologyGenerator.  Graphiti requires:
 #   - entity_types: dict[str, type[BaseModel]]
@@ -811,6 +865,13 @@ class GraphitiGraphClient:
                 embedding_model=Config.EMBEDDING_MODEL,
             )
         )
+        # Defensive: OpenAI's /embeddings endpoint rejects any empty-string
+        # input with HTTP 400 ("input[N] cannot be an empty string"). Graphiti
+        # occasionally asks to embed a blank entity name/summary after a noisy
+        # LLM extraction, which would abort the whole batch. We intercept
+        # `create` and substitute blanks with a single space — OpenAI accepts
+        # that and returns a usable (near-zero) vector.
+        _sanitize_embed_inputs(embedder)
         cross_encoder = OpenAIRerankerClient(config=graphiti_config)
         self._graphiti = Graphiti(
             Config.NEO4J_URI,
@@ -920,11 +981,35 @@ class GraphitiGraphClient:
         return FakeEpisode(uuid_=ep_uuid, processed=True)
 
     def add_batch(self, graph_id: str, episodes: list) -> list:
+        """Add episodes one by one; skip any single failure so one bad chunk
+        doesn't abort the whole graph build.
+
+        Graphiti 0.11.x occasionally asks the embedding endpoint to embed an
+        empty string (e.g. when the LLM extracts an entity with a blank name
+        or summary for a noisy chunk). OpenAI's embedding endpoint rejects
+        that with HTTP 400 "input[N]: input cannot be an empty string" and
+        the exception would otherwise propagate and fail the entire build.
+        We log the error and continue.
+        """
         results = []
-        for ep in episodes:
+        for idx, ep in enumerate(episodes):
             data = ep.data if hasattr(ep, 'data') else str(ep)
-            result = self.add(graph_id=graph_id, data=data)
-            results.append(result)
+            # Skip blank / whitespace-only chunks up front.
+            if not data or not data.strip():
+                logger.warning(
+                    "add_batch: skipping episode %d with empty data", idx
+                )
+                continue
+            try:
+                result = self.add(graph_id=graph_id, data=data)
+                results.append(result)
+            except Exception as e:  # noqa: BLE001
+                # Don't let a single bad chunk abort the whole build.
+                logger.warning(
+                    "add_batch: episode %d failed (%s: %s); skipping",
+                    idx, type(e).__name__, str(e)[:300]
+                )
+                continue
         return results
 
     def search(self, graph_id: str, query: str, limit: int = 10,
