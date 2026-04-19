@@ -69,10 +69,25 @@ class Config:
     EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL') or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     
     # Vision LLM config (image → text extraction on upload).
-    # Uses the same API key and base URL as the simulation LLM.
-    # MiniMax-VL-01 is recommended when using MiniMax as the provider.
-    # Falls back to the main LLM model if not set (only works if that model
-    # supports vision — most text-only models will fail gracefully with an error).
+    # Uses its own base URL and API key (defaulting to the main LLM values).
+    #
+    # IMPORTANT: MiniMax-VL-01 only works on the Chinese endpoint
+    # (api.minimaxi.chat/v1), NOT on the international one (api.minimax.io/v1).
+    # If you use the international endpoint for your main LLM, set:
+    #   VISION_LLM_BASE_URL=https://api.minimaxi.chat/v1
+    # or point to any other OpenAI-compatible provider that supports vision.
+    #
+    # If VISION_LLM_MODEL_NAME is not set (or the model is unavailable) the
+    # image upload still succeeds — a warning placeholder is returned instead
+    # of a full visual analysis, so the simulation can continue.
+    VISION_LLM_API_KEY = (
+        os.environ.get('VISION_LLM_API_KEY')
+        or os.environ.get('LLM_API_KEY')
+    )
+    VISION_LLM_BASE_URL = (
+        os.environ.get('VISION_LLM_BASE_URL')
+        or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
+    )
     VISION_LLM_MODEL_NAME = (
         os.environ.get('VISION_LLM_MODEL_NAME') or 'MiniMax-VL-01'
     )

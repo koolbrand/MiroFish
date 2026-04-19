@@ -104,14 +104,24 @@ class FileParser:
     @staticmethod
     def _extract_from_image(file_path: str) -> str:
         """
-        Describe una imagen usando el LLM de visión configurado (por defecto MiniMax-VL-01).
+        Describe una imagen usando el LLM de visión configurado.
+
+        Usa el formato estándar OpenAI image_url (compatible con la mayoría de
+        proveedores). Si el modelo no está disponible o devuelve un error de API,
+        devuelve un texto de marcador de posición en lugar de lanzar excepción,
+        para que la subida continúe sin romper el flujo completo.
 
         Flujo:
-          1. Abre la imagen con Pillow y la redimensiona a max 1024 px en el lado mayor.
+          1. Abre la imagen con Pillow y la redimensiona a max 1024 px.
           2. La convierte a JPEG y la codifica en base64.
-          3. Llama al LLM de visión usando el formato especial de MiniMax:
-             el data URI se incrusta directamente en el string de content, seguido del prompt.
-          4. Devuelve la descripción como texto plano para el pipeline normal.
+          3. Llama al LLM de visión (VISION_LLM_BASE_URL / VISION_LLM_MODEL_NAME).
+          4. Si falla con error de API (400/404/model unknown) devuelve placeholder.
+          5. Devuelve la descripción como texto plano para el pipeline normal.
+
+        Configuración requerida para MiniMax-VL-01:
+          - VISION_LLM_BASE_URL=https://api.minimaxi.chat/v1  (endpoint chino)
+          - VISION_LLM_MODEL_NAME=MiniMax-VL-01
+          El endpoint internacional (api.minimax.io) NO soporta MiniMax-VL-01.
         """
         try:
             from PIL import Image
@@ -120,6 +130,8 @@ class FileParser:
 
         import httpx
         from ..config import Config
+
+        filename = Path(file_path).name
 
         # ── 1. Redimensionar y convertir a JPEG ────────────────────────────
         MAX_PX = 1024
@@ -137,11 +149,8 @@ class FileParser:
         b64 = base64.b64encode(img_bytes).decode('utf-8')
         data_uri = f"data:image/jpeg;base64,{b64}"
 
-        # ── 3. Llamar al LLM de visión ──────────────────────────────────────
-        # MiniMax-VL-01 usa un formato especial: el data URI se embebe directamente
-        # en el campo content como string (no como bloque image_url de OpenAI).
-        vision_prompt = (
-            f"{data_uri}\n\n"
+        # ── 3. Llamar al LLM de visión (formato estándar OpenAI image_url) ─
+        vision_text = (
             "Analiza esta imagen en detalle para su uso en una simulación de opinión pública. "
             "Describe de forma estructurada:\n"
             "- Identidad visual: colores principales, tipografía, logo o símbolo, estilo gráfico\n"
@@ -153,26 +162,54 @@ class FileParser:
             "Responde en español, de forma clara y detallada."
         )
 
-        base_url = Config.LLM_BASE_URL.rstrip('/')
-        with httpx.Client(timeout=90) as client:
-            resp = client.post(
-                f"{base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {Config.LLM_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": Config.VISION_LLM_MODEL_NAME,
-                    "messages": [{"role": "user", "content": vision_prompt}],
-                    "max_tokens": 1200,
-                },
-            )
-        resp.raise_for_status()
+        base_url = Config.VISION_LLM_BASE_URL.rstrip('/')
+        try:
+            with httpx.Client(timeout=90) as client:
+                resp = client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {Config.VISION_LLM_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": Config.VISION_LLM_MODEL_NAME,
+                        "messages": [{
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": data_uri},
+                                },
+                                {
+                                    "type": "text",
+                                    "text": vision_text,
+                                },
+                            ],
+                        }],
+                        "max_tokens": 1200,
+                    },
+                )
+            resp.raise_for_status()
+            description = resp.json()["choices"][0]["message"]["content"]
 
-        description = resp.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as exc:
+            # El modelo de visión no está disponible en este endpoint/plan.
+            # Devolvemos un placeholder en lugar de bloquear toda la subida.
+            status = exc.response.status_code
+            try:
+                detail = exc.response.json().get("error", {}).get("message", str(exc))
+            except Exception:
+                detail = str(exc)
+            description = (
+                f"[Análisis visual no disponible — error {status}: {detail}]\n\n"
+                f"Archivo de imagen: {filename}\n"
+                "Para activar el análisis visual configura VISION_LLM_BASE_URL y "
+                "VISION_LLM_MODEL_NAME con un modelo que soporte visión. "
+                "Si usas MiniMax-VL-01, apunta VISION_LLM_BASE_URL a "
+                "https://api.minimaxi.chat/v1 (endpoint chino)."
+            )
 
         # ── 4. Formatear como documento de texto ───────────────────────────
-        filename = Path(file_path).name
         return (
             f"=== Análisis visual de imagen: {filename} ===\n\n"
             f"{description}\n"
