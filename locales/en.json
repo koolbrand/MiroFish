@@ -130,6 +130,12 @@
       "Deep Interaction"
     ]
   },
+  "stepper": {
+    "ariaLabel": "Wizard navigation",
+    "goTo": "Go to: {name}",
+    "lockedFuture": "{name} (complete previous steps first)",
+    "lockedMissing": "{name} (not available yet)"
+  },
   "step1": {
     "ontologyGeneration": "Ontology Generation",
     "ontologyCompleted": "Completed",

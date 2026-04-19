@@ -130,6 +130,12 @@
       "深度互动"
     ]
   },
+  "stepper": {
+    "ariaLabel": "向导导航",
+    "goTo": "前往：{name}",
+    "lockedFuture": "{name}（请先完成之前的步骤）",
+    "lockedMissing": "{name}（暂不可用）"
+  },
   "step1": {
     "ontologyGeneration": "本体生成",
     "ontologyCompleted": "已完成",

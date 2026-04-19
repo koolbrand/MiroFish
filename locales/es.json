@@ -130,6 +130,12 @@
       "Interacción profunda"
     ]
   },
+  "stepper": {
+    "ariaLabel": "Navegación del asistente",
+    "goTo": "Ir a: {name}",
+    "lockedFuture": "{name} (completa los pasos anteriores)",
+    "lockedMissing": "{name} (aún no disponible)"
+  },
   "step1": {
     "ontologyGeneration": "Generación de ontología",
     "ontologyCompleted": "Completado",

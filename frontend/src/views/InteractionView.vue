@@ -24,10 +24,12 @@
         <LanguageSwitcher />
         <AppVersion />
         <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step 5/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[4] }}</span>
-        </div>
+        <WizardStepper
+          :currentStep="5"
+          :projectId="projectData?.project_id || null"
+          :simulationId="simulationId"
+          :reportId="currentReportId"
+        />
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -70,6 +72,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step5Interaction from '../components/Step5Interaction.vue'
+import WizardStepper from '../components/WizardStepper.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'

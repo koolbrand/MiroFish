@@ -24,10 +24,10 @@
         <LanguageSwitcher />
         <AppVersion />
         <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step {{ currentStep }}/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[currentStep - 1] }}</span>
-        </div>
+        <WizardStepper
+          :currentStep="currentStep"
+          :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null"
+        />
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -84,6 +84,7 @@ import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
+import WizardStepper from '../components/WizardStepper.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
