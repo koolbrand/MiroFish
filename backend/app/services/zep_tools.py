@@ -1368,20 +1368,65 @@ Devuelve la lista de subpreguntas en formato JSON."""
                     "prompt": optimized_prompt  # 使用优化后的prompt
                     # 不指定platform，API会在twitter和reddit两个平台都采访
                 })
-            
+
             logger.info(t("console.callingBatchInterviewApi", count=len(interviews_request)))
-            
-            # 调用 SimulationRunner 的批量采访方法（不传platform，双平台采访）
-            api_result = SimulationRunner.interview_agents_batch(
-                simulation_id=simulation_id,
-                interviews=interviews_request,
-                platform=None,  # 不指定platform，双平台采访
-                timeout=180.0   # 双平台需要更长超时
-            )
-            
-            logger.info(t("console.interviewApiReturned", count=api_result.get('interviews_count', 0), success=api_result.get('success')))
-            
-            # 检查API调用是否成功
+
+            # Detección temprana: si el entorno OASIS ya no está vivo (la
+            # simulación terminó antes de generar el informe), saltamos
+            # directamente al fallback LLM en vez de llamar al IPC muerto.
+            env_alive = True
+            try:
+                env_alive = SimulationRunner.check_env_alive(simulation_id)
+            except Exception as probe_err:
+                logger.debug(f"check_env_alive lanzó {probe_err}; asumiendo entorno vivo")
+
+            api_result = None
+            if env_alive:
+                try:
+                    # 调用 SimulationRunner 的批量采访方法（不传platform，双平台采访）
+                    api_result = SimulationRunner.interview_agents_batch(
+                        simulation_id=simulation_id,
+                        interviews=interviews_request,
+                        platform=None,  # 不指定platform，双平台采访
+                        timeout=180.0   # 双平台需要更长超时
+                    )
+                    logger.info(t("console.interviewApiReturned", count=api_result.get('interviews_count', 0), success=api_result.get('success')))
+                except ValueError as batch_err:
+                    # Entorno muerto durante el batch — caer al fallback LLM.
+                    logger.warning(f"interview_agents_batch ValueError ({batch_err}); cayendo al fallback LLM")
+                    api_result = {"success": False, "error": str(batch_err)}
+            else:
+                logger.warning("Entorno OASIS no está vivo — usando fallback LLM directamente")
+                api_result = {"success": False, "error": "environment not alive"}
+
+            # Si la API real falló por cualquier razón, intentar fallback LLM
+            if not api_result.get("success", False):
+                real_error = api_result.get("error", "Error desconocido")
+                try:
+                    from ..api.simulation import _build_interview_llm_fallback_payload
+                    logger.info(
+                        "Activando LLM fallback para interview_agents (motivo real-API: %s)",
+                        str(real_error)[:120]
+                    )
+                    fallback = _build_interview_llm_fallback_payload(
+                        simulation_id=simulation_id,
+                        interviews=interviews_request,
+                    )
+                    if fallback.get("success"):
+                        api_result = fallback
+                        logger.info(
+                            "LLM fallback produjo %d entrevistas sintéticas",
+                            fallback.get("interviews_count", 0)
+                        )
+                    else:
+                        logger.warning(
+                            "LLM fallback también falló: %s",
+                            fallback.get("error", "desconocido")
+                        )
+                except Exception as fb_err:
+                    logger.warning(f"No se pudo ejecutar LLM fallback: {fb_err}")
+
+            # Si ni la API real ni el fallback funcionaron, abortar con resumen informativo
             if not api_result.get("success", False):
                 error_msg = api_result.get("error", "Error desconocido")
                 logger.warning(t("console.interviewApiReturnedFailure", error=error_msg))

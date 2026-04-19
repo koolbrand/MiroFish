@@ -2440,11 +2440,31 @@ def _load_simulation_context(simulation_id: str) -> dict:
     return ctx
 
 
-def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
+def _build_interview_llm_fallback_payload(simulation_id: str, interviews: list) -> dict:
     """
-    Cuando la simulación ya terminó, genera respuestas directamente con LLM
-    usando el perfil almacenado del agente. Devuelve el mismo formato JSON
-    que el endpoint normal para que el frontend no necesite cambios.
+    Construye respuestas de entrevistas con el LLM cuando el entorno OASIS
+    ya no está activo. Devuelve un dict con el mismo esquema que la API
+    "completada" para que los llamadores (endpoint HTTP y zep_tools) lo
+    procesen igual que un resultado real.
+
+    Esquema devuelto (cuando todo funciona):
+        {
+            'success': True,
+            'interviews_count': N,
+            'result': {
+                'interviews_count': N,
+                'results': {'reddit_<id>': {...}, 'twitter_<id>': {...}, ...}
+            },
+            'timestamp': <ISO-8601>,
+            'fallback': 'llm'
+        }
+
+    Esquema devuelto en caso de error:
+        {
+            'success': False,
+            'error': <mensaje>,
+            'fallback': 'llm'
+        }
     """
     try:
         profiles = _load_simulation_profiles(simulation_id)
@@ -2502,32 +2522,58 @@ def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
                 max_tokens=600
             )
 
-            results[f'reddit_{agent_id}'] = {
+            # Emitir en ambas plataformas (reddit + twitter) para que el
+            # parser de report_agent (que espera doble plataforma) pueda
+            # rellenar las dos columnas con el mismo texto.
+            entry = {
                 'agent_id': agent_id,
                 'response': response,
-                'platform': 'reddit'
             }
+            results[f'reddit_{agent_id}'] = {**entry, 'platform': 'reddit'}
+            results[f'twitter_{agent_id}'] = {**entry, 'platform': 'twitter'}
             interviews_count += 1
 
         logger.info(f"LLM fallback interview: {interviews_count} agentes respondieron (sim={simulation_id})")
-        return jsonify({
+        return {
             'success': True,
-            'data': {
+            'interviews_count': interviews_count,
+            'result': {
                 'interviews_count': interviews_count,
-                'result': {
-                    'interviews_count': interviews_count,
-                    'results': results
-                },
-                'timestamp': datetime.utcnow().isoformat()
-            }
-        })
+                'results': results,
+            },
+            'timestamp': datetime.utcnow().isoformat(),
+            'fallback': 'llm',
+        }
 
     except Exception as e:
         logger.error(f"LLM fallback para interview_batch falló: {e}")
-        return jsonify({
+        return {
             'success': False,
-            'error': t('api.envNotRunning')
-        }), 400
+            'error': f"LLM fallback failed: {e}",
+            'fallback': 'llm',
+        }
+
+
+def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
+    """
+    Variante HTTP del fallback LLM. Envuelve la función pura en un response
+    Flask para mantener compatibilidad con el endpoint ``/interview/batch``
+    que ya lo usaba.
+    """
+    payload = _build_interview_llm_fallback_payload(simulation_id, interviews)
+    if payload.get('success'):
+        return jsonify({
+            'success': True,
+            'data': {
+                'interviews_count': payload['interviews_count'],
+                'result': payload['result'],
+                'timestamp': payload['timestamp'],
+            }
+        })
+    return jsonify({
+        'success': False,
+        'error': payload.get('error') or t('api.envNotRunning'),
+    }), 400
 
 
 @simulation_bp.route('/interview/batch', methods=['POST'])
