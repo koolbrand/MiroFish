@@ -100,7 +100,11 @@
             <span class="mono">{{ shortId(p.project_id) }}</span>
           </div>
           <div class="col col-name" :title="p.name">
-            <span>{{ p.name || $t('projects.unnamed') }}</span>
+            <ProjectNameChip
+              :projectId="p.project_id"
+              :name="p.name"
+              @updated="onProjectRenamed(p.project_id, $event)"
+            />
             <span v-if="p.files && p.files.length" class="sub mono">{{ p.files.length }} {{ $t('projects.files') }}</span>
           </div>
           <div class="col col-status">
@@ -186,6 +190,7 @@ import { listProjects, deleteProject } from '../api/graph'
 import { getSimulationHistory } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import ProjectNameChip from '../components/ProjectNameChip.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -340,6 +345,14 @@ const runConfirm = async () => {
 
 const openProject = (id) => {
   router.push({ name: 'Process', params: { projectId: id } })
+}
+
+const onProjectRenamed = (projectId, updated) => {
+  if (!updated || !updated.name) return
+  const idx = projects.value.findIndex(p => p.project_id === projectId)
+  if (idx !== -1) {
+    projects.value[idx] = { ...projects.value[idx], name: updated.name }
+  }
 }
 
 const openInteraction = (projectId) => {
@@ -597,13 +610,15 @@ onMounted(refresh)
 .table-row.selected { background: #eff6ff; }
 
 .col { min-width: 0; }
-.col-name { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-.col-name > span:first-child {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.col-name { display: flex; flex-direction: column; gap: 4px; overflow: hidden; align-items: flex-start; }
+.col-name :deep(.project-chip) {
+  margin-left: 0;
+  max-width: 100%;
 }
-.col-name .sub { font-size: 0.7rem; color: #9ca3af; }
+.col-name :deep(.chip-label) {
+  max-width: 240px;
+}
+.col-name .sub { font-size: 0.7rem; color: #9ca3af; padding-left: 2px; }
 .col-date { font-size: 0.78rem; color: #6b7280; }
 .col-info { overflow: hidden; }
 .col-info .sub { color: #9ca3af; }

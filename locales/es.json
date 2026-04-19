@@ -112,16 +112,19 @@
     "dragToUpload": "Arrastra documentos o imágenes aquí",
     "orBrowse": "o haz clic para buscar archivos",
     "inputParams": "Parámetros",
-    "simulationPrompt": ">_ 02 / ¿Qué quieres predecir?",
+    "simulationPrompt": ">_ 03 / ¿Qué quieres predecir?",
     "promptPlaceholder": "// Ej: cómo reaccionará el mercado Latam al lanzamiento de nuestro nuevo producto el próximo mes…",
     "engineBadge": "Motor: Mirror V1.0",
     "startEngine": "Iniciar simulación",
-    "initializing": "Arrancando motor…"
+    "initializing": "Arrancando motor…",
+    "projectName": "02 / Nombre del proyecto",
+    "projectNamePlaceholder": "Ej: Lanzamiento BSG Serranos Q2"
   },
   "main": {
     "layoutGraph": "Grafo",
     "layoutSplit": "Dividido",
     "layoutWorkbench": "Mesa de trabajo",
+    "renameProject": "Haz clic para renombrar el proyecto",
     "stepNames": [
       "Construir grafo",
       "Configurar entorno",
@@ -630,6 +633,7 @@
     "loadingFullGraph": "Cargando grafo completo · {graphId}",
     "graphLoadedOk": "Datos del grafo cargados",
     "manualRefresh": "Actualización manual del grafo",
+    "projectRenamed": "Proyecto renombrado: {name}",
     "statusError": "Error",
     "statusReady": "Listo",
     "statusBuilding": "Construyendo grafo",

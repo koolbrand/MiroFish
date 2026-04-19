@@ -93,3 +93,27 @@ export function deleteProject(projectId) {
     method: 'delete'
   })
 }
+
+/**
+ * Actualiza metadatos del proyecto (por ahora solo `name`)
+ * @param {String} projectId
+ * @param {Object} payload  - { name }
+ * @returns {Promise}
+ */
+export function updateProject(projectId, payload) {
+  return service({
+    url: `/api/graph/project/${projectId}`,
+    method: 'patch',
+    data: payload
+  })
+}
+
+/**
+ * Renombra un proyecto (alias de conveniencia)
+ * @param {String} projectId
+ * @param {String} name
+ * @returns {Promise}
+ */
+export function renameProject(projectId, name) {
+  return updateProject(projectId, { name })
+}

@@ -191,6 +191,23 @@
               <span>{{ $t('home.inputParams') }}</span>
             </div>
 
+            <!-- 项目名称 -->
+            <div class="console-section">
+              <div class="console-header">
+                <span class="console-label">{{ $t('home.projectName') }}</span>
+              </div>
+              <div class="name-wrapper">
+                <input
+                  v-model="formData.projectName"
+                  type="text"
+                  class="name-input"
+                  :placeholder="$t('home.projectNamePlaceholder')"
+                  maxlength="120"
+                  :disabled="loading"
+                />
+              </div>
+            </div>
+
             <!-- 输入区域 -->
             <div class="console-section">
               <div class="console-header">
@@ -388,7 +405,8 @@ onUnmounted(() => {
 
 // 表单数据
 const formData = ref({
-  simulationRequirement: ''
+  simulationRequirement: '',
+  projectName: ''
 })
 
 // 文件列表
@@ -464,11 +482,15 @@ const scrollToBottom = () => {
 // 开始模拟 - 立即跳转，API调用在Process页面进行
 const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
-  
+
   // 存储待上传的数据
   import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
-    setPendingUpload(files.value, formData.value.simulationRequirement)
-    
+    setPendingUpload(
+      files.value,
+      formData.value.simulationRequirement,
+      (formData.value.projectName || '').trim()
+    )
+
     // 立即跳转到Process页面（使用特殊标识表示新建项目）
     router.push({
       name: 'Process',
@@ -1079,6 +1101,33 @@ const startSimulation = () => {
   font-size: 0.7rem;
   color: #BBB;
   letter-spacing: 1px;
+}
+
+.name-wrapper {
+  border: 1px solid #DDD;
+  background: #FAFAFA;
+}
+
+.name-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 14px 18px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--black);
+  outline: none;
+  letter-spacing: 0.5px;
+}
+
+.name-input::placeholder {
+  color: #AAA;
+  font-style: italic;
+}
+
+.name-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .input-wrapper {

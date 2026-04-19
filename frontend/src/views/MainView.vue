@@ -4,12 +4,18 @@
     <header class="app-header">
       <div class="header-left">
         <BrandLogo class="brand" @click="router.push('/')" />
+        <ProjectNameChip
+          v-if="currentProjectId && currentProjectId !== 'new'"
+          :projectId="currentProjectId"
+          :name="projectData?.name"
+          @updated="onProjectRenamed"
+        />
       </div>
-      
+
       <div class="header-center">
         <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
+          <button
+            v-for="mode in ['graph', 'split', 'workbench']"
             :key="mode"
             class="switch-btn"
             :class="{ active: viewMode === mode }"
@@ -90,6 +96,7 @@ import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import ProjectNameChip from '../components/ProjectNameChip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -212,7 +219,10 @@ const handleNewProject = async () => {
     const formData = new FormData()
     pending.files.forEach(f => formData.append('files', f))
     formData.append('simulation_requirement', pending.simulationRequirement)
-    
+    if (pending.projectName && pending.projectName.trim()) {
+      formData.append('project_name', pending.projectName.trim())
+    }
+
     const res = await generateOntology(formData)
     if (res.success) {
       clearPendingUpload()
@@ -410,6 +420,16 @@ const refreshGraph = () => {
     addLog(t('log.manualRefresh'))
     loadGraph(projectData.value.graph_id)
   }
+}
+
+const onProjectRenamed = (updated) => {
+  if (!updated) return
+  if (projectData.value) {
+    projectData.value = { ...projectData.value, name: updated.name }
+  } else {
+    projectData.value = updated
+  }
+  addLog(t('log.projectRenamed', { name: updated.name }))
 }
 
 const stopPolling = () => {

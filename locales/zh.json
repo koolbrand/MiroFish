@@ -112,16 +112,19 @@
     "dragToUpload": "拖拽文档或图片上传",
     "orBrowse": "或点击浏览文件系统",
     "inputParams": "输入参数",
-    "simulationPrompt": ">_ 02 / 模拟提示词",
+    "simulationPrompt": ">_ 03 / 模拟提示词",
     "promptPlaceholder": "// 用自然语言输入模拟或预测需求（例.武大若发布撤销肖某处分的公告，会引发什么舆情走向）",
     "engineBadge": "引擎: Mirror-V1.0",
     "startEngine": "启动引擎",
-    "initializing": "初始化中..."
+    "initializing": "初始化中...",
+    "projectName": "02 / 项目名称",
+    "projectNamePlaceholder": "例如：BSG Serranos Q2 发布"
   },
   "main": {
     "layoutGraph": "图谱",
     "layoutSplit": "双栏",
     "layoutWorkbench": "工作台",
+    "renameProject": "点击重命名项目",
     "stepNames": [
       "图谱构建",
       "环境搭建",
@@ -630,6 +633,7 @@
     "loadingFullGraph": "加载完整图谱 · {graphId}",
     "graphLoadedOk": "图谱数据已加载",
     "manualRefresh": "手动刷新图谱",
+    "projectRenamed": "项目已重命名: {name}",
     "statusError": "错误",
     "statusReady": "就绪",
     "statusBuilding": "构建中",

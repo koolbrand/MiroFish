@@ -4,6 +4,12 @@
     <header class="app-header">
       <div class="header-left">
         <BrandLogo class="brand" @click="router.push('/')" />
+        <ProjectNameChip
+          v-if="projectData?.project_id"
+          :projectId="projectData.project_id"
+          :name="projectData.name"
+          @updated="onProjectRenamed"
+        />
       </div>
       
       <div class="header-center">
@@ -78,6 +84,7 @@ import { getSimulation, stopSimulation, getEnvStatus, closeSimulationEnv } from 
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import ProjectNameChip from '../components/ProjectNameChip.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -293,6 +300,15 @@ const loadGraph = async (graphId) => {
 const refreshGraph = () => {
   if (projectData.value?.graph_id) {
     loadGraph(projectData.value.graph_id)
+  }
+}
+
+const onProjectRenamed = (updated) => {
+  if (!updated) return
+  if (projectData.value) {
+    projectData.value = { ...projectData.value, name: updated.name }
+  } else {
+    projectData.value = updated
   }
 }
 

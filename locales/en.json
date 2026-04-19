@@ -112,16 +112,19 @@
     "dragToUpload": "Drop documents or images here",
     "orBrowse": "or click to browse files",
     "inputParams": "Parameters",
-    "simulationPrompt": ">_ 02 / What do you want to predict?",
+    "simulationPrompt": ">_ 03 / What do you want to predict?",
     "promptPlaceholder": "// e.g. how will the Latin American market react to the launch of our new product next month…",
     "engineBadge": "Engine: Mirror V1.0",
     "startEngine": "Start simulation",
-    "initializing": "Booting engine…"
+    "initializing": "Booting engine…",
+    "projectName": "02 / Project name",
+    "projectNamePlaceholder": "e.g. BSG Serranos Q2 Launch"
   },
   "main": {
     "layoutGraph": "Graph",
     "layoutSplit": "Split",
     "layoutWorkbench": "Workbench",
+    "renameProject": "Click to rename project",
     "stepNames": [
       "Graph Build",
       "Env Setup",
@@ -630,6 +633,7 @@
     "loadingFullGraph": "Loading full graph · {graphId}",
     "graphLoadedOk": "Graph data loaded",
     "manualRefresh": "Manual graph refresh",
+    "projectRenamed": "Project renamed: {name}",
     "statusError": "Error",
     "statusReady": "Ready",
     "statusBuilding": "Building graph",

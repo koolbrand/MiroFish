@@ -114,6 +114,49 @@ def list_projects():
     })
 
 
+@graph_bp.route('/project/<project_id>', methods=['PATCH'])
+def update_project(project_id: str):
+    """
+    Actualiza metadatos de un proyecto existente.
+    Por ahora solo se admite el campo `name` (renombrar).
+    """
+    project = ProjectManager.get_project(project_id)
+
+    if not project:
+        return jsonify({
+            "success": False,
+            "error": t('api.projectNotFound', id=project_id)
+        }), 404
+
+    data = request.get_json(silent=True) or {}
+    new_name = data.get('name')
+
+    if new_name is None:
+        return jsonify({
+            "success": False,
+            "error": "Falta el campo 'name'"
+        }), 400
+
+    # Sanitizar: trim + limitar longitud a 120 chars
+    new_name = str(new_name).strip()
+    if not new_name:
+        return jsonify({
+            "success": False,
+            "error": "El nombre del proyecto no puede estar vacío"
+        }), 400
+    if len(new_name) > 120:
+        new_name = new_name[:120]
+
+    project.name = new_name
+    ProjectManager.save_project(project)
+    logger.info(f"Proyecto {project_id} renombrado a: {new_name}")
+
+    return jsonify({
+        "success": True,
+        "data": project.to_dict()
+    })
+
+
 @graph_bp.route('/project/<project_id>', methods=['DELETE'])
 def delete_project(project_id: str):
     """
