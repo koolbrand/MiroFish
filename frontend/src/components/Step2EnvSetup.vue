@@ -81,26 +81,87 @@
           <div v-if="profiles.length > 0" class="profiles-preview">
             <div class="preview-header">
               <span class="preview-title">{{ $t('step2.generatedAgentPersonas') }}</span>
+              <span class="preview-count">
+                {{ filteredProfiles.length }}
+                <span v-if="filteredProfiles.length !== profiles.length">/ {{ profiles.length }}</span>
+              </span>
             </div>
-            <div class="profiles-list">
-              <div 
-                v-for="(profile, idx) in profiles" 
-                :key="idx" 
+
+            <!-- Resumen demográfico (para demos con clientes) -->
+            <div class="demographics-summary">
+              <div v-if="demographics.genderBreakdown.length" class="demo-chips">
+                <span
+                  v-for="g in demographics.genderBreakdown"
+                  :key="g.label"
+                  class="demo-chip"
+                  :class="{ active: filters.gender === g.key }"
+                  @click="toggleGenderFilter(g.key)"
+                >
+                  {{ g.label }} · {{ g.count }}
+                </span>
+              </div>
+              <div v-if="demographics.topProfessions.length" class="demo-chips">
+                <span
+                  v-for="p in demographics.topProfessions"
+                  :key="p"
+                  class="demo-chip subtle"
+                  :class="{ active: filters.profession === p }"
+                  @click="toggleProfessionFilter(p)"
+                >
+                  {{ p }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Barra de búsqueda y orden -->
+            <div class="profiles-controls">
+              <div class="search-wrapper">
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input
+                  v-model="filters.query"
+                  type="text"
+                  class="profiles-search"
+                  :placeholder="$t('step2.searchProfilesPlaceholder')"
+                />
+                <button
+                  v-if="filters.query || filters.gender || filters.profession"
+                  type="button"
+                  class="clear-btn"
+                  :title="$t('step2.clearFilters')"
+                  @click="clearFilters"
+                >×</button>
+              </div>
+              <select v-model="filters.sort" class="profiles-sort">
+                <option value="default">{{ $t('step2.sortDefault') }}</option>
+                <option value="name">{{ $t('step2.sortByName') }}</option>
+                <option value="profession">{{ $t('step2.sortByProfession') }}</option>
+                <option value="random">{{ $t('step2.sortRandom') }}</option>
+              </select>
+            </div>
+
+            <div v-if="filteredProfiles.length === 0" class="profiles-empty">
+              {{ $t('step2.noProfilesMatch') }}
+            </div>
+
+            <div v-else class="profiles-list">
+              <div
+                v-for="profile in filteredProfiles"
+                :key="profile._idx"
                 class="profile-card"
                 @click="selectProfile(profile)"
               >
                 <div class="profile-header">
                   <span class="profile-realname">{{ profile.username || 'Unknown' }}</span>
-                  <span class="profile-username">@{{ profile.name || `agent_${idx}` }}</span>
+                  <span class="profile-username">@{{ profile.name || `agent_${profile._idx}` }}</span>
                 </div>
                 <div class="profile-meta">
                   <span class="profile-profession">{{ profile.profession || $t('step2.unknownProfession') }}</span>
                 </div>
                 <p class="profile-bio">{{ profile.bio || $t('step2.noBio') }}</p>
                 <div v-if="profile.interested_topics?.length" class="profile-topics">
-                  <span 
-                    v-for="topic in profile.interested_topics.slice(0, 3)" 
-                    :key="topic" 
+                  <span
+                    v-for="topic in profile.interested_topics.slice(0, 3)"
+                    :key="topic"
                     class="topic-tag"
                   >{{ topic }}</span>
                   <span v-if="profile.interested_topics.length > 3" class="topic-more">
@@ -736,6 +797,124 @@ const totalTopicsCount = computed(() => {
   }, 0)
 })
 
+// ─── Agent Explorer: búsqueda, filtros y demografía ──────────────────
+const filters = ref({
+  query: '',
+  gender: null,       // 'male' | 'female' | 'other' | null
+  profession: null,   // string | null
+  sort: 'default',    // 'default' | 'name' | 'profession' | 'random'
+})
+
+// Perfiles con un índice estable para key + orden aleatorio
+const indexedProfiles = computed(() => {
+  return profiles.value.map((p, idx) => ({ ...p, _idx: idx }))
+})
+
+// Resumen demográfico (para mostrar al cliente en demos)
+const demographics = computed(() => {
+  const genderCounts = { male: 0, female: 0, other: 0 }
+  const professionCounts = {}
+
+  for (const p of profiles.value) {
+    const g = (p.gender || '').toLowerCase()
+    if (g === 'male' || g === 'female') genderCounts[g]++
+    else if (g) genderCounts.other++
+
+    const prof = (p.profession || '').trim()
+    if (prof) {
+      professionCounts[prof] = (professionCounts[prof] || 0) + 1
+    }
+  }
+
+  const genderBreakdown = [
+    { key: 'male', label: t('step2.genderMale'), count: genderCounts.male },
+    { key: 'female', label: t('step2.genderFemale'), count: genderCounts.female },
+    { key: 'other', label: t('step2.genderOther'), count: genderCounts.other },
+  ].filter((g) => g.count > 0)
+
+  const topProfessions = Object.entries(professionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name]) => name)
+
+  return { genderBreakdown, topProfessions }
+})
+
+// Fisher-Yates determinista usando _idx como semilla; cambia al refrescar filtros
+let randomSeed = 0
+const shuffle = (arr) => {
+  const a = arr.slice()
+  let seed = randomSeed || 1
+  for (let i = a.length - 1; i > 0; i--) {
+    seed = (seed * 9301 + 49297) % 233280
+    const j = Math.floor((seed / 233280) * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+watch(() => filters.value.sort, (sort) => {
+  if (sort === 'random') randomSeed = Date.now()
+})
+
+const filteredProfiles = computed(() => {
+  const q = filters.value.query.trim().toLowerCase()
+  let out = indexedProfiles.value
+
+  if (q) {
+    out = out.filter((p) => {
+      const hay = [
+        p.username,
+        p.name,
+        p.profession,
+        p.country,
+        p.bio,
+        p.persona,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  }
+
+  if (filters.value.gender) {
+    out = out.filter((p) => {
+      const g = (p.gender || '').toLowerCase()
+      if (filters.value.gender === 'other') return g && g !== 'male' && g !== 'female'
+      return g === filters.value.gender
+    })
+  }
+
+  if (filters.value.profession) {
+    out = out.filter((p) => (p.profession || '').trim() === filters.value.profession)
+  }
+
+  switch (filters.value.sort) {
+    case 'name':
+      return out.slice().sort((a, b) =>
+        (a.username || a.name || '').localeCompare(b.username || b.name || '')
+      )
+    case 'profession':
+      return out.slice().sort((a, b) =>
+        (a.profession || '').localeCompare(b.profession || '')
+      )
+    case 'random':
+      return shuffle(out)
+    default:
+      return out
+  }
+})
+
+const toggleGenderFilter = (g) => {
+  filters.value.gender = filters.value.gender === g ? null : g
+}
+const toggleProfessionFilter = (p) => {
+  filters.value.profession = filters.value.profession === p ? null : p
+}
+const clearFilters = () => {
+  filters.value.query = ''
+  filters.value.gender = null
+  filters.value.profession = null
+}
+
 // Methods
 const addLog = (msg) => {
   emit('add-log', msg)
@@ -1363,6 +1542,162 @@ onUnmounted(() => {
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.preview-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #999;
+  font-weight: 600;
+}
+
+/* ─── Agent Explorer controls ─────────────────────────────────── */
+.demographics-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.demo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.demo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid #D0D0D0;
+  border-radius: 999px;
+  background: #FFF;
+  color: #333;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.demo-chip:hover {
+  border-color: #000;
+  color: #000;
+}
+
+.demo-chip.active {
+  background: #000;
+  color: #FFF;
+  border-color: #000;
+}
+
+.demo-chip.subtle {
+  background: #F5F5F5;
+  border-color: #E5E5E5;
+  color: #555;
+}
+
+.demo-chip.subtle.active {
+  background: #000;
+  color: #FFF;
+  border-color: #000;
+}
+
+.profiles-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.search-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 14px;
+  color: #999;
+  pointer-events: none;
+}
+
+.profiles-search {
+  width: 100%;
+  padding: 7px 30px 7px 30px;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  background: #FFF;
+  font-family: inherit;
+  font-size: 12px;
+  color: #000;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.profiles-search:focus {
+  border-color: #000;
+}
+
+.profiles-search::placeholder {
+  color: #BBB;
+}
+
+.clear-btn {
+  position: absolute;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: #E0E0E0;
+  color: #555;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.clear-btn:hover {
+  background: #000;
+  color: #FFF;
+}
+
+.profiles-sort {
+  padding: 7px 10px;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  background: #FFF;
+  font-family: inherit;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.profiles-sort:hover,
+.profiles-sort:focus {
+  border-color: #000;
+}
+
+.profiles-empty {
+  padding: 24px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  font-style: italic;
+  background: #FAFAFA;
+  border: 1px dashed #DDD;
+  border-radius: 6px;
 }
 
 .profiles-list {
