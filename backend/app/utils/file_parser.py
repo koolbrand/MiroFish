@@ -118,7 +118,7 @@ class FileParser:
         except ImportError:
             raise ImportError("Se necesita Pillow para procesar imágenes: pip install pillow")
 
-        import requests as _requests
+        import httpx
         from ..config import Config
 
         # ── 1. Redimensionar y convertir a JPEG ────────────────────────────
@@ -154,19 +154,19 @@ class FileParser:
         )
 
         base_url = Config.LLM_BASE_URL.rstrip('/')
-        resp = _requests.post(
-            f"{base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {Config.LLM_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": Config.VISION_LLM_MODEL_NAME,
-                "messages": [{"role": "user", "content": vision_prompt}],
-                "max_tokens": 1200,
-            },
-            timeout=90,
-        )
+        with httpx.Client(timeout=90) as client:
+            resp = client.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {Config.LLM_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": Config.VISION_LLM_MODEL_NAME,
+                    "messages": [{"role": "user", "content": vision_prompt}],
+                    "max_tokens": 1200,
+                },
+            )
         resp.raise_for_status()
 
         description = resp.json()["choices"][0]["message"]["content"]
