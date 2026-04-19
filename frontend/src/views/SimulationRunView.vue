@@ -29,12 +29,15 @@
       <div class="header-right">
         <LanguageSwitcher />
         <AppVersion />
+        <HelpButton tourId="simulationRun" />
         <div class="step-divider"></div>
-        <WizardStepper
-          :currentStep="3"
-          :projectId="projectData?.project_id || null"
-          :simulationId="currentSimulationId"
-        />
+        <div data-tour="run-stepper">
+          <WizardStepper
+            :currentStep="3"
+            :projectId="projectData?.project_id || null"
+            :simulationId="currentSimulationId"
+          />
+        </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -46,8 +49,8 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="run-graph-panel">
+        <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="3"
@@ -58,7 +61,7 @@
       </div>
 
       <!-- Right Panel: Step3 开始模拟 -->
-      <div class="panel-wrapper right" :style="rightPanelStyle">
+      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="run-sim-panel">
         <Step3Simulation
           :simulationId="currentSimulationId"
           :maxRounds="maxRounds"
@@ -88,9 +91,13 @@ import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const { maybeAutoStart } = useTutorial()
 const route = useRoute()
 const router = useRouter()
 
@@ -322,13 +329,16 @@ watch(isSimulating, (newValue) => {
 
 onMounted(() => {
   addLog(t('log.simRunViewInit'))
-  
+
   // 记录 maxRounds 配置（值已在初始化时从 query 参数获取）
   if (maxRounds.value) {
     addLog(t('log.customRounds', { rounds: maxRounds.value }))
   }
-  
+
   loadSimulationData()
+
+  // First visit → explain the live-simulation view.
+  maybeAutoStart('simulationRun', getTour('simulationRun'))
 })
 
 onUnmounted(() => {

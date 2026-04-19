@@ -13,7 +13,7 @@
       </div>
 
       <div class="header-center">
-        <div class="view-switcher">
+        <div class="view-switcher" data-tour="main-view-switcher">
           <button
             v-for="mode in ['graph', 'split', 'workbench']"
             :key="mode"
@@ -29,11 +29,14 @@
       <div class="header-right">
         <LanguageSwitcher />
         <AppVersion />
+        <HelpButton tourId="mainStep1" :resolve="resolveMainTour" />
         <div class="step-divider"></div>
-        <WizardStepper
-          :currentStep="currentStep"
-          :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null"
-        />
+        <div data-tour="main-stepper">
+          <WizardStepper
+            :currentStep="currentStep"
+            :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null"
+          />
+        </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -45,8 +48,8 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="main-graph-panel">
+        <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="currentPhase"
@@ -56,7 +59,7 @@
       </div>
 
       <!-- Right Panel: Step Components -->
-      <div class="panel-wrapper right" :style="rightPanelStyle">
+      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="main-step-panel">
         <!-- Step 1: 图谱构建 -->
         <Step1GraphBuild 
           v-if="currentStep === 1"
@@ -84,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import GraphPanel from '../components/GraphPanel.vue'
@@ -97,10 +100,21 @@ import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 
 const route = useRoute()
 const router = useRouter()
 const { t, tm } = useI18n()
+const { maybeAutoStart } = useTutorial()
+
+// Pick the right tour based on the current wizard step so the "?" button and
+// auto-launch both stay in sync with what the user is looking at.
+const resolveMainTour = () => {
+  if (currentStep.value === 2) return 'mainStep2'
+  return 'mainStep1'
+}
 
 // Layout State
 const viewMode = ref('split') // graph | split | workbench
@@ -449,11 +463,21 @@ const stopGraphPolling = () => {
 
 onMounted(() => {
   initProject()
+  // First time landing on the wizard → explain Step 1 layout.
+  nextTick(() => maybeAutoStart('mainStep1', getTour('mainStep1')))
 })
 
 onUnmounted(() => {
   stopPolling()
   stopGraphPolling()
+})
+
+// When the user advances to Step 2 for the first time, auto-launch that
+// tour so they understand the environment-setup UI.
+watch(currentStep, (step, prev) => {
+  if (step === 2 && prev !== 2) {
+    nextTick(() => maybeAutoStart('mainStep2', getTour('mainStep2')))
+  }
 })
 </script>
 

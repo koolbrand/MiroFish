@@ -3,7 +3,7 @@
     <!-- Main Split Layout -->
     <div class="main-split-layout">
       <!-- LEFT PANEL: Report Style -->
-      <div class="left-panel report-style" ref="leftPanel">
+      <div class="left-panel report-style" ref="leftPanel" data-tour="int-left-panel">
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
           <div class="report-header-block">
@@ -85,9 +85,9 @@
       </div>
 
       <!-- RIGHT PANEL: Interaction Interface -->
-      <div class="right-panel" ref="rightPanel">
+      <div class="right-panel" ref="rightPanel" data-tour="int-right-panel">
         <!-- Unified Action Bar - Professional Design -->
-        <div class="action-bar">
+        <div class="action-bar" data-tour="int-action-bar">
         <div class="action-bar-header">
           <svg class="action-bar-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -98,8 +98,9 @@
           </div>
         </div>
           <div class="action-bar-tabs">
-            <button 
+            <button
               class="tab-pill"
+              data-tour="int-tab-report"
               :class="{ active: activeTab === 'chat' && chatTarget === 'report_agent' }"
               @click="selectReportAgentChat"
             >
@@ -108,7 +109,7 @@
               </svg>
               <span>{{ $t('step5.chatWithReportAgent') }}</span>
             </button>
-            <div class="agent-dropdown" v-if="profiles.length > 0">
+            <div class="agent-dropdown" v-if="profiles.length > 0" data-tour="int-tab-agent">
               <button
                 class="tab-pill agent-pill"
                 :class="{ active: activeTab === 'chat' && chatTarget === 'agent' }"
@@ -146,6 +147,7 @@
             <div class="tab-divider"></div>
             <button
               class="tab-pill explorer-pill"
+              data-tour="int-tab-explorer"
               :class="{ active: activeTab === 'explorer' }"
               @click="selectExplorerTab"
             >
@@ -159,6 +161,7 @@
             <div class="tab-divider"></div>
             <button
               class="tab-pill survey-pill"
+              data-tour="int-tab-survey"
               :class="{ active: activeTab === 'survey' }"
               @click="selectSurveyTab"
             >
@@ -313,7 +316,7 @@
           </div>
 
           <!-- Chat Input -->
-          <div class="chat-input-area">
+          <div class="chat-input-area" data-tour="int-chat-input">
             <textarea 
               v-model="chatInput"
               class="chat-input"

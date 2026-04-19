@@ -570,14 +570,14 @@
             </Transition>
           </div>
 
-          <div class="action-group dual">
-            <button 
+          <div class="action-group dual" data-tour="env-start-sim">
+            <button
               class="action-btn secondary"
               @click="$emit('go-back')"
             >
               ← {{ $t('step2.backToGraphBuild') }}
             </button>
-            <button 
+            <button
               class="action-btn primary"
               :disabled="phase < 4"
               @click="handleStartSimulation"

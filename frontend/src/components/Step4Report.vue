@@ -3,10 +3,10 @@
     <!-- Main Split Layout -->
     <div class="main-split-layout">
       <!-- LEFT PANEL: Report Style -->
-      <div class="left-panel report-style" ref="leftPanel">
+      <div class="left-panel report-style" ref="leftPanel" data-tour="rep-left-panel">
         <div v-if="reportOutline" class="report-content-wrapper">
           <!-- Report Header -->
-          <div class="report-header-block">
+          <div class="report-header-block" data-tour="rep-header">
             <div class="report-meta">
               <span class="report-tag">Prediction Report</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
@@ -17,7 +17,7 @@
           </div>
 
           <!-- Sections List -->
-          <div class="sections-list">
+          <div class="sections-list" data-tour="rep-sections">
             <div 
               v-for="(section, idx) in reportOutline.sections" 
               :key="idx"
@@ -77,7 +77,7 @@
       </div>
 
       <!-- RIGHT PANEL: Workflow Timeline -->
-      <div class="right-panel" ref="rightPanel">
+      <div class="right-panel" ref="rightPanel" data-tour="rep-workflow">
         <div class="panel-header" :class="`panel-header--${activeStep.status}`" v-if="!isComplete">
           <span class="header-dot" v-if="activeStep.status === 'active'"></span>
           <span class="header-index mono">{{ activeStep.noLabel }}</span>

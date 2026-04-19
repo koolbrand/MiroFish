@@ -832,5 +832,100 @@
     "llmSelectAgentFailed": "LLM agent selection failed, using default selection: {error}",
     "generateInterviewQuestionsFailed": "Failed to generate interview questions: {error}",
     "generateInterviewSummaryFailed": "Failed to generate interview summary: {error}"
+  },
+  "tutorial": {
+    "badge": "Tutorial",
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "finish": "Got it",
+    "openLabel": "Tutorial",
+    "openTooltip": "Open the interactive tutorial",
+    "home": {
+      "welcomeTitle": "Welcome to MiroFish",
+      "welcomeBody": "A 6-step walkthrough of the home screen so you can launch your first simulation. You can skip it any time and reopen it from the \"?\" button at the top right.",
+      "uploadTitle": "1. Upload your reality seed",
+      "uploadBody": "Drop PDFs, notes or images describing the world you want to simulate (a brand brief, a plan, meeting notes, etc.). MiroFish extracts entities and relationships to build the graph.",
+      "nameTitle": "2. Give the project a name",
+      "nameBody": "Optional but recommended: this name appears in the projects list, in the header and in the filename of the .md report you download at the end.",
+      "promptTitle": "3. Describe what you want to simulate",
+      "promptBody": "Write the question or scenario in plain language (e.g. \"How would millennial moms react to the X launch?\"). The engine uses it to plan the report.",
+      "startTitle": "4. Start the engine",
+      "startBody": "Clicking this takes you into the 5-step wizard where you'll watch the graph being built in real time.",
+      "projectsTitle": "5. Your previous projects",
+      "projectsBody": "From here you can jump back into any project you've created, review its graph, simulations and reports."
+    },
+    "main1": {
+      "welcomeTitle": "5-step wizard",
+      "welcomeBody": "You are in Step 1 — graph building. Let me show you the three key zones so you know what's going on.",
+      "graphTitle": "Left panel — live graph",
+      "graphBody": "The world MiroFish is building from your seed. Nodes = entities, edges = relationships. You can zoom, drag and refresh.",
+      "stepTitle": "Right panel — step controls",
+      "stepBody": "Here you drive the current phase: ontology, graph build, system logs. Once Step 1 is done you'll see the button to move on to Step 2.",
+      "stepperTitle": "Progress indicator",
+      "stepperBody": "Shows which step of the flow you're on (1→5). Completed steps are clickable, so you can jump back at any time.",
+      "layoutTitle": "Layout views",
+      "layoutBody": "Toggle between: graph-only, split view, or workbench-only. Handy when you want to focus on one of the two zones."
+    },
+    "main2": {
+      "envTitle": "Step 2 — agent environment",
+      "envBody": "Here we generate the agent profiles (Twitter + Reddit) that will populate the simulation. Progress appears in the right panel.",
+      "nextTitle": "Move on to Step 3",
+      "nextBody": "Once generation finishes, you'll be able to launch the simulation in the next step. The stepper above tells you how far you've come."
+    },
+    "sim": {
+      "welcomeTitle": "Step 2 — environment setup",
+      "welcomeBody": "This is where the simulation instance is created and the agent profiles (Twitter + Reddit) are prepared before the real simulation starts.",
+      "graphTitle": "Context graph",
+      "graphBody": "The graph stays visible so you can consult it while configuring the simulation. Use the switcher above to hide it if you need more space.",
+      "envTitle": "Configuration panel",
+      "envBody": "Each numbered card represents a phase: instance, profiles, environment initialization. Wait for all of them to turn green before launching.",
+      "startTitle": "Launch simulation",
+      "startBody": "Once you've reviewed profiles and set the number of rounds, press \"Start dual simulation\" to move on to Step 3 (live run).",
+      "stepperTitle": "Overall progress",
+      "stepperBody": "You're in Step 2 of 5. Click on any completed step to jump back and review it."
+    },
+    "run": {
+      "welcomeTitle": "Step 3 — live simulation",
+      "welcomeBody": "The agents are now acting in the simulated world. This can take several minutes — here's how to follow along.",
+      "controlBarTitle": "Per-platform status",
+      "controlBarBody": "Two cards (Info Plaza = Twitter, Topic Community = Reddit) showing current round, simulated time and action count. They turn green when finished.",
+      "actionsTitle": "Stop or generate report",
+      "actionsBody": "Stop button to interrupt the simulation at any time. When both platforms finish, the \"Generate report\" button unlocks and takes you to Step 4.",
+      "timelineTitle": "Event timeline",
+      "timelineBody": "Every agent action (POST, LIKE, COMMENT…) appears here in chronological order. Filter by platform or action type to focus on what matters.",
+      "graphTitle": "Graph during the simulation",
+      "graphBody": "The graph stays available so you can inspect relationships while the simulation is running."
+    },
+    "report": {
+      "welcomeTitle": "Step 4 — report",
+      "welcomeBody": "The Report Agent is writing your report section by section, Notion-style. Follow along live to see which step is executing.",
+      "headerTitle": "Report header",
+      "headerBody": "Shows the title, summary and report ID. When everything is done, you can download it as .md (named after your project) from Step 5.",
+      "sectionsTitle": "Report sections",
+      "sectionsBody": "Each section is generated in turn. Finished ones are expandable/collapsible; the active one shows a spinner; pending ones are dimmed.",
+      "workflowTitle": "Agent workflow",
+      "workflowBody": "Right panel: metrics of the ReACT cycle (how many tool calls, which step is running, agent timeline). Handy for debugging reports that stall.",
+      "nextTitle": "Move on to Step 5",
+      "nextBody": "Once the report is complete, the stepper takes you to Step 5 — chat with the agents. You'll also find the .md download button there."
+    },
+    "interaction": {
+      "welcomeTitle": "Step 5 — deep interaction",
+      "welcomeBody": "Here you can chat with the agents, explore the simulated world and send mass surveys. Let me show you the four main tabs.",
+      "reportTitle": "Final report (left side)",
+      "reportBody": "The full finished report. Use the \".md\" button to download a copy named after your project. Click on any section to collapse or expand it.",
+      "actionBarTitle": "Action bar",
+      "actionBarBody": "These are the four available tools. The active tab changes what the right-hand panel shows.",
+      "tabReportTitle": "Chat with the Report Agent",
+      "tabReportBody": "Talk to the agent that wrote the report. It has access to the graph, InsightForge and the interview summary — use it to ask for deeper analysis.",
+      "tabAgentTitle": "Chat with a specific agent",
+      "tabAgentBody": "Pick an agent from the dropdown to talk to them directly. They answer in character (profession, bio, opinions).",
+      "tabExplorerTitle": "World explorer",
+      "tabExplorerBody": "Timeline-style view with each agent's activity during the simulation (posts, likes, comments). Useful to inspect specific behaviors.",
+      "tabSurveyTitle": "Mass survey",
+      "tabSurveyBody": "Send a question or survey to all agents at once and receive aggregated responses. Perfect for validating hypotheses with N agents at a time.",
+      "chatInputTitle": "Type your message",
+      "chatInputBody": "Press Enter to send, Shift+Enter for a line break. The agent replies in seconds and keeps context throughout the conversation."
+    }
   }
 }

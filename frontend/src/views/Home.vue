@@ -6,7 +6,8 @@
       <div class="nav-links">
         <AppVersion />
         <LanguageSwitcher />
-        <router-link to="/projects" class="github-link">
+        <HelpButton tourId="home" dark />
+        <router-link to="/projects" class="github-link" data-tour="home-projects-link">
           {{ $t('nav.projects') }} <span class="arrow">→</span>
         </router-link>
         <a href="https://github.com/koolbrand/MiroFish" target="_blank" class="github-link">
@@ -152,8 +153,9 @@
                 <span class="console-meta">{{ $t('home.supportedFormats') }}</span>
               </div>
               
-              <div 
+              <div
                 class="upload-zone"
+                data-tour="home-upload"
                 :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0 }"
                 @dragover.prevent="handleDragOver"
                 @dragleave.prevent="handleDragLeave"
@@ -192,7 +194,7 @@
             </div>
 
             <!-- 项目名称 -->
-            <div class="console-section">
+            <div class="console-section" data-tour="home-project-name">
               <div class="console-header">
                 <span class="console-label">{{ $t('home.projectName') }}</span>
               </div>
@@ -209,7 +211,7 @@
             </div>
 
             <!-- 输入区域 -->
-            <div class="console-section">
+            <div class="console-section" data-tour="home-prompt">
               <div class="console-header">
                 <span class="console-label">{{ $t('home.simulationPrompt') }}</span>
               </div>
@@ -227,8 +229,9 @@
 
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
-              <button 
+              <button
                 class="start-engine-btn"
+                data-tour="home-start"
                 @click="startSimulation"
                 :disabled="!canSubmit || loading"
               >
@@ -255,8 +258,12 @@ import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 
 const router = useRouter()
+const { maybeAutoStart } = useTutorial()
 
 // ── D3 force-directed graph (same style as in-app GraphPanel) ───────────────
 const simSvg = ref(null)
@@ -396,6 +403,9 @@ const initNetworkSvg = () => {
 onMounted(async () => {
   await nextTick()
   initNetworkSvg()
+  // Auto-launch the Home tour on the user's first visit. Users can re-open
+  // it any time from the "?" button in the navbar.
+  maybeAutoStart('home', getTour('home'))
 })
 
 onUnmounted(() => {

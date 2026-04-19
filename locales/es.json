@@ -832,5 +832,100 @@
     "llmSelectAgentFailed": "Error en selección de agente por LLM, usando selección predeterminada: {error}",
     "generateInterviewQuestionsFailed": "Error al generar preguntas de entrevista: {error}",
     "generateInterviewSummaryFailed": "Error al generar resumen de entrevista: {error}"
+  },
+  "tutorial": {
+    "badge": "Tutorial",
+    "next": "Siguiente",
+    "back": "Atrás",
+    "skip": "Saltar",
+    "finish": "Entendido",
+    "openLabel": "Tutorial",
+    "openTooltip": "Abrir el tutorial interactivo",
+    "home": {
+      "welcomeTitle": "Bienvenido a MiroFish",
+      "welcomeBody": "Te guío en 6 pasos por la pantalla principal para que puedas lanzar tu primera simulación. Puedes saltar el tutorial en cualquier momento y volver a abrirlo desde el botón «?» arriba a la derecha.",
+      "uploadTitle": "1. Sube tu semilla de realidad",
+      "uploadBody": "Arrastra aquí PDFs, notas o imágenes que describan el mundo a simular (un brief de marca, un plan, actas, etc.). MiroFish extrae entidades y relaciones para construir el grafo.",
+      "nameTitle": "2. Ponle un nombre al proyecto",
+      "nameBody": "Opcional, pero muy recomendable: este nombre aparece en la lista de proyectos, en la cabecera y en el nombre del archivo .md que descargarás al final.",
+      "promptTitle": "3. Describe qué quieres simular",
+      "promptBody": "Escribe en lenguaje natural la pregunta o escenario (p. ej. «¿Cómo reaccionarían madres millennials al lanzamiento X?»). El motor lo usa para planificar el informe.",
+      "startTitle": "4. Arranca el motor",
+      "startBody": "Al pulsar este botón te llevamos al asistente de 5 pasos donde verás la construcción del grafo en tiempo real.",
+      "projectsTitle": "5. Tus proyectos anteriores",
+      "projectsBody": "Desde aquí puedes volver a cualquier proyecto ya creado, revisar su grafo, simulaciones e informes."
+    },
+    "main1": {
+      "welcomeTitle": "Asistente de 5 pasos",
+      "welcomeBody": "Estás en el Paso 1 — construcción del grafo. Te muestro las tres zonas clave para que sepas qué está pasando.",
+      "graphTitle": "Panel izquierdo — grafo en vivo",
+      "graphBody": "Aquí se dibuja el grafo del mundo que MiroFish está construyendo a partir de tu semilla. Nodos = entidades, aristas = relaciones. Puedes hacer zoom, arrastrar y refrescar.",
+      "stepTitle": "Panel derecho — control del paso",
+      "stepBody": "Aquí controlas la fase actual: ontología, construcción, logs del sistema. Cuando termine el Paso 1, verás el botón para avanzar al Paso 2.",
+      "stepperTitle": "Indicador de progreso",
+      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Si un paso ya está completado puedes hacer clic para volver a él.",
+      "layoutTitle": "Vistas del layout",
+      "layoutBody": "Cambia entre: solo grafo, vista partida, o solo panel de trabajo. Útil cuando quieres inspeccionar en detalle una de las dos zonas."
+    },
+    "main2": {
+      "envTitle": "Paso 2 — entorno de agentes",
+      "envBody": "Aquí generamos los perfiles de agentes (Twitter + Reddit) que poblarán la simulación. Verás su avance en el panel derecho.",
+      "nextTitle": "Avanza al Paso 3",
+      "nextBody": "Cuando termine la generación, podrás lanzar la simulación en el siguiente paso. El stepper de arriba te indica cuánto te queda."
+    },
+    "sim": {
+      "welcomeTitle": "Paso 2 — preparación del entorno",
+      "welcomeBody": "Aquí se crea la instancia de simulación y se preparan los perfiles de agentes (Twitter + Reddit) antes de arrancar la simulación real.",
+      "graphTitle": "Grafo contextual",
+      "graphBody": "Sigue viéndose el grafo para que puedas consultarlo mientras configuras la simulación. Usa el switcher de arriba si quieres ocultarlo.",
+      "envTitle": "Panel de configuración",
+      "envBody": "Cada tarjeta numerada representa una fase: instancia, perfiles, inicialización del entorno. Espera a que todas queden en verde antes de lanzar.",
+      "startTitle": "Lanzar simulación",
+      "startBody": "Cuando termines de revisar perfiles y fijar las rondas, pulsa «Iniciar simulación dual» para pasar al Paso 3 (ejecución en vivo).",
+      "stepperTitle": "Progreso global",
+      "stepperBody": "Estás en el Paso 2 de 5. Puedes hacer clic en pasos ya completados para volver a revisarlos."
+    },
+    "run": {
+      "welcomeTitle": "Paso 3 — simulación en vivo",
+      "welcomeBody": "Los agentes ya están actuando. Esto puede tardar varios minutos. Te muestro cómo seguir el progreso.",
+      "controlBarTitle": "Estado por plataforma",
+      "controlBarBody": "Dos tarjetas (Info Plaza = Twitter, Topic Community = Reddit) con la ronda actual, tiempo simulado y número de acciones. Se marcan en verde al completarse.",
+      "actionsTitle": "Detener o generar informe",
+      "actionsBody": "Botón de stop para cortar la simulación en cualquier momento. Cuando ambas plataformas terminen, se habilita el botón «Generar informe» que pasa al Paso 4.",
+      "timelineTitle": "Línea de tiempo de eventos",
+      "timelineBody": "Cada acción de los agentes (POST, LIKE, COMMENT…) aparece aquí en orden cronológico. Filtra por plataforma o tipo para centrarte en lo que te interesa.",
+      "graphTitle": "Grafo durante la simulación",
+      "graphBody": "El grafo sigue disponible para inspeccionar relaciones mientras corre la simulación."
+    },
+    "report": {
+      "welcomeTitle": "Paso 4 — informe",
+      "welcomeBody": "El agente Report está redactando tu informe sección a sección, tal como lo verías en Notion. Sigue en vivo qué paso está ejecutando.",
+      "headerTitle": "Cabecera del informe",
+      "headerBody": "Muestra el título, el resumen y el ID del informe. Cuando se complete todo, podrás descargarlo como .md (con el nombre de tu proyecto) desde el Paso 5.",
+      "sectionsTitle": "Secciones del informe",
+      "sectionsBody": "Cada sección se genera una detrás de otra. Las terminadas quedan desplegables/colapsables; la activa muestra un spinner; las pendientes quedan atenuadas.",
+      "workflowTitle": "Workflow del agente",
+      "workflowBody": "Panel derecho: métricas del ciclo ReACT (cuántos tool calls, qué paso se está ejecutando, timeline del agente). Útil para depurar informes que se quedan colgados.",
+      "nextTitle": "Avanza al Paso 5",
+      "nextBody": "Cuando termine el informe, el stepper te llevará al Paso 5 — chat con los agentes. Desde allí también tendrás el botón de descarga .md."
+    },
+    "interaction": {
+      "welcomeTitle": "Paso 5 — interacción profunda",
+      "welcomeBody": "Aquí puedes chatear con los agentes, explorar el mundo simulado y lanzar encuestas. Te muestro las cuatro pestañas principales.",
+      "reportTitle": "Informe final (lado izquierdo)",
+      "reportBody": "El informe completo, ya terminado. Desde el botón «.md» descargas una copia con el nombre de tu proyecto. Haz clic en cualquier sección para plegarla o desplegarla.",
+      "actionBarTitle": "Barra de acciones",
+      "actionBarBody": "Estas son las cuatro herramientas disponibles. La pestaña activa cambia el contenido del panel derecho.",
+      "tabReportTitle": "Chat con el Report Agent",
+      "tabReportBody": "Habla con el agente que redactó el informe. Tiene acceso al grafo, a InsightForge y al resumen de entrevistas — úsalo para pedir análisis más profundos.",
+      "tabAgentTitle": "Chat con un agente concreto",
+      "tabAgentBody": "Selecciona un agente del desplegable para hablar directamente con él. Responde en su personaje (profesión, bio, opiniones).",
+      "tabExplorerTitle": "Explorador del mundo",
+      "tabExplorerBody": "Vista tipo timeline con la actividad de cada agente durante la simulación (posts, likes, comentarios). Útil para inspeccionar comportamientos concretos.",
+      "tabSurveyTitle": "Encuesta masiva",
+      "tabSurveyBody": "Envía una pregunta o encuesta a todos los agentes de golpe y recibe las respuestas agregadas. Perfecto para validar hipótesis con N agentes a la vez.",
+      "chatInputTitle": "Escribe tu mensaje",
+      "chatInputBody": "Pulsa Enter para enviar. Shift+Enter para salto de línea. El agente responderá en segundos y mantiene el contexto durante la conversación."
+    }
   }
 }

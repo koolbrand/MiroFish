@@ -29,13 +29,16 @@
       <div class="header-right">
         <LanguageSwitcher />
         <AppVersion />
+        <HelpButton tourId="report" />
         <div class="step-divider"></div>
-        <WizardStepper
-          :currentStep="4"
-          :projectId="projectData?.project_id || null"
-          :simulationId="simulationId"
-          :reportId="currentReportId"
-        />
+        <div data-tour="report-stepper">
+          <WizardStepper
+            :currentStep="4"
+            :projectId="projectData?.project_id || null"
+            :simulationId="simulationId"
+            :reportId="currentReportId"
+          />
+        </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -47,8 +50,8 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="report-graph-panel">
+        <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="4"
@@ -59,7 +62,7 @@
       </div>
 
       <!-- Right Panel: Step4 报告生成 -->
-      <div class="panel-wrapper right" :style="rightPanelStyle">
+      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="report-panel">
         <Step4Report
           :reportId="currentReportId"
           :simulationId="simulationId"
@@ -84,12 +87,16 @@ import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const { maybeAutoStart } = useTutorial()
 
 // Props
 const props = defineProps({
@@ -236,6 +243,9 @@ watch(() => route.params.reportId, (newId) => {
 onMounted(() => {
   addLog(t('log.reportViewInit'))
   loadReportData()
+
+  // First visit → walk through the report view.
+  maybeAutoStart('report', getTour('report'))
 })
 </script>
 

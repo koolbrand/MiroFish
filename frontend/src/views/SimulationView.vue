@@ -13,9 +13,9 @@
       </div>
       
       <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
+        <div class="view-switcher" data-tour="sim-view-switcher">
+          <button
+            v-for="mode in ['graph', 'split', 'workbench']"
             :key="mode"
             class="switch-btn"
             :class="{ active: viewMode === mode }"
@@ -29,12 +29,15 @@
       <div class="header-right">
         <LanguageSwitcher />
         <AppVersion />
+        <HelpButton tourId="simulation" />
         <div class="step-divider"></div>
-        <WizardStepper
-          :currentStep="2"
-          :projectId="projectData?.project_id || null"
-          :simulationId="currentSimulationId"
-        />
+        <div data-tour="sim-stepper">
+          <WizardStepper
+            :currentStep="2"
+            :projectId="projectData?.project_id || null"
+            :simulationId="currentSimulationId"
+          />
+        </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -46,8 +49,8 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="sim-graph-panel">
+        <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="2"
@@ -57,7 +60,7 @@
       </div>
 
       <!-- Right Panel: Step2 环境搭建 -->
-      <div class="panel-wrapper right" :style="rightPanelStyle">
+      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="sim-env-panel">
         <Step2EnvSetup
           :simulationId="currentSimulationId"
           :projectData="projectData"
@@ -83,11 +86,15 @@ import { getProject, getGraphData } from '../api/graph'
 import { getSimulation, stopSimulation, getEnvStatus, closeSimulationEnv } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const { maybeAutoStart } = useTutorial()
 const route = useRoute()
 const router = useRouter()
 
@@ -314,12 +321,15 @@ const onProjectRenamed = (updated) => {
 
 onMounted(async () => {
   addLog(t('log.simViewInit'))
-  
+
   // 检查并关闭正在运行的模拟（用户从 Step 3 返回时）
   await checkAndStopRunningSimulation()
-  
+
   // 加载模拟数据
   loadSimulationData()
+
+  // First visit → explain the environment-setup view.
+  maybeAutoStart('simulation', getTour('simulation'))
 })
 </script>
 

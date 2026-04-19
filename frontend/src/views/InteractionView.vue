@@ -29,13 +29,16 @@
       <div class="header-right">
         <LanguageSwitcher />
         <AppVersion />
+        <HelpButton tourId="interaction" />
         <div class="step-divider"></div>
-        <WizardStepper
-          :currentStep="5"
-          :projectId="projectData?.project_id || null"
-          :simulationId="simulationId"
-          :reportId="currentReportId"
-        />
+        <div data-tour="interaction-stepper">
+          <WizardStepper
+            :currentStep="5"
+            :projectId="projectData?.project_id || null"
+            :simulationId="simulationId"
+            :reportId="currentReportId"
+          />
+        </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -47,8 +50,8 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle">
-        <GraphPanel 
+      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="interaction-graph-panel">
+        <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
           :currentPhase="5"
@@ -59,7 +62,7 @@
       </div>
 
       <!-- Right Panel: Step5 深度互动 -->
-      <div class="panel-wrapper right" :style="rightPanelStyle">
+      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="interaction-panel">
         <Step5Interaction
           :reportId="currentReportId"
           :simulationId="simulationId"
@@ -86,10 +89,14 @@ import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
+import HelpButton from '../components/HelpButton.vue'
+import { useTutorial } from '../composables/useTutorial'
+import { getTour } from '../tours/tours'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const { maybeAutoStart } = useTutorial()
 
 // Props
 const props = defineProps({
@@ -237,6 +244,9 @@ watch(() => route.params.reportId, (newId) => {
 onMounted(() => {
   addLog(t('log.interactionViewInit'))
   loadReportData()
+
+  // First visit → tour the Step 5 chat + explorer.
+  maybeAutoStart('interaction', getTour('interaction'))
 })
 </script>
 

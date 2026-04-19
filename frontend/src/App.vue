@@ -1,10 +1,12 @@
 <template>
   <router-view />
+  <TourOverlay />
 </template>
 
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
 import { refreshAuth } from './composables/useAuth'
+import TourOverlay from './components/TourOverlay.vue'
 
 // Cuando la pestaña vuelve a ser visible tras una suspensión del
 // equipo (tapa del portátil cerrada, monitor apagado, o simplemente

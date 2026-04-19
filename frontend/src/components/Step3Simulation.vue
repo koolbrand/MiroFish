@@ -1,7 +1,7 @@
 <template>
   <div class="simulation-panel">
     <!-- Top Control Bar -->
-    <div class="control-bar">
+    <div class="control-bar" data-tour="run-control-bar">
       <div class="status-group">
         <!-- Twitter 平台进度 -->
         <div class="platform-status twitter" :class="{ active: runStatus.twitter_running, completed: runStatus.twitter_completed }">
@@ -90,7 +90,7 @@
         </div>
       </div>
 
-      <div class="action-controls">
+      <div class="action-controls" data-tour="run-actions">
         <!-- Stop button — compact icon-only while simulation is running -->
         <button
           v-if="phase === 1"
@@ -119,7 +119,7 @@
     </div>
 
     <!-- Main Content: Dual Timeline -->
-    <div class="main-content-area" ref="scrollContainer">
+    <div class="main-content-area" ref="scrollContainer" data-tour="run-timeline">
       <!-- Timeline Header -->
       <div class="timeline-header" v-if="allActions.length > 0">
         <div class="timeline-stats">

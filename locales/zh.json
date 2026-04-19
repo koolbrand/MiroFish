@@ -832,5 +832,100 @@
     "llmSelectAgentFailed": "LLM选择Agent失败，使用默认选择: {error}",
     "generateInterviewQuestionsFailed": "生成采访问题失败: {error}",
     "generateInterviewSummaryFailed": "生成采访摘要失败: {error}"
+  },
+  "tutorial": {
+    "badge": "教程",
+    "next": "下一步",
+    "back": "上一步",
+    "skip": "跳过",
+    "finish": "完成",
+    "openLabel": "教程",
+    "openTooltip": "打开交互式教程",
+    "home": {
+      "welcomeTitle": "欢迎使用 MiroFish",
+      "welcomeBody": "通过 6 个步骤带您了解主界面，帮您启动第一次模拟。您可以随时跳过，也可以通过右上角的「?」按钮再次打开。",
+      "uploadTitle": "1. 上传现实种子",
+      "uploadBody": "将描述待模拟世界的 PDF、笔记或图片拖入此处（品牌简报、方案、会议记录等）。MiroFish 会从中抽取实体与关系并构建图谱。",
+      "nameTitle": "2. 为项目命名",
+      "nameBody": "可选但建议填写：该名称会出现在项目列表、页面头部以及最终下载的 .md 报告文件名中。",
+      "promptTitle": "3. 描述您要模拟的内容",
+      "promptBody": "用自然语言写下问题或场景（例如「千禧一代妈妈会如何反应 X 产品的发布？」）。引擎会据此规划报告。",
+      "startTitle": "4. 启动引擎",
+      "startBody": "点击此按钮进入 5 步向导，您将实时看到图谱被一步步构建出来。",
+      "projectsTitle": "5. 历史项目",
+      "projectsBody": "从这里可以返回任何已创建的项目，查看其图谱、模拟与报告。"
+    },
+    "main1": {
+      "welcomeTitle": "5 步向导",
+      "welcomeBody": "您正处于第 1 步 —— 图谱构建。让我来介绍三个关键区域。",
+      "graphTitle": "左侧面板 — 实时图谱",
+      "graphBody": "MiroFish 正在根据您的种子构建的世界。节点为实体，边为关系。支持缩放、拖动与刷新。",
+      "stepTitle": "右侧面板 — 步骤控制",
+      "stepBody": "在这里推进当前阶段：本体、图谱构建、系统日志。第 1 步完成后，会出现进入第 2 步的按钮。",
+      "stepperTitle": "进度指示器",
+      "stepperBody": "显示您当前所在的步骤（1→5）。已完成的步骤可以点击返回。",
+      "layoutTitle": "布局切换",
+      "layoutBody": "可在「仅图谱」「左右分栏」「仅工作台」之间切换。聚焦某一侧时非常方便。"
+    },
+    "main2": {
+      "envTitle": "第 2 步 — Agent 环境",
+      "envBody": "在这里生成将参与模拟的 Agent 画像（Twitter + Reddit）。进度会显示在右侧面板。",
+      "nextTitle": "进入第 3 步",
+      "nextBody": "生成完成后，即可在下一步启动模拟。顶部进度条显示您离完成还有多远。"
+    },
+    "sim": {
+      "welcomeTitle": "第 2 步 — 环境准备",
+      "welcomeBody": "在这里创建模拟实例，并在正式模拟之前准备 Agent 画像（Twitter + Reddit）。",
+      "graphTitle": "上下文图谱",
+      "graphBody": "配置模拟时图谱依然可见，方便随时查阅。如需更多空间，可使用顶部切换隐藏它。",
+      "envTitle": "配置面板",
+      "envBody": "每张编号卡片代表一个阶段：实例、画像、环境初始化。待全部显示为绿色后再启动。",
+      "startTitle": "启动模拟",
+      "startBody": "确认画像并设置轮数后，点击「启动双平台模拟」，即可进入第 3 步（实时运行）。",
+      "stepperTitle": "整体进度",
+      "stepperBody": "您正处于 5 步中的第 2 步。可点击已完成的步骤返回查看。"
+    },
+    "run": {
+      "welcomeTitle": "第 3 步 — 实时模拟",
+      "welcomeBody": "Agent 已经在模拟世界中行动。过程可能需要几分钟，这里教您如何跟踪进度。",
+      "controlBarTitle": "各平台状态",
+      "controlBarBody": "两张卡片（Info Plaza = Twitter、Topic Community = Reddit）展示当前轮次、模拟时间和行为数量。完成后变为绿色。",
+      "actionsTitle": "停止或生成报告",
+      "actionsBody": "Stop 按钮可随时中断模拟。两个平台都完成后，「生成报告」按钮解锁，将带您进入第 4 步。",
+      "timelineTitle": "事件时间线",
+      "timelineBody": "所有 Agent 行为（POST、LIKE、COMMENT……）按时间顺序出现在这里。可按平台或行为类型过滤，聚焦您关心的信息。",
+      "graphTitle": "模拟中的图谱",
+      "graphBody": "模拟过程中图谱仍可查看，方便您随时检查实体关系。"
+    },
+    "report": {
+      "welcomeTitle": "第 4 步 — 报告",
+      "welcomeBody": "Report Agent 正在像 Notion 一样一节节撰写您的报告。请实时关注当前执行到哪一步。",
+      "headerTitle": "报告头部",
+      "headerBody": "显示标题、摘要和报告 ID。全部完成后，您可以在第 5 步以项目名命名的 .md 文件下载。",
+      "sectionsTitle": "报告各节",
+      "sectionsBody": "每节依次生成。完成的可折叠/展开；当前正在生成的显示加载动画；等待中的会变暗。",
+      "workflowTitle": "Agent 工作流",
+      "workflowBody": "右侧面板：ReACT 循环指标（工具调用数量、当前步骤、Agent 时间线）。非常适合排查卡住的报告。",
+      "nextTitle": "进入第 5 步",
+      "nextBody": "报告完成后，进度条会带您进入第 5 步 —— 与 Agent 对话。.md 下载按钮也在那里。"
+    },
+    "interaction": {
+      "welcomeTitle": "第 5 步 — 深度交互",
+      "welcomeBody": "在这里您可以与 Agent 聊天、探索模拟世界并发起批量问卷。让我为您介绍四个主要标签页。",
+      "reportTitle": "最终报告（左侧）",
+      "reportBody": "已完成的完整报告。通过「.md」按钮可下载一份以项目名命名的副本。点击任意章节可折叠或展开。",
+      "actionBarTitle": "操作栏",
+      "actionBarBody": "这里是四个可用工具。激活的标签页会改变右侧面板的内容。",
+      "tabReportTitle": "与 Report Agent 对话",
+      "tabReportBody": "与撰写报告的 Agent 对话。它可访问图谱、InsightForge 以及访谈摘要 —— 非常适合发起更深入的分析。",
+      "tabAgentTitle": "与具体 Agent 对话",
+      "tabAgentBody": "从下拉菜单中选择一个 Agent，即可直接与其对话。它会保持角色设定（职业、简介、立场）作答。",
+      "tabExplorerTitle": "世界浏览器",
+      "tabExplorerBody": "时间线风格的视图，展示每个 Agent 在模拟期间的全部活动（发帖、点赞、评论）。便于追踪具体行为。",
+      "tabSurveyTitle": "批量问卷",
+      "tabSurveyBody": "向所有 Agent 一次性发送问题或问卷，并收到聚合结果。非常适合用 N 个 Agent 同时验证假设。",
+      "chatInputTitle": "输入您的消息",
+      "chatInputBody": "按 Enter 发送，Shift+Enter 换行。Agent 会在几秒内回复，并保留整段对话的上下文。"
+    }
   }
 }
