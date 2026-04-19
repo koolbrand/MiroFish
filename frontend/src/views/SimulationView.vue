@@ -321,13 +321,21 @@ onMounted(async () => {
 .app-header {
   height: 60px;
   border-bottom: 1px solid #EAEAEA;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   padding: 0 24px;
   background: #FFF;
   z-index: 100;
   position: relative;
+}
+
+.header-left {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .brand {
@@ -342,9 +350,7 @@ onMounted(async () => {
 }
 
 .header-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  justify-self: center;
 }
 
 .view-switcher {
@@ -374,9 +380,14 @@ onMounted(async () => {
 }
 
 .header-right {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
 }
 
 .workflow-step {
