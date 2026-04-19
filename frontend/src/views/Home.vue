@@ -268,6 +268,7 @@ const { maybeAutoStart } = useTutorial()
 // ── D3 force-directed graph (same style as in-app GraphPanel) ───────────────
 const simSvg = ref(null)
 let _d3sim = null
+let _d3resizeObs = null
 
 // Predefined demo graph — looks like a real simulation output
 const DEMO_NODES = [
@@ -323,6 +324,13 @@ const getNodeColor = (type) => DEMO_COLOR_MAP[type] || '#999'
 const initNetworkSvg = () => {
   const el = simSvg.value
   if (!el) return
+
+  // Stop any previous simulation so we don't leak running ticks when we
+  // rebuild the graph at a new container size.
+  if (_d3sim) {
+    try { _d3sim.stop() } catch (_) {}
+    _d3sim = null
+  }
 
   const W = el.clientWidth || 500
   const H = el.clientHeight || 310
@@ -403,6 +411,32 @@ const initNetworkSvg = () => {
 onMounted(async () => {
   await nextTick()
   initNetworkSvg()
+
+  // Re-render the graph whenever its container changes size. The panel now
+  // stretches vertically to match the hero-left text column, so its height
+  // depends on the surrounding layout (and on language/width changes).
+  const wrapEl = simSvg.value?.parentElement
+  if (wrapEl && typeof ResizeObserver !== 'undefined') {
+    let _rAF = null
+    let _lastW = 0
+    let _lastH = 0
+    _d3resizeObs = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const { width, height } = entry.contentRect
+      // Debounce: only redraw on meaningful size changes.
+      if (Math.abs(width - _lastW) < 4 && Math.abs(height - _lastH) < 4) return
+      _lastW = width
+      _lastH = height
+      if (_rAF) cancelAnimationFrame(_rAF)
+      _rAF = requestAnimationFrame(() => {
+        _rAF = null
+        initNetworkSvg()
+      })
+    })
+    _d3resizeObs.observe(wrapEl)
+  }
+
   // Auto-launch the Home tour on the user's first visit. Users can re-open
   // it any time from the "?" button in the navbar.
   maybeAutoStart('home', getTour('home'))
@@ -410,6 +444,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (_d3sim) _d3sim.stop()
+  if (_d3resizeObs) {
+    _d3resizeObs.disconnect()
+    _d3resizeObs = null
+  }
 })
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -723,6 +761,9 @@ const startSimulation = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Grow to fill the hero-right column so its height matches the left text */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .vis-top-bar {
@@ -762,8 +803,10 @@ const startSimulation = () => {
 
 .vis-svg-wrap {
   position: relative;
-  height: 310px;
-  flex-shrink: 0;
+  /* Fill the remaining vertical space inside .agent-vis-panel so the
+     graph extends down to match the hero-left text column. */
+  flex: 1 1 auto;
+  min-height: 310px;
   /* Exact same background as in-app GraphPanel */
   background-color: #FAFAFA;
   background-image: radial-gradient(#D0D0D0 1.5px, transparent 1.5px);
