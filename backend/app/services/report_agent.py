@@ -1368,7 +1368,12 @@ class ReportAgent:
         
         # ReACT循环
         tool_calls_count = 0
-        max_iterations = 5  # 最大迭代轮数
+        # max_iterations debe tener al menos 2 iteraciones más que el tope de
+        # herramientas: así, tras consumir MAX_TOOL_CALLS_PER_SECTION llamadas,
+        # todavía queda una iteración para que el LLM emita "Final Answer:" y
+        # otra de colchón por si la primera respuesta viene vacía o con otro
+        # intento de herramienta.
+        max_iterations = self.MAX_TOOL_CALLS_PER_SECTION + 2
         min_tool_calls = 3  # 最少工具调用次数
         conflict_retries = 0  # 工具调用与Final Answer同时出现的连续冲突次数
         used_tools = set()  # 记录已调用过的工具名
@@ -1538,16 +1543,39 @@ class ReportAgent:
                     unused_hint = REACT_UNUSED_TOOLS_HINT.format(unused_list="、".join(unused_tools))
 
                 messages.append({"role": "assistant", "content": response})
-                messages.append({
-                    "role": "user",
-                    "content": REACT_OBSERVATION_TEMPLATE.format(
+
+                # Si con esta llamada se agota el cupo de herramientas, dejamos
+                # una instrucción inequívoca para que la siguiente respuesta sea
+                # el Final Answer y no otro intento de herramienta.
+                if tool_calls_count >= self.MAX_TOOL_CALLS_PER_SECTION:
+                    observation_content = (
+                        REACT_OBSERVATION_TEMPLATE.format(
+                            tool_name=call["name"],
+                            result=result,
+                            tool_calls_count=tool_calls_count,
+                            max_tool_calls=self.MAX_TOOL_CALLS_PER_SECTION,
+                            used_tools_str=", ".join(used_tools),
+                            unused_hint="",
+                        )
+                        + "\n\n"
+                        + REACT_TOOL_LIMIT_MSG.format(
+                            tool_calls_count=tool_calls_count,
+                            max_tool_calls=self.MAX_TOOL_CALLS_PER_SECTION,
+                        )
+                    )
+                else:
+                    observation_content = REACT_OBSERVATION_TEMPLATE.format(
                         tool_name=call["name"],
                         result=result,
                         tool_calls_count=tool_calls_count,
                         max_tool_calls=self.MAX_TOOL_CALLS_PER_SECTION,
                         used_tools_str=", ".join(used_tools),
                         unused_hint=unused_hint,
-                    ),
+                    )
+
+                messages.append({
+                    "role": "user",
+                    "content": observation_content,
                 })
                 continue
 
