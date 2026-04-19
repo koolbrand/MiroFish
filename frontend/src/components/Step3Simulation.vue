@@ -444,9 +444,31 @@ const doStartSimulation = async () => {
       emit('update-status', 'error')
     }
   } catch (err) {
-    startError.value = err.message
-    addLog(t('log.startException', { error: err.message }))
-    emit('update-status', 'error')
+    // Extract the actual server error message (axios wraps the HTTP error;
+    // the real message is in err.response.data.error, not err.message).
+    const serverError = err?.response?.data?.error || err.message || String(err)
+
+    // If the backend reports the simulation is already running (race condition on
+    // page reload / force-restart), reconnect to the running instance instead of
+    // showing an error.  The backend message key is 'api.simAlreadyRunning'.
+    const isAlreadyRunning =
+      err?.response?.status === 400 &&
+      (serverError.toLowerCase().includes('already running') ||
+       serverError.toLowerCase().includes('ya en ejecución') ||
+       serverError.toLowerCase().includes('ya está en ejecución') ||
+       serverError.toLowerCase().includes('en ejecución'))
+
+    if (isAlreadyRunning) {
+      addLog(`⚠ ${t('log.simAlreadyRunning', 'Simulación ya en ejecución — reconectando...')}`)
+      phase.value = 1
+      emit('update-status', 'processing')
+      startStatusPolling()
+      startDetailPolling()
+    } else {
+      startError.value = serverError
+      addLog(t('log.startException', { error: serverError }))
+      emit('update-status', 'error')
+    }
   } finally {
     isStarting.value = false
   }

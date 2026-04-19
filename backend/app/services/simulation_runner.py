@@ -334,7 +334,23 @@ class SimulationRunner:
         # 检查是否已在运行
         existing = cls.get_run_state(simulation_id)
         if existing and existing.runner_status in [RunnerStatus.RUNNING, RunnerStatus.STARTING]:
-            raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
+            # Verify the process is actually alive before rejecting the request.
+            # A stale RUNNING/STARTING state can remain in memory after a force-restart
+            # due to the monitor thread updating _run_states right after cleanup cleared it.
+            process = cls._processes.get(simulation_id)
+            if process is None or process.poll() is not None:
+                # Process is dead — clear stale in-memory state and proceed
+                logger.warning(
+                    f"Estado RUNNING/STARTING encontrado para {simulation_id} pero el proceso "
+                    f"no está activo (pid={getattr(process, 'pid', None)}, "
+                    f"poll={process.poll() if process else 'no process'}). "
+                    "Limpiando estado obsoleto y continuando el inicio."
+                )
+                cls._run_states.pop(simulation_id, None)
+                cls._processes.pop(simulation_id, None)
+                cls._monitor_threads.pop(simulation_id, None)
+            else:
+                raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
         
         # 加载模拟配置
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
@@ -1196,10 +1212,13 @@ class SimulationRunner:
                     except Exception as e:
                         errors.append(f"Error al eliminar {dir_name}/actions.jsonl: {str(e)}")
         
-        # 清理内存中的运行状态
-        if simulation_id in cls._run_states:
-            del cls._run_states[simulation_id]
-        
+        # 清理内存中的运行状态（以及相关的进程和线程引用，避免竞态条件）
+        cls._run_states.pop(simulation_id, None)
+        cls._processes.pop(simulation_id, None)
+        cls._monitor_threads.pop(simulation_id, None)
+        cls._action_queues.pop(simulation_id, None)
+        cls._graph_memory_enabled.pop(simulation_id, None)
+
         logger.info(f"Limpieza de registros de simulación completada: {simulation_id}, archivos eliminados: {cleaned_files}")
         
         return {
