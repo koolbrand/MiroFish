@@ -1,30 +1,37 @@
 {
   "zh": {
     "label": "中文",
-    "llmInstruction": "请使用中文回答。"
+    "name": "中文",
+    "llmInstruction": "【强制要求 — 最高优先级】\n你必须使用中文作答，不得使用英文、西班牙文或任何其他语言。\n如果工具返回的内容是其它语言，请先翻译成中文，再嵌入回答。\n不能逐字保留非中文内容；每一句都必须是中文。"
   },
   "en": {
     "label": "English",
-    "llmInstruction": "Please respond in English."
+    "name": "English",
+    "llmInstruction": "[STRICT REQUIREMENT — HIGHEST PRIORITY]\nYou MUST respond entirely in English. Do not use Chinese, Spanish, French, or any other language.\nIf a tool returns content in another language, translate it to English before quoting it.\nNever leave foreign-language fragments in your answer — every sentence must be in English."
   },
   "es": {
     "label": "Español",
-    "llmInstruction": "Por favor, responde en español."
+    "name": "español",
+    "llmInstruction": "[REQUISITO ESTRICTO — MÁXIMA PRIORIDAD]\nDebes responder íntegramente en español. No uses chino, inglés, francés ni ningún otro idioma.\nSi una herramienta devuelve contenido en otro idioma (especialmente chino o inglés), TRADÚCELO al español antes de citarlo.\nNo dejes ni una sola frase, palabra o carácter en un idioma distinto al español. Revisa tu respuesta antes de devolverla: si contiene caracteres chinos (汉字), reescríbela completamente en español."
   },
   "fr": {
     "label": "Français",
-    "llmInstruction": "Veuillez répondre en français."
+    "name": "français",
+    "llmInstruction": "[EXIGENCE STRICTE — PRIORITÉ MAXIMALE]\nTu dois répondre entièrement en français. N'utilise ni le chinois, ni l'anglais, ni aucune autre langue.\nSi un outil renvoie du contenu dans une autre langue, traduis-le en français avant de le citer.\nNe laisse aucun fragment en langue étrangère dans ta réponse."
   },
   "pt": {
     "label": "Português",
-    "llmInstruction": "Por favor, responda em português."
+    "name": "português",
+    "llmInstruction": "[REQUISITO ESTRITO — PRIORIDADE MÁXIMA]\nVocê deve responder inteiramente em português. Não use chinês, inglês, espanhol nem qualquer outro idioma.\nSe uma ferramenta retornar conteúdo em outro idioma, traduza-o para o português antes de citá-lo.\nNão deixe nenhum fragmento em idioma estrangeiro na sua resposta."
   },
   "ru": {
     "label": "Русский",
-    "llmInstruction": "Пожалуйста, отвечайте на русском языке."
+    "name": "русский",
+    "llmInstruction": "[СТРОГОЕ ТРЕБОВАНИЕ — ВЫСШИЙ ПРИОРИТЕТ]\nОтвечайте полностью на русском языке. Не используйте китайский, английский, испанский или любой другой язык.\nЕсли инструмент вернул контент на другом языке, сначала переведите его на русский, затем цитируйте.\nНе оставляйте ни одного фрагмента на иностранном языке."
   },
   "de": {
     "label": "Deutsch",
-    "llmInstruction": "Bitte antworten Sie auf Deutsch."
+    "name": "Deutsch",
+    "llmInstruction": "[STRENGE ANFORDERUNG — HÖCHSTE PRIORITÄT]\nAntworte vollständig auf Deutsch. Verwende kein Chinesisch, Englisch, Spanisch oder andere Sprachen.\nWenn ein Werkzeug Inhalte in einer anderen Sprache zurückgibt, übersetze sie vor dem Zitieren ins Deutsche.\nBelasse keinen fremdsprachigen Abschnitt in deiner Antwort."
   }
 }

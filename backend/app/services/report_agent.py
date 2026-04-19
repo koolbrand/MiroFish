@@ -21,7 +21,15 @@ from enum import Enum
 from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
-from ..utils.locale import get_language_instruction, t
+from ..utils.locale import (
+    cjk_ratio,
+    count_cjk_chars,
+    get_language_instruction,
+    get_language_name,
+    get_locale,
+    has_foreign_script,
+    t,
+)
 from .simulation_runner import SimulationRunner
 from .zep_tools import (
     ZepToolsService, 
@@ -1615,7 +1623,122 @@ class ReportAgent:
             )
 
         return final_answer
-    
+
+    # ─────────────────────────────────────────────────────────────
+    # Locale enforcement
+    # ─────────────────────────────────────────────────────────────
+    # CJK contamination threshold: even a single CJK character is a bug in
+    # an es/en report, but we only trigger the (more expensive) LLM repair
+    # pass when contamination is above this ratio OR when raw count is
+    # non-trivial. This keeps the common case (clean output) free of
+    # extra API calls.
+    LOCALE_REPAIR_MIN_CHARS = 3
+    LOCALE_REPAIR_MIN_RATIO = 0.002  # 0.2% of the section
+
+    def _enforce_section_locale(self, content: str, section_title: str):
+        """
+        Detect CJK contamination in a generated section and, if present in
+        a non-Chinese locale, ask the LLM to rewrite the section in the
+        target language.
+
+        Returns ``(repaired_content, warning_msg_or_None)``.
+        """
+        target_locale = get_locale()
+        if not content or target_locale == 'zh':
+            return content, None
+
+        cjk_count = count_cjk_chars(content)
+        if cjk_count == 0:
+            return content, None
+
+        ratio = cjk_ratio(content)
+        if cjk_count < self.LOCALE_REPAIR_MIN_CHARS and ratio < self.LOCALE_REPAIR_MIN_RATIO:
+            # Tiny leak (e.g. a single kanji in a name). Log only.
+            logger.warning(
+                "Sección '%s' contiene %d carácter(es) CJK pero está por debajo "
+                "del umbral de reparación; se deja pasar.",
+                section_title, cjk_count,
+            )
+            return content, None
+
+        language_name = get_language_name(target_locale)
+        logger.warning(
+            "Sección '%s' contiene %d caracteres CJK (%.2f%%), se solicitará "
+            "reescritura al LLM en %s.",
+            section_title, cjk_count, ratio * 100, language_name,
+        )
+
+        repair_system = (
+            f"{get_language_instruction()}\n\n"
+            f"Eres un traductor y editor experto. Tu única tarea es reescribir el "
+            f"texto proporcionado entero en {language_name}, conservando:\n"
+            f"  • toda la estructura Markdown (negritas, viñetas, bloques de cita >),\n"
+            f"  • los saltos de línea y la separación de párrafos,\n"
+            f"  • el significado y los datos mencionados,\n"
+            f"  • las citas en bloque (>) en {language_name}.\n\n"
+            f"No agregues ni elimines información. No añadas encabezados. "
+            f"No incluyas comentarios meta (\"aquí tienes\", \"he traducido\", etc.). "
+            f"Devuelve únicamente el texto reescrito."
+        )
+        repair_user = (
+            f"Reescribe el siguiente contenido íntegramente en {language_name}. "
+            f"Cualquier fragmento en chino u otro idioma debe traducirse al "
+            f"{language_name} sin dejar caracteres CJK.\n\n"
+            f"---CONTENIDO ORIGINAL---\n{content}\n---FIN CONTENIDO---"
+        )
+
+        try:
+            repaired = self.llm.chat(
+                messages=[
+                    {"role": "system", "content": repair_system},
+                    {"role": "user", "content": repair_user},
+                ],
+                temperature=0.2,
+                max_tokens=4096,
+            )
+        except Exception as exc:  # noqa: BLE001 — repair must never crash generation
+            logger.error(
+                "Fallo al reparar el idioma de la sección '%s': %s",
+                section_title, exc,
+            )
+            return content, (
+                f"La sección «{section_title}» contiene {cjk_count} caracteres CJK "
+                f"y no pudo reescribirse automáticamente."
+            )
+
+        if not repaired or not repaired.strip():
+            logger.error(
+                "El LLM devolvió contenido vacío al reparar '%s'; se conserva el original.",
+                section_title,
+            )
+            return content, (
+                f"La sección «{section_title}» contiene {cjk_count} caracteres CJK "
+                f"y el reintento automático devolvió un resultado vacío."
+            )
+
+        repaired = repaired.strip()
+        remaining = count_cjk_chars(repaired)
+        if remaining > 0:
+            logger.warning(
+                "Tras la reparación, la sección '%s' todavía contiene %d carácter(es) CJK.",
+                section_title, remaining,
+            )
+            warning = (
+                f"La sección «{section_title}» se reescribió automáticamente pero "
+                f"aún conserva {remaining} carácter(es) CJK."
+            )
+        else:
+            logger.info(
+                "Sección '%s' reescrita correctamente en %s (se eliminaron %d caracteres CJK).",
+                section_title, language_name, cjk_count,
+            )
+            warning = (
+                f"La sección «{section_title}» se reescribió automáticamente al "
+                f"{language_name} para eliminar {cjk_count} carácter(es) CJK."
+            )
+
+        return repaired, warning
+
     def generate_report(
         self, 
         progress_callback: Optional[Callable[[str, int, str], None]] = None,
@@ -1660,6 +1783,8 @@ class ReportAgent:
 
         # Reset per-run tracking of force-generated sections.
         self._forced_sections = []
+        # Track locale-repair events so we can surface them as warnings.
+        self._locale_repair_warnings = []
 
         # 已完成的章节标题列表（用于进度追踪）
         completed_section_titles = []
@@ -1749,13 +1874,23 @@ class ReportAgent:
                     previous_sections=generated_sections,
                     progress_callback=lambda stage, prog, msg:
                         progress_callback(
-                            stage, 
+                            stage,
                             base_progress + int(prog * 0.7 / total_sections),
                             msg
                         ) if progress_callback else None,
                     section_index=section_num
                 )
-                
+
+                # Ensure the section is fully in the target locale before we
+                # save it. This catches CJK-contaminated output that slips
+                # past the language instruction — the most common case is
+                # Spanish reports ending up with Chinese quotes or headings.
+                section_content, locale_warning = self._enforce_section_locale(
+                    section_content, section.title
+                )
+                if locale_warning:
+                    self._locale_repair_warnings.append(locale_warning)
+
                 section.content = section_content
                 generated_sections.append(f"## {section.title}\n\n{section_content}")
 
@@ -1808,6 +1943,12 @@ class ReportAgent:
                 )
                 report.warnings.append(warning_msg)
                 logger.error(warning_msg)
+
+            # Surface any locale-repair events (CJK contamination auto-fixed)
+            # so the user knows the report was sanitized.
+            for warn in self._locale_repair_warnings:
+                report.warnings.append(warn)
+                logger.warning(warn)
             
             # 计算总耗时
             total_time_seconds = (datetime.now() - start_time).total_seconds()

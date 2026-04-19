@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import threading
 from flask import request, has_request_context
 
@@ -67,3 +68,49 @@ def get_language_instruction() -> str:
     locale = get_locale()
     lang_config = _languages.get(locale, _languages.get('zh', {}))
     return lang_config.get('llmInstruction', 'Por favor, responde en español.')
+
+
+def get_language_name(locale: str = None) -> str:
+    """Human-readable name of a locale, used inside LLM prompts."""
+    locale = locale or get_locale()
+    lang_config = _languages.get(locale, {})
+    return lang_config.get('name') or lang_config.get('label') or locale
+
+
+# ── Foreign-script detection ───────────────────────────────────────────
+# CJK unified ideographs (and the common extension A range) — this is the
+# exact character set that leaks into Spanish/English reports when an LLM
+# falls back to Chinese defaults.
+_CJK_RE = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf]')
+
+
+def count_cjk_chars(text: str) -> int:
+    if not text:
+        return 0
+    return len(_CJK_RE.findall(text))
+
+
+def has_foreign_script(text: str, target_locale: str = None) -> bool:
+    """
+    Detect script that shouldn't appear in ``target_locale``.
+
+    For zh the check is a no-op (Chinese script is expected). For every
+    other locale we look for CJK characters, which is the most common
+    contamination source in this project (default LLM fallback language).
+    """
+    if not text:
+        return False
+    locale = target_locale or get_locale()
+    if locale == 'zh':
+        return False
+    return _CJK_RE.search(text) is not None
+
+
+def cjk_ratio(text: str) -> float:
+    """Fraction of characters in ``text`` that are CJK ideographs (0-1)."""
+    if not text:
+        return 0.0
+    total = len(text)
+    if total == 0:
+        return 0.0
+    return count_cjk_chars(text) / total
