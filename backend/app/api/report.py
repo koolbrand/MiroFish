@@ -4,6 +4,7 @@ Report API路由
 """
 
 import os
+import re
 import traceback
 import threading
 from flask import request, jsonify, send_file
@@ -19,6 +20,46 @@ from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 
 logger = get_logger('mirofish.api.report')
+
+
+def _sanitize_filename(name: str, fallback: str) -> str:
+    """
+    Convierte un nombre arbitrario en un filename seguro para descarga.
+    Quita caracteres ilegales en Windows/Unix, colapsa espacios, y cae en
+    `fallback` si el resultado queda vacío.
+    """
+    if not name:
+        return fallback
+    # Eliminar caracteres ilegales: < > : " / \ | ? * y controles
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', str(name))
+    # Reemplazar espacios múltiples por uno solo y hacer strip
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    # Limitar a 120 chars para evitar problemas con filesystems antiguos
+    cleaned = cleaned[:120].strip(' .')
+    return cleaned or fallback
+
+
+def _build_report_filename(report) -> str:
+    """
+    Construye el nombre de archivo para descargar el .md del reporte,
+    usando el nombre manual del proyecto cuando está disponible.
+
+    Cadena: report → simulation → project → project.name
+    Fallback: report_id si falta cualquier eslabón o el nombre está vacío.
+    """
+    default_name = f"{report.report_id}.md"
+    try:
+        sim_state = SimulationManager().get_simulation(report.simulation_id)
+        if not sim_state or not sim_state.project_id:
+            return default_name
+        project = ProjectManager.get_project(sim_state.project_id)
+        if not project or not project.name:
+            return default_name
+        safe = _sanitize_filename(project.name, report.report_id)
+        return f"{safe}.md"
+    except Exception as name_err:
+        logger.warning(f"No se pudo derivar filename desde project.name: {name_err}")
+        return default_name
 
 
 # ============== 报告生成接口 ==============
@@ -476,24 +517,25 @@ def download_report(report_id: str):
             }), 404
         
         md_path = ReportManager._get_report_markdown_path(report_id)
-        
+        download_name = _build_report_filename(report)
+
         if not os.path.exists(md_path):
             # 如果MD文件不存在，生成一个临时文件
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
                 f.write(report.markdown_content)
                 temp_path = f.name
-            
+
             return send_file(
                 temp_path,
                 as_attachment=True,
-                download_name=f"{report_id}.md"
+                download_name=download_name
             )
-        
+
         return send_file(
             md_path,
             as_attachment=True,
-            download_name=f"{report_id}.md"
+            download_name=download_name
         )
         
     except Exception as e:
