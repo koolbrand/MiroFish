@@ -145,6 +145,19 @@
             </div>
             <div class="tab-divider"></div>
             <button
+              class="tab-pill explorer-pill"
+              :class="{ active: activeTab === 'explorer' }"
+              @click="selectExplorerTab"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M2 12h20"></path>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+              <span>{{ $t('step5.worldExplorer') }}</span>
+            </button>
+            <div class="tab-divider"></div>
+            <button
               class="tab-pill survey-pill"
               :class="{ active: activeTab === 'survey' }"
               @click="selectSurveyTab"
@@ -385,7 +398,7 @@
             </button>
           </div>
 
-          <!-- Survey Results -->
+          <!-- Survey Results (container closed after this block) -->
           <div v-if="surveyResults.length > 0" class="survey-results">
             <div class="results-header">
               <span class="results-title">{{ $t('step5.surveyResults') }}</span>
@@ -417,6 +430,15 @@
             </div>
           </div>
         </div>
+
+        <!-- World Explorer Mode -->
+        <div v-if="activeTab === 'explorer'" class="explorer-container">
+          <Step5WorldExplorer
+            :simulationId="simulationId"
+            :profiles="profiles"
+            @chat-with-agent="handleExplorerChat"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -427,6 +449,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { chatWithReport, getReport, getAgentLog } from '../api/report'
 import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
+import Step5WorldExplorer from './Step5WorldExplorer.vue'
 
 const { t } = useI18n()
 
@@ -538,6 +561,21 @@ const selectSurveyTab = () => {
   selectedAgent.value = null
   selectedAgentIndex.value = null
   showAgentDropdown.value = false
+}
+
+const selectExplorerTab = () => {
+  saveChatHistory()
+  activeTab.value = 'explorer'
+  showAgentDropdown.value = false
+}
+
+// Invoked when the Explorer's "Chat with this agent" CTA is clicked.
+// Jumps back to chat mode with the chosen agent pre-selected.
+const handleExplorerChat = (idx) => {
+  const agent = profiles.value[idx]
+  if (!agent) return
+  selectAgent(agent, idx)
+  activeTab.value = 'chat'
 }
 
 const toggleAgentDropdown = () => {
@@ -2215,6 +2253,14 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.explorer-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #FFFFFF;
 }
 
 .survey-setup {

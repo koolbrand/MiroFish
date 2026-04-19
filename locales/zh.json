@@ -371,7 +371,22 @@
     "noResponse": "无响应",
     "requestFailed": "请求失败",
     "selectAgentFirst": "请先选择一个模拟个体",
-    "downloadReport": "下载报告 (.md)"
+    "downloadReport": "下载报告 (.md)",
+    "worldExplorer": "世界探索",
+    "explorerSearchPlaceholder": "按名称、职业或简介搜索智能体...",
+    "explorerPickAgent": "从列表中选择一个智能体，查看其档案和模拟活动。",
+    "agentsColumn": "智能体",
+    "chatWithThisAgent": "与此智能体对话",
+    "activityTimeline": "模拟活动",
+    "loadingActivity": "正在加载活动...",
+    "noActivity": "该智能体在模拟中没有执行任何动作。",
+    "statTotalActions": "总数",
+    "statPosts": "帖子",
+    "statInteractions": "互动",
+    "statComments": "评论",
+    "sortByActivity": "按活动量",
+    "noContent": "（无内容）",
+    "actionSkipped": "已跳过"
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",

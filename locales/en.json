@@ -371,7 +371,22 @@
     "noResponse": "No response",
     "requestFailed": "Request failed",
     "selectAgentFirst": "Please select a simulated individual first",
-    "downloadReport": "Download report (.md)"
+    "downloadReport": "Download report (.md)",
+    "worldExplorer": "World Explorer",
+    "explorerSearchPlaceholder": "Search agent by name, profession or bio...",
+    "explorerPickAgent": "Pick an agent from the list to see their profile and simulation activity.",
+    "agentsColumn": "Agents",
+    "chatWithThisAgent": "Chat with this agent",
+    "activityTimeline": "Simulation activity",
+    "loadingActivity": "Loading activity...",
+    "noActivity": "This agent did not perform any actions during the simulation.",
+    "statTotalActions": "Total",
+    "statPosts": "Posts",
+    "statInteractions": "Interactions",
+    "statComments": "Comments",
+    "sortByActivity": "By activity",
+    "noContent": "(no content)",
+    "actionSkipped": "Action skipped"
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",

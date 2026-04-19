@@ -371,7 +371,22 @@
     "noResponse": "Sin respuesta",
     "requestFailed": "Solicitud fallida",
     "selectAgentFirst": "Por favor selecciona un individuo simulado primero",
-    "downloadReport": "Descargar informe (.md)"
+    "downloadReport": "Descargar informe (.md)",
+    "worldExplorer": "Explorar el mundo",
+    "explorerSearchPlaceholder": "Buscar agente por nombre, profesión o bio...",
+    "explorerPickAgent": "Elige un agente de la lista para ver su perfil y su actividad en la simulación.",
+    "agentsColumn": "Agentes",
+    "chatWithThisAgent": "Chatear con este agente",
+    "activityTimeline": "Actividad en la simulación",
+    "loadingActivity": "Cargando actividad...",
+    "noActivity": "Este agente no realizó acciones durante la simulación.",
+    "statTotalActions": "Total",
+    "statPosts": "Publicaciones",
+    "statInteractions": "Interacciones",
+    "statComments": "Comentarios",
+    "sortByActivity": "Por actividad",
+    "noContent": "(sin contenido)",
+    "actionSkipped": "Acción saltada"
   },
   "graph": {
     "panelTitle": "Visualización de relaciones del grafo",
