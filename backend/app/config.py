@@ -4,6 +4,7 @@
 """
 
 import os
+import secrets
 from dotenv import load_dotenv
 
 # 加载项目根目录的 .env 文件
@@ -21,8 +22,22 @@ class Config:
     """Flask配置类"""
     
     # Flask配置
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'mirofish-secret-key')
-    DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or (secrets.token_urlsafe(32) if DEBUG else None)
+    API_AUTH_REQUIRED = os.environ.get('API_AUTH_REQUIRED', 'true').lower() == 'true'
+    API_AUTH_TOKEN = os.environ.get('API_AUTH_TOKEN')
+    POCKETBASE_URL = os.environ.get('POCKETBASE_URL') or os.environ.get(
+        'VITE_POCKETBASE_URL',
+        'https://pocketbase.koolgrowth.com'
+    )
+    CORS_ORIGINS = [
+        origin.strip()
+        for origin in os.environ.get(
+            'CORS_ORIGINS',
+            'http://localhost:5173,http://127.0.0.1:5173'
+        ).split(',')
+        if origin.strip()
+    ]
     
     # JSON配置 - 禁用ASCII转义，让中文直接显示（而不是 \uXXXX 格式）
     JSON_AS_ASCII = False
@@ -127,5 +142,10 @@ class Config:
         errors = []
         if not cls.LLM_API_KEY:
             errors.append("LLM_API_KEY no está configurada")
+        if not cls.DEBUG and not cls.SECRET_KEY:
+            errors.append("SECRET_KEY no está configurada")
+        if not cls.DEBUG and cls.NEO4J_PASSWORD == 'mirofish2026':
+            errors.append("NEO4J_PASSWORD usa el valor por defecto inseguro")
+        if cls.API_AUTH_REQUIRED and not (cls.API_AUTH_TOKEN or cls.POCKETBASE_URL):
+            errors.append("API auth requiere API_AUTH_TOKEN o POCKETBASE_URL")
         return errors
-

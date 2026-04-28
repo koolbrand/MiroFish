@@ -1877,11 +1877,18 @@ const truncateText = (text, maxLen) => {
   return text.substring(0, maxLen) + '...'
 }
 
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+
 const renderMarkdown = (content) => {
   if (!content) return ''
   
   // 去掉开头的二级标题（## xxx），因为章节标题已在外层显示
-  let processedContent = content.replace(/^##\s+.+\n+/, '')
+  let processedContent = escapeHtml(content.replace(/^##\s+.+\n+/, ''))
   
   // 处理代码块
   let html = processedContent.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')

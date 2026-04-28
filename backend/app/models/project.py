@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from ..config import Config
+from ..utils.security import validate_storage_id
 
 
 class ProjectStatus(str, Enum):
@@ -112,6 +113,7 @@ class ProjectManager:
     @classmethod
     def _get_project_dir(cls, project_id: str) -> str:
         """获取项目目录路径"""
+        validate_storage_id(project_id, "proj_")
         return os.path.join(cls.PROJECTS_DIR, project_id)
     
     @classmethod
@@ -302,4 +304,3 @@ class ProjectManager:
             for f in os.listdir(files_dir) 
             if os.path.isfile(os.path.join(files_dir, f))
         ]
-

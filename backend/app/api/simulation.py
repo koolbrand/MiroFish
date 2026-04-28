@@ -19,6 +19,7 @@ from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.llm_client import LLMClient
+from ..utils.security import validate_platform, validate_storage_id
 from ..models.project import ProjectManager
 
 logger = get_logger('mirofish.api.simulation')
@@ -87,7 +88,7 @@ def get_graph_entities(graph_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -114,7 +115,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -145,7 +146,7 @@ def get_entities_by_type(graph_id: str, entity_type: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -222,7 +223,7 @@ def create_simulation():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -245,6 +246,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
     import os
     from ..config import Config
     
+    validate_storage_id(simulation_id, "sim_")
     simulation_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
     
     # 检查目录是否存在
@@ -646,7 +648,7 @@ def prepare_simulation():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -808,7 +810,7 @@ def delete_simulation(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -890,7 +892,7 @@ def get_simulation(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -919,7 +921,7 @@ def list_simulations():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1092,7 +1094,7 @@ def get_simulation_history():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1105,7 +1107,7 @@ def get_simulation_profiles(simulation_id: str):
         platform: 平台类型（reddit/twitter，默认reddit）
     """
     try:
-        platform = request.args.get('platform', 'reddit')
+        platform = validate_platform(request.args.get('platform', 'reddit'), allowed=("reddit", "twitter"))
         
         manager = SimulationManager()
         profiles = manager.get_profiles(simulation_id, platform=platform)
@@ -1130,7 +1132,7 @@ def get_simulation_profiles(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1167,9 +1169,10 @@ def get_simulation_profiles_realtime(simulation_id: str):
     from datetime import datetime
     
     try:
-        platform = request.args.get('platform', 'reddit')
+        platform = validate_platform(request.args.get('platform', 'reddit'), allowed=("reddit", "twitter"))
         
         # 获取模拟目录
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
         
         if not os.path.exists(sim_dir):
@@ -1240,7 +1243,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1273,6 +1276,7 @@ def get_simulation_config_realtime(simulation_id: str):
     
     try:
         # 获取模拟目录
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
         
         if not os.path.exists(sim_dir):
@@ -1360,7 +1364,7 @@ def get_simulation_config_realtime(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1396,7 +1400,7 @@ def get_simulation_config(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1425,7 +1429,7 @@ def download_simulation_config(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1477,7 +1481,7 @@ def download_simulation_script(script_name: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1551,7 +1555,7 @@ def generate_profiles():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1608,7 +1612,7 @@ def start_simulation():
                 "error": t('api.requireSimulationId')
             }), 400
 
-        platform = data.get('platform', 'parallel')
+        platform = validate_platform(data.get('platform', 'parallel'))
         max_rounds = data.get('max_rounds')  # 可选：最大模拟轮数
         enable_graph_memory_update = data.get('enable_graph_memory_update', False)  # 可选：是否启用图谱记忆更新
         force = data.get('force', False)  # 可选：强制重新开始
@@ -1627,12 +1631,6 @@ def start_simulation():
                     "success": False,
                     "error": t('api.maxRoundsInvalid')
                 }), 400
-
-        if platform not in ['twitter', 'reddit', 'parallel']:
-            return jsonify({
-                "success": False,
-                "error": t('api.invalidPlatform', platform=platform)
-            }), 400
 
         # 检查模拟是否已准备好
         manager = SimulationManager()
@@ -1746,7 +1744,7 @@ def start_simulation():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1805,7 +1803,7 @@ def stop_simulation():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1865,7 +1863,7 @@ def get_run_status(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1909,6 +1907,8 @@ def get_run_status_detail(simulation_id: str):
     try:
         run_state = SimulationRunner.get_run_state(simulation_id)
         platform_filter = request.args.get('platform')
+        if platform_filter:
+            platform_filter = validate_platform(platform_filter, allowed=("reddit", "twitter"))
         
         if not run_state:
             return jsonify({
@@ -1966,7 +1966,7 @@ def get_run_status_detail(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -1995,6 +1995,8 @@ def get_simulation_actions(simulation_id: str):
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         platform = request.args.get('platform')
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
         agent_id = request.args.get('agent_id', type=int)
         round_num = request.args.get('round_num', type=int)
         
@@ -2020,7 +2022,7 @@ def get_simulation_actions(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2060,7 +2062,7 @@ def get_simulation_timeline(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2087,7 +2089,7 @@ def get_agent_stats(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2106,10 +2108,11 @@ def get_simulation_posts(simulation_id: str):
     返回帖子列表（从SQLite数据库读取）
     """
     try:
-        platform = request.args.get('platform', 'reddit')
+        platform = validate_platform(request.args.get('platform', 'reddit'), allowed=("reddit", "twitter"))
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(
             os.path.dirname(__file__),
             f'../../uploads/simulations/{simulation_id}'
@@ -2167,7 +2170,7 @@ def get_simulation_posts(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2186,6 +2189,7 @@ def get_simulation_comments(simulation_id: str):
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(
             os.path.dirname(__file__),
             f'../../uploads/simulations/{simulation_id}'
@@ -2242,7 +2246,7 @@ def get_simulation_comments(simulation_id: str):
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2373,12 +2377,13 @@ def interview_agent():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
 def _load_simulation_profiles(simulation_id: str):
     """Carga los perfiles de agentes desde el directorio de la simulación."""
+    validate_storage_id(simulation_id, "sim_")
     sim_dir = os.path.join(
         os.path.dirname(__file__),
         f'../../uploads/simulations/{simulation_id}'
@@ -2418,6 +2423,7 @@ def _load_simulation_context(simulation_id: str) -> dict:
         'analysis_summary': '',
     }
     try:
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(
             os.path.dirname(__file__),
             f'../../uploads/simulations/{simulation_id}'
@@ -2712,7 +2718,7 @@ def interview_agents_batch():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2815,7 +2821,7 @@ def interview_all_agents():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2887,7 +2893,7 @@ def get_interview_history():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -2952,7 +2958,7 @@ def get_env_status():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
 
 
@@ -3022,5 +3028,5 @@ def close_simulation_env():
         return jsonify({
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc()
+            **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500

@@ -57,13 +57,31 @@
         "key": "NEO4J_PASSWORD",
         "description": "Neo4j password — set a strong value",
         "required": true,
-        "example": "mirofish2026"
+        "example": "change_this_to_a_strong_random_password"
       },
       {
-        "key": "DEBUG",
-        "description": "Enable debug mode",
+        "key": "SECRET_KEY",
+        "description": "Flask secret key. Generate a long random value.",
+        "required": true,
+        "example": "generate_with_python_secrets_token_urlsafe"
+      },
+      {
+        "key": "FLASK_DEBUG",
+        "description": "Enable Flask debug mode",
         "required": false,
         "default": "false"
+      },
+      {
+        "key": "POCKETBASE_URL",
+        "description": "PocketBase URL used by the backend to validate frontend Bearer tokens",
+        "required": true,
+        "default": "https://pocketbase.koolgrowth.com"
+      },
+      {
+        "key": "CORS_ORIGINS",
+        "description": "Comma-separated allowed origins for /api/* cross-origin calls",
+        "required": false,
+        "default": "http://localhost:5173,http://127.0.0.1:5173"
       }
     ],
     "volumes": [

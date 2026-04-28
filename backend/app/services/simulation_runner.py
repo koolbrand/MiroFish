@@ -21,6 +21,7 @@ from queue import Queue
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale, t
+from ..utils.security import validate_platform, validate_storage_id
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
@@ -242,6 +243,7 @@ class SimulationRunner:
     @classmethod
     def _load_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
         """从文件加载运行状态"""
+        validate_storage_id(simulation_id, "sim_")
         state_file = os.path.join(cls.RUN_STATE_DIR, simulation_id, "run_state.json")
         if not os.path.exists(state_file):
             return None
@@ -298,6 +300,7 @@ class SimulationRunner:
     @classmethod
     def _save_run_state(cls, state: SimulationRunState):
         """保存运行状态到文件"""
+        validate_storage_id(state.simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, state.simulation_id)
         os.makedirs(sim_dir, exist_ok=True)
         state_file = os.path.join(sim_dir, "run_state.json")
@@ -331,6 +334,8 @@ class SimulationRunner:
         Returns:
             SimulationRunState
         """
+        validate_storage_id(simulation_id, "sim_")
+        platform = validate_platform(platform)
         # 检查是否已在运行
         existing = cls.get_run_state(simulation_id)
         if existing and existing.runner_status in [RunnerStatus.RUNNING, RunnerStatus.STARTING]:
@@ -353,6 +358,7 @@ class SimulationRunner:
                 raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
         
         # 加载模拟配置
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
@@ -498,6 +504,7 @@ class SimulationRunner:
     def _monitor_simulation(cls, simulation_id: str, locale: str = 'zh'):
         """监控模拟进程，解析动作日志"""
         set_locale(locale)
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         
         # 新的日志结构：分平台的动作日志
@@ -954,6 +961,9 @@ class SimulationRunner:
         Returns:
             完整的动作列表（按时间戳排序，新的在前）
         """
+        validate_storage_id(simulation_id, "sim_")
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         actions = []
         
@@ -1168,6 +1178,8 @@ class SimulationRunner:
         """
         import shutil
         
+        validate_storage_id(simulation_id, "sim_")
+        
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         
         if not os.path.exists(sim_dir):
@@ -1289,6 +1301,7 @@ class SimulationRunner:
                     
                     # 同时更新 state.json，将状态设为 stopped
                     try:
+                        validate_storage_id(simulation_id, "sim_")
                         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
                         state_file = os.path.join(sim_dir, "state.json")
                         logger.info(f"Intentando actualizar state.json: {state_file}")
@@ -1428,6 +1441,7 @@ class SimulationRunner:
         Returns:
             True 表示环境存活，False 表示环境已关闭
         """
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             return False
@@ -1446,6 +1460,7 @@ class SimulationRunner:
         Returns:
             状态详情字典，包含 status, twitter_available, reddit_available, timestamp
         """
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         status_file = os.path.join(sim_dir, "env_status.json")
         
@@ -1500,6 +1515,9 @@ class SimulationRunner:
             ValueError: 模拟不存在或环境未运行
             TimeoutError: 等待响应超时
         """
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             raise ValueError(f"La simulación no existe: {simulation_id}")
@@ -1562,6 +1580,9 @@ class SimulationRunner:
             ValueError: 模拟不存在或环境未运行
             TimeoutError: 等待响应超时
         """
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             raise ValueError(f"La simulación no existe: {simulation_id}")
@@ -1619,6 +1640,9 @@ class SimulationRunner:
         Returns:
             全局采访结果字典
         """
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             raise ValueError(f"La simulación no existe: {simulation_id}")
@@ -1672,6 +1696,7 @@ class SimulationRunner:
         Returns:
             操作结果字典
         """
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         if not os.path.exists(sim_dir):
             raise ValueError(f"La simulación no existe: {simulation_id}")
@@ -1783,6 +1808,9 @@ class SimulationRunner:
         Returns:
             Interview历史记录列表
         """
+        if platform:
+            platform = validate_platform(platform, allowed=("reddit", "twitter"))
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         
         results = []
@@ -1812,4 +1840,3 @@ class SimulationRunner:
             results = results[:limit]
         
         return results
-

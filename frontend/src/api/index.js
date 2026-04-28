@@ -15,11 +15,9 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     config.headers['Accept-Language'] = i18n.global.locale.value
-    // Forward PocketBase session token so the Flask backend can authenticate
-    // the request. The backend rejects /api/* without a valid token (401).
     const token = pb.authStore.token
     if (token) {
-      config.headers['Authorization'] = token
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },

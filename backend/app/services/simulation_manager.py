@@ -18,6 +18,7 @@ from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
+from ..utils.security import validate_platform, validate_storage_id
 
 logger = get_logger('mirofish.simulation')
 
@@ -138,6 +139,7 @@ class SimulationManager:
     
     def _get_simulation_dir(self, simulation_id: str) -> str:
         """获取模拟数据目录"""
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
         os.makedirs(sim_dir, exist_ok=True)
         return sim_dir
@@ -488,6 +490,7 @@ class SimulationManager:
         Returns:
             True if a simulation directory was removed, False if it did not exist.
         """
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
 
         # Remove from cache regardless; the directory check decides the return.
@@ -502,6 +505,7 @@ class SimulationManager:
     
     def get_profiles(self, simulation_id: str, platform: str = "reddit") -> List[Dict[str, Any]]:
         """获取模拟的Agent Profile"""
+        platform = validate_platform(platform, allowed=("reddit", "twitter"))
         state = self._load_simulation_state(simulation_id)
         if not state:
             raise ValueError(f"La simulación no existe: {simulation_id}")

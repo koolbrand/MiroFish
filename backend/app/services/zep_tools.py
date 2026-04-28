@@ -18,6 +18,7 @@ from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.llm_client import LLMClient
 from ..utils.locale import t
+from ..utils.security import validate_storage_id
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
 
 logger = get_logger('mirofish.zep_tools')
@@ -1554,6 +1555,7 @@ Devuelve la lista de subpreguntas en formato JSON."""
         import csv
         
         # 构建人设文件路径
+        validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(
             os.path.dirname(__file__), 
             f'../../uploads/simulations/{simulation_id}'
