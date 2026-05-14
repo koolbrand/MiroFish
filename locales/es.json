@@ -522,7 +522,8 @@
     "simAlreadyRunning": "La simulación ya está en ejecución: {simulationId}",
     "simConfigMissing": "No se encontró la configuración de simulación. Llama primero al endpoint /prepare.",
     "simNotFound": "La simulación no existe: {simulationId}",
-    "simNotRunning": "La simulación no está en ejecución: {simulationId} (estado={status})"
+    "simNotRunning": "La simulación no está en ejecución: {simulationId} (estado={status})",
+    "fileContentInvalid": "El contenido del archivo no coincide con la extensión: {filename}"
   },
   "progress": {
     "initGraphService": "Inicializando servicio de construcción del grafo...",
