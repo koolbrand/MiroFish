@@ -290,7 +290,9 @@
     "filterGroupComments": "Comments",
     "searchFeedPlaceholder": "Search agent or content...",
     "clearFilters": "Clear",
-    "noMatchingActions": "No actions match the current filters"
+    "noMatchingActions": "No actions match the current filters",
+    "restartSimulation": "Restart simulation",
+    "restartConfirm": "Restart the simulation? Current run data will be lost."
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -728,7 +730,11 @@
     "getReportInfoFailed": "Failed to get report info: {error}",
     "enterStep": "Entering Step {step}: {name}",
     "returnToStep": "Returning to Step {step}: {name}",
-    "customSimRounds": "Custom simulation rounds: {rounds} rounds"
+    "customSimRounds": "Custom simulation rounds: {rounds} rounds",
+    "reconnectingToRunning": "Reconnecting to running simulation...",
+    "loadingPreviousRun": "Loading previous simulation results...",
+    "restartingDualSim": "Restarting dual-platform simulation...",
+    "userRequestedRestart": "User requested restart."
   },
   "report": {
     "taskStarted": "Report generation task started",
