@@ -23,6 +23,27 @@ from ..models.project import ProjectManager, ProjectStatus
 logger = get_logger('mirofish.api')
 
 
+# Per-project locks for the build endpoint.
+#
+# Without this, two concurrent `POST /build` requests for the same project
+# both see `status == ONTOLOGY_GENERATED`, both pass the conflict check, and
+# both spawn build threads that write to the same Neo4j graph_id — silently
+# corrupting the graph. The coordinator lock serialises check-then-act
+# without serialising builds for different projects.
+_BUILD_LOCKS_COORDINATOR = threading.Lock()
+_BUILD_LOCKS: dict = {}
+
+
+def _get_build_lock(project_id: str) -> threading.Lock:
+    """Return (and lazily create) the per-project build lock."""
+    with _BUILD_LOCKS_COORDINATOR:
+        lock = _BUILD_LOCKS.get(project_id)
+        if lock is None:
+            lock = threading.Lock()
+            _BUILD_LOCKS[project_id] = lock
+        return lock
+
+
 def allowed_file(filename: str) -> bool:
     """检查文件扩展名是否允许"""
     if not filename or '.' not in filename:
@@ -415,71 +436,89 @@ def build_graph():
                 "error": t('api.requireProjectId')
             }), 400
         
-        # 获取项目
-        project = ProjectManager.get_project(project_id)
-        if not project:
-            return jsonify({
-                "success": False,
-                "error": t('api.projectNotFound', id=project_id)
-            }), 404
-
-        # Comprobar el estado del proyecto
         force = data.get('force', False)  # Forzar la reconstrucción
-        
-        if project.status == ProjectStatus.CREATED:
-            return jsonify({
-                "success": False,
-                "error": t('api.ontologyNotGenerated')
-            }), 400
-        
-        if project.status == ProjectStatus.GRAPH_BUILDING and not force:
+
+        # Serialise the check-then-act for this project so two concurrent
+        # /build calls cannot both pass the conflict check and both launch
+        # build threads against the same graph_id.
+        build_lock = _get_build_lock(project_id)
+        if not build_lock.acquire(blocking=False):
             return jsonify({
                 "success": False,
                 "error": t('api.graphBuilding'),
-                "task_id": project.graph_build_task_id
-            }), 400
-        
-        # 如果强制重建，重置状态
-        if force and project.status in [ProjectStatus.GRAPH_BUILDING, ProjectStatus.FAILED, ProjectStatus.GRAPH_COMPLETED]:
-            project.status = ProjectStatus.ONTOLOGY_GENERATED
-            project.graph_id = None
-            project.graph_build_task_id = None
-            project.error = None
-        
-        # 获取配置
-        graph_name = data.get('graph_name', project.name or 'MiroFish Graph')
-        chunk_size = data.get('chunk_size', project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
-        chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
-        
-        # 更新项目配置
-        project.chunk_size = chunk_size
-        project.chunk_overlap = chunk_overlap
-        
-        # 获取提取的文本
-        text = ProjectManager.get_extracted_text(project_id)
-        if not text:
-            return jsonify({
-                "success": False,
-                "error": t('api.textNotFound')
-            }), 400
-        
-        # 获取本体
-        ontology = project.ontology
-        if not ontology:
-            return jsonify({
-                "success": False,
-                "error": t('api.ontologyNotFound')
-            }), 400
-        
-        # 创建异步任务
-        task_manager = TaskManager()
-        task_id = task_manager.create_task(f"Construir grafo: {graph_name}")
-        logger.info(f"Tarea de construcción del grafo creada: task_id={task_id}, project_id={project_id}")
-        
-        # 更新项目状态
-        project.status = ProjectStatus.GRAPH_BUILDING
-        project.graph_build_task_id = task_id
-        ProjectManager.save_project(project)
+            }), 409
+
+        try:
+            # Re-read the project inside the lock — the writer above might
+            # have promoted it to GRAPH_BUILDING just before we got here.
+            project = ProjectManager.get_project(project_id)
+            if not project:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.projectNotFound', id=project_id)
+                }), 404
+
+            if project.status == ProjectStatus.CREATED:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.ontologyNotGenerated')
+                }), 400
+
+            if project.status == ProjectStatus.GRAPH_BUILDING and not force:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.graphBuilding'),
+                    "task_id": project.graph_build_task_id
+                }), 409
+
+            # 如果强制重建，重置状态
+            if force and project.status in [ProjectStatus.GRAPH_BUILDING, ProjectStatus.FAILED, ProjectStatus.GRAPH_COMPLETED]:
+                project.status = ProjectStatus.ONTOLOGY_GENERATED
+                project.graph_id = None
+                project.graph_build_task_id = None
+                project.error = None
+
+            # 获取配置
+            graph_name = data.get('graph_name', project.name or 'MiroFish Graph')
+            chunk_size = data.get('chunk_size', project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
+            chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
+
+            # 更新项目配置
+            project.chunk_size = chunk_size
+            project.chunk_overlap = chunk_overlap
+
+            # 获取提取的文本
+            text = ProjectManager.get_extracted_text(project_id)
+            if not text:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.textNotFound')
+                }), 400
+
+            # 获取本体
+            ontology = project.ontology
+            if not ontology:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.ontologyNotFound')
+                }), 400
+
+            # 创建异步任务
+            task_manager = TaskManager()
+            task_id = task_manager.create_task(f"Construir grafo: {graph_name}")
+            logger.info(f"Tarea de construcción del grafo creada: task_id={task_id}, project_id={project_id}")
+
+            # 更新项目状态
+            project.status = ProjectStatus.GRAPH_BUILDING
+            project.graph_build_task_id = task_id
+            ProjectManager.save_project(project)
+        except Exception:
+            build_lock.release()
+            raise
+        # Lock stays held — released inside `build_task()` once the thread
+        # has reached its terminal state (completed/failed). This prevents
+        # a second /build call from racing in while the first thread is
+        # still mid-flight.
         
         # Capture locale before spawning background thread
         current_locale = get_locale()
@@ -606,18 +645,28 @@ def build_graph():
                 # Actualizar el estado del proyecto a fallido
                 build_logger.error(f"[{task_id}] Fallo en la construcción del grafo: {str(e)}")
                 build_logger.debug(traceback.format_exc())
-                
+
                 project.status = ProjectStatus.FAILED
                 project.error = str(e)
                 ProjectManager.save_project(project)
-                
+
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.FAILED,
                     message=t('progress.buildFailed', error=str(e)),
                     error=traceback.format_exc()
                 )
-        
+            finally:
+                # Release the per-project build lock so a subsequent /build
+                # request can proceed (whether the build succeeded or failed).
+                try:
+                    build_lock.release()
+                except RuntimeError:
+                    build_logger.warning(
+                        f"[{task_id}] Build lock for project {project_id} "
+                        f"was not held at release time — likely already freed."
+                    )
+
         # 启动后台线程
         thread = threading.Thread(target=build_task, daemon=True)
         thread.start()
