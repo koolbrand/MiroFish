@@ -12,7 +12,7 @@ services:
       # like NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD (valid for the app, not for Neo4j).
       NEO4J_server_config_strict__validation_enabled: "false"
     volumes:
-      - neo4j_data:/data
+      - neo4j_data_v2:/data
     # Contain Neo4j RAM usage so it can't starve the host.
     # Heap is 1g max + ~512m for page cache and overhead → 2g is safe.
     mem_limit: 2g
@@ -31,6 +31,7 @@ services:
       - PYTHONUNBUFFERED=1
       - NODE_ENV=production
       - FLASK_DEBUG=false
+      - FLASK_PORT=8000
       - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY}
       - API_AUTH_REQUIRED=${API_AUTH_REQUIRED:-true}
       - API_AUTH_TOKEN=${API_AUTH_TOKEN:-}
@@ -70,6 +71,6 @@ services:
       start_period: 60s
 
 volumes:
-  neo4j_data:
+  neo4j_data_v2:
   mirofish_uploads:
   mirofish_logs:
