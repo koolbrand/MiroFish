@@ -2,18 +2,23 @@
 Security helpers for API authentication and safe error responses.
 """
 
-import time
 import re
-from typing import Any, Dict
+from typing import Any
 
 import httpx
+from cachetools import TTLCache
 from flask import jsonify
 
 from ..config import Config
 
 
-_PB_TOKEN_CACHE: Dict[str, float] = {}
-_PB_CACHE_TTL_SECONDS = 300
+# Bounded cache for validated PocketBase Bearer tokens.
+# The previous implementation was an unbounded dict — an attacker (or a
+# buggy client) could grow it indefinitely by hitting /api/* with many
+# distinct tokens, eventually exhausting the container memory.
+# 10k slots × 300 s TTL absorbs realistic load while capping worst-case
+# footprint to a few MB. Evictions happen automatically on access.
+_PB_TOKEN_CACHE: "TTLCache[str, bool]" = TTLCache(maxsize=10000, ttl=300)
 _STORAGE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -33,9 +38,7 @@ def _validate_static_token(token: str) -> bool:
 
 
 def _validate_pocketbase_token(token: str) -> bool:
-    now = time.time()
-    cached_until = _PB_TOKEN_CACHE.get(token)
-    if cached_until and cached_until > now:
+    if token in _PB_TOKEN_CACHE:
         return True
 
     pb_url = (Config.POCKETBASE_URL or "").rstrip("/")
@@ -49,7 +52,7 @@ def _validate_pocketbase_token(token: str) -> bool:
                 headers={"Authorization": f"Bearer {token}"},
             )
         if response.status_code == 200:
-            _PB_TOKEN_CACHE[token] = now + _PB_CACHE_TTL_SECONDS
+            _PB_TOKEN_CACHE[token] = True
             return True
     except httpx.HTTPError:
         return False

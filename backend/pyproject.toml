@@ -36,6 +36,9 @@ dependencies = [
     # 工具库
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
+
+    # Bounded TTL cache for PocketBase token validation (security.py)
+    "cachetools>=5.3.0",
 ]
 
 [project.optional-dependencies]
