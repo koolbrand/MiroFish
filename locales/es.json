@@ -290,7 +290,9 @@
     "filterGroupComments": "Comentarios",
     "searchFeedPlaceholder": "Buscar agente o contenido...",
     "clearFilters": "Limpiar",
-    "noMatchingActions": "Ninguna acción coincide con los filtros"
+    "noMatchingActions": "Ninguna acción coincide con los filtros",
+    "restartSimulation": "Reiniciar simulación",
+    "restartConfirm": "¿Reiniciar la simulación? Se perderán los datos del run actual."
   },
   "step4": {
     "generatingSection": "Generando {title}...",
@@ -728,7 +730,11 @@
     "getReportInfoFailed": "Error al obtener información del informe: {error}",
     "enterStep": "Entrando al Paso {step}: {name}",
     "returnToStep": "Volviendo al Paso {step}: {name}",
-    "customSimRounds": "Rondas de simulación personalizadas: {rounds} rondas"
+    "customSimRounds": "Rondas de simulación personalizadas: {rounds} rondas",
+    "reconnectingToRunning": "Reconectando a la simulación en curso...",
+    "loadingPreviousRun": "Cargando resultados de la simulación anterior...",
+    "restartingDualSim": "Reiniciando simulación de doble plataforma...",
+    "userRequestedRestart": "Reinicio solicitado por el usuario."
   },
   "report": {
     "taskStarted": "Tarea de generación de informe iniciada",

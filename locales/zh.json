@@ -290,7 +290,9 @@
     "filterGroupComments": "评论",
     "searchFeedPlaceholder": "搜索智能体或内容...",
     "clearFilters": "清除",
-    "noMatchingActions": "没有符合筛选条件的动作"
+    "noMatchingActions": "没有符合筛选条件的动作",
+    "restartSimulation": "重启模拟",
+    "restartConfirm": "要重启模拟吗？当前运行的数据将丢失。"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
@@ -728,7 +730,11 @@
     "getReportInfoFailed": "获取报告信息失败: {error}",
     "enterStep": "进入 Step {step}: {name}",
     "returnToStep": "返回 Step {step}: {name}",
-    "customSimRounds": "自定义模拟轮数: {rounds} 轮"
+    "customSimRounds": "自定义模拟轮数: {rounds} 轮",
+    "reconnectingToRunning": "正在重新连接到运行中的模拟...",
+    "loadingPreviousRun": "正在加载上一次的模拟结果...",
+    "restartingDualSim": "正在重启双平台模拟...",
+    "userRequestedRestart": "用户请求重启。"
   },
   "report": {
     "taskStarted": "报告生成任务开始",
