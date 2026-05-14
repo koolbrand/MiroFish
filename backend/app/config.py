@@ -72,9 +72,12 @@ class Config:
     )
     
     # Neo4j配置（自托管Graphiti）
+    # No default password is provided on purpose: a fallback like the previous
+    # 'mirofish2026' was a footgun. In DEBUG (local dev) `validate()` skips the
+    # check, but the env var is still required to actually reach Neo4j.
     NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
     NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
-    NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'mirofish2026')
+    NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD')
 
     # Embedding配置（Graphiti用）
     # Can use a different provider than the LLM (e.g. OpenAI or Aliyun for embeddings,
@@ -144,7 +147,11 @@ class Config:
             errors.append("LLM_API_KEY no está configurada")
         if not cls.DEBUG and not cls.SECRET_KEY:
             errors.append("SECRET_KEY no está configurada")
+        if not cls.DEBUG and not cls.NEO4J_PASSWORD:
+            errors.append("NEO4J_PASSWORD no está configurada")
         if not cls.DEBUG and cls.NEO4J_PASSWORD == 'mirofish2026':
+            # Legacy guard — even if someone reintroduces the literal as an
+            # env value, reject it. The old default is well-known.
             errors.append("NEO4J_PASSWORD usa el valor por defecto inseguro")
         if cls.API_AUTH_REQUIRED and not (cls.API_AUTH_TOKEN or cls.POCKETBASE_URL):
             errors.append("API auth requiere API_AUTH_TOKEN o POCKETBASE_URL")

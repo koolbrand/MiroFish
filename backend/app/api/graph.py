@@ -16,6 +16,7 @@ from ..services.text_processor import TextProcessor
 from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
+from ..utils.security import validate_upload_content, sanitize_user_text
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 
@@ -299,12 +300,25 @@ def generate_ontology():
 
         logger.debug(f"Nombre del proyecto: {project_name}")
         logger.debug(f"Requisitos de simulación: {simulation_requirement[:100]}...")
-        
+
         if not simulation_requirement:
             return jsonify({
                 "success": False,
                 "error": t('api.requireSimulationRequirement')
             }), 400
+
+        # Cap and strip control characters from anything that will reach the
+        # LLM or be persisted as project metadata. ValueError surfaces as
+        # 400 via the global handler in __init__.py.
+        simulation_requirement = sanitize_user_text(
+            simulation_requirement, field='simulation_requirement'
+        )
+        additional_context = sanitize_user_text(
+            additional_context, field='additional_context'
+        )
+        project_name = sanitize_user_text(
+            project_name, max_chars=200, field='project_name'
+        )
         
         # 获取上传的文件
         uploaded_files = request.files.getlist('files')
@@ -324,23 +338,42 @@ def generate_ontology():
         all_text = ""
         
         for file in uploaded_files:
-            if file and file.filename and allowed_file(file.filename):
-                # 保存文件到项目目录
-                file_info = ProjectManager.save_file_to_project(
-                    project.project_id, 
-                    file, 
-                    file.filename
+            if not (file and file.filename and allowed_file(file.filename)):
+                continue
+
+            # Validate content matches the declared extension. A user could
+            # rename `evil.exe` to `evil.pdf` and the parsers downstream
+            # (PyMuPDF, Pillow) would then attempt to process arbitrary
+            # bytes. Reject before we ever touch disk.
+            ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
+            try:
+                validate_upload_content(file, ext)
+            except ValueError as exc:
+                ProjectManager.delete_project(project.project_id)
+                logger.warning(
+                    f"Upload rechazado: {file.filename} ({exc})"
                 )
-                project.files.append({
-                    "filename": file_info["original_filename"],
-                    "size": file_info["size"]
-                })
-                
-                # 提取文本
-                text = FileParser.extract_text(file_info["path"])
-                text = TextProcessor.preprocess_text(text)
-                document_texts.append(text)
-                all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
+                return jsonify({
+                    "success": False,
+                    "error": t('api.fileContentInvalid', filename=file.filename),
+                }), 400
+
+            # 保存文件到项目目录
+            file_info = ProjectManager.save_file_to_project(
+                project.project_id,
+                file,
+                file.filename
+            )
+            project.files.append({
+                "filename": file_info["original_filename"],
+                "size": file_info["size"]
+            })
+
+            # 提取文本
+            text = FileParser.extract_text(file_info["path"])
+            text = TextProcessor.preprocess_text(text)
+            document_texts.append(text)
+            all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
         
         if not document_texts:
             ProjectManager.delete_project(project.project_id)

@@ -69,6 +69,26 @@ def create_app(config_class=Config):
     if should_log_startup:
         logger.info("Función de limpieza de procesos de simulación registrada")
 
+    # Security: warn loudly if the static bearer fallback is enabled.
+    # API_AUTH_TOKEN bypasses PocketBase entirely — anyone who learns the
+    # value gets full /api/* access. It exists for break-glass scenarios
+    # (e.g. PocketBase down) but should never be left set in production.
+    if should_log_startup and Config.API_AUTH_TOKEN:
+        logger.warning(
+            "[security] API_AUTH_TOKEN is set — static bearer auth is "
+            "enabled and bypasses PocketBase. Unset this env var in "
+            "production unless you intentionally need a break-glass token."
+        )
+
+    # Security: warn loudly if /api/* auth is fully disabled. This was
+    # added so dev environments could skip auth, but enabling it in prod
+    # exposes every endpoint anonymously.
+    if should_log_startup and not Config.API_AUTH_REQUIRED:
+        logger.warning(
+            "[security] API_AUTH_REQUIRED=false — /api/* is OPEN to "
+            "anonymous callers. This must only be used in local dev."
+        )
+
     # Boot-time orphan recovery: any project still marked GRAPH_BUILDING
     # cannot have a live build thread (we just booted), so it would stay
     # stuck in that state forever blocking the user. Mark them FAILED with

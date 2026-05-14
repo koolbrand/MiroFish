@@ -522,7 +522,8 @@
     "simAlreadyRunning": "模拟已在运行中: {simulationId}",
     "simConfigMissing": "模拟配置不存在，请先调用 /prepare 接口。",
     "simNotFound": "模拟不存在: {simulationId}",
-    "simNotRunning": "模拟未在运行: {simulationId} (状态={status})"
+    "simNotRunning": "模拟未在运行: {simulationId} (状态={status})",
+    "fileContentInvalid": "文件内容与扩展名不匹配：{filename}"
   },
   "progress": {
     "initGraphService": "初始化图谱构建服务...",

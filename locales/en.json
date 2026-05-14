@@ -522,7 +522,8 @@
     "simAlreadyRunning": "Simulation is already running: {simulationId}",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
-    "simNotRunning": "Simulation is not running: {simulationId} (status={status})"
+    "simNotRunning": "Simulation is not running: {simulationId} (status={status})",
+    "fileContentInvalid": "File content does not match the extension: {filename}"
   },
   "progress": {
     "initGraphService": "Initializing graph build service...",
