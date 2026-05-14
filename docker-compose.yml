@@ -31,6 +31,7 @@ services:
       - PYTHONUNBUFFERED=1
       - NODE_ENV=production
       - FLASK_DEBUG=false
+      - FLASK_PORT=8000
       - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY}
       - API_AUTH_REQUIRED=${API_AUTH_REQUIRED:-true}
       - API_AUTH_TOKEN=${API_AUTH_TOKEN:-}
