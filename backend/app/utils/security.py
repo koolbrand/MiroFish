@@ -86,6 +86,30 @@ def validate_platform(value: str, allowed=("reddit", "twitter", "parallel")) -> 
     return value
 
 
+# Cap user-supplied text fields that ultimately reach the LLM (or our
+# storage layer). The values are forwarded verbatim into prompts, so:
+# - oversize inputs waste tokens and money on every call
+# - control characters can confuse downstream tooling or be used to
+#   smuggle delimiters / fake markdown into the prompt
+# A blunt strip is enough; full anti-prompt-injection defence belongs in
+# the prompt template itself.
+_USER_TEXT_MAX_CHARS = 10_000
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def sanitize_user_text(value: str, *, max_chars: int = _USER_TEXT_MAX_CHARS, field: str = "input") -> str:
+    """Clamp length and strip control characters from a user-provided string.
+
+    Tabs (0x09), newlines (0x0a) and CR (0x0d) are preserved so multi-line
+    inputs keep formatting. Everything else in the C0/DEL range is removed.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"{field} debe ser texto")
+    if len(value) > max_chars:
+        raise ValueError(f"{field} excede el máximo de {max_chars} caracteres")
+    return _CONTROL_CHARS_RE.sub("", value)
+
+
 # Magic-byte signatures for the binary file types Mirror accepts as uploads.
 # Validating by content (not just extension) prevents an authenticated user
 # from disguising arbitrary payloads as PDFs/images and feeding them to the

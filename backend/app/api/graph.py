@@ -16,7 +16,7 @@ from ..services.text_processor import TextProcessor
 from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
-from ..utils.security import validate_upload_content
+from ..utils.security import validate_upload_content, sanitize_user_text
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 
@@ -300,12 +300,25 @@ def generate_ontology():
 
         logger.debug(f"Nombre del proyecto: {project_name}")
         logger.debug(f"Requisitos de simulación: {simulation_requirement[:100]}...")
-        
+
         if not simulation_requirement:
             return jsonify({
                 "success": False,
                 "error": t('api.requireSimulationRequirement')
             }), 400
+
+        # Cap and strip control characters from anything that will reach the
+        # LLM or be persisted as project metadata. ValueError surfaces as
+        # 400 via the global handler in __init__.py.
+        simulation_requirement = sanitize_user_text(
+            simulation_requirement, field='simulation_requirement'
+        )
+        additional_context = sanitize_user_text(
+            additional_context, field='additional_context'
+        )
+        project_name = sanitize_user_text(
+            project_name, max_chars=200, field='project_name'
+        )
         
         # 获取上传的文件
         uploaded_files = request.files.getlist('files')
