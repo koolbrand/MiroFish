@@ -382,11 +382,11 @@ defineExpose({ selectAgent })
   flex-direction: column;
   background: #FFFFFF;
   overflow: hidden;
-  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-family: var(--kb-font-sans);
 }
 
 .mono {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-family: var(--kb-font-mono);
 }
 
 /* Header */
@@ -395,9 +395,9 @@ defineExpose({ selectAgent })
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid #EAEAEA;
+  border-bottom: 1px solid var(--kb-line);
   flex-wrap: wrap;
-  background: #FAFAFA;
+  background: var(--kb-surface-2);
 }
 
 .search-wrapper {
@@ -405,7 +405,7 @@ defineExpose({ selectAgent })
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--kb-line);
   border-radius: 999px;
   background: #FFF;
   flex: 1 1 180px;
@@ -413,11 +413,11 @@ defineExpose({ selectAgent })
 }
 
 .search-wrapper:focus-within {
-  border-color: #000;
+  border-color: var(--kb-text);
 }
 
 .search-wrapper .search-icon {
-  color: #9CA3AF;
+  color: var(--kb-subtle);
 }
 
 .search-wrapper input {
@@ -427,12 +427,12 @@ defineExpose({ selectAgent })
   background: transparent;
   font: inherit;
   font-size: 12px;
-  color: #111;
+  color: var(--kb-text);
   min-width: 0;
 }
 
 .search-wrapper input::placeholder {
-  color: #AAA;
+  color: var(--kb-subtle);
 }
 
 .filter-chips {
@@ -445,9 +445,9 @@ defineExpose({ selectAgent })
   font-size: 10px;
   font-weight: 600;
   padding: 4px 10px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--kb-line);
   background: #FFF;
-  color: #6B7280;
+  color: var(--kb-muted);
   border-radius: 999px;
   cursor: pointer;
   text-transform: uppercase;
@@ -455,24 +455,24 @@ defineExpose({ selectAgent })
 }
 
 .chip:hover {
-  color: #000;
-  border-color: #CCC;
+  color: var(--kb-text);
+  border-color: var(--kb-line-strong);
 }
 
 .chip.active {
-  background: #000;
+  background: var(--kb-text);
   color: #FFF;
-  border-color: #000;
+  border-color: var(--kb-text);
 }
 
 .sort-select {
   font: inherit;
   font-size: 11px;
   padding: 4px 8px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--kb-line);
   border-radius: 4px;
   background: #FFF;
-  color: #374151;
+  color: var(--kb-text-2);
   cursor: pointer;
 }
 
@@ -486,7 +486,7 @@ defineExpose({ selectAgent })
 .agents-column {
   width: 260px;
   flex-shrink: 0;
-  border-right: 1px solid #EAEAEA;
+  border-right: 1px solid var(--kb-line);
   display: flex;
   flex-direction: column;
   background: #FFFFFF;
@@ -497,25 +497,25 @@ defineExpose({ selectAgent })
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px 6px;
-  border-bottom: 1px solid #F3F4F6;
+  border-bottom: 1px solid var(--kb-soft);
 }
 
 .col-label {
   font-size: 10px;
   font-weight: 700;
-  color: #6B7280;
+  color: var(--kb-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .col-count {
   font-size: 10px;
-  color: #9CA3AF;
+  color: var(--kb-subtle);
 }
 
 .empty-list {
   padding: 24px 16px;
-  color: #9CA3AF;
+  color: var(--kb-subtle);
   font-size: 12px;
   text-align: center;
 }
@@ -539,16 +539,16 @@ defineExpose({ selectAgent })
 }
 
 .agent-row:hover {
-  background: #F3F4F6;
+  background: var(--kb-soft);
 }
 
 .agent-row.active {
-  background: #111;
+  background: var(--kb-text);
   color: #FFF;
 }
 
 .agent-row.active .agent-sub {
-  color: #D1D5DB;
+  color: var(--kb-line-strong);
 }
 
 .agent-row.active .agent-badge {
@@ -561,8 +561,8 @@ defineExpose({ selectAgent })
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #E5E7EB;
-  color: #374151;
+  background: var(--kb-line);
+  color: var(--kb-text-2);
   font-weight: 700;
   font-size: 13px;
   display: flex;
@@ -573,7 +573,7 @@ defineExpose({ selectAgent })
 
 .agent-row.active .agent-avatar {
   background: #FFF;
-  color: #000;
+  color: var(--kb-text);
 }
 
 .agent-meta {
@@ -594,7 +594,7 @@ defineExpose({ selectAgent })
 
 .agent-sub {
   font-size: 10px;
-  color: #6B7280;
+  color: var(--kb-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -603,9 +603,9 @@ defineExpose({ selectAgent })
 .agent-badge {
   font-size: 10px;
   padding: 2px 6px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--kb-line);
   border-radius: 999px;
-  color: #6B7280;
+  color: var(--kb-muted);
 }
 
 /* Detail */
@@ -622,7 +622,7 @@ defineExpose({ selectAgent })
   justify-content: center;
   height: 100%;
   gap: 10px;
-  color: #9CA3AF;
+  color: var(--kb-subtle);
   font-size: 13px;
 }
 
@@ -631,7 +631,7 @@ defineExpose({ selectAgent })
   align-items: center;
   gap: 14px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #EAEAEA;
+  border-bottom: 1px solid var(--kb-line);
   margin-bottom: 18px;
 }
 
@@ -639,7 +639,7 @@ defineExpose({ selectAgent })
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: #111;
+  background: var(--kb-text);
   color: #FFF;
   font-weight: 700;
   font-size: 22px;
@@ -658,7 +658,7 @@ defineExpose({ selectAgent })
   margin: 0 0 4px;
   font-size: 18px;
   font-weight: 700;
-  color: #111;
+  color: var(--kb-text);
 }
 
 .detail-meta-row {
@@ -666,12 +666,12 @@ defineExpose({ selectAgent })
   gap: 8px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #6B7280;
+  color: var(--kb-muted);
 }
 
 .detail-handle {
-  font-family: 'JetBrains Mono', monospace;
-  color: #374151;
+  font-family: var(--kb-font-mono);
+  color: var(--kb-text-2);
 }
 
 .chat-cta {
@@ -682,7 +682,7 @@ defineExpose({ selectAgent })
   font-size: 11px;
   font-weight: 600;
   padding: 7px 12px;
-  background: #111;
+  background: var(--kb-text);
   color: #FFF;
   border: none;
   border-radius: 4px;
@@ -692,7 +692,7 @@ defineExpose({ selectAgent })
 }
 
 .chat-cta:hover {
-  background: #000;
+  background: var(--kb-text);
 }
 
 .block-label {
@@ -700,7 +700,7 @@ defineExpose({ selectAgent })
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6B7280;
+  color: var(--kb-muted);
   margin-bottom: 6px;
 }
 
@@ -710,7 +710,7 @@ defineExpose({ selectAgent })
 
 .detail-bio p {
   font-size: 13px;
-  color: #374151;
+  color: var(--kb-text-2);
   line-height: 1.55;
   margin: 0;
   white-space: pre-wrap;
@@ -725,26 +725,26 @@ defineExpose({ selectAgent })
 }
 
 .stat-cell {
-  border: 1px solid #EAEAEA;
+  border: 1px solid var(--kb-line);
   padding: 10px 12px;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: #FAFAFA;
+  background: var(--kb-surface-2);
 }
 
 .stat-num {
   font-size: 20px;
   font-weight: 700;
-  color: #111;
+  color: var(--kb-text);
 }
 
 .stat-lbl {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #6B7280;
+  color: var(--kb-muted);
 }
 
 /* Activity */
@@ -757,7 +757,7 @@ defineExpose({ selectAgent })
 .activity-error {
   padding: 20px 10px;
   text-align: center;
-  color: #9CA3AF;
+  color: var(--kb-subtle);
   font-size: 12px;
   display: flex;
   justify-content: center;
@@ -772,8 +772,8 @@ defineExpose({ selectAgent })
 .loading-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid #E5E7EB;
-  border-top-color: #111;
+  border: 2px solid var(--kb-line);
+  border-top-color: var(--kb-text);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -795,22 +795,22 @@ defineExpose({ selectAgent })
   display: flex;
   gap: 14px;
   padding: 10px 12px;
-  border: 1px solid #EAEAEA;
+  border: 1px solid var(--kb-line);
   border-radius: 4px;
   background: #FFF;
   transition: border-color 0.15s ease;
 }
 
 .activity-item:hover {
-  border-color: #D1D5DB;
+  border-color: var(--kb-line-strong);
 }
 
 .activity-item.twitter {
-  border-left: 3px solid #000;
+  border-left: 3px solid var(--kb-text);
 }
 
 .activity-item.reddit {
-  border-left: 3px solid #6B7280;
+  border-left: 3px solid var(--kb-muted);
 }
 
 .act-meta-col {
@@ -825,12 +825,12 @@ defineExpose({ selectAgent })
 .act-round {
   font-size: 11px;
   font-weight: 700;
-  color: #111;
+  color: var(--kb-text);
 }
 
 .act-time {
   font-size: 9px;
-  color: #9CA3AF;
+  color: var(--kb-subtle);
 }
 
 .act-platform {
@@ -841,12 +841,12 @@ defineExpose({ selectAgent })
 }
 
 .act-platform.twitter {
-  background: #111;
+  background: var(--kb-text);
   color: #FFF;
 }
 
 .act-platform.reddit {
-  background: #6B7280;
+  background: var(--kb-muted);
   color: #FFF;
 }
 
@@ -869,12 +869,12 @@ defineExpose({ selectAgent })
 
 .badge-post { background: #FEF3C7; color: #92400E; }
 .badge-comment { background: #DBEAFE; color: #1E40AF; }
-.badge-action { background: #F3F4F6; color: #374151; }
-.badge-idle { background: #F9FAFB; color: #9CA3AF; }
+.badge-action { background: var(--kb-soft); color: var(--kb-text-2); }
+.badge-idle { background: var(--kb-surface-2); color: var(--kb-subtle); }
 
 .act-content {
   font-size: 12px;
-  color: #374151;
+  color: var(--kb-text-2);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;

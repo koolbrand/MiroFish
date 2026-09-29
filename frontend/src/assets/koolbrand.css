@@ -1,0 +1,70 @@
+/*
+ * Simuloo · identidad Koolbrand (brandbook: lima + tinta, Inter Tight, JetBrains Mono).
+ * Primitivos por tono; los componentes usan solo los tokens semánticos (--kb-*).
+ * Contrastes medidos (WCAG):
+ *   tinta #111 sobre lima #CCE673 ........ 13,61
+ *   oliva #5C6C16 sobre blanco / crema .... 5,81 / 5,15  (texto de acento, AA)
+ *   lima sobre #0A0A0A (fondos oscuros) .... 14,27
+ *   #ACC451 sobre blanco ................... 1,95  (solo decorativo, nunca texto)
+ */
+:root {
+  /* Primitivos: rampa lima (OKLCH, tono 120 constante) y neutros cálidos */
+  --lime-50: #EFF8D8;
+  --lime-500: #CCE673;
+  --lime-600: #ACC451;
+  --lime-700: #94AA3D;
+  --lime-800: #5C6C16;
+  --ink-950: #111111;
+  --ink-800: #2A2A2A;
+  --gray-600: #6E6E6E;
+  --gray-500: #8A8A8A;
+  --gray-300: #CFCFCF;
+  --gray-200: #DDDDDD;
+  --gray-100: #ECECEC;
+  --cream-100: #F2F1EF;
+  --cream-50: #F7F6F3;
+
+  /* Semánticos */
+  --kb-bg: var(--cream-100);             /* fondo de página */
+  --kb-surface: #FFFFFF;                  /* tarjetas y paneles */
+  --kb-surface-2: var(--cream-50);        /* superficie secundaria */
+  --kb-text: var(--ink-950);
+  --kb-text-2: var(--ink-800);
+  --kb-muted: var(--gray-600);
+  --kb-subtle: var(--gray-500);           /* metadatos (no para texto largo) */
+  --kb-line: var(--gray-200);
+  --kb-line-strong: var(--gray-300);
+  --kb-soft: var(--gray-100);
+  --kb-accent-solid: var(--lime-500);     /* rellenos de acción y highlights */
+  --kb-accent-hover: var(--lime-600);
+  --kb-accent-on: var(--ink-950);         /* texto sobre relleno lima */
+  --kb-accent-text: var(--lime-800);      /* texto/enlaces de acento sobre claro */
+  --kb-accent-line: var(--lime-600);      /* filetes decorativos */
+  --kb-accent-subtle: var(--lime-50);     /* fondo suave de estado activo */
+  --kb-danger: #DC2626;
+
+  --kb-font-sans: 'Inter Tight', 'Noto Sans SC', system-ui, sans-serif;
+  --kb-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html, body { background: var(--kb-bg); }
+
+h1, h2, h3 {
+  font-family: var(--kb-font-sans);
+  letter-spacing: -0.02em;
+}
+
+/* Firma Koolbrand: highlight en BLOQUE lima, rotado */
+.hl {
+  background: var(--kb-accent-solid);
+  color: var(--kb-accent-on);
+  padding: 0 0.14em 0.04em;
+  display: inline-block;
+  transform: rotate(-1.4deg);
+  border-radius: 6px;
+  line-height: 0.92;
+}
+.hl.alt { transform: rotate(1deg); }
+
+::selection { background: var(--kb-accent-solid); color: var(--kb-accent-on); }
+:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 2px; }

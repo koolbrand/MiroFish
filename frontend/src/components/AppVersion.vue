@@ -11,9 +11,9 @@ const buildDate = __BUILD_DATE__
 
 <style scoped>
 .app-version-badge {
-  font-family: 'Courier New', monospace;
+  font-family: var(--kb-font-sans);
   font-size: 0.65rem;
-  color: #444;
+  color: var(--kb-text-2);
   letter-spacing: 0.05em;
   cursor: default;
   user-select: none;
@@ -21,7 +21,7 @@ const buildDate = __BUILD_DATE__
 }
 
 .app-version-badge:hover {
-  color: #888;
+  color: var(--kb-subtle);
 }
 
 .build-dot {

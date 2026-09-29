@@ -8,7 +8,8 @@
     "forgotPassword": "Forgot your password?",
     "forgotNeedsEmail": "Type your email above and click again.",
     "resetSent": "If that email has an account, we've sent you a link to set a new password.",
-    "resetFailed": "Couldn't send the email. Please try again later."
+    "resetFailed": "Couldn't send the email. Please try again later.",
+    "tagline": "Rehearse first. Then decide."
   },
   "common": {
     "confirm": "Confirm",
