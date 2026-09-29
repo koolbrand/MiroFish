@@ -751,7 +751,8 @@
     "userRequestedRestart": "用户请求重启。",
     "jevFilterSummary": "Jev 已检查实体：排除 {dropped} 个不会发言的实体；共 {kept} 个智能体；真实受众 {audience}%。",
     "jevFilterDropped": "已排除：{names}",
-    "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议 ≥ {minimum}%）。竞争对手和企业的声音会更重：请在文档中补充受众信息。"
+    "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议 ≥ {minimum}%）。竞争对手和企业的声音会更重：请在文档中补充受众信息。",
+    "jevAudienceExpanded": "受众已扩充：在受众群体中新增 {count} 个不同的人物，使你的客户至少占模拟的 40%。"
   },
   "report": {
     "taskStarted": "报告生成任务开始",

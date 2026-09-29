@@ -19,7 +19,7 @@ from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
 from ..utils.security import validate_platform, validate_storage_id, is_valid_storage_id
-from .entity_role_filter import filter_entities
+from .entity_role_filter import filter_entities, expand_audience
 
 logger = get_logger('mirofish.simulation')
 
@@ -318,8 +318,10 @@ class SimulationManager:
             role_result = filter_entities(filtered.entities, simulation_requirement)
             state.entity_filter = role_result.summary()
             if role_result.applied:
-                filtered.entities = role_result.kept
-                filtered.filtered_count = len(role_result.kept)
+                # Audiencia como personas individuales y, si falta, ampliada
+                filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement)
+                state.entity_filter = role_result.summary()
+                filtered.filtered_count = len(filtered.entities)
                 state.entities_count = filtered.filtered_count
                 summary = state.entity_filter
                 if progress_callback:

@@ -62,3 +62,41 @@ def test_never_leaves_zero_agents(monkeypatch):
     monkeypatch.setattr(erf, "_ask_jev", lambda client, e, topic: {"role": "infraestructura", "confidence": 0.99})
     result = erf.filter_entities(ENTITIES, "x")
     assert len(result.kept) == len(ENTITIES) and not result.applied
+
+
+def test_audience_becomes_individuals_and_expands(monkeypatch):
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", True)
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_EXTRA", 20)
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_VARIANTS", 4)
+    ents = [Entity("Madres y padres"), Entity("Padres separados"), Entity("Cozi"), Entity("FamilyWall"),
+            Entity("Maple"), Entity("KIN"), Entity("Google Calendar"), Entity("Periodistas")]
+    for i, e in enumerate(ents):
+        e.uuid = f"u{i}"
+        e.attributes = {}
+    roles = {"Madres y padres": "audiencia", "Padres separados": "audiencia", "Periodistas": "voz_influyente"}
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    result = erf.filter_entities(ents, "lanzamiento")
+    out = erf.expand_audience(result.kept, result)
+    summary = result.summary()
+    # 2/8 = 25 % -> hace falta llegar al 40 %: (0.4*8-2)/0.6 = 2 extra
+    assert summary["audience_expanded"] == 2
+    assert len(out) == 10 and summary["kept"] == 10
+    assert summary["audience_ratio"] == 0.4 and summary["low_audience"] is False
+    variants = [e for e in out if e.attributes.get(erf.VARIANT_HINT)]
+    assert {v.name for v in variants} == {"Madres y padres · 2", "Padres separados · 2"}
+    assert len({e.uuid for e in out}) == len(out)            # uuids únicos
+    assert all(e.attributes.get(erf.INDIVIDUAL_FLAG) for e in out if "adres" in e.name)
+    assert not ents[2].attributes.get(erf.INDIVIDUAL_FLAG)    # los competidores no
+
+
+def test_expansion_is_capped(monkeypatch):
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", True)
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_EXTRA", 3)
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_VARIANTS", 4)
+    ents = [Entity(f"E{i}") for i in range(30)]
+    for i, e in enumerate(ents):
+        e.uuid, e.attributes = f"u{i}", {}
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "audiencia" if e.name == "E0" else "competidor", "confidence": 0.9})
+    result = erf.filter_entities(ents, "x")
+    out = erf.expand_audience(result.kept, result)
+    assert len(out) == 33            # tope total: +3

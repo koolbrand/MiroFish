@@ -751,7 +751,8 @@
     "userRequestedRestart": "User requested restart.",
     "jevFilterSummary": "Jev reviewed the entities: {dropped} dropped as non-participants; {kept} agents; real audience {audience}%.",
     "jevFilterDropped": "Dropped: {names}",
-    "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended ≥ {minimum}%). Competitors and companies will weigh more: add more detail about the audience to the document."
+    "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended ≥ {minimum}%). Competitors and companies will weigh more: add more detail about the audience to the document.",
+    "jevAudienceExpanded": "Audience expanded: +{count} distinct people within the audience groups, so your customers make up at least 40% of the simulation."
   },
   "report": {
     "taskStarted": "Report generation task started",

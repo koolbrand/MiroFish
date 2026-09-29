@@ -63,6 +63,10 @@ class Config:
     JEV_ENTITY_FILTER = os.environ.get('JEV_ENTITY_FILTER', 'true').lower() == 'true'
     JEV_DROP_CONFIDENCE = float(os.environ.get('JEV_DROP_CONFIDENCE', '0.8'))
     JEV_MIN_AUDIENCE_RATIO = float(os.environ.get('JEV_MIN_AUDIENCE_RATIO', '0.4'))
+    # Ampliar la audiencia (desdoblar grupos en personas) si queda por debajo del mínimo
+    AUDIENCE_EXPANSION = os.environ.get('AUDIENCE_EXPANSION', 'true').lower() == 'true'
+    AUDIENCE_MAX_EXTRA = int(os.environ.get('AUDIENCE_MAX_EXTRA', '20'))
+    AUDIENCE_MAX_VARIANTS = int(os.environ.get('AUDIENCE_MAX_VARIANTS', '4'))
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph
