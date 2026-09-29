@@ -173,6 +173,11 @@ except ImportError as e:
     print("Primero instala: pip install oasis-ai camel-ai")
     sys.exit(1)
 
+# Tope de memoria del recomendador TwHIN-BERT (red tipo X): sin él, las
+# simulaciones largas superaban el límite del contenedor y morían con -9.
+import recsys_memory
+recsys_memory.apply()
+
 
 # Twitter可用动作（不包含INTERVIEW，INTERVIEW只能通过ManualAction手动触发）
 TWITTER_ACTIONS = [
