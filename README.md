@@ -21,7 +21,7 @@
 
 ## ¿Qué es Simuloo?
 
-Simuloo te permite subir documentos del mundo real — informes, noticias, campañas — y simular cómo miles de agentes de IA con personalidades, memorias y comportamientos independientes reaccionarían a ellos. El resultado: un informe de predicción detallado sobre dinámicas sociales, opinión pública o respuesta de mercado **antes de que ocurran**.
+Simuloo te permite subir documentos del mundo real — informes, noticias, campañas — y simular cómo decenas de agentes de IA con personalidades, memorias y comportamientos independientes reaccionarían a ellos. El resultado: un informe de predicción detallado sobre dinámicas sociales, opinión pública o respuesta de mercado **antes de que ocurran**.
 
 > Sube documentos → describe tu hipótesis → obtén un informe completo con agentes interactivos
 
