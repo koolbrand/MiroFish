@@ -60,9 +60,9 @@
             </div>
             <div class="vis-bottom-bar">
               <div class="vis-stat-row">
-                <div class="vis-stat"><span class="stat-val">1,000+</span><span class="stat-lbl">agentes</span></div>
-                <div class="vis-stat"><span class="stat-val">5</span><span class="stat-lbl">pasos</span></div>
-                <div class="vis-stat"><span class="stat-val">∞</span><span class="stat-lbl">escenarios</span></div>
+                <div class="vis-stat"><span class="stat-val">10–120</span><span class="stat-lbl">{{ $t('home.visStatAgents') }}</span></div>
+                <div class="vis-stat"><span class="stat-val">5</span><span class="stat-lbl">{{ $t('home.visStatSteps') }}</span></div>
+                <div class="vis-stat"><span class="stat-val">2</span><span class="stat-lbl">{{ $t('home.visStatPlatforms') }}</span></div>
               </div>
             </div>
           </div>
