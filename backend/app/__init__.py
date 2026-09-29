@@ -1,5 +1,5 @@
 """
-MiroFish Backend - Flask应用工厂
+Simuloo Backend - Flask应用工厂
 """
 
 import json
@@ -41,7 +41,7 @@ def create_app(config_class=Config):
 
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("Arrancando MiroFish Backend...")
+        logger.info("Arrancando Simuloo Backend...")
         logger.info("=" * 50)
 
     # CORS cerrado por configuración. En producción, si frontend y backend
@@ -235,7 +235,7 @@ def create_app(config_class=Config):
     @app.route('/health')
     @app.route('/api/health')
     def health():
-        return {'status': 'ok', 'service': 'MiroFish Backend'}
+        return {'status': 'ok', 'service': 'Simuloo Backend'}
 
     # Servir el frontend compilado en producción
     frontend_dist = os.path.join(os.path.dirname(__file__), '../../frontend/dist')
@@ -261,6 +261,6 @@ def create_app(config_class=Config):
             logger.info("Frontend dist no encontrado, solo API disponible")
 
     if should_log_startup:
-        logger.info("MiroFish Backend arrancado correctamente")
+        logger.info("Simuloo Backend arrancado correctamente")
 
     return app

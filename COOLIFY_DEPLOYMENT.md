@@ -1,4 +1,4 @@
-# 🚀 Deployment Guide: MiroFish en Coolify
+# 🚀 Deployment Guide: Simuloo en Coolify
 
 ## Requisitos Previos
 
@@ -33,7 +33,7 @@ DEBUG=false
 
 | Campo | Valor |
 |-------|-------|
-| **Name** | `MiroFish` |
+| **Name** | `Simuloo` |
 | **Repository** | `https://github.com/koolbrand/MiroFish` |
 | **Branch** | `main` |
 | **Docker Compose File** | `docker-compose.yml` |

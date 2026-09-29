@@ -1,7 +1,7 @@
 """
-MiniMax M2.7 Integration Examples for MiroFish
+MiniMax M2.7 Integration Examples for Simuloo
 
-These examples demonstrate how to use MiniMax M2.7 in different scenarios within MiroFish.
+These examples demonstrate how to use MiniMax M2.7 in different scenarios within Simuloo.
 """
 
 import os
@@ -56,7 +56,7 @@ def example_multi_turn_conversation():
     messages: List[Dict[str, str]] = [
         {
             "role": "system",
-            "content": "You are an AI agent designer for MiroFish simulation."
+            "content": "You are an AI agent designer for Simuloo simulation."
         }
     ]
 
@@ -287,11 +287,11 @@ def example_highspeed_model():
 
 
 # ============================================================================
-# Example 9: Integration with MiroFish LLMClient
+# Example 9: Integration with Simuloo LLMClient
 # ============================================================================
 
 def example_mirofish_integration():
-    """Example of using MiniMax with MiroFish's LLMClient wrapper"""
+    """Example of using MiniMax with Simuloo's LLMClient wrapper"""
     from backend.app.utils.llm_client import LLMClient
 
     # Initialize with default config from .env
@@ -306,7 +306,7 @@ def example_mirofish_integration():
         max_tokens=1024
     )
 
-    print("MiroFish LLMClient response:", response)
+    print("Simuloo LLMClient response:", response)
 
     # Use chat_json for structured output
     json_response = llm_client.chat_json(
@@ -337,7 +337,7 @@ if __name__ == "__main__":
     dotenv.load_dotenv()
 
     print("=" * 70)
-    print("MiniMax M2.7 Integration Examples for MiroFish")
+    print("MiniMax M2.7 Integration Examples for Simuloo")
     print("=" * 70)
 
     print("\n✅ Example 1: Simple Chat")
@@ -372,7 +372,7 @@ if __name__ == "__main__":
     print("-" * 70)
     # example_highspeed_model()
 
-    print("\n✅ Example 9: MiroFish Integration")
+    print("\n✅ Example 9: Simuloo Integration")
     print("-" * 70)
     # example_mirofish_integration()
 

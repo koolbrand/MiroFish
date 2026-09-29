@@ -121,7 +121,7 @@ def sanitize_user_text(value: str, *, max_chars: int = _USER_TEXT_MAX_CHARS, fie
     return _CONTROL_CHARS_RE.sub("", value)
 
 
-# Magic-byte signatures for the binary file types Mirror accepts as uploads.
+# Magic-byte signatures for the binary file types Simuloo accepts as uploads.
 # Validating by content (not just extension) prevents an authenticated user
 # from disguising arbitrary payloads as PDFs/images and feeding them to the
 # parsers (PyMuPDF, Pillow), which historically have had CVEs reachable via

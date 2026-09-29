@@ -37,8 +37,8 @@
     "files": "个文件"
   },
   "meta": {
-    "title": "Mirror - 预测万物",
-    "description": "Mirror - 社交媒体舆论模拟系统"
+    "title": "Simuloo - 预测万物",
+    "description": "Simuloo - 社交媒体舆论模拟系统"
   },
   "nav": {
     "visitGithub": "访问我们的Github主页",
@@ -89,7 +89,7 @@
     "heroTitle1": "上传任意报告",
     "heroTitle2": "即刻推演未来",
     "heroDesc": "即使只有一段文字，{brand} 也能基于其中的现实种子，全自动生成与之对应的至多{agentScale}构成的平行世界。通过上帝视角注入变量，在复杂的群体交互中寻找动态环境下的{optimalSolution}",
-    "heroDescBrand": "Mirror",
+    "heroDescBrand": "Simuloo",
     "heroDescAgentScale": "百万级Agent",
     "heroDescOptimalSolution": "\"局部最优解\"",
     "slogan": "让未来在 Agent 群中预演，让决策在百战后胜出",
@@ -118,7 +118,7 @@
     "inputParams": "输入参数",
     "simulationPrompt": ">_ 03 / 模拟提示词",
     "promptPlaceholder": "// 用自然语言输入模拟或预测需求（例.武大若发布撤销肖某处分的公告，会引发什么舆情走向）",
-    "engineBadge": "引擎: Mirror-V1.0",
+    "engineBadge": "引擎: Simuloo-V1.0",
     "startEngine": "启动引擎",
     "initializing": "初始化中...",
     "projectName": "02 / 项目名称",
@@ -219,7 +219,7 @@
     "setupComplete": "准备完成",
     "setupCompleteDesc": "模拟环境已准备完成，可以开始运行模拟",
     "roundsConfig": "模拟轮数设定",
-    "roundsConfigDesc": "Mirror 自动规划推演现实 {hours} 小时，每轮代表现实 {minutesPerRound} 分钟时间流逝",
+    "roundsConfigDesc": "Simuloo 自动规划推演现实 {hours} 小时，每轮代表现实 {minutesPerRound} 分钟时间流逝",
     "customToggle": "自定义",
     "roundsUnit": "轮",
     "estimatedDuration": "若Agent规模为100：预计耗时约 {minutes} 分钟",
@@ -355,7 +355,7 @@
     "selectChatTarget": "选择对话对象",
     "sendSurvey": "发送问卷调查到世界中",
     "reportAgentChat": "Report Agent - Chat",
-    "reportAgentDesc": "报告生成智能体的快速对话版本，可调用 4 种专业工具，拥有Mirror的完整记忆",
+    "reportAgentDesc": "报告生成智能体的快速对话版本，可调用 4 种专业工具，拥有Simuloo的完整记忆",
     "toolInsightForge": "InsightForge 深度归因",
     "toolInsightForgeDesc": "对齐现实世界种子数据与模拟环境状态，结合Global/Local Memory机制，提供跨时空的深度归因分析",
     "toolPanoramaSearch": "PanoramaSearch 全景追踪",
@@ -855,10 +855,10 @@
     "openLabel": "教程",
     "openTooltip": "打开交互式教程",
     "home": {
-      "welcomeTitle": "欢迎使用 MiroFish",
+      "welcomeTitle": "欢迎使用 Simuloo",
       "welcomeBody": "通过 6 个步骤带您了解主界面，帮您启动第一次模拟。您可以随时跳过，也可以通过右上角的「?」按钮再次打开。",
       "uploadTitle": "1. 上传现实种子",
-      "uploadBody": "将描述待模拟世界的 PDF、笔记或图片拖入此处（品牌简报、方案、会议记录等）。MiroFish 会从中抽取实体与关系并构建图谱。",
+      "uploadBody": "将描述待模拟世界的 PDF、笔记或图片拖入此处（品牌简报、方案、会议记录等）。Simuloo 会从中抽取实体与关系并构建图谱。",
       "nameTitle": "2. 为项目命名",
       "nameBody": "可选但建议填写：该名称会出现在项目列表、页面头部以及最终下载的 .md 报告文件名中。",
       "promptTitle": "3. 描述您要模拟的内容",
@@ -872,7 +872,7 @@
       "welcomeTitle": "5 步向导",
       "welcomeBody": "您正处于第 1 步 —— 图谱构建。让我来介绍三个关键区域。",
       "graphTitle": "左侧面板 — 实时图谱",
-      "graphBody": "MiroFish 正在根据您的种子构建的世界。节点为实体，边为关系。支持缩放、拖动与刷新。",
+      "graphBody": "Simuloo 正在根据您的种子构建的世界。节点为实体，边为关系。支持缩放、拖动与刷新。",
       "stepTitle": "右侧面板 — 步骤控制",
       "stepBody": "在这里推进当前阶段：本体、图谱构建、系统日志。第 1 步完成后，会出现进入第 2 步的按钮。",
       "stepperTitle": "进度指示器",

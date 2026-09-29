@@ -1,6 +1,6 @@
 <div align="center">
 
-# MIRROR — by Koolbrand
+# SIMULOO — by Koolbrand
 
 **Motor de simulación de opinión pública con IA multi-agente.**  
 *Predice reacciones de mercado, opinión pública y dinámicas sociales — antes de que ocurran.*
@@ -19,9 +19,9 @@
 
 ---
 
-## ¿Qué es Mirror?
+## ¿Qué es Simuloo?
 
-Mirror te permite subir documentos del mundo real — informes, noticias, campañas — y simular cómo miles de agentes de IA con personalidades, memorias y comportamientos independientes reaccionarían a ellos. El resultado: un informe de predicción detallado sobre dinámicas sociales, opinión pública o respuesta de mercado **antes de que ocurran**.
+Simuloo te permite subir documentos del mundo real — informes, noticias, campañas — y simular cómo miles de agentes de IA con personalidades, memorias y comportamientos independientes reaccionarían a ellos. El resultado: un informe de predicción detallado sobre dinámicas sociales, opinión pública o respuesta de mercado **antes de que ocurran**.
 
 > Sube documentos → describe tu hipótesis → obtén un informe completo con agentes interactivos
 
@@ -33,7 +33,7 @@ Mirror te permite subir documentos del mundo real — informes, noticias, campa�
 
 Este fork toma el motor original MiroFish y lo convierte en una herramienta **lista para producción**, **autoalojada** y **lista para demos con clientes**.
 
-### 🪞 Rebrand — Mirror by Koolbrand
+### Rebrand — Simuloo by Koolbrand
 
 Rediseño completo de identidad visual:
 - Logo SVG propio `MIRЯOR` (wordmark con R invertida)
@@ -96,7 +96,7 @@ Traducción completa en español, inglés y chino en los 17 módulos de UI. Las 
 ### 🐳 Docker Compose — despliegue en un click
 
 `docker-compose.yml` completo con:
-- Contenedor de la app Mirror
+- Contenedor de la app Simuloo
 - Contenedor Neo4j con plugin APOC
 - Health checks y restart automáticos
 - Compatible con [Coolify](https://coolify.io/) para self-hosting sin operaciones
@@ -190,7 +190,7 @@ NEO4J_PASSWORD=change_me_please
 docker compose up -d
 ```
 
-Esto inicia **dos contenedores**: la app Mirror (puerto 8000) y Neo4j. Espera ~40s para que Neo4j inicialice, luego abre:
+Esto inicia **dos contenedores**: la app Simuloo (puerto 8000) y Neo4j. Espera ~40s para que Neo4j inicialice, luego abre:
 
 ```
 http://localhost:8000
@@ -263,7 +263,7 @@ Guía completa: [COOLIFY_DEPLOYMENT.md](./COOLIFY_DEPLOYMENT.md)
 
 | Característica | Original | Este fork |
 |---|---|---|
-| Identidad visual | MiroFish genérico | Mirror by Koolbrand — logo + hero D3 ✅ |
+| Identidad visual | MiroFish genérico | Simuloo by Koolbrand — logo + hero D3 ✅ |
 | Arquitectura LLM | LLM único | Dual-LLM — reasoning + structured-output ✅ |
 | Calidad extracción grafo | ~50 % JSON inválido | Parser robusto 3-pass + modelo separado ✅ |
 | Memoria de grafo | Zep Cloud (externo, limitado) | Graphiti + Neo4j autoalojado ✅ |

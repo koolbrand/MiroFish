@@ -1,4 +1,4 @@
-# 🚀 MiniMax M2.7 Integration Guide for MiroFish
+# 🚀 MiniMax M2.7 Integration Guide for Simuloo
 
 ## Overview
 
@@ -8,7 +8,7 @@
 - ⚡ ~60 tps output speed (M2.7-highspeed: ~100 tps)
 - 🔄 Compatible with OpenAI SDK
 
-This guide explains how to use MiniMax M2.7 in MiroFish using **Token Plan**.
+This guide explains how to use MiniMax M2.7 in Simuloo using **Token Plan**.
 
 ---
 
@@ -54,7 +54,7 @@ This guide explains how to use MiniMax M2.7 in MiroFish using **Token Plan**.
 
 ---
 
-## 3️⃣ Configuration in MiroFish
+## 3️⃣ Configuration in Simuloo
 
 ### Option A: Using OpenAI Compatible API (Native)
 
@@ -96,7 +96,7 @@ MiniMax-M2                # Legacy, agentic
 
 ### Backend Configuration
 
-The MiroFish backend **already supports** OpenAI/Anthropic compatible APIs!
+The Simuloo backend **already supports** OpenAI/Anthropic compatible APIs!
 
 File: `backend/app/config.py`
 
@@ -139,7 +139,7 @@ class LLMClient:
 
 ## 5️⃣ API Calling Examples
 
-### Python Example (MiroFish Backend)
+### Python Example (Simuloo Backend)
 
 ```python
 from backend.app.utils.llm_client import LLMClient
@@ -151,7 +151,7 @@ client = LLMClient()
 response = client.chat(
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is MiroFish?"}
+        {"role": "user", "content": "What is Simuloo?"}
     ],
     temperature=0.7,
     max_tokens=1024
@@ -209,11 +209,11 @@ content = response.choices[0].message.content
 
 ---
 
-## 6️⃣ Important Notes for MiroFish
+## 6️⃣ Important Notes for Simuloo
 
 ### ✅ Already Handled
 
-The MiroFish backend already:
+The Simuloo backend already:
 - ✅ Uses OpenAI SDK (compatible with MiniMax)
 - ✅ Strips `<think>` tags from responses (line 66-67 in llm_client.py)
 - ✅ Handles JSON responses
@@ -318,7 +318,7 @@ print(response.choices[0].message.content)
 "
 ```
 
-### 2. Test in MiroFish
+### 2. Test in Simuloo
 
 ```bash
 # Run backend
@@ -373,7 +373,7 @@ Visit: https://platform.minimax.io/user-center/basic-information/interface-key
 
 ## Summary
 
-To use MiniMax M2.7 in MiroFish:
+To use MiniMax M2.7 in Simuloo:
 
 1. ✅ Subscribe to Token Plan at https://platform.minimax.io/subscribe/token-plan
 2. ✅ Create API Key at https://platform.minimax.io/user-center/basic-information/interface-key
@@ -385,7 +385,7 @@ To use MiniMax M2.7 in MiroFish:
    ```
 4. ✅ Run `npm run backend` - it works automatically!
 
-The MiroFish backend is **already compatible** with MiniMax M2.7! 🎉
+The Simuloo backend is **already compatible** with MiniMax M2.7! 🎉
 
 ---
 
