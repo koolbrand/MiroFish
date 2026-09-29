@@ -18,7 +18,7 @@
       :class="[`is-${b.bucket}`, `to-${b.side}`, `kind-${b.kind}`, `dir-${b.dir}`]"
       :style="{ maxWidth: `${b.width}px` }"
     >
-      <span class="crowd-bubble-who"><i class="swatch" :class="`is-${b.bucket}`"></i>{{ b.who }}</span>
+      <span class="crowd-bubble-who"><i class="swatch" :class="`is-${b.bucket}`"></i><span class="who-text">{{ b.who }}</span></span>
       <span class="crowd-bubble-text">{{ b.text }}</span>
     </div>
 
@@ -408,53 +408,73 @@ const drift = (dt) => {
   for (const a of agents) a.o += (a.lean * 0.9 - a.o) * 0.02 * heat * dt * (1 - a.stub * 0.5)
 }
 
-const BUBBLE_H = 76
+// ── Colocación de bocadillos ─────────────────────────────────────────────────
+// Un bocadillo va encima de la cabeza (lo habitual), debajo o a un lado; hacia
+// el lado con más pared y, si ahí no cabe, hacia el otro; y si ni así, se
+// estrecha (hasta MIN_BW). Nunca pisa la tarjeta, el marcador ni el borde.
+const MIN_BW = 150
 const bubbleW = () => (W < 700 ? 180 : W < 1280 ? 200 : 230)
-// Encima de la cabeza por defecto; debajo cuando arriba no cabe (al pulsar una
-// Bianka pegada al borde superior).
-const anchorOf = (a, dir = 'up') => ({ x: a.x + 12.5 * P, y: a.y + (dir === 'down' ? 22 : 11) * P })
+const heightFor = (w) => (w >= 210 ? 76 : w >= 175 ? 88 : 104)
 const otherSide = (side) => (side === 'left' ? 'right' : 'left')
-const bubbleBox = (a, dir = 'up', forcedSide = null) => {
-  const w = bubbleW()
-  const { x, y } = anchorOf(a, dir)
-  // por defecto se abre hacia el lado con más pared; si ahí no cabe, se prueba el otro
-  const side = forcedSide || (x > W / 2 ? 'left' : 'right')
+
+// Punto de la cabeza al que se ancla el bocadillo
+const anchorOf = (a, dir = 'up', side = 'right') => {
+  if (dir === 'side') return { x: a.x + (side === 'right' ? 19.5 : 5.5) * P, y: a.y + 16 * P }
+  return { x: a.x + 12.5 * P, y: a.y + (dir === 'down' ? 22 : 11) * P }
+}
+const preferredSide = (a) => (anchorOf(a).x > W / 2 ? 'left' : 'right')
+const boxFor = (a, dir, side, w, h) => {
+  const { x, y } = anchorOf(a, dir, side)
+  if (dir === 'side') {
+    const l = side === 'right' ? x + 12 : x - 12 - w
+    return { l, r: l + w, t: y - h / 2, b: y + h / 2 }
+  }
   const l = side === 'right' ? x - 18 : x + 18 - w
   return dir === 'down'
-    ? { side, l, r: l + w, t: y + 12, b: y + 12 + BUBBLE_H }
-    : { side, l, r: l + w, t: y - 12 - BUBBLE_H, b: y - 12 }
+    ? { l, r: l + w, t: y + 12, b: y + 12 + h }
+    : { l, r: l + w, t: y - 12 - h, b: y - 12 }
 }
-const boxFree = (box) => {
+const boxOf = (bb) => boxFor(agents[bb.agent], bb.dir, bb.side, bb.width, bb.height)
+const boxesTouch = (p, q, gap) => p.l < q.r + gap && p.r > q.l - gap && p.t < q.b + gap && p.b > q.t - gap
+
+// ignoreBubbles: solo cuentan los bordes, la tarjeta y el marcador
+const boxFree = (box, ignoreBubbles = false) => {
   if (box.l < 8 || box.r > W - 8 || box.t < 8 || box.b > H - 8) return false
   if (hitsAvoid(box, 12)) return false
-  return !bubbles.value.some(bb => {
-    const o = agents[bb.agent]
-    if (!o) return false
-    const ob = bubbleBox(o, bb.dir, bb.side)
-    return box.l < ob.r + 14 && box.r > ob.l - 14 && box.t < ob.b + 14 && box.b > ob.t - 14
-  })
+  if (ignoreBubbles) return true
+  return !bubbles.value.some(bb => agents[bb.agent] && boxesTouch(box, boxOf(bb), 14))
 }
-// Devuelve el lado en el que cabe el bocadillo, o false si no cabe en ninguno.
-const bubbleFits = (a, dir = 'up') => {
-  const first = bubbleBox(a, dir).side
-  for (const side of [first, otherSide(first)]) {
-    if (boxFree(bubbleBox(a, dir, side))) return side
+
+// Dónde poner el bocadillo de una Bianka: { dir, side, width, height } o null.
+// Prefiere el ancho completo en cualquiera de los dos lados antes de estrecharlo.
+const placeBubble = (a, dirs = ['up', 'side'], ignoreBubbles = false) => {
+  const first = preferredSide(a)
+  const full = bubbleW()
+  const widths = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
+  for (const dir of dirs) {
+    for (const width of widths) {
+      const height = heightFor(width)
+      for (const side of [first, otherSide(first)]) {
+        if (boxFree(boxFor(a, dir, side, width, height), ignoreBubbles)) return { dir, side, width, height }
+      }
+    }
   }
-  return false
+  return null
 }
 
 const speaking = (i) => bubbles.value.some(b => b.agent === i)
 
-const addBubble = (i, text, kind, life, dir = 'up', side = null) => {
+const addBubble = (i, text, kind, life, place) => {
   const a = agents[i]
   const bucket = bucketOf(a.o)
   const id = ++bubbleSeq
   bubbles.value.push({
     id, agent: i, bucket, text, kind,
     who: `${t(`home.biankas.${a.look.persona}`)} · ${bucketLabel(bucket).toLowerCase()}`,
-    side: side || bubbleBox(a, dir).side,
-    dir,
-    width: bubbleW(),
+    side: place.side,
+    dir: place.dir,
+    width: place.width,
+    height: place.height,
   })
   a.talkUntil = now + Math.min(life - 0.6, 2.2)
   setTimeout(() => { bubbles.value = bubbles.value.filter(b => b.id !== id) }, life * 1000)
@@ -469,21 +489,24 @@ const neighborsOf = (i, radius) => {
     .filter(n => n.j !== i && n.d < radius)
 }
 
-const startConversation = (forced = null, dir = 'up', forcedSide = null) => {
+const startConversation = (forced = null, forcedPlace = null) => {
   const max = W < 700 ? 2 : 4
   if (bubbles.value.length >= max && forced === null) return
   let i = forced
+  let place = forcedPlace
   if (i === null) {
     for (let tries = 0; tries < 60; tries++) {
       const k = Math.floor(Math.random() * agents.length)
-      if (!speaking(k) && headVisible(agents[k]) && bubbleFits(agents[k])) { i = k; break }
+      if (speaking(k) || !headVisible(agents[k])) continue
+      const found = placeBubble(agents[k])
+      if (found) { i = k; place = found; break }
     }
   }
-  if (i === null || speaking(i)) return
+  if (i === null || speaking(i) || !place) return
   const a = agents[i]
   const bucket = bucketOf(a.o)
   const pool = { favor: [1, 2, 3], undecided: [4, 5, 6], against: [7, 8, 9] }[bucket]
-  addBubble(i, t(`home.crowdVoice${pick(pool)}`), 'say', 3.6, dir, forcedSide || bubbleFits(a, dir) || null)
+  addBubble(i, t(`home.crowdVoice${pick(pool)}`), 'say', 3.6, place)
   const myEpoch = epoch
   a.hopAt = now
   // Las vecinas giran los ojos hacia quien habla
@@ -493,10 +516,11 @@ const startConversation = (forced = null, dir = 'up', forcedSide = null) => {
   const candidates = near.filter(n => !speaking(n.j) && headVisible(agents[n.j]))
   setTimeout(() => {
     if (myEpoch !== epoch || (!running && !forced)) return
-    const opts = candidates.filter(n => bubbleFits(agents[n.j]))
+    const opts = candidates
+      .map(n => ({ j: n.j, place: placeBubble(agents[n.j]) }))
+      .filter(o => o.place)
     if (!opts.length) return
-    const j = pick(opts).j
-    const replySide = bubbleFits(agents[j])
+    const { j, place: replyPlace } = pick(opts)
     const b = agents[j]
     const before = bucketOf(b.o)
     let changed = false
@@ -505,7 +529,7 @@ const startConversation = (forced = null, dir = 'up', forcedSide = null) => {
     // la respuesta debe cuadrar con lo que piensa quien contesta: quien está a favor no duda
     const key = changed ? pick([5, 6]) : after === bucketOf(a.o) ? pick([1, 2]) : after === 'favor' ? 3 : 4
     if (!changed && before !== bucketOf(a.o)) react(b, 'question', 0.9)
-    const id = addBubble(j, t(`home.crowdReply${key}`), 'reply', 3.0, 'up', replySide)
+    const id = addBubble(j, t(`home.crowdReply${key}`), 'reply', 3.0, replyPlace)
     b.lookAt = i; b.lookUntil = now + 2.6
     a.lookAt = j; a.lookUntil = now + 2.6
     threads.push({ from: i, to: j, until: now + 2.8, id })
@@ -634,9 +658,9 @@ const draw = () => {
     const el = bubbleEls.get(bub.id)
     const a = agents[bub.agent]
     if (!el || !a) continue
-    const { x, y } = anchorOf(a, bub.dir)
+    const { x, y } = anchorOf(a, bub.dir, bub.side)
     el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y + offsetOf(a))}px)`
-    el.style.visibility = hitsAvoid(bubbleBox(a, bub.dir, bub.side), 0) ? 'hidden' : ''
+    el.style.visibility = hitsAvoid(boxOf(bub), 0) ? 'hidden' : ''
   }
 }
 
@@ -701,23 +725,37 @@ const agentAt = (x, y) => {
   }
   return null
 }
+// Bajo el marcador (que deja pasar los eventos) o la franja que tapa el formulario
+// hay Biankas que no se ven: ahí ni cambia el cursor ni responde el clic.
+const coveredAt = (x, y) => hitsAvoid({ l: x, r: x, t: y, b: y }, 0)
 const onPointerMove = (e) => {
   if (!root.value) return
   const c = root.value.getBoundingClientRect()
   const x = e.clientX - c.left, y = e.clientY - c.top
   pointer = x >= 0 && y >= 0 && x <= c.width && y <= c.height ? { x, y } : null
-  hovering.value = pointer !== null && e.target === canvas.value && agentAt(x, y) !== null
+  hovering.value = pointer !== null && e.target === canvas.value && !coveredAt(x, y) && agentAt(x, y) !== null
 }
 const onClick = (e) => {
   const c = root.value.getBoundingClientRect()
-  const k = agentAt(e.clientX - c.left, e.clientY - c.top)
+  const x = e.clientX - c.left, y = e.clientY - c.top
+  if (coveredAt(x, y)) return
+  const k = agentAt(x, y)
   if (k === null || speaking(k)) return
   measureAvoid()
-  const upSide = bubbleFits(agents[k], 'up')
-  const downSide = upSide ? false : bubbleFits(agents[k], 'down')
-  if (upSide) startConversation(k, 'up', upSide)
-  else if (downSide) startConversation(k, 'down', downSide)
-  else react(agents[k], 'bang', 0.8)
+  const a = agents[k]
+  const dirs = ['up', 'down', 'side']
+  let place = placeBubble(a, dirs)
+  if (!place) {
+    // El clic manda: si solo estorban otros bocadillos, se retiran para dejarle sitio.
+    place = placeBubble(a, dirs, true)
+    if (place) {
+      const box = boxFor(a, place.dir, place.side, place.width, place.height)
+      bubbles.value = bubbles.value.filter(bb => agents[bb.agent] && !boxesTouch(box, boxOf(bb), 14))
+    }
+  }
+  // Sin sitio ni retirando bocadillos (pegada a la tarjeta, al marcador o al borde): solo reacciona.
+  if (place) startConversation(k, place)
+  else react(a, 'bang', 0.8)
 }
 
 // Sin animación: las diez rondas de golpe y el resultado quieto.
@@ -792,6 +830,8 @@ onUnmounted(() => {
 .crowd-bubble.to-left { translate: calc(-100% + 18px) calc(-100% - 12px); }
 .crowd-bubble.dir-down { translate: -18px 12px; }
 .crowd-bubble.dir-down.to-left { translate: calc(-100% + 18px) 12px; }
+.crowd-bubble.dir-side { translate: 12px -50%; }
+.crowd-bubble.dir-side.to-left { translate: calc(-100% - 12px) -50%; }
 /* pico escalonado, en píxeles */
 .crowd-bubble::before,
 .crowd-bubble::after {
@@ -809,8 +849,14 @@ onUnmounted(() => {
 /* si se abre hacia abajo, el pico va arriba */
 .crowd-bubble.dir-down::before { bottom: auto; top: -8px; }
 .crowd-bubble.dir-down::after { bottom: auto; top: -12px; }
+/* al lado de la cabeza, el pico sale por el costado */
+.crowd-bubble.dir-side::before { bottom: auto; top: calc(50% - 4px); left: -8px; width: 6px; height: 8px; }
+.crowd-bubble.dir-side::after { bottom: auto; top: calc(50% - 2px); left: -12px; width: 4px; height: 4px; }
+.crowd-bubble.dir-side.to-left::before { left: auto; right: -8px; }
+.crowd-bubble.dir-side.to-left::after { left: auto; right: -12px; }
 .crowd-bubble-who {
-  display: inline-flex;
+  display: flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   font-family: var(--kb-font-mono);
@@ -820,6 +866,7 @@ onUnmounted(() => {
   color: var(--kb-muted);
   white-space: nowrap;
 }
+.who-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crowd-bubble-text {
   font-family: var(--kb-font-sans);
   font-size: 13px;
