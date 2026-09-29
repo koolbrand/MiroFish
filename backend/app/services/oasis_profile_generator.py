@@ -523,14 +523,22 @@ class OasisProfileGenerator:
         max_attempts = 3
         last_error = None
         
+        # Los modelos de razonamiento (MiniMax M3) ignoran a menudo el
+        # response_format y escriben el perfil en prosa: se pide JSON también en
+        # el mensaje y, si falla, el reintento incluye la respuesta y una
+        # corrección explícita (antes el primer intento fallaba con frecuencia).
+        json_only = ("Respond ONLY with the JSON object described above "
+                     "(no prose, no markdown, no YAML).")
+        messages = [
+            {"role": "system", "content": self._get_system_prompt(is_individual)},
+            {"role": "user", "content": f"{prompt}\n\n{json_only}"}
+        ]
+
         for attempt in range(max_attempts):
             try:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": self._get_system_prompt(is_individual)},
-                        {"role": "user", "content": prompt}
-                    ],
+                    messages=messages,
                     response_format={"type": "json_object"},
                     temperature=0.7 - (attempt * 0.1)  # 每次重试降低温度
                     # 不设置max_tokens，让LLM自由发挥
@@ -566,6 +574,10 @@ class OasisProfileGenerator:
                         return result
                     
                     last_error = je
+                    messages = messages[:2] + [
+                        {"role": "assistant", "content": (content or "")[:4000]},
+                        {"role": "user", "content": "That was not JSON. " + json_only},
+                    ]
                     
             except Exception as e:
                 logger.warning(f"Fallo en la llamada al LLM (attempt {attempt+1}): {str(e)[:80]}")

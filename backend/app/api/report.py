@@ -64,6 +64,20 @@ def _build_report_filename(report) -> str:
 
 # ============== 报告生成接口 ==============
 
+# Un doble clic o dos pestañas lanzaban dos informes en paralelo (el doble de
+# llamadas al LLM). Si ya hay uno generándose para la simulación, se reutiliza.
+_generate_lock = threading.Lock()
+
+
+def _find_active_report_task(simulation_id: str):
+    for task in TaskManager().list_tasks(task_type="report_generate"):
+        if (task.get("metadata") or {}).get("simulation_id") != simulation_id:
+            continue
+        if task.get("status") in (TaskStatus.PENDING.value, TaskStatus.PROCESSING.value):
+            return task
+    return None
+
+
 @report_bp.route('/generate', methods=['POST'])
 def generate_report():
     """
@@ -215,16 +229,33 @@ def generate_report():
         import uuid
         report_id = f"report_{uuid.uuid4().hex[:12]}"
         
-        # 创建异步任务
+        # 创建异步任务 (reutiliza el que ya esté en marcha para esta simulación)
         task_manager = TaskManager()
-        task_id = task_manager.create_task(
-            task_type="report_generate",
-            metadata={
-                "simulation_id": simulation_id,
-                "graph_id": graph_id,
-                "report_id": report_id
-            }
-        )
+        with _generate_lock:
+            active = _find_active_report_task(simulation_id)
+            if active:
+                active_report_id = (active.get("metadata") or {}).get("report_id")
+                logger.info(f"Informe ya en generación para {simulation_id}: se reutiliza {active_report_id}")
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "simulation_id": simulation_id,
+                        "report_id": active_report_id,
+                        "task_id": active["task_id"],
+                        "status": "generating",
+                        "message": t('api.reportGenerateStarted'),
+                        "already_generated": False,
+                        "already_running": True,
+                    }
+                })
+            task_id = task_manager.create_task(
+                task_type="report_generate",
+                metadata={
+                    "simulation_id": simulation_id,
+                    "graph_id": graph_id,
+                    "report_id": report_id
+                }
+            )
         
         # Capture locale before spawning background thread
         current_locale = get_locale()
