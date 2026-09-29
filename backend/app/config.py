@@ -53,6 +53,9 @@ class Config:
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
     # Tope de max_tokens al reintentar respuestas cortadas (modelos de razonamiento)
     LLM_MAX_TOKENS_CAP = int(os.environ.get('LLM_MAX_TOKENS_CAP', '32768'))
+    # Construcción del grafo: tope por llamada al LLM/embeddings y por fragmento
+    GRAPH_LLM_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_LLM_TIMEOUT_SECONDS', '180'))
+    GRAPH_EPISODE_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_EPISODE_TIMEOUT_SECONDS', '900'))
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph

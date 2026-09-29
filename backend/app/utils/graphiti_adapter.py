@@ -3,6 +3,7 @@ Graphiti adapter — wraps graphiti-core async API in sync interface
 compatible with the existing Zep Cloud usage patterns.
 """
 import asyncio
+import concurrent.futures
 import inspect
 import json
 import logging
@@ -16,6 +17,7 @@ from datetime import datetime, timezone
 from difflib import get_close_matches
 from typing import Optional
 
+from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, create_model
 
 from graphiti_core import Graphiti
@@ -781,11 +783,19 @@ def _get_bg_loop() -> asyncio.AbstractEventLoop:
     return _bg_loop
 
 
-def _run(coro):
-    """Run async coroutine from any sync context using the shared event loop."""
+def _run(coro, timeout: Optional[float] = None):
+    """Run async coroutine from any sync context using the shared event loop.
+
+    Con `timeout`, cancela la corrutina si se pasa (TimeoutError) en vez de
+    bloquear el hilo para siempre.
+    """
     loop = _get_bg_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result()  # blocks until the coroutine finishes
+    try:
+        return future.result(timeout=timeout)  # blocks until the coroutine finishes
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise TimeoutError(f"graph operation exceeded {timeout:.0f}s") from None
 
 
 @dataclass
@@ -990,13 +1000,28 @@ class GraphitiGraphClient:
             base_url=Config.GRAPHITI_LLM_BASE_URL,
             model=Config.GRAPHITI_LLM_MODEL_NAME,
         )
-        llm_client = ThinkingAwareOpenAIClient(config=graphiti_config)
+        # Tiempo máximo por llamada explícito: el valor por defecto de la
+        # librería (600 s × 3 intentos) permitía que una petición colgada
+        # bloquease un fragmento hasta 30 min y el grafo no terminase nunca.
+        def _client(api_key, base_url):
+            return AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=Config.GRAPH_LLM_TIMEOUT_SECONDS,
+                max_retries=2,
+            )
+
+        llm_client = ThinkingAwareOpenAIClient(
+            config=graphiti_config,
+            client=_client(Config.GRAPHITI_LLM_API_KEY, Config.GRAPHITI_LLM_BASE_URL),
+        )
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(
                 api_key=Config.EMBEDDING_API_KEY,
                 base_url=Config.EMBEDDING_BASE_URL,
                 embedding_model=Config.EMBEDDING_MODEL,
-            )
+            ),
+            client=_client(Config.EMBEDDING_API_KEY, Config.EMBEDDING_BASE_URL),
         )
         # Defensive: OpenAI's /embeddings endpoint rejects any empty-string
         # input with HTTP 400 ("input[N] cannot be an empty string"). Graphiti
@@ -1005,7 +1030,10 @@ class GraphitiGraphClient:
         # `create` and substitute blanks with a single space — OpenAI accepts
         # that and returns a usable (near-zero) vector.
         _sanitize_embed_inputs(embedder)
-        cross_encoder = OpenAIRerankerClient(config=graphiti_config)
+        cross_encoder = OpenAIRerankerClient(
+            config=graphiti_config,
+            client=_client(Config.GRAPHITI_LLM_API_KEY, Config.GRAPHITI_LLM_BASE_URL),
+        )
         self._graphiti = Graphiti(
             Config.NEO4J_URI,
             Config.NEO4J_USER,
@@ -1110,7 +1138,9 @@ class GraphitiGraphClient:
         if edge_type_map and _SUPPORTS_EDGE_TYPE_MAP:
             kwargs['edge_type_map'] = edge_type_map
 
-        _run(self._graphiti.add_episode(**kwargs))
+        # Tope por fragmento: si se pasa, add_batch lo registra y sigue con el
+        # siguiente en lugar de dejar el grafo colgado.
+        _run(self._graphiti.add_episode(**kwargs), timeout=Config.GRAPH_EPISODE_TIMEOUT_SECONDS)
         return FakeEpisode(uuid_=ep_uuid, processed=True)
 
     def add_batch(self, graph_id: str, episodes: list) -> list:

@@ -30,3 +30,13 @@ def test_progress_per_chunk_with_heartbeat(monkeypatch):
     # Latidos: más avisos que fragmentos mientras cada uno tarda
     assert len(calls) > 4
     assert calls == sorted(calls)
+
+
+def test_graph_operation_timeout_does_not_block_forever():
+    import asyncio
+    import pytest
+    from app.utils.graphiti_adapter import _run
+
+    with pytest.raises(TimeoutError):
+        _run(asyncio.sleep(5), timeout=0.2)
+    assert _run(asyncio.sleep(0, result="ok"), timeout=2) == "ok"
