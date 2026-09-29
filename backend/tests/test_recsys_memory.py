@@ -40,9 +40,10 @@ def test_lotes_acotados_y_truncado():
     assert recsys_memory.apply()
     from oasis.social_platform import recsys
 
+    recsys_memory._cache.clear()
     tok, model = FakeTokenizer(), FakeModel()
     # OASIS pide lotes de 1000: con el tope deben salir lotes de 64 como mucho
-    vectors = recsys.generate_post_vector(model, tok, ['texto'] * 150, batch_size=1000)
+    vectors = recsys.generate_post_vector(model, tok, [f'texto {i}' for i in range(150)], batch_size=1000)
 
     assert tuple(vectors.shape) == (150, 4)
     sizes = [n for n, _ in tok.calls]
@@ -58,3 +59,31 @@ def test_apply_es_idempotente():
     first = recsys.generate_post_vector
     assert recsys_memory.apply()
     assert recsys.generate_post_vector is first
+
+
+def test_solo_se_codifican_los_textos_nuevos():
+    assert recsys_memory.apply()
+    from oasis.social_platform import recsys
+    recsys_memory._cache.clear()
+
+    tok, model = FakeTokenizer(), FakeModel()
+    ronda1 = [f'publicación {i}' for i in range(100)]
+    recsys.generate_post_vector(model, tok, ronda1, batch_size=1000)
+    tok.calls.clear()
+
+    # siguiente refresco: las 100 de antes + 10 nuevas → solo se codifican las 10
+    ronda2 = ronda1 + [f'nueva {i}' for i in range(10)]
+    vectors = recsys.generate_post_vector(model, tok, ronda2, batch_size=1000)
+    assert tuple(vectors.shape) == (110, 4)
+    assert [n for n, _ in tok.calls] == [10]
+
+
+def test_textos_repetidos_en_la_misma_llamada():
+    assert recsys_memory.apply()
+    from oasis.social_platform import recsys
+    recsys_memory._cache.clear()
+
+    tok, model = FakeTokenizer(), FakeModel()
+    vectors = recsys.generate_post_vector(model, tok, ['igual'] * 5 + ['otro'], batch_size=1000)
+    assert tuple(vectors.shape) == (6, 4)
+    assert [n for n, _ in tok.calls] == [2]
