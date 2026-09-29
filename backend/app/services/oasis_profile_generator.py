@@ -232,15 +232,42 @@ class OasisProfileGenerator:
         
         # 构建上下文信息
         context = self._build_entity_context(entity)
+
+        # Marcas del filtro de Jev (entity_role_filter): la audiencia se genera
+        # como persona individual y las variantes como personas distintas.
+        raw_attrs = entity.attributes or {}
+        force_individual = bool(raw_attrs.get('__simuloo_individual'))
+        variant = raw_attrs.get('__simuloo_variant')
+        topic = raw_attrs.get('__simuloo_topic')
+        prompt_attrs = {k: v for k, v in raw_attrs.items() if not str(k).startswith('__')}
+        summary = entity.summary or ''
+        if force_individual:
+            summary += (
+                "\n\nGenera UNA persona concreta y creíble que pertenece a este público "
+                "(nombre propio, edad, situación familiar y laboral, lo que le preocupa y cómo "
+                "lo resuelve hoy), no una cuenta colectiva que represente al grupo."
+            )
+            if topic:
+                summary += (
+                    f"\nLa simulación trata sobre: «{topic}». La persona vive en el país o "
+                    "la región de los que habla ese tema (no la sitúes por defecto en España "
+                    "si el tema es de otro mercado)."
+                )
+        if variant:
+            summary += (
+                f"\nEsta es la persona n.º {variant} de este grupo: tiene que ser claramente "
+                "distinta de las demás (otra edad, otra situación, otra opinión y otro tono)."
+            )
         
         if use_llm:
             # 使用LLM生成详细人设
             profile_data = self._generate_profile_with_llm(
                 entity_name=name,
                 entity_type=entity_type,
-                entity_summary=entity.summary,
-                entity_attributes=entity.attributes,
-                context=context
+                entity_summary=summary,
+                entity_attributes=prompt_attrs,
+                context=context,
+                force_individual=force_individual,
             )
         else:
             # 使用规则生成基础人设
@@ -248,7 +275,7 @@ class OasisProfileGenerator:
                 entity_name=name,
                 entity_type=entity_type,
                 entity_summary=entity.summary,
-                entity_attributes=entity.attributes
+                entity_attributes=prompt_attrs
             )
         
         return OasisAgentProfile(
@@ -498,7 +525,8 @@ class OasisProfileGenerator:
         entity_type: str,
         entity_summary: str,
         entity_attributes: Dict[str, Any],
-        context: str
+        context: str,
+        force_individual: bool = False,
     ) -> Dict[str, Any]:
         """
         使用LLM生成非常详细的人设
@@ -508,7 +536,7 @@ class OasisProfileGenerator:
         - 群体/机构实体：生成代表性账号设定
         """
         
-        is_individual = self._is_individual_entity(entity_type)
+        is_individual = force_individual or self._is_individual_entity(entity_type)
         
         if is_individual:
             prompt = self._build_individual_persona_prompt(

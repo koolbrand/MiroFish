@@ -1008,6 +1008,9 @@ const logEntityFilter = (summary) => {
   if ((summary.dropped || []).length) {
     addLog(t('log.jevFilterDropped', { names: summary.dropped.map(d => d.name).join(', ') }))
   }
+  if (summary.audience_expanded) {
+    addLog(t('log.jevAudienceExpanded', { count: summary.audience_expanded }))
+  }
   if (summary.low_audience) {
     addLog(t('log.jevLowAudience', { audience, minimum: 40 }))
   }

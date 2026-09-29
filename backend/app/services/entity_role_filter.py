@@ -71,11 +71,14 @@ class EntityRoleResult:
     classified: int = 0
     applied: bool = False
     reason: str = ""
+    roles_by_uuid: Dict[str, str] = field(default_factory=dict)
+    audience_expanded: int = 0
 
     @property
     def audience_ratio(self) -> Optional[float]:
-        total = sum(self.roles.values())
-        return (self.roles.get(AUDIENCE_ROLE, 0) / total) if total else None
+        # Sobre los agentes que quedan de verdad (incluidos los que Jev no clasificó)
+        total = len(self.kept)
+        return (self.roles.get(AUDIENCE_ROLE, 0) / total) if total > 0 else None
 
     def summary(self) -> Dict:
         ratio = self.audience_ratio
@@ -90,6 +93,7 @@ class EntityRoleResult:
             "low_audience": (
                 ratio is not None and ratio < Config.JEV_MIN_AUDIENCE_RATIO
             ),
+            "audience_expanded": self.audience_expanded,
         }
 
 
@@ -148,6 +152,7 @@ def filter_entities(entities: list, topic: str) -> EntityRoleResult:
             continue
         result.classified += 1
         role = answer["role"]
+        result.roles_by_uuid[getattr(entity, "uuid", entity.name)] = role
         result.roles[role] = result.roles.get(role, 0) + 1
         if role == DROP_ROLE and answer["confidence"] >= Config.JEV_DROP_CONFIDENCE:
             result.dropped.append({"name": entity.name, "confidence": round(answer["confidence"], 2)})
@@ -168,3 +173,62 @@ def filter_entities(entities: list, topic: str) -> EntityRoleResult:
         f"{len(result.dropped)} descartadas (infraestructura), roles={result.roles}"
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Ampliación de audiencia
+# ---------------------------------------------------------------------------
+INDIVIDUAL_FLAG = "__simuloo_individual"
+VARIANT_HINT = "__simuloo_variant"
+TOPIC_HINT = "__simuloo_topic"
+
+
+def expand_audience(entities: list, result: EntityRoleResult, topic: str = "") -> list:
+    """Convierte la audiencia en personas y la amplía si queda por debajo del mínimo.
+
+    - Toda entidad con papel «audiencia» se marca para generarse como persona
+      individual (no como cuenta colectiva «que representa a…»).
+    - Si la audiencia es < JEV_MIN_AUDIENCE_RATIO, cada grupo de audiencia se
+      desdobla en variantes (personas distintas dentro del grupo) hasta el
+      umbral, con topes por grupo y en total para no disparar la memoria.
+    """
+    import copy
+    import math
+
+    if not result.applied:
+        return entities
+    audience = [e for e in entities if result.roles_by_uuid.get(getattr(e, "uuid", e.name)) == AUDIENCE_ROLE]
+    for e in audience:
+        e.attributes = dict(e.attributes or {})
+        e.attributes[INDIVIDUAL_FLAG] = True
+        if topic:
+            e.attributes[TOPIC_HINT] = topic[:600]
+    if not audience or not Config.AUDIENCE_EXPANSION:
+        return entities
+
+    total, n_aud, target = len(entities), len(audience), Config.JEV_MIN_AUDIENCE_RATIO
+    if n_aud / total >= target:
+        return entities
+    needed = math.ceil(round((target * total - n_aud) / (1 - target), 6))  # round: 0,4*8 = 3,2000000000000006
+    extra = min(needed, Config.AUDIENCE_MAX_EXTRA, n_aud * Config.AUDIENCE_MAX_VARIANTS)
+
+    variants, per_group = [], {id(e): 1 for e in audience}
+    i = 0
+    while len(variants) < extra:
+        base = audience[i % n_aud]
+        per_group[id(base)] += 1
+        n = per_group[id(base)]
+        v = copy.copy(base)
+        v.uuid = f"{getattr(base, 'uuid', base.name)}-v{n}"
+        v.name = f"{base.name} · {n}"
+        v.attributes = dict(base.attributes)
+        v.attributes[VARIANT_HINT] = n
+        v.related_edges = list(getattr(base, "related_edges", []) or [])
+        v.related_nodes = list(getattr(base, "related_nodes", []) or [])
+        variants.append(v)
+        i += 1
+    result.audience_expanded = len(variants)
+    result.kept = list(entities) + variants
+    result.roles[AUDIENCE_ROLE] = result.roles.get(AUDIENCE_ROLE, 0) + len(variants)
+    logger.info(f"Audiencia ampliada: {n_aud} grupos -> +{len(variants)} personas (total {total + len(variants)})")
+    return result.kept

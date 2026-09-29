@@ -751,7 +751,8 @@
     "userRequestedRestart": "Reinicio solicitado por el usuario.",
     "jevFilterSummary": "Jev revisó las entidades: {dropped} descartadas por no opinar en redes; {kept} agentes; audiencia real {audience} %.",
     "jevFilterDropped": "Descartadas: {names}",
-    "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (recomendado ≥ {minimum} %). El resultado pesará más la voz de competidores y empresas: añade al documento más detalle sobre el público."
+    "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (recomendado ≥ {minimum} %). El resultado pesará más la voz de competidores y empresas: añade al documento más detalle sobre el público.",
+    "jevAudienceExpanded": "Audiencia ampliada: +{count} personas distintas dentro de los grupos de público, para que tus clientes pesen al menos un 40 % de la simulación."
   },
   "report": {
     "taskStarted": "Tarea de generación de informe iniciada",
