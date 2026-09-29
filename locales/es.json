@@ -529,7 +529,10 @@
     "ready": "listo",
     "pending": "pendiente",
     "deleteNamed": "Eliminar «{name}»",
-    "stepLabel": "Paso {n}"
+    "stepLabel": "Paso {n}",
+    "statusRunning": "En curso · {current}/{total}",
+    "statusStopped": "Detenida en {current}/{total}",
+    "statusFailed": "Error en {current}/{total}"
   },
   "api": {
     "projectNotFound": "Proyecto no encontrado: {id}",
