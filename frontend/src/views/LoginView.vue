@@ -4,7 +4,7 @@
 
       <!-- Logo -->
       <div class="login-logo">
-        <BrandLogo class="login-wordmark" aria-label="Mirror" />
+        <BrandLogo class="login-wordmark" aria-label="Simuloo" />
         <p class="login-subtitle">Swarm Intelligence Engine</p>
         <p class="login-byline">by <span class="login-byline-brand">Koolbrand</span></p>
       </div>

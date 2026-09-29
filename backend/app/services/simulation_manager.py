@@ -547,7 +547,7 @@ class SimulationManager:
                 "parallel": f"python {scripts_dir}/run_parallel_simulation.py --config {config_path}",
             },
             "instructions": (
-                f"1. Activar el entorno conda: conda activate MiroFish\n"
+                f"1. Activar el entorno conda: conda activate simuloo\n"
                 f"2. Ejecutar la simulación (los scripts están en {scripts_dir}):\n"
                 f"   - Ejecutar solo Twitter: python {scripts_dir}/run_twitter_simulation.py --config {config_path}\n"
                 f"   - Ejecutar solo Reddit: python {scripts_dir}/run_reddit_simulation.py --config {config_path}\n"

@@ -418,7 +418,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
         code_lines = [
             '"""',
             'Definición personalizada de tipos de entidad',
-            'Generada automáticamente por MiroFish para la simulación de opinión pública',
+            'Generada automáticamente por Simuloo para la simulación de opinión pública',
             '"""',
             '',
             'from pydantic import Field, BaseModel',

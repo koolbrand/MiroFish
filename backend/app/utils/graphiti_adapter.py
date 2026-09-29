@@ -1096,7 +1096,7 @@ class GraphitiGraphClient:
             name=f"episode_{ep_uuid[:8]}",
             episode_body=data,
             source=EpisodeType.text,
-            source_description="MiroFish simulation activity",
+            source_description="Simuloo simulation activity",
             group_id=graph_id,
             reference_time=datetime.now(timezone.utc),
         )
