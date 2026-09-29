@@ -975,7 +975,8 @@ const startSimulation = () => {
   .home { --overlap: 96px; }
   .topbar-version { display: none; }
   .topbar-links { gap: 10px; }
-  .stage { padding-bottom: calc(var(--overlap) + 120px); }
+  /* hueco sobre el titular para que la multitud también «hable» en móvil */
+  .stage { padding-top: 112px; padding-bottom: calc(var(--overlap) + 120px); }
   .launch-btn { width: 100%; justify-content: center; }
 }
 @media (max-width: 480px) {
