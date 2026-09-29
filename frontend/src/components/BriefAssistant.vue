@@ -1,13 +1,19 @@
 <template>
   <div class="brief-assistant">
-    <!-- Acciones: plantilla y entrevista -->
-    <div class="brief-actions">
-      <a class="brief-link" href="/plantilla-brief-simuloo.md" download="plantilla-brief-simuloo.md" @click.stop>
-        ↓ {{ $t('brief.downloadTemplate') }}
-      </a>
-      <button type="button" class="brief-link" :disabled="disabled" @click.stop="openInterview">
-        ✎ {{ $t('brief.startInterview') }}
-      </button>
+    <!-- Acciones: entrevista (principal) y plantilla -->
+    <div class="brief-card">
+      <div class="brief-card-text">
+        <strong>{{ $t('brief.cardTitle') }}</strong>
+        <span>{{ $t('brief.cardBody') }}</span>
+      </div>
+      <div class="brief-card-actions">
+        <button type="button" class="brief-btn" :disabled="disabled" @click.stop="openInterview">
+          {{ $t('brief.startInterview') }} →
+        </button>
+        <a class="brief-link" href="/plantilla-brief-simuloo.md" download="plantilla-brief-simuloo.md" @click.stop>
+          ↓ {{ $t('brief.downloadTemplate') }}
+        </a>
+      </div>
     </div>
 
     <!-- Revisión del brief con Jev -->
@@ -233,7 +239,15 @@ const closeInterview = () => { interviewOpen.value = false }
 
 <style scoped>
 .brief-assistant { margin-top: 12px; font-family: var(--kb-font-sans); font-size: 12px; }
-.brief-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+.brief-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 16px; background: var(--kb-accent-subtle); border: 1px solid var(--kb-accent-line); border-radius: 8px;
+  font-family: var(--kb-font-sans); font-size: 13px;
+}
+.brief-card-text { display: grid; gap: 2px; min-width: 220px; flex: 1; }
+.brief-card-text strong { font-size: 14px; }
+.brief-card-text span { color: var(--kb-text-2); }
+.brief-card-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .brief-link {
   background: none; border: none; padding: 0; cursor: pointer; color: var(--kb-text);
   font: inherit; text-decoration: underline; text-underline-offset: 3px;

@@ -133,9 +133,9 @@ const statusClass = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (currentStatus.value === 'error') return 'Error'
-  if (currentStatus.value === 'completed') return 'Ready'
-  return 'Preparing'
+  if (currentStatus.value === 'error') return t('ui.status.error')
+  if (currentStatus.value === 'completed') return t('ui.status.ready')
+  return t('ui.status.preparing')
 })
 
 // --- Helpers ---

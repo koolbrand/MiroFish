@@ -8,7 +8,7 @@
           <!-- Report Header -->
           <div class="report-header-block" data-tour="rep-header">
             <div class="report-meta">
-              <span class="report-tag">Prediction Report</span>
+              <span class="report-tag">{{ $t('ui.predictionReport') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
@@ -89,15 +89,15 @@
         <div class="workflow-overview" v-if="agentLogs.length > 0 || reportOutline">
           <div class="workflow-metrics">
             <div class="metric">
-              <span class="metric-label">Sections</span>
+              <span class="metric-label">{{ $t('ui.sections') }}</span>
               <span class="metric-value mono">{{ completedSections }}/{{ totalSections }}</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Elapsed</span>
+              <span class="metric-label">{{ $t('ui.elapsed') }}</span>
               <span class="metric-value mono">{{ formatElapsedTime }}</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Tools</span>
+              <span class="metric-label">{{ $t('ui.tools') }}</span>
               <span class="metric-value mono">{{ totalToolCalls }}</span>
             </div>
             <div class="metric metric-right">
@@ -166,11 +166,11 @@
                   <!-- Report Start -->
                   <template v-if="log.action === 'report_start'">
                     <div class="info-row">
-                      <span class="info-key">Simulation</span>
+                      <span class="info-key">{{ $t('ui.simulation') }}</span>
                       <span class="info-val mono">{{ log.details?.simulation_id }}</span>
                     </div>
                     <div class="info-row" v-if="log.details?.simulation_requirement">
-                      <span class="info-key">Requirement</span>
+                      <span class="info-key">{{ $t('ui.requirement') }}</span>
                       <span class="info-val">{{ log.details.simulation_requirement }}</span>
                     </div>
                   </template>
@@ -309,7 +309,7 @@
                     <div class="llm-meta">
                       <span class="meta-tag">Iteration {{ log.details?.iteration }}</span>
                       <span class="meta-tag" :class="{ active: log.details?.has_tool_calls }">
-                        Tools: {{ log.details?.has_tool_calls ? 'Yes' : 'No' }}
+                        {{ log.details?.has_tool_calls ? $t('ui.toolsYes') : $t('ui.toolsNo') }}
                       </span>
                       <span class="meta-tag" :class="{ active: log.details?.has_final_answer, 'final-answer': log.details?.has_final_answer }">
                         Final: {{ log.details?.has_final_answer ? 'Yes' : 'No' }}
@@ -334,7 +334,7 @@
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                       </svg>
-                      <span>Report Generation Complete</span>
+                      <span>{{ $t('ui.reportGenerationComplete') }}</span>
                     </div>
                   </template>
                 </div>
@@ -352,12 +352,12 @@
                     
                     <!-- Tool Result: Raw/Structured View -->
                     <button v-if="log.action === 'tool_result'" class="action-btn" @click.stop="toggleRawResult(log.timestamp, $event)">
-                      {{ showRawResult[log.timestamp] ? 'Structured View' : 'Raw Output' }}
+                      {{ showRawResult[log.timestamp] ? $t('ui.structuredView') : $t('ui.rawOutput') }}
                     </button>
                     
                     <!-- LLM Response: Show/Hide Response -->
                     <button v-if="log.action === 'llm_response' && log.details?.response" class="action-btn" @click.stop="toggleLogExpand(log)">
-                      {{ expandedLogs.has(log.timestamp) ? 'Hide Response' : 'Show Response' }}
+                      {{ expandedLogs.has(log.timestamp) ? $t('ui.hideResponse') : $t('ui.showResponse') }}
                     </button>
                   </div>
                 </div>
@@ -377,10 +377,12 @@
     <!-- Bottom Console Logs -->
     <div class="console-logs">
       <div class="log-header">
-        <span class="log-title">CONSOLE OUTPUT</span>
-        <span class="log-id">{{ reportId || 'NO_REPORT' }}</span>
+        <span class="log-title">{{ $t('ui.consoleOutput') }}</span>
+        <span v-if="!showTech && lastLog" class="log-last">{{ lastLog }}</span>
+        <button type="button" class="log-toggle" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
+        <span class="log-id tech-only">{{ reportId || 'NO_REPORT' }}</span>
       </div>
-      <div class="log-content" ref="logContent">
+      <div class="log-content" ref="logContent" v-show="showTech">
         <div class="log-line" v-for="(log, idx) in consoleLogs" :key="idx">
           <span class="log-msg" :class="getLogLevelClass(log)">{{ log }}</span>
         </div>
@@ -390,6 +392,7 @@
 </template>
 
 <script setup>
+import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -416,6 +419,11 @@ const goToInteraction = () => {
 // State
 const agentLogs = ref([])
 const consoleLogs = ref([])
+const { showTech, toggleTech } = useTechDetails()
+const lastLog = computed(() => {
+  const last = consoleLogs.value[consoleLogs.value.length - 1]
+  return last ? String(last).replace(/^\[[^\]]*\]\s*(INFO|WARNING|ERROR|DEBUG)?:?\s*/, '') : ''
+})
 const agentLogLine = ref(0)
 const consoleLogLine = ref(0)
 const reportOutline = ref(null)
@@ -982,21 +990,21 @@ const InsightDisplay = {
       // Header Section - like interview header
       h('div', { class: 'insight-header' }, [
         h('div', { class: 'header-main' }, [
-          h('div', { class: 'header-title' }, 'Deep Insight'),
+          h('div', { class: 'header-title' }, t('ui.deepInsight')),
           h('div', { class: 'header-stats' }, [
             h('span', { class: 'stat-item' }, [
               h('span', { class: 'stat-value' }, props.result.stats.facts || props.result.facts.length),
-              h('span', { class: 'stat-label' }, 'Facts')
+              h('span', { class: 'stat-label' }, t('ui.facts'))
             ]),
             h('span', { class: 'stat-divider' }, '/'),
             h('span', { class: 'stat-item' }, [
               h('span', { class: 'stat-value' }, props.result.stats.entities || props.result.entities.length),
-              h('span', { class: 'stat-label' }, 'Entities')
+              h('span', { class: 'stat-label' }, t('ui.entities'))
             ]),
             h('span', { class: 'stat-divider' }, '/'),
             h('span', { class: 'stat-item' }, [
               h('span', { class: 'stat-value' }, props.result.stats.relationships || props.result.relations.length),
-              h('span', { class: 'stat-label' }, 'Relations')
+              h('span', { class: 'stat-label' }, t('ui.relations'))
             ]),
             props.resultLength && h('span', { class: 'stat-divider' }, '·'),
             props.resultLength && h('span', { class: 'stat-size' }, formatSize(props.resultLength))
@@ -1432,7 +1440,7 @@ const InterviewDisplay = {
       // Header Section
       h('div', { class: 'interview-header' }, [
         h('div', { class: 'header-main' }, [
-          h('div', { class: 'header-title' }, 'Agent Interview'),
+          h('div', { class: 'header-title' }, t('ui.agentInterview')),
           h('div', { class: 'header-stats' }, [
             h('span', { class: 'stat-item' }, [
               h('span', { class: 'stat-value' }, props.result.successCount || props.result.interviews.length),
@@ -1572,7 +1580,7 @@ const InterviewDisplay = {
 
       // Summary Section (Collapsible)
       props.result.summary && h('div', { class: 'summary-section' }, [
-        h('div', { class: 'summary-header' }, 'Interview Summary'),
+        h('div', { class: 'summary-header' }, t('ui.interviewSummary')),
         h('div', { 
           class: 'summary-content',
           innerHTML: renderMarkdown(props.result.summary.length > 500 ? props.result.summary.substring(0, 500) + '...' : props.result.summary)
@@ -1798,7 +1806,7 @@ const workflowSteps = computed(() => {
   steps.push({
     key: 'planning',
     noLabel: 'PL',
-    title: 'Planning / Outline',
+    title: t('ui.planningOutline'),
     status: planningStatus,
     meta: planningStatus === 'active' ? 'IN PROGRESS' : ''
   })
@@ -1825,7 +1833,7 @@ const workflowSteps = computed(() => {
   steps.push({
     key: 'complete',
     noLabel: 'OK',
-    title: 'Complete',
+    title: t('ui.complete'),
     status: completeStatus,
     meta: completeStatus === 'active' ? 'FINALIZING' : ''
   })
@@ -2009,16 +2017,16 @@ const getConnectorClass = (log, idx, total) => {
 
 const getActionLabel = (action) => {
   const labels = {
-    'report_start': 'Report Started',
-    'planning_start': 'Planning',
-    'planning_complete': 'Plan Complete',
-    'section_start': 'Section Start',
-    'section_content': 'Content Ready',
-    'section_complete': 'Section Done',
-    'tool_call': 'Tool Call',
-    'tool_result': 'Tool Result',
-    'llm_response': 'LLM Response',
-    'report_complete': 'Complete'
+    'report_start': t('ui.act.report_start'),
+    'planning_start': t('ui.act.planning_start'),
+    'planning_complete': t('ui.act.planning_complete'),
+    'section_start': t('ui.act.section_start'),
+    'section_content': t('ui.act.section_content'),
+    'section_complete': t('ui.act.section_complete'),
+    'tool_call': t('ui.act.tool_call'),
+    'tool_result': t('ui.act.tool_result'),
+    'llm_response': t('ui.act.llm_response'),
+    'report_complete': t('ui.act.report_complete')
   }
   return labels[action] || action
 }
@@ -2413,12 +2421,18 @@ watch(() => props.reportId, (newId) => {
 
 .main-title {
   font-family: var(--kb-font-sans);
-  font-size: 36px;
-  font-weight: 700;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 800;
   color: var(--kb-text);
-  line-height: 1.2;
+  line-height: 1.15;
   margin: 0 0 16px 0;
   letter-spacing: -0.02em;
+  text-wrap: balance;
+  /* Un título de 7 líneas ocupaba medio panel: máximo 3 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .sub-title {

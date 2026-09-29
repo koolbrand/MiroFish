@@ -6,7 +6,7 @@
       <div class="header-tools">
         <button class="tool-btn" @click="$emit('refresh')" :disabled="loading" :title="$t('graph.refreshGraph')">
           <span class="icon-refresh" :class="{ 'spinning': loading }">↻</span>
-          <span class="btn-text">Refresh</span>
+          <span class="btn-text">{{ $t('ui.refresh') }}</span>
         </button>
         <button class="tool-btn" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
           <span class="icon-maximize">⛶</span>
@@ -106,7 +106,7 @@
             <!-- 自环组详情 -->
             <template v-if="selectedItem.data.isSelfLoopGroup">
               <div class="edge-relation-header self-loop-header">
-                {{ selectedItem.data.source_name }} - Self Relations
+                {{ selectedItem.data.source_name }} - {{ $t('ui.selfRelations') }}
                 <span class="self-loop-count">{{ selectedItem.data.selfLoopCount }} items</span>
               </div>
               
@@ -236,8 +236,11 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import * as d3 from 'd3'
+
+const { t } = useI18n()
 
 const props = defineProps({
   graphData: Object,

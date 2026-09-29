@@ -10,9 +10,6 @@
         <router-link to="/projects" class="github-link" data-tour="home-projects-link">
           {{ $t('nav.projects') }} <span class="arrow">→</span>
         </router-link>
-        <a href="https://github.com/koolbrand/MiroFish" target="_blank" class="github-link">
-          {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
-        </a>
       </div>
     </nav>
 
@@ -22,7 +19,6 @@
         <div class="hero-left">
           <div class="tag-row">
             <span class="orange-tag">{{ $t('home.tagline') }}</span>
-            <span class="version-text">{{ $t('home.version') }}</span>
           </div>
           
           <h1 class="main-title">
@@ -43,15 +39,17 @@
             </p>
           </div>
            
-          <div class="decoration-square"></div>
+          <button type="button" class="hero-cta" @click="scrollToForm">
+            {{ $t('home.heroCta') }} <span aria-hidden="true">→</span>
+          </button>
         </div>
         
         <div class="hero-right">
           <!-- D3 force-directed graph — same style as in-app graph -->
           <div class="agent-vis-panel">
             <div class="vis-top-bar">
-              <span class="vis-label">SIMULATION ENGINE</span>
-              <span class="vis-live"><span class="live-dot"></span>ACTIVE</span>
+              <span class="vis-label">{{ $t('ui.simulationEngine') }}</span>
+              <span class="vis-live"><span class="live-dot"></span>{{ $t('ui.active') }}</span>
             </div>
             <div class="vis-svg-wrap">
               <svg ref="simSvg" class="sim-svg"></svg>
@@ -69,7 +67,6 @@
             </div>
           </div>
 
-          <button class="scroll-down-btn" @click="scrollToBottom">↓</button>
         </div>
       </section>
 
@@ -231,7 +228,6 @@
                   rows="6"
                   :disabled="loading"
                 ></textarea>
-                <div class="model-badge">{{ $t('home.engineBadge') }}</div>
               </div>
             </div>
 
@@ -247,6 +243,7 @@
                 <span v-else>{{ $t('home.initializing') }}</span>
                 <span class="btn-arrow">→</span>
               </button>
+              <p v-if="!canSubmit && !loading" class="start-hint">{{ $t('home.startHint') }}</p>
             </div>
           </div>
         </div>
@@ -259,6 +256,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
 import BriefAssistant from '../components/BriefAssistant.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
@@ -270,6 +268,8 @@ import BrandLogo from '../components/BrandLogo.vue'
 import HelpButton from '../components/HelpButton.vue'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const { maybeAutoStart } = useTutorial()
@@ -528,12 +528,9 @@ const removeFile = (index) => {
   files.value.splice(index, 1)
 }
 
-// 滚动到底部
-const scrollToBottom = () => {
-  window.scrollTo({
-    top: document.body.scrollHeight,
-    behavior: 'smooth'
-  })
+// Del botón del hero al formulario
+const scrollToForm = () => {
+  document.querySelector('[data-tour="home-upload"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 // 开始模拟 - 立即跳转，API调用在Process页面进行
@@ -700,7 +697,7 @@ const startSimulation = () => {
   max-width: 640px;
   margin-bottom: 50px;
   font-weight: 400;
-  text-align: justify;
+  text-align: left;
 }
 
 .hero-desc p {
@@ -713,17 +710,15 @@ const startSimulation = () => {
 }
 
 .highlight-orange {
-  color: var(--kb-accent-text);
+  color: var(--kb-text);
   font-weight: 700;
-  font-family: var(--font-mono);
 }
 
 .highlight-code {
   background: rgba(0, 0, 0, 0.05);
   padding: 2px 6px;
   border-radius: 2px;
-  font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-weight: 600;
   color: var(--black);
   font-weight: 600;
 }
@@ -747,6 +742,30 @@ const startSimulation = () => {
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+.hero-cta {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  background: var(--kb-accent-solid);
+  color: var(--kb-accent-on);
+  border: none;
+  border-radius: 8px;
+  font: 700 1rem var(--kb-font-sans);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.hero-cta:hover { background: var(--kb-accent-hover); }
+.hero-cta:active { transform: translateY(1px); }
+
+.start-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--kb-muted);
+  text-align: center;
 }
 
 .decoration-square {

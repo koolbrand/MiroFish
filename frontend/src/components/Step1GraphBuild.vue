@@ -175,10 +175,12 @@
     <!-- Bottom Info / Logs -->
     <div class="system-logs">
       <div class="log-header">
-        <span class="log-title">SYSTEM DASHBOARD</span>
-        <span class="log-id">{{ projectData?.project_id || 'NO_PROJECT' }}</span>
+        <span class="log-title">{{ $t('ui.systemDashboard') }}</span>
+        <span v-if="!showTech && lastLog" class="log-last">{{ lastLog }}</span>
+        <button type="button" class="log-toggle" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
+        <span class="log-id tech-only">{{ projectData?.project_id || 'NO_PROJECT' }}</span>
       </div>
-      <div class="log-content" ref="logContent">
+      <div class="log-content" ref="logContent" v-show="showTech">
         <div class="log-line" v-for="(log, idx) in systemLogs" :key="idx">
           <span class="log-time">{{ log.time }}</span>
           <span class="log-msg">{{ log.msg }}</span>
@@ -189,6 +191,7 @@
 </template>
 
 <script setup>
+import { useTechDetails } from '../composables/useTechDetails'
 import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -204,6 +207,12 @@ const props = defineProps({
   buildProgress: Object,
   graphData: Object,
   systemLogs: { type: Array, default: () => [] }
+})
+const { showTech, toggleTech } = useTechDetails()
+const lastLog = computed(() => {
+  const logs = props.systemLogs || []
+  const last = logs[logs.length - 1]
+  return last ? String(last.msg || '') : ''
 })
 
 defineEmits(['next-step'])
