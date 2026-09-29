@@ -3194,7 +3194,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Purple (Deep Insight) */
 .tool-badge.tool-purple {
-  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
+  background: #F5F3FF;
   border-color: #C4B5FD;
   color: #6D28D9;
 }
@@ -3204,7 +3204,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Blue (Panorama Search) */
 .tool-badge.tool-blue {
-  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  background: #EFF6FF;
   border-color: #93C5FD;
   color: #1D4ED8;
 }
@@ -3214,7 +3214,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Green (Agent Interview) */
 .tool-badge.tool-green {
-  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+  background: #F0FDF4;
   border-color: #86EFAC;
   color: #15803D;
 }
@@ -3224,7 +3224,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Orange (Quick Search) */
 .tool-badge.tool-orange {
-  background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+  background: #FFF7ED;
   border-color: #FDBA74;
   color: #C2410C;
 }
@@ -3234,7 +3234,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Cyan (Graph Stats) */
 .tool-badge.tool-cyan {
-  background: linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%);
+  background: #ECFEFF;
   border-color: #67E8F9;
   color: #0E7490;
 }
@@ -3244,7 +3244,7 @@ watch(() => props.reportId, (newId) => {
 
 /* Tool Colors - Pink (Entity Query) */
 .tool-badge.tool-pink {
-  background: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 100%);
+  background: #FDF2F8;
   border-color: #F9A8D4;
   color: #BE185D;
 }
@@ -3846,7 +3846,7 @@ watch(() => props.reportId, (newId) => {
 }
 
 :deep(.interview-display .agent-tab.active) {
-  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+  background: #EEF2FF;
   border-color: #A5B4FC;
   color: #4338CA;
   box-shadow: 0 1px 2px rgba(99, 102, 241, 0.1);
@@ -4258,7 +4258,7 @@ watch(() => props.reportId, (newId) => {
 
 :deep(.insight-header) {
   padding: 12px 16px;
-  background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%);
+  background: #F5F3FF;
   border-radius: 8px 8px 0 0;
   border: 1px solid #C4B5FD;
   border-bottom: none;
@@ -4643,7 +4643,7 @@ watch(() => props.reportId, (newId) => {
 
 :deep(.panorama-header) {
   padding: 12px 16px;
-  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  background: #EFF6FF;
   border-radius: 8px 8px 0 0;
   border: 1px solid #93C5FD;
   border-bottom: none;
@@ -4875,7 +4875,7 @@ watch(() => props.reportId, (newId) => {
 
 :deep(.quicksearch-header) {
   padding: 12px 16px;
-  background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+  background: #FFF7ED;
   border-radius: 8px 8px 0 0;
   border: 1px solid #FDBA74;
   border-bottom: none;

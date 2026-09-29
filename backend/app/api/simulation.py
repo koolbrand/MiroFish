@@ -1117,6 +1117,8 @@ def get_simulation_history():
                 ]
             else:
                 sim_dict["files"] = []
+            # Nombre del proyecto: el historial lo usa como título de la tarjeta
+            sim_dict["project_name"] = (project.name if project else "") or ""
             
             # 获取关联的 report_id（查找该 simulation 最新的 report）
             sim_dict["report_id"] = _get_report_id_for_simulation(sim.simulation_id)
