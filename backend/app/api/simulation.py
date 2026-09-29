@@ -6,6 +6,7 @@ Step2: Zep实体读取与过滤、OASIS模拟准备与运行（全程自动化�
 import os
 import csv
 import json
+import threading
 import traceback
 from datetime import datetime
 from flask import request, jsonify, send_file
@@ -21,6 +22,7 @@ from ..utils.locale import t, get_locale, set_locale
 from ..utils.llm_client import LLMClient
 from ..utils.security import validate_platform, validate_storage_id
 from ..models.project import ProjectManager
+from ..models.task import TaskManager, TaskStatus
 
 logger = get_logger('mirofish.api.simulation')
 
@@ -347,6 +349,37 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         return False, {"reason": f"Fallo al leer el archivo de estado: {str(e)}"}
 
 
+# Evita preparaciones duplicadas: recargar la página en el paso 2 volvía a
+# llamar a /prepare y lanzaba una segunda tarea que sumaba agentes a la primera.
+_prepare_lock = threading.Lock()
+
+
+def _find_active_prepare_task(simulation_id: str):
+    """Devuelve la tarea de preparación en curso para esta simulación, o None."""
+    for task in TaskManager().list_tasks(task_type="simulation_prepare"):
+        if (task.get("metadata") or {}).get("simulation_id") != simulation_id:
+            continue
+        if task.get("status") in (TaskStatus.PENDING.value, TaskStatus.PROCESSING.value):
+            return task
+    return None
+
+
+def _active_prepare_response(simulation_id: str, task: dict, state):
+    return jsonify({
+        "success": True,
+        "data": {
+            "simulation_id": simulation_id,
+            "task_id": task["task_id"],
+            "status": "preparing",
+            "message": t('api.prepareStarted'),
+            "already_prepared": False,
+            "already_running": True,
+            "expected_entities_count": state.entities_count,
+            "entity_types": state.entity_types,
+        }
+    })
+
+
 @simulation_bp.route('/prepare', methods=['POST'])
 def prepare_simulation():
     """
@@ -435,6 +468,13 @@ def prepare_simulation():
                 })
             else:
                 logger.info(f"La simulación {simulation_id} no está preparada, se iniciará la tarea de preparación")
+
+            # Ya hay una preparación en marcha (p. ej. el usuario recargó la
+            # página): reengancharse a ella en vez de lanzar otra.
+            active = _find_active_prepare_task(simulation_id)
+            if active:
+                logger.info(f"Preparación ya en curso para {simulation_id}: se reutiliza la tarea {active['task_id']}")
+                return _active_prepare_response(simulation_id, active, state)
         
         # 从项目获取必要信息
         project = ProjectManager.get_project(state.project_id)
@@ -500,15 +540,20 @@ def prepare_simulation():
             logger.warning(f"Fallo al obtener el número de entidades de forma síncrona (se reintentará en la tarea en segundo plano): {e}")
             # 失败不影响后续流程，后台任务会重新获取
         
-        # 创建异步任务
+        # 创建异步任务 (con candado: dos peticiones casi simultáneas no deben
+        # crear dos tareas para la misma simulación)
         task_manager = TaskManager()
-        task_id = task_manager.create_task(
-            task_type="simulation_prepare",
-            metadata={
-                "simulation_id": simulation_id,
-                "project_id": state.project_id
-            }
-        )
+        with _prepare_lock:
+            active = None if force_regenerate else _find_active_prepare_task(simulation_id)
+            if active:
+                return _active_prepare_response(simulation_id, active, state)
+            task_id = task_manager.create_task(
+                task_type="simulation_prepare",
+                metadata={
+                    "simulation_id": simulation_id,
+                    "project_id": state.project_id
+                }
+            )
         
         # 更新模拟状态（包含预先获取的实体数量）
         state.status = SimulationStatus.PREPARING

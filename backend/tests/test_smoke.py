@@ -163,3 +163,32 @@ def test_get_unknown_simulation_does_not_create_dir(client, tmp_path, monkeypatc
     monkeypatch.setattr(SimulationManager, "SIMULATION_DATA_DIR", str(tmp_path))
     assert SimulationManager().get_simulation("sim_doesnotexist") is None
     assert not (tmp_path / "sim_doesnotexist").exists()
+
+
+def test_prepare_reuses_running_task(client, monkeypatch):
+    """Recargar la página en el paso 2 no debe lanzar una segunda preparación."""
+    from app.api import simulation as sim_api
+    from app.models.task import TaskManager, TaskStatus
+
+    tm = TaskManager()
+    task_id = tm.create_task(task_type="simulation_prepare", metadata={"simulation_id": "sim_reload123"})
+    tm.update_task(task_id, status=TaskStatus.PROCESSING)
+    assert sim_api._find_active_prepare_task("sim_reload123")["task_id"] == task_id
+    assert sim_api._find_active_prepare_task("sim_otra") is None
+
+    tm.update_task(task_id, status=TaskStatus.COMPLETED)
+    assert sim_api._find_active_prepare_task("sim_reload123") is None
+
+
+def test_report_generate_reuses_running_task(client):
+    from app.api import report as report_api
+    from app.models.task import TaskManager, TaskStatus
+
+    tm = TaskManager()
+    task_id = tm.create_task(task_type="report_generate",
+                             metadata={"simulation_id": "sim_dbl123", "report_id": "report_abc123def456"})
+    tm.update_task(task_id, status=TaskStatus.PROCESSING)
+    active = report_api._find_active_report_task("sim_dbl123")
+    assert active["metadata"]["report_id"] == "report_abc123def456"
+    tm.update_task(task_id, status=TaskStatus.FAILED)
+    assert report_api._find_active_report_task("sim_dbl123") is None
