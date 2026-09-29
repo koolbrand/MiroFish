@@ -16,6 +16,7 @@
 
       <!-- Tooltip card -->
       <div
+        ref="cardEl"
         class="tour-card"
         :class="[`placement-${resolvedPlacement}`, { floating: !hasAnchor }]"
         :style="cardStyle"
@@ -59,7 +60,12 @@ const {
 
 // ── Rect tracking ───────────────────────────────────────────────────────────
 const rect = ref(null) // { x, y, w, h } in viewport coords
-const viewport = ref({ w: window.innerWidth, h: window.innerHeight })
+// Ancho útil sin la barra de scroll: con innerWidth la tarjeta quedaba debajo de ella.
+const viewportSize = () => ({
+  w: document.documentElement.clientWidth || window.innerWidth,
+  h: document.documentElement.clientHeight || window.innerHeight,
+})
+const viewport = ref(viewportSize())
 
 const resolveSelector = () => {
   const step = currentStep.value
@@ -73,7 +79,7 @@ const resolveSelector = () => {
 }
 
 const measure = () => {
-  viewport.value = { w: window.innerWidth, h: window.innerHeight }
+  viewport.value = viewportSize()
   const el = resolveSelector()
   if (!el) { rect.value = null; return }
   const r = el.getBoundingClientRect()
@@ -137,6 +143,7 @@ onUnmounted(() => {
   window.removeEventListener('scroll', scheduleMeasure, { capture: true })
   window.removeEventListener('keydown', onKeydown)
   if (rafId) cancelAnimationFrame(rafId)
+  cardObserver?.disconnect()
 })
 
 // ── Derived styles ──────────────────────────────────────────────────────────
@@ -187,61 +194,108 @@ const backdropRightStyle = computed(() => {
 const CARD_W = 360
 const CARD_H_ESTIMATE = 200
 const MARGIN = 16
+const GAP = 14
+const ARROW_INSET = 18
+const SIDES = ['bottom', 'top', 'right', 'left']
+const OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }
 
-const resolvedPlacement = computed(() => {
-  const want = currentStep.value?.placement || 'auto'
-  if (!rect.value) return 'center'
-  if (want !== 'auto') return want
-  const { x, y, w, h } = rect.value
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi))
+
+// Tamaño real de la tarjeta (el texto cambia de un paso a otro): colocarla con
+// una altura estimada la sacaba de la pantalla cuando el texto era largo.
+const cardEl = ref(null)
+const cardH = ref(CARD_H_ESTIMATE)
+let cardObserver = null
+watch(cardEl, (el) => {
+  cardObserver?.disconnect()
+  if (!el || typeof ResizeObserver === 'undefined') return
+  cardObserver = new ResizeObserver(() => { cardH.value = el.offsetHeight || CARD_H_ESTIMATE })
+  cardObserver.observe(el)
+})
+
+// En móvil la tarjeta ocupa el ancho entero menos los márgenes.
+const cardW = computed(() => {
+  const vw = viewport.value.w
+  return vw <= 640 ? vw - MARGIN * 2 : Math.min(CARD_W, vw - MARGIN * 2)
+})
+
+const fits = (side, r) => {
   const { w: vw, h: vh } = viewport.value
+  const need = (side === 'top' || side === 'bottom') ? cardH.value : cardW.value
   const space = {
-    top:    y,
-    bottom: vh - (y + h),
-    left:   x,
-    right:  vw - (x + w),
-  }
-  // Prefer bottom when there is room, otherwise the side with most space.
-  if (space.bottom >= CARD_H_ESTIMATE + MARGIN) return 'bottom'
-  if (space.top    >= CARD_H_ESTIMATE + MARGIN) return 'top'
-  if (space.right  >= CARD_W + MARGIN) return 'right'
-  if (space.left   >= CARD_W + MARGIN) return 'left'
-  return 'bottom'
+    top:    r.y,
+    bottom: vh - (r.y + r.h),
+    left:   r.x,
+    right:  vw - (r.x + r.w),
+  }[side]
+  return space >= need + GAP + MARGIN
+}
+
+// El lado pedido por el paso es una preferencia: si no cabe se prueba el
+// opuesto y después los demás. Antes se respetaba a ciegas y la tarjeta se
+// salía de la pantalla (p. ej. «right» de un bloque que ya está a la derecha).
+const resolvedPlacement = computed(() => {
+  const r = rect.value
+  if (!r) return 'center'
+  const want = currentStep.value?.placement || 'auto'
+  const order = want === 'auto' || !OPPOSITE[want]
+    ? SIDES
+    : [want, OPPOSITE[want], ...SIDES.filter(s => s !== want && s !== OPPOSITE[want])]
+  // El elemento es tan grande que no queda sitio a ningún lado: la tarjeta va
+  // encima, dentro de la pantalla y sin flecha.
+  return order.find(side => fits(side, r)) || 'overlay'
 })
 
 const cardStyle = computed(() => {
   const r = rect.value
   const { w: vw, h: vh } = viewport.value
+  const cw = cardW.value
+  const ch = cardH.value
+  const maxLeft = vw - cw - MARGIN
+  const maxTop = vh - ch - MARGIN
   if (!r || resolvedPlacement.value === 'center') {
     return {
-      left:  `calc(50% - ${CARD_W / 2}px)`,
-      top:   `calc(50% - 100px)`,
-      width: `${CARD_W}px`,
+      left:  `${Math.round(clamp((vw - cw) / 2, MARGIN, maxLeft))}px`,
+      top:   `${Math.round(clamp((vh - ch) / 2, MARGIN, maxTop))}px`,
+      width: `${cw}px`,
     }
   }
-  let left = 0, top = 0
   const { x, y, w, h } = r
+  const cx = x + w / 2
+  const cy = y + h / 2
+  let left = 0, top = 0
   switch (resolvedPlacement.value) {
     case 'bottom':
-      left = Math.min(Math.max(MARGIN, x + w / 2 - CARD_W / 2), vw - CARD_W - MARGIN)
-      top  = y + h + 14
+      left = cx - cw / 2
+      top  = y + h + GAP
       break
     case 'top':
-      left = Math.min(Math.max(MARGIN, x + w / 2 - CARD_W / 2), vw - CARD_W - MARGIN)
-      top  = y - CARD_H_ESTIMATE - 14
+      left = cx - cw / 2
+      top  = y - ch - GAP
       break
     case 'right':
-      left = x + w + 14
-      top  = Math.min(Math.max(MARGIN, y + h / 2 - CARD_H_ESTIMATE / 2), vh - CARD_H_ESTIMATE - MARGIN)
+      left = x + w + GAP
+      top  = cy - ch / 2
       break
     case 'left':
-      left = x - CARD_W - 14
-      top  = Math.min(Math.max(MARGIN, y + h / 2 - CARD_H_ESTIMATE / 2), vh - CARD_H_ESTIMATE - MARGIN)
+      left = x - cw - GAP
+      top  = cy - ch / 2
+      break
+    case 'overlay':
+      left = cx - cw / 2
+      top  = Math.min(y + h, vh) - ch - MARGIN
       break
   }
+  left = clamp(left, MARGIN, maxLeft)
+  top = clamp(top, MARGIN, maxTop)
+  // La flecha sigue apuntando al centro del elemento aunque la tarjeta se
+  // haya desplazado para caber.
   return {
     left:  `${Math.round(left)}px`,
-    top:   `${Math.round(Math.max(MARGIN, top))}px`,
-    width: `${CARD_W}px`,
+    top:   `${Math.round(top)}px`,
+    width: `${cw}px`,
+    '--arrow-x': `${Math.round(clamp(cx - left, ARROW_INSET, cw - ARROW_INSET))}px`,
+    '--arrow-y': `${Math.round(clamp(cy - top, ARROW_INSET, ch - ARROW_INSET))}px`,
   }
 })
 
@@ -431,31 +485,24 @@ const onBackdropClick = () => {
 }
 
 .tour-card.placement-bottom::before {
-  top: -7px; left: 50%; margin-left: -6px;
+  top: -7px; left: var(--arrow-x, 50%); margin-left: -6px;
   border-right: none; border-bottom: none;
 }
 .tour-card.placement-top::before {
-  bottom: -7px; left: 50%; margin-left: -6px;
+  bottom: -7px; left: var(--arrow-x, 50%); margin-left: -6px;
   border-left: none; border-top: none;
 }
 .tour-card.placement-right::before {
-  left: -7px; top: 50%; margin-top: -6px;
+  left: -7px; top: var(--arrow-y, 50%); margin-top: -6px;
   border-top: none; border-right: none;
 }
 .tour-card.placement-left::before {
-  right: -7px; top: 50%; margin-top: -6px;
+  right: -7px; top: var(--arrow-y, 50%); margin-top: -6px;
   border-bottom: none; border-left: none;
 }
 .tour-card.floating::before,
-.tour-card.placement-center::before {
+.tour-card.placement-center::before,
+.tour-card.placement-overlay::before {
   display: none;
-}
-
-@media (max-width: 640px) {
-  .tour-card {
-    width: calc(100vw - 32px) !important;
-    left: 16px !important;
-    right: 16px !important;
-  }
 }
 </style>
