@@ -294,7 +294,9 @@
     "filterGroupComments": "Comments",
     "searchFeedPlaceholder": "Search agent or content...",
     "clearFilters": "Clear",
-    "noMatchingActions": "No actions match the current filters"
+    "noMatchingActions": "No actions match the current filters",
+    "restartSimulation": "Restart simulation",
+    "restartConfirm": "Restart the simulation? Current run data will be lost."
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -525,7 +527,8 @@
     "simAlreadyRunning": "Simulation is already running: {simulationId}",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
-    "simNotRunning": "Simulation is not running: {simulationId} (status={status})"
+    "simNotRunning": "Simulation is not running: {simulationId} (status={status})",
+    "fileContentInvalid": "File content does not match the extension: {filename}"
   },
   "progress": {
     "initGraphService": "Initializing graph build service...",
@@ -734,7 +737,11 @@
     "enterStep": "Entering Step {step}: {name}",
     "returnToStep": "Returning to Step {step}: {name}",
     "customSimRounds": "Custom simulation rounds: {rounds} rounds",
-    "simAlreadyRunning": "Simulation already running — reconnecting..."
+    "simAlreadyRunning": "Simulation already running — reconnecting...",
+    "reconnectingToRunning": "Reconnecting to running simulation...",
+    "loadingPreviousRun": "Loading previous simulation results...",
+    "restartingDualSim": "Restarting dual-platform simulation...",
+    "userRequestedRestart": "User requested restart."
   },
   "report": {
     "taskStarted": "Report generation task started",

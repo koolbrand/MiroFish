@@ -94,6 +94,55 @@ def create_app(config_class=Config):
     if should_log_startup:
         logger.info("Función de limpieza de procesos de simulación registrada")
 
+    # Security: warn loudly if the static bearer fallback is enabled.
+    # API_AUTH_TOKEN bypasses PocketBase entirely — anyone who learns the
+    # value gets full /api/* access. It exists for break-glass scenarios
+    # (e.g. PocketBase down) but should never be left set in production.
+    if should_log_startup and Config.API_AUTH_TOKEN:
+        logger.warning(
+            "[security] API_AUTH_TOKEN is set — static bearer auth is "
+            "enabled and bypasses PocketBase. Unset this env var in "
+            "production unless you intentionally need a break-glass token."
+        )
+
+    # Security: warn loudly if /api/* auth is fully disabled. This was
+    # added so dev environments could skip auth, but enabling it in prod
+    # exposes every endpoint anonymously.
+    if should_log_startup and not Config.API_AUTH_REQUIRED:
+        logger.warning(
+            "[security] API_AUTH_REQUIRED=false — /api/* is OPEN to "
+            "anonymous callers. This must only be used in local dev."
+        )
+
+    # Boot-time orphan recovery: any project still marked GRAPH_BUILDING
+    # cannot have a live build thread (we just booted), so it would stay
+    # stuck in that state forever blocking the user. Mark them FAILED with
+    # a clear message so the UI can offer a retry. We do this in the main
+    # boot, not in the reloader child, to avoid running it twice in DEBUG.
+    if should_log_startup:
+        try:
+            from .models.project import ProjectManager, ProjectStatus
+            stale = [
+                p for p in ProjectManager.list_projects(limit=1000)
+                if p.status == ProjectStatus.GRAPH_BUILDING
+            ]
+            for p in stale:
+                p.status = ProjectStatus.FAILED
+                p.error = (
+                    "El servidor se reinició mientras se construía el grafo. "
+                    "Vuelve a lanzar la construcción para reintentar."
+                )
+                p.graph_build_task_id = None
+                ProjectManager.save_project(p)
+                logger.warning(
+                    f"[boot-recovery] Marked project {p.project_id} as FAILED "
+                    f"(was stuck in GRAPH_BUILDING with no live thread)"
+                )
+            if stale:
+                logger.info(f"[boot-recovery] Reconciled {len(stale)} orphaned project(s)")
+        except Exception as exc:  # noqa: BLE001 — boot must not abort on this
+            logger.warning(f"[boot-recovery] Skipped orphan reconciliation: {exc}")
+
     # 请求日志中间件
     _SENSITIVE_KEYS = {
         'api_key', 'llm_api_key', 'password', 'token', 'secret',

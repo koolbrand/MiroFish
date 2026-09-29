@@ -106,6 +106,23 @@
           </svg>
         </button>
 
+        <!-- Restart button — solo visible cuando la simulación ya terminó.
+             Reemplaza el reinicio automático que antes ocurría al navegar a Step3. -->
+        <button
+          v-if="phase === 2"
+          class="action-btn secondary icon-only"
+          :disabled="isStarting"
+          :title="$t('step3.restartSimulation', 'Restart simulation')"
+          :aria-label="$t('step3.restartSimulation', 'Restart simulation')"
+          @click="handleRestartSimulation"
+        >
+          <span v-if="isStarting" class="loading-spinner-small"></span>
+          <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+
         <button
           class="action-btn primary"
           :disabled="phase !== 2 || isGeneratingReport"
@@ -520,25 +537,36 @@ const resetAllState = () => {
 }
 
 // 启动模拟
-const doStartSimulation = async () => {
+//
+// `force=true` mata el proceso anterior y borra `actions.jsonl`. SOLO se debe
+// usar cuando el usuario pide explícitamente reiniciar (botón Restart en el
+// header). En montaje normal del componente (ej. al volver al Step desde el
+// stepper) se debe llamar con `force=false` o usar `initSimulationView()` que
+// reconecta a una run en curso o carga la run completada existente sin
+// reiniciar nada.
+const doStartSimulation = async ({ force = false } = {}) => {
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     return
   }
 
-  // 先重置所有状态，确保不会受到上一次模拟的影响
-  resetAllState()
-  
+  // Solo limpiamos el estado local cuando vamos a reiniciar; en arranque
+  // normal el estado ya está vacío y un reset prematuro borraría una run
+  // recién reconectada.
+  if (force) {
+    resetAllState()
+  }
+
   isStarting.value = true
   startError.value = null
-  addLog(t('log.startingDualSim'))
+  addLog(force ? t('log.restartingDualSim', 'Reiniciando simulación...') : t('log.startingDualSim'))
   emit('update-status', 'processing')
-  
+
   try {
     const params = {
       simulation_id: props.simulationId,
       platform: 'parallel',
-      force: true,  // 强制重新开始
+      force,
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
     
@@ -912,11 +940,84 @@ watch(() => props.systemLogs?.length, () => {
   })
 })
 
+// Decide qué hacer al montar Step3:
+// - simulación en curso → reconectar al polling sin reset ni force
+// - simulación completada/parada → cargar las acciones existentes, NO relanzar
+// - estado inicial → primer arranque con force=false
+//
+// Reemplaza al `doStartSimulation()` directo del montaje, que disparaba un
+// reinicio con `force: true` cada vez que el usuario navegaba a Step 3 desde
+// el stepper, perdiendo los datos del run anterior.
+const initSimulationView = async () => {
+  if (!props.simulationId) return
+
+  try {
+    const res = await getRunStatus(props.simulationId)
+    if (res?.success && res.data) {
+      const data = res.data
+      const hasFailed = data.runner_status === 'failed' || data.status === 'failed'
+      const isCompleted =
+        data.runner_status === 'completed' ||
+        data.runner_status === 'stopped' ||
+        checkPlatformsCompleted(data)
+      const isRunning =
+        !isCompleted && !hasFailed &&
+        (data.runner_status === 'running' || data.twitter_running || data.reddit_running)
+
+      if (isRunning) {
+        addLog(t('log.reconnectingToRunning', 'Reconectando a la simulación en curso...'))
+        phase.value = 1
+        runStatus.value = data
+        prevTwitterRound.value = data.twitter_current_round || 0
+        prevRedditRound.value = data.reddit_current_round || 0
+        emit('update-status', 'processing')
+        await fetchRunStatusDetail()
+        startStatusPolling()
+        startDetailPolling()
+        return
+      }
+
+      if (isCompleted) {
+        addLog(t('log.loadingPreviousRun', 'Cargando resultados de la simulación anterior...'))
+        phase.value = 2
+        runStatus.value = data
+        emit('update-status', 'completed')
+        await fetchRunStatusDetail()
+        return
+      }
+
+      if (hasFailed) {
+        startError.value = data.error || data.runner_error || t('common.unknownError')
+        addLog(t('log.simulationFailed', { error: startError.value }))
+        runStatus.value = data
+        phase.value = 2
+        emit('update-status', 'error')
+        return
+      }
+    }
+  } catch (err) {
+    // 404 / no previous status → primer arranque, seguimos al fallback
+    console.warn('No previous simulation status, starting fresh:', err)
+  }
+
+  // Primer arranque normal — el backend rechaza si ya hay una corriendo,
+  // y `doStartSimulation` ya maneja ese caso reconectando.
+  doStartSimulation({ force: false })
+}
+
+// Restart explícito por click del usuario. Único punto donde mandamos
+// `force: true` al backend.
+const handleRestartSimulation = async () => {
+  if (!props.simulationId || isStarting.value) return
+  const confirmed = window.confirm(t('step3.restartConfirm', '¿Reiniciar la simulación? Se perderán los datos del run actual.'))
+  if (!confirmed) return
+  addLog(t('log.userRequestedRestart', 'Reinicio solicitado por el usuario.'))
+  await doStartSimulation({ force: true })
+}
+
 onMounted(() => {
   addLog(t('log.step3Init'))
-  if (props.simulationId) {
-    doStartSimulation()
-  }
+  initSimulationView()
 })
 
 onUnmounted(() => {
