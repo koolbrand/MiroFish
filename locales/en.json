@@ -947,5 +947,27 @@
       "chatInputTitle": "Type your message",
       "chatInputBody": "Press Enter to send, Shift+Enter for a line break. The agent replies in seconds and keeps context throughout the conversation."
     }
+  },
+  "brief": {
+    "downloadTemplate": "Download brief template",
+    "startInterview": "Build the brief with an interview",
+    "checkTitle": "Brief review (Jev)",
+    "checking": "checking…",
+    "checkUnavailable": "review unavailable",
+    "required": "required",
+    "missingRequired": "Required sections are missing: the simulation will be worse. Complete the document with the template or use the interview.",
+    "allRequiredOk": "It has the essentials. The more detail about the audience, the better the simulation.",
+    "interviewTitle": "Brief interview",
+    "interviewIntro": "I'll ask concrete questions, one at a time, until we have what the simulation needs. If an answer is vague I'll push back. You can generate the brief at any time.",
+    "answerPlaceholder": "Your answer (⌘/Ctrl + Enter to send)",
+    "send": "Send",
+    "composeNow": "Generate the brief now",
+    "thinking": "Thinking of the next question…",
+    "composing": "Writing the brief with the template…",
+    "draftHint": "Review and fix anything needed. Anything marked «Pending» couldn't be filled from your answers.",
+    "useDraft": "Add to files",
+    "downloadDraft": "Download .md",
+    "close": "Close",
+    "error": "Error: {error}"
   }
 }

@@ -947,5 +947,27 @@
       "chatInputTitle": "输入您的消息",
       "chatInputBody": "按 Enter 发送，Shift+Enter 换行。Agent 会在几秒内回复，并保留整段对话的上下文。"
     }
+  },
+  "brief": {
+    "downloadTemplate": "下载简报模板",
+    "startInterview": "通过访谈创建简报",
+    "checkTitle": "简报检查 (Jev)",
+    "checking": "检查中…",
+    "checkUnavailable": "检查不可用",
+    "required": "必填",
+    "missingRequired": "缺少必填部分：模拟效果会变差。请用模板补充文档或使用访谈。",
+    "allRequiredOk": "已包含要点。受众描述越详细，模拟效果越好。",
+    "interviewTitle": "简报访谈",
+    "interviewIntro": "我会逐一提出具体问题，直到收集到模拟所需的信息。回答含糊时我会追问。你可以随时生成简报。",
+    "answerPlaceholder": "你的回答（⌘/Ctrl + Enter 发送）",
+    "send": "发送",
+    "composeNow": "立即生成简报",
+    "thinking": "正在思考下一个问题…",
+    "composing": "正在按模板撰写简报…",
+    "draftHint": "请检查并修改。标记为「待补充」的部分无法从你的回答中完成。",
+    "useDraft": "添加到文件",
+    "downloadDraft": "下载 .md",
+    "close": "关闭",
+    "error": "错误：{error}"
   }
 }
