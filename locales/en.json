@@ -515,7 +515,21 @@
     "deleteConfirmMsg": "Delete simulation {id}? Its data, configuration and associated reports will be removed.",
     "deleteWarning": "This action cannot be undone.",
     "deleting": "Deleting…",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "kicker": "Your simulations",
+    "heading": "Pick up where you left off",
+    "seeAll": "See all projects",
+    "emptyTitle": "Your first simulation will show up here",
+    "emptyBody": "Upload your brief above and launch it. With a text document, the report is usually ready in 20–30 minutes.",
+    "emptyCta": "Start now",
+    "stageGraph": "Graph",
+    "stageSim": "Simulation",
+    "stageReport": "Report",
+    "open": "Open",
+    "ready": "ready",
+    "pending": "pending",
+    "deleteNamed": "Delete “{name}”",
+    "stepLabel": "Step {n}"
   },
   "api": {
     "projectNotFound": "Project not found: {id}",
