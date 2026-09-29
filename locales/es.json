@@ -591,7 +591,10 @@
     "generatingProfiles": "Generando perfiles de agentes",
     "generatingSimConfig": "Generando configuración de simulación",
     "preparingScripts": "Preparando scripts",
-    "processingChunk": "Procesando fragmento {current}/{total} · {elapsed}s transcurridos (cada fragmento puede tardar unos minutos)"
+    "processingChunk": "Procesando fragmento {current}/{total} · {elapsed}s transcurridos (cada fragmento puede tardar unos minutos)",
+    "jevFilterRunning": "Revisando con Jev qué entidades opinarían en redes ({count} entidades)...",
+    "jevFilterDone": "Jev: {dropped} entidades descartadas por no opinar (tiendas, nube, analítica...). Quedan {kept} agentes; audiencia real: {audience} %.",
+    "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (mínimo recomendado: {minimum} %). El resultado reflejará más a competidores y empresas que a tus clientes: añade al documento más detalle sobre quién es el público."
   },
   "log": {
     "preparingGoBack": "Preparando retorno al Paso 2, cerrando simulación...",
@@ -742,7 +745,10 @@
     "reconnectingToRunning": "Reconectando a la simulación en curso...",
     "loadingPreviousRun": "Cargando resultados de la simulación anterior...",
     "restartingDualSim": "Reiniciando simulación de doble plataforma...",
-    "userRequestedRestart": "Reinicio solicitado por el usuario."
+    "userRequestedRestart": "Reinicio solicitado por el usuario.",
+    "jevFilterSummary": "Jev revisó las entidades: {dropped} descartadas por no opinar en redes; {kept} agentes; audiencia real {audience} %.",
+    "jevFilterDropped": "Descartadas: {names}",
+    "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (recomendado ≥ {minimum} %). El resultado pesará más la voz de competidores y empresas: añade al documento más detalle sobre el público."
   },
   "report": {
     "taskStarted": "Tarea de generación de informe iniciada",

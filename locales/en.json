@@ -591,7 +591,10 @@
     "generatingProfiles": "Generating Agent Profiles",
     "generatingSimConfig": "Generating Simulation Config",
     "preparingScripts": "Preparing Scripts",
-    "processingChunk": "Processing chunk {current}/{total} · {elapsed}s elapsed (each chunk can take a few minutes)"
+    "processingChunk": "Processing chunk {current}/{total} · {elapsed}s elapsed (each chunk can take a few minutes)",
+    "jevFilterRunning": "Checking with Jev which entities would post on social media ({count} entities)...",
+    "jevFilterDone": "Jev: {dropped} entities dropped as non-participants (stores, cloud, analytics...). {kept} agents remain; real audience: {audience}%.",
+    "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended minimum: {minimum}%). Results will reflect competitors and companies more than your customers: add more detail about the audience to the document."
   },
   "log": {
     "preparingGoBack": "Preparing to return to Step 2, closing simulation...",
@@ -742,7 +745,10 @@
     "reconnectingToRunning": "Reconnecting to running simulation...",
     "loadingPreviousRun": "Loading previous simulation results...",
     "restartingDualSim": "Restarting dual-platform simulation...",
-    "userRequestedRestart": "User requested restart."
+    "userRequestedRestart": "User requested restart.",
+    "jevFilterSummary": "Jev reviewed the entities: {dropped} dropped as non-participants; {kept} agents; real audience {audience}%.",
+    "jevFilterDropped": "Dropped: {names}",
+    "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended ≥ {minimum}%). Competitors and companies will weigh more: add more detail about the audience to the document."
   },
   "report": {
     "taskStarted": "Report generation task started",

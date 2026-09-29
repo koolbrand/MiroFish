@@ -949,6 +949,25 @@ const selectProfile = (profile) => {
 }
 
 // 自动开始准备模拟
+// Resumen del filtro de Jev: se registra una sola vez por preparación
+let entityFilterLogged = false
+const logEntityFilter = (summary) => {
+  if (entityFilterLogged || !summary || !summary.applied) return
+  entityFilterLogged = true
+  const audience = Math.round((summary.audience_ratio || 0) * 100)
+  addLog(t('log.jevFilterSummary', {
+    dropped: (summary.dropped || []).length,
+    kept: summary.kept,
+    audience
+  }))
+  if ((summary.dropped || []).length) {
+    addLog(t('log.jevFilterDropped', { names: summary.dropped.map(d => d.name).join(', ') }))
+  }
+  if (summary.low_audience) {
+    addLog(t('log.jevLowAudience', { audience, minimum: 40 }))
+  }
+}
+
 const startPrepareSimulation = async () => {
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
@@ -1053,6 +1072,7 @@ const pollPrepareStatus = async () => {
       // 更新进度
       prepareProgress.value = data.progress || 0
       progressMessage.value = data.message || ''
+      logEntityFilter(data.entity_filter)
       
       // 解析阶段信息并输出详细日志
       if (data.progress_detail) {

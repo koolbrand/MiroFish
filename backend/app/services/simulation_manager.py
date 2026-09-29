@@ -19,6 +19,7 @@ from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
 from ..utils.security import validate_platform, validate_storage_id, is_valid_storage_id
+from .entity_role_filter import filter_entities
 
 logger = get_logger('mirofish.simulation')
 
@@ -75,6 +76,9 @@ class SimulationState:
     
     # 错误信息
     error: Optional[str] = None
+
+    # Resumen del filtro de entidades con Jev (roles, descartadas, % audiencia)
+    entity_filter: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """完整状态字典（内部使用）"""
@@ -96,6 +100,7 @@ class SimulationState:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "error": self.error,
+            "entity_filter": self.entity_filter,
         }
     
     def to_simple_dict(self) -> Dict[str, Any]:
@@ -189,6 +194,7 @@ class SimulationManager:
             created_at=data.get("created_at", datetime.now().isoformat()),
             updated_at=data.get("updated_at", datetime.now().isoformat()),
             error=data.get("error"),
+            entity_filter=data.get("entity_filter"),
         )
         
         self._simulations[simulation_id] = state
@@ -303,6 +309,39 @@ class SimulationManager:
                 state.error = t('api.prepareNoEntities')
                 self._save_simulation_state(state)
                 return state
+
+            # ========== 阶段1b: filtro de entidades con Jev ==========
+            # Quita la infraestructura (tiendas, nube, analítica...) que no
+            # opinaría en redes y mide cuánta audiencia real queda.
+            if progress_callback:
+                progress_callback("reading", 100, t('progress.jevFilterRunning', count=filtered.filtered_count))
+            role_result = filter_entities(filtered.entities, simulation_requirement)
+            state.entity_filter = role_result.summary()
+            if role_result.applied:
+                filtered.entities = role_result.kept
+                filtered.filtered_count = len(role_result.kept)
+                state.entities_count = filtered.filtered_count
+                summary = state.entity_filter
+                if progress_callback:
+                    progress_callback(
+                        "reading", 100,
+                        t('progress.jevFilterDone',
+                          dropped=len(summary["dropped"]),
+                          kept=summary["kept"],
+                          audience=int(round((summary["audience_ratio"] or 0) * 100))),
+                        current=filtered.filtered_count,
+                        total=filtered.filtered_count
+                    )
+                    if summary["low_audience"]:
+                        progress_callback(
+                            "reading", 100,
+                            t('progress.jevLowAudience',
+                              audience=int(round((summary["audience_ratio"] or 0) * 100)),
+                              minimum=int(Config.JEV_MIN_AUDIENCE_RATIO * 100)),
+                            current=filtered.filtered_count,
+                            total=filtered.filtered_count
+                        )
+            self._save_simulation_state(state)
             
             # ========== 阶段2: 生成Agent Profile ==========
             total_entities = len(filtered.entities)
