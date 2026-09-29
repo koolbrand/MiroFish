@@ -49,7 +49,7 @@
             {{ cardTitle(project) }}
           </button>
         </h3>
-        <p v-if="project.simulation_requirement" class="sim-desc">{{ project.simulation_requirement }}</p>
+        <p v-if="project.simulation_requirement" class="sim-desc">{{ plainText(project.simulation_requirement) }}</p>
 
         <ol class="pipeline">
           <li v-for="stage in stagesOf(project)" :key="stage.key" :class="{ done: stage.value >= 1 }">
@@ -122,7 +122,7 @@
 
             <div class="kb-modal-section">
               <div class="kb-modal-label">{{ $t('history.simRequirement') }}</div>
-              <p class="kb-modal-requirement">{{ selectedProject.simulation_requirement || $t('common.none') }}</p>
+              <p class="kb-modal-requirement">{{ plainText(selectedProject.simulation_requirement) || $t('common.none') }}</p>
             </div>
 
             <div class="kb-modal-section">
@@ -177,13 +177,20 @@ const deleteTarget = ref(null)
 const confirming = ref(false)
 const deletingIds = ref(new Set())
 
-const getProgressClass = (simulation) => {
+// Estado real del proceso (runner_status), no solo las rondas: una simulación
+// parada a medias no debe parecer «en curso».
+const statusKind = (simulation) => {
+  const rs = simulation.runner_status
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
-  if (total === 0 || current === 0) return 'not-started'
-  if (current >= total) return 'completed'
-  return 'in-progress'
+  if (rs === 'running' || rs === 'starting' || rs === 'stopping') return 'running'
+  if (rs === 'failed') return 'failed'
+  if (rs === 'completed' || (total && current >= total)) return 'completed'
+  if (!current) return 'not-started'
+  return 'stopped'
 }
+
+const getProgressClass = (simulation) => ({ running: 'in-progress' }[statusKind(simulation)] || statusKind(simulation))
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
@@ -205,6 +212,7 @@ const formatTime = (dateStr) => {
 }
 
 const getSimulationTitle = (requirement) => {
+  requirement = plainText(requirement)
   if (!requirement) return t('history.untitledSimulation')
   return requirement.length > 60 ? requirement.slice(0, 60) + '…' : requirement
 }
@@ -219,9 +227,16 @@ const formatSimulationId = (simulationId) => {
 const formatRounds = (simulation) => {
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
-  if (total === 0) return t('history.notStarted')
+  const kind = statusKind(simulation)
+  if (kind === 'not-started' || total === 0) return t('history.notStarted')
+  if (kind === 'running') return t('history.statusRunning', { current, total })
+  if (kind === 'stopped') return t('history.statusStopped', { current, total })
+  if (kind === 'failed') return t('history.statusFailed', { current, total })
   return t('history.roundsProgress', { current, total })
 }
+
+// La pregunta a veces llega en Markdown («**Simulación:** …»): se enseña limpia.
+const plainText = (text) => (text || '').replace(/\*\*|__|`/g, '').replace(/^#{1,6}\s+/gm, '').trim()
 
 const getFileTypeLabel = (filename) => {
   if (!filename) return 'FILE'
@@ -450,6 +465,10 @@ onActivated(() => {
 .sim-status.completed .dot { background: var(--lime-700); }
 .sim-status.in-progress { background: var(--ink-950); color: var(--lime-500); }
 .sim-status.in-progress .dot { background: var(--lime-500); animation: pulse 1.6s ease-in-out infinite; }
+.sim-status.stopped { background: var(--kb-soft); color: var(--kb-text-2); }
+.sim-status.stopped .dot { background: var(--gray-600); }
+.sim-status.failed { background: #FDECEC; color: #991B1B; }
+.sim-status.failed .dot { background: var(--kb-danger); }
 
 .sim-delete {
   position: relative;
@@ -635,6 +654,8 @@ onActivated(() => {
 .kb-modal-meta .sim-status.completed .dot { background: var(--lime-700); }
 .kb-modal-meta .sim-status.in-progress { background: var(--ink-950); color: var(--lime-500); }
 .kb-modal-meta .sim-status.in-progress .dot { background: var(--lime-500); }
+.kb-modal-meta .sim-status.failed { background: #FDECEC; color: #991B1B; }
+.kb-modal-meta .sim-status.failed .dot { background: var(--kb-danger); }
 .kb-modal-date, .kb-modal-id { font-family: var(--kb-font-mono); font-size: 11px; color: var(--kb-subtle); }
 .kb-modal-close {
   flex: none; width: 36px; height: 36px; margin: -6px -6px 0 0; border: none; border-radius: 50%;
