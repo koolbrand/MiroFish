@@ -869,6 +869,8 @@ const startSimulation = () => {
   list-style: none;
 }
 .figure {
+  /* la cifra se dimensiona con su columna, no con la pantalla: así nunca invade la de al lado */
+  container-type: inline-size;
   display: grid;
   align-content: start;
   gap: 12px;
@@ -876,13 +878,15 @@ const startSimulation = () => {
   border-top: 2px solid var(--ink-950);
 }
 .figure-value {
-  font-size: clamp(2.6rem, 5vw, 4.8rem);
+  font-size: clamp(2.4rem, 4vw, 4.2rem);
+  font-size: min(4.8rem, 23cqi);
   font-weight: 800;
   line-height: 0.95;
-  letter-spacing: -0.045em;
+  /* más suelto que en los titulares: con -0.045em el guion de «20–30» se pegaba a las cifras */
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.figure-unit { margin-inline-start: 0.2em; font-size: 0.45em; letter-spacing: -0.01em; }
+.figure-unit { margin-inline-start: 0.18em; font-size: 0.42em; letter-spacing: 0; }
 .figure-label {
   max-width: 26ch;
   font-size: 0.98rem;
@@ -950,9 +954,11 @@ const startSimulation = () => {
 }
 
 /* ── Adaptación ─────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 40px; }
+}
 @media (max-width: 960px) {
   .results-grid { grid-template-columns: minmax(0, 1fr); }
-  .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .composer-grid { grid-template-columns: minmax(0, 1fr); }
