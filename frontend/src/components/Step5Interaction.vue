@@ -8,7 +8,7 @@
           <!-- Report Header -->
           <div class="report-header-block">
             <div class="report-meta">
-              <span class="report-tag">Prediction Report</span>
+              <span class="report-tag">{{ $t('ui.predictionReport') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
               <button class="download-btn" @click="downloadReport" :title="$t('step5.downloadReport')">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1164,12 +1164,18 @@ watch(() => props.simulationId, (newId) => {
 
 .main-title {
   font-family: var(--kb-font-sans);
-  font-size: 36px;
-  font-weight: 700;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 800;
   color: var(--kb-text);
-  line-height: 1.2;
+  line-height: 1.15;
   margin: 0 0 16px 0;
   letter-spacing: -0.02em;
+  text-wrap: balance;
+  /* Un título de 7 líneas ocupaba medio panel: máximo 3 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .sub-title {

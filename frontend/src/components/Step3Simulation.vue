@@ -32,7 +32,7 @@
           </div>
           <!-- 可用动作提示 -->
           <div class="actions-tooltip">
-            <div class="tooltip-title">Available Actions</div>
+            <div class="tooltip-title">{{ $t('ui.availableActions') }}</div>
             <div class="tooltip-actions">
               <span class="tooltip-action">POST</span>
               <span class="tooltip-action">LIKE</span>
@@ -73,7 +73,7 @@
           </div>
           <!-- 可用动作提示 -->
           <div class="actions-tooltip">
-            <div class="tooltip-title">Available Actions</div>
+            <div class="tooltip-title">{{ $t('ui.availableActions') }}</div>
             <div class="tooltip-actions">
               <span class="tooltip-action">POST</span>
               <span class="tooltip-action">COMMENT</span>
@@ -374,9 +374,11 @@
     <div class="system-logs">
       <div class="log-header">
         <span class="log-title">SIMULATION MONITOR</span>
-        <span class="log-id">{{ simulationId || 'NO_SIMULATION' }}</span>
+        <span v-if="!showTech && lastLog" class="log-last">{{ lastLog }}</span>
+        <button type="button" class="log-toggle" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
+        <span class="log-id tech-only">{{ simulationId || 'NO_SIMULATION' }}</span>
       </div>
-      <div class="log-content" ref="logContent">
+      <div class="log-content" ref="logContent" v-show="showTech">
         <div class="log-line" v-for="(log, idx) in systemLogs" :key="idx">
           <span class="log-time">{{ log.time }}</span>
           <span class="log-msg">{{ log.msg }}</span>
@@ -387,6 +389,7 @@
 </template>
 
 <script setup>
+import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -410,6 +413,12 @@ const props = defineProps({
   projectData: Object,
   graphData: Object,
   systemLogs: Array
+})
+const { showTech, toggleTech } = useTechDetails()
+const lastLog = computed(() => {
+  const logs = props.systemLogs || []
+  const last = logs[logs.length - 1]
+  return last ? String(last.msg || '') : ''
 })
 
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
