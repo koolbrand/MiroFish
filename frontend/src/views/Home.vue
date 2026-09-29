@@ -15,27 +15,28 @@
     </nav>
 
     <main>
-      <!-- Portada: la multitud de ejemplo reacciona ronda a ronda detrás del titular -->
+      <!-- Portada: un muro de Biankas de todo tipo que opinan, conversan y cambian
+           de idea ronda a ronda; el mensaje va en una tarjeta en el centro -->
       <header class="stage">
-        <CrowdCanvas :quiet-el="stageInner" :bottom-inset="overlap" />
-        <div ref="stageInner" class="stage-inner">
-          <p class="eyebrow" data-quiet><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
+        <BiankaCrowd :avoid-el="stageCard" :bottom-inset="overlap" />
+        <div ref="stageCard" class="stage-card">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
           <h1 class="stage-title">
-            <i18n-t keypath="home.stageTitleLine1" tag="span" class="line" data-quiet>
+            <i18n-t keypath="home.stageTitleLine1" tag="span" class="line">
               <template #hl><span class="hl">{{ $t('home.stageTitleHl') }}</span></template>
             </i18n-t>
-            <span class="line" data-quiet>{{ $t('home.stageTitleLine2') }}</span>
+            <span class="line">{{ $t('home.stageTitleLine2') }}</span>
           </h1>
-          <p class="stage-lede" data-quiet>
+          <p class="stage-lede">
             <i18n-t keypath="home.stageLede" tag="span">
               <template #crowd><strong>{{ $t('home.stageLedeCrowd') }}</strong></template>
             </i18n-t>
           </p>
-          <div class="stage-actions" data-quiet>
+          <div class="stage-actions">
             <button type="button" class="btn btn-lime" @click="scrollToForm">
               {{ $t('home.heroCta') }} <span aria-hidden="true">↓</span>
             </button>
-            <a href="#como-funciona" class="btn btn-outline-light">{{ $t('home.workflowSequence') }}</a>
+            <a href="#como-funciona" class="btn btn-outline">{{ $t('home.workflowSequence') }}</a>
           </div>
         </div>
       </header>
@@ -246,7 +247,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import HelpButton from '../components/HelpButton.vue'
-import CrowdCanvas from '../components/CrowdCanvas.vue'
+import BiankaCrowd from '../components/BiankaCrowd.vue'
 import OpinionChart from '../components/OpinionChart.vue'
 import CountUp from '../components/CountUp.vue'
 import { vReveal } from '../composables/useReveal'
@@ -258,8 +259,8 @@ const router = useRouter()
 const { maybeAutoStart } = useTutorial()
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
-const overlap = ref(150)
-const stageInner = ref(null)
+const overlap = ref(72)
+const stageCard = ref(null)
 const questionEl = ref(null)
 
 const EXAMPLES = ['Launch', 'Price', 'Campaign', 'Crisis']
@@ -279,7 +280,7 @@ const figures = computed(() => [
 
 onMounted(async () => {
   await nextTick()
-  overlap.value = window.innerWidth <= 640 ? 96 : 150
+  overlap.value = window.innerWidth <= 640 ? 56 : 72
   // Tutorial automático en la primera visita (se reabre con el botón «?»).
   maybeAutoStart('home', getTour('home'))
 })
@@ -379,7 +380,7 @@ const startSimulation = () => {
 <style scoped>
 .home {
   --gutter: clamp(16px, 4vw, 48px);
-  --overlap: 150px;
+  --overlap: 72px;
   --stage-bg: #0B0B0B;
   min-height: 100vh;
   background: var(--kb-bg);
@@ -434,78 +435,75 @@ const startSimulation = () => {
   display: grid;
   align-items: center;
   justify-items: center;
-  min-height: clamp(640px, calc(100svh - 64px + var(--overlap) - 110px), 1000px);
-  padding: clamp(56px, 9vh, 112px) var(--gutter) calc(var(--overlap) + 120px);
-  background:
-    radial-gradient(90% 70% at 50% 38%, rgba(204, 230, 115, 0.07) 0%, rgba(204, 230, 115, 0) 60%),
-    var(--stage-bg);
-  color: var(--cream-100);
+  min-height: max(620px, calc(100svh - 64px + var(--overlap)));
+  padding: clamp(40px, 8vh, 96px) var(--gutter) calc(var(--overlap) + 96px);
+  background: var(--cream-100);
+  color: var(--kb-text);
 }
-.stage :focus-visible,
 .closing :focus-visible,
 .site-footer :focus-visible { outline-color: var(--lime-500); }
 
-.stage-inner {
+.stage-card {
   position: relative;
   z-index: 2;
-  max-width: 1040px;
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  padding: clamp(28px, 4.5vw, 52px) clamp(20px, 4vw, 56px);
+  background: var(--kb-surface);
+  border: 2px solid var(--ink-950);
+  border-radius: 18px;
+  box-shadow: 8px 8px 0 var(--ink-950);
   text-align: center;
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
 }
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 28px;
+  margin: 0 0 20px;
   font-family: var(--kb-font-mono);
   font-size: 12px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--lime-500);
-  animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  color: var(--kb-accent-text);
 }
 .eyebrow-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--lime-500);
+  background: var(--lime-700);
   animation: live 2s ease-out infinite;
 }
 .stage-title {
   margin: 0;
-  font-size: clamp(3.1rem, 9.2vw, 8.5rem);
+  font-size: clamp(2.5rem, 7vw, 5rem);
   font-weight: 800;
-  line-height: 0.95;
+  line-height: 0.98;
   letter-spacing: -0.045em;
-  color: var(--cream-100);
+  color: var(--kb-text);
   text-wrap: balance;
 }
-.stage-title .line {
-  display: block;
-  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
-}
-.stage-title .line + .line { animation-delay: 0.2s; }
+.stage-title .line { display: block; }
 .stage-title .hl {
   padding: 0 0.12em 0.06em;
   border-radius: 0.08em;
-  animation: stamp 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) 0.55s both;
+  animation: stamp 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) 0.75s both;
 }
 .stage-lede {
-  max-width: 58ch;
-  margin: 32px auto 0;
-  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  max-width: 50ch;
+  margin: 24px auto 0;
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
   line-height: 1.55;
-  color: rgba(242, 241, 239, 0.76);
+  color: var(--kb-text-2);
   text-wrap: pretty;
-  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.32s both;
 }
-.stage-lede strong { color: var(--cream-100); font-weight: 600; }
+.stage-lede strong { color: var(--kb-text); font-weight: 700; }
 .stage-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  margin-top: 40px;
-  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.44s both;
+  margin-top: 32px;
 }
 
 .btn {
@@ -525,12 +523,12 @@ const startSimulation = () => {
   border: 1px solid var(--lime-500);
 }
 .btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translateY(-1px); }
-.btn-outline-light {
-  background: transparent;
-  color: var(--cream-100);
-  border: 1px solid rgba(242, 241, 239, 0.3);
+.btn-outline {
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  border: 1px solid var(--kb-line-strong);
 }
-.btn-outline-light:hover { border-color: var(--cream-100); }
+.btn-outline:hover { border-color: var(--ink-950); }
 
 /* ── Formulario ─────────────────────────────────────────────────────────── */
 .composer-wrap {
@@ -954,6 +952,11 @@ const startSimulation = () => {
 }
 
 /* ── Adaptación ─────────────────────────────────────────────────────────── */
+/* con la tarjeta ocupando casi todo el ancho, el muro solo tiene hueco arriba y abajo */
+@media (max-width: 1240px) {
+  /* y el marcador de la simulación pasa a ocupar su propia franja bajo la tarjeta */
+  .stage { padding-top: 190px; padding-bottom: calc(var(--overlap) + 176px); }
+}
 @media (max-width: 1180px) {
   .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 40px; }
 }
@@ -978,19 +981,16 @@ const startSimulation = () => {
   .station::before { top: 2px; }
 }
 @media (max-width: 640px) {
-  .home { --overlap: 96px; }
+  .home { --overlap: 56px; }
   .topbar-version { display: none; }
   .topbar-links { gap: 10px; }
-  /* hueco sobre el titular para que la multitud también «hable» en móvil */
-  .stage { padding-top: 112px; padding-bottom: calc(var(--overlap) + 120px); }
   .launch-btn { width: 100%; justify-content: center; }
 }
 @media (max-width: 480px) {
   .figures-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .eyebrow, .eyebrow-dot, .stage-title .line, .stage-title .hl,
-  .stage-lede, .stage-actions, .composer { animation: none; }
+  .eyebrow-dot, .stage-card, .stage-title .hl, .composer { animation: none; }
   .rail::before, .station { transition: none; }
 }
 </style>
