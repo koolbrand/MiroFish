@@ -947,5 +947,27 @@
       "chatInputTitle": "Escribe tu mensaje",
       "chatInputBody": "Pulsa Enter para enviar. Shift+Enter para salto de línea. El agente responderá en segundos y mantiene el contexto durante la conversación."
     }
+  },
+  "brief": {
+    "downloadTemplate": "Descargar plantilla de brief",
+    "startInterview": "Crear el brief con una entrevista",
+    "checkTitle": "Revisión del brief (Jev)",
+    "checking": "revisando…",
+    "checkUnavailable": "revisión no disponible",
+    "required": "obligatoria",
+    "missingRequired": "Faltan secciones obligatorias: la simulación saldrá peor. Completa el documento con la plantilla o usa la entrevista.",
+    "allRequiredOk": "Tiene lo esencial. Cuanto más detalle sobre el público, mejor saldrá la simulación.",
+    "interviewTitle": "Entrevista para el brief",
+    "interviewIntro": "Te haré preguntas concretas, de una en una, hasta tener lo que la simulación necesita. Si una respuesta es vaga, repreguntaré. Puedes generar el brief cuando quieras.",
+    "answerPlaceholder": "Tu respuesta (⌘/Ctrl + Enter para enviar)",
+    "send": "Enviar",
+    "composeNow": "Generar el brief ya",
+    "thinking": "Pensando la siguiente pregunta…",
+    "composing": "Redactando el brief con la plantilla…",
+    "draftHint": "Revisa y corrige lo que haga falta. Lo marcado como «Pendiente» no se ha podido completar con tus respuestas.",
+    "useDraft": "Añadir a los archivos",
+    "downloadDraft": "Descargar .md",
+    "close": "Cerrar",
+    "error": "Error: {error}"
   }
 }

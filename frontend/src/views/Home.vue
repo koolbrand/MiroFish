@@ -186,6 +186,14 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Plantilla, revisión con Jev y entrevista para el brief -->
+              <BriefAssistant
+                :files="files"
+                :topic="formData.simulationRequirement"
+                :disabled="loading"
+                @add-file="file => addFiles([file])"
+              />
             </div>
 
             <!-- 分割线 -->
@@ -251,6 +259,7 @@
 </template>
 
 <script setup>
+import BriefAssistant from '../components/BriefAssistant.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useRouter } from 'vue-router'
