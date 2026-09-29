@@ -591,7 +591,10 @@
     "generatingProfiles": "生成Agent人设",
     "generatingSimConfig": "生成模拟配置",
     "preparingScripts": "准备模拟脚本",
-    "processingChunk": "正在处理第 {current}/{total} 块 · 已用 {elapsed} 秒（每块可能需要几分钟）"
+    "processingChunk": "正在处理第 {current}/{total} 块 · 已用 {elapsed} 秒（每块可能需要几分钟）",
+    "jevFilterRunning": "正在用 Jev 检查哪些实体会在社交媒体上发言（{count} 个实体）...",
+    "jevFilterDone": "Jev：已排除 {dropped} 个不会发言的实体（应用商店、云服务、分析工具等）。剩余 {kept} 个智能体；真实受众占 {audience}%。",
+    "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议至少 {minimum}%）。结果将更多反映竞争对手和企业而非你的客户：请在文档中补充受众信息。"
   },
   "log": {
     "preparingGoBack": "准备返回 Step 2，正在关闭模拟...",
@@ -742,7 +745,10 @@
     "reconnectingToRunning": "正在重新连接到运行中的模拟...",
     "loadingPreviousRun": "正在加载上一次的模拟结果...",
     "restartingDualSim": "正在重启双平台模拟...",
-    "userRequestedRestart": "用户请求重启。"
+    "userRequestedRestart": "用户请求重启。",
+    "jevFilterSummary": "Jev 已检查实体：排除 {dropped} 个不会发言的实体；共 {kept} 个智能体；真实受众 {audience}%。",
+    "jevFilterDropped": "已排除：{names}",
+    "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议 ≥ {minimum}%）。竞争对手和企业的声音会更重：请在文档中补充受众信息。"
   },
   "report": {
     "taskStarted": "报告生成任务开始",

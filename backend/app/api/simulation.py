@@ -796,6 +796,11 @@ def get_prepare_status():
         
         task_dict = task.to_dict()
         task_dict["already_prepared"] = False
+        # Resumen del filtro de Jev (lo muestra el paso 2; el mensaje de
+        # progreso dura menos de un segundo y el polling se lo perdía)
+        if simulation_id:
+            sim_state = SimulationManager().get_simulation(simulation_id)
+            task_dict["entity_filter"] = sim_state.entity_filter if sim_state else None
         
         return jsonify({
             "success": True,

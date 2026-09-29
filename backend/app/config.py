@@ -56,6 +56,13 @@ class Config:
     # Construcción del grafo: tope por llamada al LLM/embeddings y por fragmento
     GRAPH_LLM_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_LLM_TIMEOUT_SECONDS', '180'))
     GRAPH_EPISODE_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_EPISODE_TIMEOUT_SECONDS', '900'))
+    # Jev (TypeSafe): filtro de entidades antes de crear agentes
+    TYPESAFE_API_KEY = os.environ.get('TYPESAFE_API_KEY')
+    TYPESAFE_API_URL = os.environ.get('TYPESAFE_API_URL', 'https://api.typesafe.ai/v1/systemone')
+    JEV_MODEL = os.environ.get('JEV_MODEL', 'jev-latest')
+    JEV_ENTITY_FILTER = os.environ.get('JEV_ENTITY_FILTER', 'true').lower() == 'true'
+    JEV_DROP_CONFIDENCE = float(os.environ.get('JEV_DROP_CONFIDENCE', '0.8'))
+    JEV_MIN_AUDIENCE_RATIO = float(os.environ.get('JEV_MIN_AUDIENCE_RATIO', '0.4'))
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph

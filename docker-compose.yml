@@ -32,6 +32,9 @@ services:
       - NODE_ENV=production
       - FLASK_DEBUG=false
       - FLASK_PORT=8000
+      # Jev (TypeSafe): filtro de entidades antes de crear agentes. Sin clave, no filtra.
+      - TYPESAFE_API_KEY=${TYPESAFE_API_KEY:-}
+      - JEV_ENTITY_FILTER=${JEV_ENTITY_FILTER:-true}
       - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY}
       - API_AUTH_REQUIRED=${API_AUTH_REQUIRED:-true}
       - API_AUTH_TOKEN=${API_AUTH_TOKEN:-}
