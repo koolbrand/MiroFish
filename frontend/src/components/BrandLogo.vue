@@ -1,15 +1,12 @@
 <template>
-  <!-- Logotipo Simuloo: «simul» en Inter Tight 800 y la doble «o» convertida en
-       dos ojos dentro del bloque lima rotado (firma Koolbrand).
-       Simula porque observa. -->
+  <!-- Logotipo Simuloo: «simul» en Inter Tight 800 y la doble «o» dentro del
+       bloque lima rotado (firma Koolbrand). -->
   <span class="brand-logo" role="img" :aria-label="ariaLabel">
     <span class="brand-simul" aria-hidden="true">simul</span><span class="brand-eyes" aria-hidden="true">
       <svg viewBox="0 0 124 64" class="eyes-svg" focusable="false">
-        <!-- anillos = las dos «o»; pupilas desplazadas: mira de lado -->
+        <!-- las dos «o», dibujadas para que no dependan de la carga de la fuente -->
         <circle cx="31" cy="34" r="22" fill="none" stroke="currentColor" stroke-width="13" />
         <circle cx="93" cy="34" r="22" fill="none" stroke="currentColor" stroke-width="13" />
-        <circle class="pupil" cx="37" cy="36" r="7.5" fill="currentColor" />
-        <circle class="pupil" cx="99" cy="36" r="7.5" fill="currentColor" />
       </svg>
     </span>
   </span>
@@ -54,11 +51,5 @@ defineProps({
   width: auto;
   display: block;
   overflow: visible;
-}
-/* Al pasar por encima, los ojos miran al otro lado */
-.pupil { transition: transform 0.35s ease; }
-.brand-logo:hover .pupil { transform: translateX(-11px); }
-@media (prefers-reduced-motion: reduce) {
-  .pupil { transition: none; }
 }
 </style>
