@@ -52,6 +52,11 @@ services:
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
       - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
+      # Vision LLM (imágenes subidas como semilla). Cada una cae a su LLM_* si está vacía.
+      - VISION_LLM_API_KEY=${VISION_LLM_API_KEY:-}
+      - VISION_LLM_BASE_URL=${VISION_LLM_BASE_URL:-}
+      - VISION_LLM_MODEL_NAME=${VISION_LLM_MODEL_NAME:-}
+      - FLASK_PORT=8000
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs

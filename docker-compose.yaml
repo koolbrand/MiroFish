@@ -13,6 +13,10 @@ services:
       NEO4J_server_config_strict__validation_enabled: "false"
     volumes:
       - neo4j_data_v2:/data
+    # Contain Neo4j RAM usage so it can't starve the host.
+    # Heap is 1g max + ~512m for page cache and overhead → 2g is safe.
+    mem_limit: 2g
+    mem_reservation: 1g
 
   mirofish:
     build:
@@ -46,9 +50,24 @@ services:
       - GRAPHITI_LLM_BASE_URL=${GRAPHITI_LLM_BASE_URL:-}
       - GRAPHITI_LLM_MODEL_NAME=${GRAPHITI_LLM_MODEL_NAME:-}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
+      - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
+      # Vision LLM (imágenes subidas como semilla). Cada una cae a su LLM_* si está vacía.
+      - VISION_LLM_API_KEY=${VISION_LLM_API_KEY:-}
+      - VISION_LLM_BASE_URL=${VISION_LLM_BASE_URL:-}
+      - VISION_LLM_MODEL_NAME=${VISION_LLM_MODEL_NAME:-}
+      - FLASK_PORT=8000
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs
+    # Contain OASIS (BERT + simulation) memory usage so a runaway
+    # simulation can only kill MiroFish itself, never cascade into other
+    # Coolify apps on the same host. If the process exceeds mem_limit
+    # Docker SIGKILLs it and the container auto-restarts thanks to
+    # `restart: unless-stopped`. The localized SIGKILL/OOM error in the
+    # UI tells the user to reduce agents or extend RAM.
+    mem_limit: 4g
+    mem_reservation: 2g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

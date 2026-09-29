@@ -9,6 +9,8 @@ import logging
 import re
 import threading
 import uuid
+
+import yaml
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import get_close_matches
@@ -22,11 +24,39 @@ from graphiti_core.llm_client.openai_client import OpenAIClient
 from graphiti_core.llm_client.config import LLMConfig, ModelSize, DEFAULT_MAX_TOKENS
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
+from graphiti_core.search.search_config_recipes import NODE_HYBRID_SEARCH_RRF
 from neo4j import GraphDatabase
 
 from ..config import Config
+import graphiti_core.graphiti as _graphiti_module
 
 logger = logging.getLogger('mirofish.graphiti_adapter')
+
+
+# graphiti-core 0.11.x solo conserva los nodos que el LLM devuelve en la
+# deduplicación: si esa respuesta llega vacía o mal formada, descarta TODAS las
+# entidades del episodio en silencio (el grafo sale con 0 nodos). Envolvemos la
+# función para conservar como nodos nuevos los extraídos que falten.
+_original_resolve_extracted_nodes = _graphiti_module.resolve_extracted_nodes
+
+
+async def _resolve_extracted_nodes_keep_all(llm_client, extracted_nodes, *args, **kwargs):
+    resolved_nodes, uuid_map = await _original_resolve_extracted_nodes(
+        llm_client, extracted_nodes, *args, **kwargs
+    )
+    missing = [n for n in extracted_nodes if n.uuid not in uuid_map]
+    if missing:
+        logger.warning(
+            "dedupe dropped %d/%d nodes; keeping them as new entities",
+            len(missing), len(extracted_nodes)
+        )
+        resolved_nodes = list(resolved_nodes) + missing
+        for node in missing:
+            uuid_map[node.uuid] = node.uuid
+    return resolved_nodes, uuid_map
+
+
+_graphiti_module.resolve_extracted_nodes = _resolve_extracted_nodes_keep_all
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +118,11 @@ def _sanitize_embed_inputs(embedder):
             continue
 
         if inspect.iscoroutinefunction(original):
-            async def _wrapped(*args, __orig=original, **kwargs):
+            async def _wrapped(*args, __orig=original, __name=method_name, **kwargs):
+                # Graphiti pide create_batch([]) cuando un fragmento no produce
+                # relaciones; la API de embeddings rechaza la lista vacía (400).
+                if __name == 'create_batch' and args and isinstance(args[0], list) and not args[0]:
+                    return []
                 args = tuple(_sanitize_embed_arg(a) for a in args)
                 kwargs = {k: _sanitize_embed_arg(v) for k, v in kwargs.items()}
                 return await __orig(*args, **kwargs)
@@ -249,7 +283,7 @@ def build_ontology_models(ontology: dict) -> tuple[dict, dict, dict]:
 # (List[Entity], etc.) are normalized correctly.
 # ---------------------------------------------------------------------------
 def _extract_first_json_object(text: str) -> str:
-    """
+    r"""
     Extract the first complete, balanced JSON object from text.
 
     Using a regex like r'\{.*\}' with re.DOTALL is greedy and will span
@@ -283,6 +317,53 @@ def _extract_first_json_object(text: str) -> str:
                 return text[start:i + 1]
     # Unbalanced — return everything from first '{'
     return text[start:]
+
+
+def _extract_top_level_array(text: str):
+    """Si la respuesta es un array JSON suelto ([...] antes de cualquier {),
+    lo devuelve parseado; si no, None. Los modelos de razonamiento (MiniMax
+    M3) contestan a menudo con la lista sin el objeto que la envuelve."""
+    start = text.find('[')
+    brace = text.find('{')
+    if start == -1 or (brace != -1 and brace < start):
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '[':
+            depth += 1
+        elif ch == ']':
+            depth -= 1
+            if depth == 0:
+                try:
+                    value = json.loads(text[start:i + 1])
+                except json.JSONDecodeError:
+                    return None
+                return value if isinstance(value, list) else None
+    return None
+
+
+def _wrap_array_for_schema(items: list, schema: dict):
+    """Envuelve una lista en el único campo de tipo array del esquema."""
+    array_fields = [
+        name for name, prop in schema.get('properties', {}).items()
+        if isinstance(prop, dict) and prop.get('type') == 'array'
+    ]
+    if len(array_fields) == 1:
+        return {array_fields[0]: items}
+    return None
 
 
 def _resolve_ref(schema: dict, root: dict) -> dict:
@@ -526,12 +607,28 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         response_model=None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         model_size: ModelSize = ModelSize.medium,
+        _json_retry: bool = False,
     ):
         openai_messages = []
         for m in messages:
             m.content = self._clean_input(m.content)
             if m.role in ('user', 'system', 'assistant'):
                 openai_messages.append({'role': m.role, 'content': m.content})
+
+        # Los modelos de razonamiento (MiniMax M3/M2.7) ignoran a menudo el
+        # response_format y contestan en prosa, markdown o YAML: se lo pedimos
+        # también en el propio mensaje, con las claves exactas del esquema.
+        if response_model is not None and openai_messages:
+            keys = list(response_model.model_json_schema().get('properties', {}).keys())
+            openai_messages.append({
+                'role': 'user',
+                'content': (
+                    "Respond ONLY with one JSON object with the top-level keys "
+                    f"{keys}. No prose, no markdown, no YAML."
+                    + (" Your previous answer had no JSON: output the JSON object now."
+                       if _json_retry else "")
+                ),
+            })
 
         model = (
             (self.small_model or self.model)
@@ -597,6 +694,12 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
         if response is None:
             raise last_exc  # type: ignore[misc]
 
+        # Modelo de razonamiento cortado por longitud: un reintento con más margen
+        if (response.choices[0].finish_reason == 'length'
+                and try_kwargs.get('max_tokens', 0) < Config.LLM_MAX_TOKENS_CAP):
+            try_kwargs['max_tokens'] = min(try_kwargs['max_tokens'] * 4, Config.LLM_MAX_TOKENS_CAP)
+            response = await self.client.chat.completions.create(**try_kwargs)
+
         content = response.choices[0].message.content or ""
 
         # Strip <think>...</think> reasoning blocks (MiniMax M2.7, DeepSeek-R1, etc.)
@@ -609,12 +712,42 @@ class ThinkingAwareOpenAIClient(OpenAIClient):
             # Extract the first complete balanced JSON object from the cleaned
             # content.  Using a greedy regex can merge multiple JSON objects
             # into one string, causing JSONDecodeError "Extra data".
+            schema = response_model.model_json_schema()
+            top_array = _extract_top_level_array(content)
+            if top_array is not None:
+                wrapped = _wrap_array_for_schema(top_array, schema)
+                if wrapped is not None:
+                    _normalize_json_to_schema(wrapped, schema)
+                    return response_model.model_validate(wrapped).model_dump()
+
             json_str = _extract_first_json_object(content)
             if not json_str or json_str == content and '{' not in json_str:
+                # Algunos modelos de razonamiento contestan en YAML
+                # ("entity_resolutions:\n  - id: 0 ...") pese a json_object.
+                try:
+                    yaml_data = yaml.safe_load(content)
+                except yaml.YAMLError:
+                    yaml_data = None
+                if isinstance(yaml_data, dict):
+                    _normalize_json_to_schema(yaml_data, schema)
+                    try:
+                        return response_model.model_validate(yaml_data).model_dump()
+                    except Exception:  # noqa: BLE001
+                        pass
                 # No JSON object found — return an empty validated model so
                 # graphiti-core gets a valid (empty) response instead of a crash.
                 # graphiti will log the retry but continue gracefully.
-                return response_model().model_dump()
+                # (Los modelos de graphiti tienen campos obligatorios: se
+                # rellenan con vacíos del tipo correcto antes de validar.)
+                if not _json_retry:
+                    logger.warning("LLM answered without JSON for %s; retrying once",
+                                   response_model.__name__)
+                    return await self._generate_response(
+                        messages, response_model, max_tokens, model_size, _json_retry=True
+                    )
+                empty = {}
+                _normalize_json_to_schema(empty, response_model.model_json_schema())
+                return response_model.model_validate(empty).model_dump()
             data = json.loads(json_str)
             # MiniMax (and other reasoning models) invent field name variants
             # even with json_schema response_format.  Fuzzy-rename unknown keys
@@ -1014,24 +1147,43 @@ class GraphitiGraphClient:
 
     def search(self, graph_id: str, query: str, limit: int = 10,
                scope: str = "edges", reranker: str = "rrf") -> FakeSearchResult:
+        # Los errores se relanzan: los llamadores tienen reintentos y un
+        # fallback de búsqueda local que solo se activa con una excepción.
+        edges, nodes = [], []
         try:
-            raw = _run(self._graphiti.search(
-                group_ids=[graph_id],
-                query=query,
-                num_results=limit,
-            ))
-            edges = []
-            for item in raw:
-                edges.append(FakeEdge(
-                    uuid_=getattr(item, 'uuid', str(uuid.uuid4())),
-                    name=getattr(item, 'name', ''),
-                    fact=getattr(item, 'fact', str(item)),
-                    source_node_uuid=getattr(item, 'source_node_uuid', ''),
-                    target_node_uuid=getattr(item, 'target_node_uuid', ''),
+            if scope in ("edges", "both"):
+                raw = _run(self._graphiti.search(
+                    group_ids=[graph_id],
+                    query=query,
+                    num_results=limit,
                 ))
-            return FakeSearchResult(edges=edges, nodes=[])
-        except Exception:
-            return FakeSearchResult(edges=[], nodes=[])
+                for item in raw:
+                    edges.append(FakeEdge(
+                        uuid_=getattr(item, 'uuid', str(uuid.uuid4())),
+                        name=getattr(item, 'name', ''),
+                        fact=getattr(item, 'fact', str(item)),
+                        source_node_uuid=getattr(item, 'source_node_uuid', ''),
+                        target_node_uuid=getattr(item, 'target_node_uuid', ''),
+                    ))
+            if scope in ("nodes", "both"):
+                config = NODE_HYBRID_SEARCH_RRF.model_copy(update={"limit": limit})
+                results = _run(self._graphiti.search_(
+                    query=query,
+                    config=config,
+                    group_ids=[graph_id],
+                ))
+                for node in results.nodes:
+                    nodes.append(FakeNode(
+                        uuid_=getattr(node, 'uuid', str(uuid.uuid4())),
+                        name=getattr(node, 'name', ''),
+                        labels=list(getattr(node, 'labels', []) or []),
+                        summary=getattr(node, 'summary', '') or '',
+                        attributes=dict(getattr(node, 'attributes', {}) or {}),
+                    ))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("graph search failed (%s): %s", type(e).__name__, str(e)[:300])
+            raise
+        return FakeSearchResult(edges=edges, nodes=nodes)
 
     def delete(self, graph_id: str) -> None:
         try:
@@ -1052,9 +1204,12 @@ class GraphitiClient:
 
 # Singleton
 _client_instance = None
+_client_lock = threading.Lock()
 
 def get_graphiti_client() -> GraphitiClient:
     global _client_instance
     if _client_instance is None:
-        _client_instance = GraphitiClient()
+        with _client_lock:
+            if _client_instance is None:
+                _client_instance = GraphitiClient()
     return _client_instance

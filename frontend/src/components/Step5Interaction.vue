@@ -450,7 +450,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { chatWithReport, getReport, getAgentLog } from '../api/report'
+import { chatWithReport, getReport, getAgentLog, downloadReport as downloadReportFile } from '../api/report'
 import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
 import Step5WorldExplorer from './Step5WorldExplorer.vue'
 
@@ -511,9 +511,12 @@ const addLog = (msg) => {
   emit('add-log', msg)
 }
 
-const downloadReport = () => {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  window.open(`${base}/api/report/${props.reportId}/download`, '_blank')
+const downloadReport = async () => {
+  try {
+    await downloadReportFile(props.reportId)
+  } catch (err) {
+    addLog(`Error al descargar el informe: ${err.message}`)
+  }
 }
 
 const toggleSectionCollapse = (idx) => {

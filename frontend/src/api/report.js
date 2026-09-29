@@ -1,4 +1,4 @@
-import service, { requestWithRetry } from './index'
+import service, { requestWithRetry, downloadFile } from './index'
 
 /**
  * 开始报告生成
@@ -10,10 +10,18 @@ export const generateReport = (data) => {
 
 /**
  * 获取报告生成状态
+ * @param {Object} data - { task_id?, simulation_id? }
+ */
+export const getReportStatus = (data) => {
+  return service.post('/api/report/generate/status', data)
+}
+
+/**
+ * Descarga el informe en Markdown (con el token de sesión)
  * @param {string} reportId
  */
-export const getReportStatus = (reportId) => {
-  return service.get(`/api/report/generate/status`, { params: { report_id: reportId } })
+export const downloadReport = (reportId) => {
+  return downloadFile(`/api/report/${reportId}/download`, `${reportId}.md`)
 }
 
 /**

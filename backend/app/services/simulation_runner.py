@@ -357,6 +357,10 @@ class SimulationRunner:
             else:
                 raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
         
+        # Validar antes de guardar nada: si no, el estado queda en STARTING
+        if enable_graph_memory_update and not graph_id:
+            raise ValueError("Se debe proporcionar graph_id al habilitar la actualización de memoria del grafo")
+
         # 加载模拟配置
         validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
@@ -407,14 +411,18 @@ class SimulationRunner:
             cls._graph_memory_enabled[simulation_id] = False
         
         # 确定运行哪个脚本（脚本位于 backend/scripts/ 目录）
+        # Siempre run_parallel_simulation.py (el que usa la UI): es el único que
+        # escribe actions.jsonl con simulation_end. Los scripts de una sola
+        # plataforma no lo hacen y la simulación quedaba "running" para siempre.
+        script_name = "run_parallel_simulation.py"
+        platform_flags = []
         if platform == "twitter":
-            script_name = "run_twitter_simulation.py"
+            platform_flags = ["--twitter-only"]
             state.twitter_running = True
         elif platform == "reddit":
-            script_name = "run_reddit_simulation.py"
+            platform_flags = ["--reddit-only"]
             state.reddit_running = True
         else:
-            script_name = "run_parallel_simulation.py"
             state.twitter_running = True
             state.reddit_running = True
         
@@ -439,6 +447,7 @@ class SimulationRunner:
                 sys.executable,  # Python解释器
                 script_path,
                 "--config", config_path,  # 使用完整配置文件路径
+                *platform_flags,
             ]
             
             # 如果指定了最大轮数，添加到命令行参数

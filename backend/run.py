@@ -38,7 +38,8 @@ def main():
     
     # 获取运行配置
     host = os.environ.get('FLASK_HOST', '0.0.0.0')
-    port = int(os.environ.get('FLASK_PORT', 8000))
+    # 8000 = puerto que exponen Dockerfile, docker-compose y el healthcheck
+    port = int(os.environ.get('FLASK_PORT') or os.environ.get('PORT') or 8000)
     debug = Config.DEBUG
     
     # 启动服务

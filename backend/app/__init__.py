@@ -2,6 +2,7 @@
 MiroFish Backend - Flask应用工厂
 """
 
+import json
 import os
 import warnings
 
@@ -13,10 +14,11 @@ from flask import Flask, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
-from .utils.security import validate_bearer_token
+from .utils.security import validate_bearer_token, is_valid_storage_id
 
 
 def create_app(config_class=Config):
@@ -56,12 +58,35 @@ def create_app(config_class=Config):
 
     # Rate limit por IP. Defaults vacíos: aplicamos el límite por blueprint
     # más abajo, así rutas no-API (assets, health) quedan libres.
+    # Detrás del proxy de Coolify (Traefik) la IP del cliente llega en
+    # X-Forwarded-For; sin esto todos los usuarios comparten la IP del proxy.
+    if Config.TRUSTED_PROXIES > 0:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=Config.TRUSTED_PROXIES, x_proto=Config.TRUSTED_PROXIES)
+
+    def api_rate_limit():
+        # El frontend hace polling de estado cada 1,5-3 s en varias rutas a la
+        # vez: las lecturas llevan un límite holgado; las escrituras (las que
+        # disparan LLM y simulaciones) uno estricto.
+        # Los endpoints de estado por POST (prepare/status, env-status,
+        # generate/status) también se consultan en bucle: cuentan como lectura.
+        if request.method in ('GET', 'HEAD', 'OPTIONS') or request.path.endswith('status'):
+            return Config.API_READ_RATE_LIMIT
+        return Config.API_WRITE_RATE_LIMIT
+
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
         default_limits=[],
+        storage_uri='memory://',
     )
     app.extensions['limiter'] = limiter
+
+    @app.errorhandler(429)
+    def handle_rate_limit(error):
+        return {
+            "success": False,
+            "error": "Demasiadas peticiones, espera unos segundos"
+        }, 429
 
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
@@ -168,8 +193,28 @@ def create_app(config_class=Config):
         req_logger.debug(f"Respuesta: {response.status_code}")
         return response
 
+    # IDs de almacenamiento en la URL: se validan antes de entrar en la ruta,
+    # así un ID manipulado da 400 y no un 500 desde el try/except de cada vista.
+    _STORAGE_ID_PREFIXES = {
+        'project_id': 'proj_',
+        'simulation_id': 'sim_',
+        'report_id': 'report_',
+    }
+
+    @app.before_request
+    def validate_storage_ids_in_url():
+        for arg, prefix in _STORAGE_ID_PREFIXES.items():
+            value = (request.view_args or {}).get(arg)
+            if value is not None and not is_valid_storage_id(value, prefix):
+                return {"success": False, "error": "Identificador no válido"}, 400
+        return None
+
     @app.errorhandler(ValueError)
     def handle_value_error(error):
+        # Un JSON corrupto en disco es un fallo del servidor, no del cliente
+        if isinstance(error, json.JSONDecodeError):
+            get_logger('mirofish.request').error(f"JSON corrupto: {error}")
+            return {"success": False, "error": "Error interno"}, 500
         req_logger = get_logger('mirofish.request')
         req_logger.warning(f"Petición inválida: {error}")
         return {
@@ -177,11 +222,11 @@ def create_app(config_class=Config):
             "error": str(error)
         }, 400
 
-    # 注册蓝图 + rate limit por blueprint (30 req/min/IP).
+    # 注册蓝图 + rate limit por blueprint (ver api_rate_limit).
     from .api import graph_bp, simulation_bp, report_bp
-    limiter.limit("30 per minute")(graph_bp)
-    limiter.limit("30 per minute")(simulation_bp)
-    limiter.limit("30 per minute")(report_bp)
+    limiter.limit(api_rate_limit)(graph_bp)
+    limiter.limit(api_rate_limit)(simulation_bp)
+    limiter.limit(api_rate_limit)(report_bp)
     app.register_blueprint(graph_bp, url_prefix='/api/graph')
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
     app.register_blueprint(report_bp, url_prefix='/api/report')
@@ -201,6 +246,9 @@ def create_app(config_class=Config):
         @app.route('/', defaults={'path': ''})
         @app.route('/<path:path>')
         def serve_frontend(path):
+            # Una ruta /api/* inexistente debe dar 404 JSON, no el index.html del SPA
+            if path == 'api' or path.startswith('api/'):
+                return {'success': False, 'error': 'Not found'}, 404
             file_path = os.path.join(frontend_dist, path)
             if path and os.path.exists(file_path) and os.path.isfile(file_path):
                 return send_from_directory(frontend_dist, path)

@@ -4,7 +4,11 @@
     "password": "Password",
     "signIn": "Sign In",
     "invalidCredentials": "Invalid credentials. Please check your email and password.",
-    "protected": "Protected by PocketBase Authentication"
+    "protected": "Protected by PocketBase Authentication",
+    "forgotPassword": "Forgot your password?",
+    "forgotNeedsEmail": "Type your email above and click again.",
+    "resetSent": "If that email has an account, we've sent you a link to set a new password.",
+    "resetFailed": "Couldn't send the email. Please try again later."
   },
   "common": {
     "confirm": "Confirm",
@@ -340,7 +344,8 @@
     "panelRelatedEdges": "Related Connections",
     "panelRelatedNodes": "Related Nodes",
     "world1": "World 1",
-    "world2": "World 2"
+    "world2": "World 2",
+    "reportFailed": "Report generation failed: {error}"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -732,6 +737,7 @@
     "enterStep": "Entering Step {step}: {name}",
     "returnToStep": "Returning to Step {step}: {name}",
     "customSimRounds": "Custom simulation rounds: {rounds} rounds",
+    "simAlreadyRunning": "Simulation already running — reconnecting...",
     "reconnectingToRunning": "Reconnecting to running simulation...",
     "loadingPreviousRun": "Loading previous simulation results...",
     "restartingDualSim": "Restarting dual-platform simulation...",

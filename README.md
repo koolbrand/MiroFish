@@ -213,8 +213,15 @@ http://localhost:8000
 # Instalar todas las dependencias
 npm run setup:all
 
-# Iniciar backend (puerto 8000) y frontend (puerto 3000) en modo dev
+# Neo4j local (el backend lo necesita para el grafo)
+docker run -d --name mirofish-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/<NEO4J_PASSWORD> neo4j:5.26.2
+# y en .env: NEO4J_URI=bolt://localhost:7687
+
+# Iniciar backend (puerto 8000) y frontend (puerto 5173) en modo dev
 npm run dev
+
+# Tests de humo del backend (no necesitan LLM ni Neo4j)
+cd backend && uv run pytest -q
 ```
 
 El backend requiere Python 3.11 y [`uv`](https://docs.astral.sh/uv/).

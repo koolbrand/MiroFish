@@ -2,6 +2,7 @@
 Security helpers for API authentication and safe error responses.
 """
 
+import hmac
 import re
 from typing import Any
 
@@ -34,7 +35,7 @@ def error_response(message: str, status_code: int = 500, **extra: Any):
 
 def _validate_static_token(token: str) -> bool:
     expected = Config.API_AUTH_TOKEN
-    return bool(expected) and token == expected
+    return bool(expected) and hmac.compare_digest(token.encode(), expected.encode())
 
 
 def _validate_pocketbase_token(token: str) -> bool:
@@ -54,7 +55,7 @@ def _validate_pocketbase_token(token: str) -> bool:
         if response.status_code == 200:
             _PB_TOKEN_CACHE[token] = True
             return True
-    except httpx.HTTPError:
+    except (httpx.HTTPError, httpx.InvalidURL):
         return False
 
     return False
@@ -78,6 +79,16 @@ def validate_storage_id(value: str, *allowed_prefixes: str) -> str:
     if allowed_prefixes and not any(value.startswith(prefix) for prefix in allowed_prefixes):
         raise ValueError("Identificador no válido")
     return value
+
+
+def is_valid_storage_id(value: str, *allowed_prefixes: str) -> bool:
+    """Versión booleana de validate_storage_id, para filtrar listados de disco
+    (.DS_Store, duplicados de iCloud tipo 'proj_x 2', etc.)."""
+    try:
+        validate_storage_id(value, *allowed_prefixes)
+        return True
+    except ValueError:
+        return False
 
 
 def validate_platform(value: str, allowed=("reddit", "twitter", "parallel")) -> str:

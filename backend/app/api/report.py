@@ -520,14 +520,11 @@ def download_report(report_id: str):
         download_name = _build_report_filename(report)
 
         if not os.path.exists(md_path):
-            # 如果MD文件不存在，生成一个临时文件
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
-                f.write(report.markdown_content)
-                temp_path = f.name
-
+            # 如果MD文件不存在，直接从内存发送（sin dejar temporales en disco）
+            import io
             return send_file(
-                temp_path,
+                io.BytesIO((report.markdown_content or '').encode('utf-8')),
+                mimetype='text/markdown',
                 as_attachment=True,
                 download_name=download_name
             )

@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from ..config import Config
-from ..utils.security import validate_storage_id
+from ..utils.security import validate_storage_id, is_valid_storage_id
 
 
 class ProjectStatus(str, Enum):
@@ -211,6 +211,8 @@ class ProjectManager:
         
         projects = []
         for project_id in os.listdir(cls.PROJECTS_DIR):
+            if not is_valid_storage_id(project_id, "proj_"):
+                continue
             project = cls.get_project(project_id)
             if project:
                 projects.append(project)

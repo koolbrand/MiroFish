@@ -52,6 +52,12 @@
             <span v-else>{{ t('login.signIn') }}</span>
           </button>
 
+          <button type="button" class="forgot-link" :disabled="loading" @click="handleForgotPassword">
+            {{ t('login.forgotPassword') }}
+          </button>
+          <div v-if="info" class="login-info">
+            <span>{{ info }}</span>
+          </div>
         </form>
       </div>
 
@@ -73,10 +79,33 @@ const router = useRouter()
 const email = ref('')
 const password = ref('')
 const error = ref(null)
+const info = ref(null)
 const loading = ref(false)
+
+// PocketBase manda el correo con el enlace para poner una contraseña nueva.
+// Mensaje neutro aunque el email no exista, para no revelar qué cuentas hay.
+const handleForgotPassword = async () => {
+  error.value = null
+  info.value = null
+  if (!email.value) {
+    error.value = t('login.forgotNeedsEmail')
+    return
+  }
+  loading.value = true
+  try {
+    await pb.collection('users').requestPasswordReset(email.value)
+    info.value = t('login.resetSent')
+  } catch (err) {
+    console.error('Password reset failed', err)
+    error.value = t('login.resetFailed')
+  } finally {
+    loading.value = false
+  }
+}
 
 const handleLogin = async () => {
   error.value = null
+  info.value = null
   loading.value = true
 
   try {
@@ -92,6 +121,25 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
+.forgot-link {
+  align-self: center;
+  background: none;
+  border: none;
+  color: #888;
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.25rem;
+}
+.forgot-link:hover:not(:disabled) {
+  color: #00ff88;
+}
+.login-info {
+  color: #00ff88;
+  font-size: 0.8rem;
+  text-align: center;
+}
 .login-page {
   min-height: 100vh;
   background: #0a0a0a;

@@ -21,6 +21,7 @@ from ..utils.graphiti_adapter import get_graphiti_client
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, get_locale, set_locale, t
+from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.oasis_profile')
@@ -535,7 +536,7 @@ class OasisProfileGenerator:
                     # 不设置max_tokens，让LLM自由发挥
                 )
                 
-                content = response.choices[0].message.content
+                content = strip_reasoning(response.choices[0].message.content)
                 
                 # 检查是否被截断（finish_reason不是'stop'）
                 finish_reason = response.choices[0].finish_reason
