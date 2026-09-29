@@ -8,7 +8,8 @@
     "forgotPassword": "忘记密码？",
     "forgotNeedsEmail": "请先在上方输入邮箱，然后再次点击。",
     "resetSent": "如果该邮箱已注册，我们已发送设置新密码的链接。",
-    "resetFailed": "邮件发送失败，请稍后重试。"
+    "resetFailed": "邮件发送失败，请稍后重试。",
+    "tagline": "先演练，再决策。"
   },
   "common": {
     "confirm": "确认",

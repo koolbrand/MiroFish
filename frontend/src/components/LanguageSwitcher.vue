@@ -63,16 +63,16 @@ onUnmounted(() => {
 .language-switcher {
   position: relative;
   display: inline-block;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-sans);
 }
 
 /* Light theme (default - for white header backgrounds) */
 .switcher-trigger {
   background: transparent;
-  color: #333;
-  border: 1px solid #CCC;
+  color: var(--kb-text-2);
+  border: 1px solid var(--kb-line-strong);
   padding: 4px 12px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.8rem;
   cursor: pointer;
   display: flex;
@@ -82,7 +82,7 @@ onUnmounted(() => {
 }
 
 .switcher-trigger:hover {
-  border-color: #999;
+  border-color: var(--kb-subtle);
 }
 
 .caret {
@@ -95,7 +95,7 @@ onUnmounted(() => {
   right: 0;
   margin-top: 4px;
   background: #FFFFFF;
-  border: 1px solid #DDD;
+  border: 1px solid var(--kb-line-strong);
   list-style: none;
   padding: 4px 0;
   min-width: 100%;
@@ -106,18 +106,18 @@ onUnmounted(() => {
 .switcher-option {
   padding: 6px 12px;
   font-size: 0.8rem;
-  color: #333;
+  color: var(--kb-text-2);
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
 }
 
 .switcher-option:hover {
-  background: #F0F0F0;
+  background: var(--kb-soft);
 }
 
 .switcher-option.active {
-  color: var(--orange, #FF4500);
+  color: var(--orange, var(--kb-accent-text));
 }
 
 

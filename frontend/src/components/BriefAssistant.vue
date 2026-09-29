@@ -232,27 +232,27 @@ const closeInterview = () => { interviewOpen.value = false }
 </script>
 
 <style scoped>
-.brief-assistant { margin-top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.brief-assistant { margin-top: 12px; font-family: var(--kb-font-sans); font-size: 12px; }
 .brief-actions { display: flex; gap: 16px; flex-wrap: wrap; }
 .brief-link {
-  background: none; border: none; padding: 0; cursor: pointer; color: #000;
+  background: none; border: none; padding: 0; cursor: pointer; color: var(--kb-text);
   font: inherit; text-decoration: underline; text-underline-offset: 3px;
 }
-.brief-link:hover:not(:disabled) { color: #FF4500; }
+.brief-link:hover:not(:disabled) { color: var(--kb-accent-text); }
 .brief-link:disabled { opacity: 0.4; cursor: not-allowed; }
-.brief-check { margin-top: 12px; border: 1px solid #E5E5E5; padding: 12px 14px; }
+.brief-check { margin-top: 12px; border: 1px solid var(--kb-line); padding: 12px 14px; }
 .brief-check-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.brief-check-title { text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
-.brief-muted { color: #999; }
+.brief-check-title { text-transform: uppercase; letter-spacing: 0.08em; color: var(--kb-muted); }
+.brief-muted { color: var(--kb-subtle); }
 .brief-sections { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .brief-sections.compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 8px 0 12px; }
 .brief-sections li { display: flex; gap: 8px; align-items: baseline; }
 .brief-sections .mark { width: 12px; }
 .brief-sections li.ok .mark { color: #1a7f37; }
-.brief-sections li.missing.required .mark { color: #FF4500; }
-.brief-sections li.missing .name { color: #666; }
-.brief-sections .tag { font-size: 10px; color: #FF4500; border: 1px solid #FF4500; padding: 0 4px; }
-.brief-warning { margin: 10px 0 0; color: #FF4500; }
+.brief-sections li.missing.required .mark { color: var(--kb-accent-text); }
+.brief-sections li.missing .name { color: var(--kb-muted); }
+.brief-sections .tag { font-size: 10px; color: var(--kb-accent-text); border: 1px solid var(--kb-accent-line); padding: 0 4px; }
+.brief-warning { margin: 10px 0 0; color: var(--kb-accent-text); }
 .brief-ok { margin: 10px 0 0; color: #1a7f37; }
 
 .brief-modal {
@@ -261,7 +261,7 @@ const closeInterview = () => { interviewOpen.value = false }
 }
 .brief-dialog {
   background: #fff; width: min(720px, 100%); max-height: 90vh; overflow: auto;
-  padding: 20px 22px; border: 1px solid #000;
+  padding: 20px 22px; border: 1px solid var(--kb-text);
 }
 .brief-dialog-head {
   display: flex; justify-content: space-between; align-items: center;
@@ -271,15 +271,15 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-intro { margin: 8px 0 0; line-height: 1.5; }
 .brief-chat { max-height: 38vh; overflow: auto; display: grid; gap: 12px; margin: 8px 0; }
 .brief-turn .q { font-weight: 600; line-height: 1.5; }
-.brief-turn .q.current { color: #FF4500; }
-.brief-turn .a { margin-top: 4px; padding-left: 10px; border-left: 2px solid #E5E5E5; color: #333; white-space: pre-wrap; }
+.brief-turn .q.current { color: var(--kb-accent-text); }
+.brief-turn .a { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--kb-line); color: var(--kb-text-2); white-space: pre-wrap; }
 .brief-answer textarea, .brief-draft textarea {
-  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid #E5E5E5; resize: vertical;
+  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-line); resize: vertical;
 }
 .brief-answer-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .brief-btn {
-  font: inherit; padding: 8px 14px; border: 1px solid #000; background: #000; color: #fff; cursor: pointer;
+  font: inherit; padding: 8px 14px; border: 1px solid var(--kb-text); background: var(--kb-text); color: #fff; cursor: pointer;
 }
-.brief-btn.ghost { background: #fff; color: #000; }
+.brief-btn.ghost { background: #fff; color: var(--kb-text); }
 .brief-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

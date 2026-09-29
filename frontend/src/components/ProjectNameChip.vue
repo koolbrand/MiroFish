@@ -96,7 +96,7 @@ const commit = async () => {
   max-width: 260px;
   margin-left: 14px;
   padding: 0;
-  font-family: 'Space Grotesk', 'Noto Sans SC', system-ui, sans-serif;
+  font-family: var(--kb-font-sans);
 }
 
 .chip-text {
@@ -104,10 +104,10 @@ const commit = async () => {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border: 1px solid #E5E5E5;
+  border: 1px solid var(--kb-line);
   border-radius: 4px;
-  background: #FAFAFA;
-  color: #333;
+  background: var(--kb-surface-2);
+  color: var(--kb-text-2);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -117,8 +117,8 @@ const commit = async () => {
 }
 
 .chip-text:hover {
-  border-color: #FF4500;
-  color: #000;
+  border-color: var(--kb-accent-line);
+  color: var(--kb-text);
   background: #FFF;
 }
 
@@ -131,27 +131,27 @@ const commit = async () => {
 
 .chip-edit-icon {
   font-size: 11px;
-  color: #999;
+  color: var(--kb-subtle);
   transition: color 0.15s ease;
 }
 
 .chip-text:hover .chip-edit-icon {
-  color: #FF4500;
+  color: var(--kb-accent-text);
 }
 
 .chip-input {
   min-width: 180px;
   max-width: 260px;
   padding: 4px 10px;
-  border: 1px solid #FF4500;
+  border: 1px solid var(--kb-accent-line);
   border-radius: 4px;
   background: #FFF;
-  color: #000;
+  color: var(--kb-text);
   font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.15);
+  box-shadow: 0 0 0 2px rgba(204, 230, 115, 0.15);
 }
 
 .chip-input:disabled {

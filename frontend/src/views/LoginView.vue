@@ -5,8 +5,8 @@
       <!-- Logo -->
       <div class="login-logo">
         <BrandLogo class="login-wordmark" aria-label="Simuloo" />
-        <p class="login-subtitle">Swarm Intelligence Engine</p>
-        <p class="login-byline">by <span class="login-byline-brand">Koolbrand</span></p>
+        <p class="login-subtitle">{{ t('login.tagline') }}</p>
+        <p class="login-byline">by <img class="login-byline-logo" src="/brand/koolbrand-logo-negativo-sin-claim.svg" alt="Koolbrand" /></p>
       </div>
 
       <!-- Form -->
@@ -125,7 +125,7 @@ const handleLogin = async () => {
   align-self: center;
   background: none;
   border: none;
-  color: #888;
+  color: var(--kb-subtle);
   font-family: inherit;
   font-size: 0.75rem;
   cursor: pointer;
@@ -133,21 +133,21 @@ const handleLogin = async () => {
   padding: 0.25rem;
 }
 .forgot-link:hover:not(:disabled) {
-  color: #00ff88;
+  color: var(--kb-accent-solid);
 }
 .login-info {
-  color: #00ff88;
+  color: var(--kb-accent-solid);
   font-size: 0.8rem;
   text-align: center;
 }
 .login-page {
   min-height: 100vh;
-  background: #0a0a0a;
+  background: var(--kb-text);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  font-family: 'Courier New', monospace;
+  font-family: var(--kb-font-sans);
 }
 
 .login-container {
@@ -166,7 +166,7 @@ const handleLogin = async () => {
   font-size: 56px;
   color: #ffffff;
   margin-bottom: 0.5rem;
-  filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.25));
+  
 }
 
 .login-title {
@@ -178,24 +178,30 @@ const handleLogin = async () => {
 }
 
 .login-subtitle {
-  color: #666;
-  font-size: 0.8rem;
-  letter-spacing: 0.15em;
-  margin: 0.25rem 0 0;
-  text-transform: uppercase;
+  color: var(--kb-line-strong);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0.6rem 0 0;
 }
 
 .login-byline {
-  color: #444;
+  color: var(--kb-text-2);
   font-size: 0.7rem;
   letter-spacing: 0.12em;
   margin: 0.4rem 0 0;
   text-transform: uppercase;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
+}
+
+.login-byline-logo {
+  height: 22px;
+  vertical-align: -5px;
+  margin-left: 0.4em;
 }
 
 .login-byline-brand {
-  color: #ff4500;
+  color: var(--kb-accent-solid);
   font-weight: 700;
 }
 
@@ -221,7 +227,7 @@ const handleLogin = async () => {
 
 .form-label {
   font-size: 0.75rem;
-  color: #888;
+  color: var(--kb-subtle);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -246,7 +252,7 @@ const handleLogin = async () => {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 0.5rem;
-  color: #e0e0e0;
+  color: var(--kb-line);
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
@@ -255,8 +261,8 @@ const handleLogin = async () => {
 }
 
 .form-input:focus {
-  border-color: rgba(0, 255, 136, 0.5);
-  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
+  border-color: rgba(204, 230, 115, 0.5);
+  box-shadow: 0 0 0 2px rgba(204, 230, 115, 0.1);
 }
 
 .form-input:disabled {
@@ -265,7 +271,7 @@ const handleLogin = async () => {
 }
 
 .form-input::placeholder {
-  color: #444;
+  color: var(--kb-text-2);
 }
 
 .login-error {
@@ -280,10 +286,10 @@ const handleLogin = async () => {
 .login-btn {
   width: 100%;
   padding: 0.75rem;
-  background: linear-gradient(135deg, #00ff88, #00cc6a);
+  background: var(--kb-accent-solid);
   border: none;
   border-radius: 0.5rem;
-  color: #0a0a0a;
+  color: var(--kb-accent-on);
   font-size: 0.9rem;
   font-weight: 700;
   font-family: inherit;
@@ -318,7 +324,7 @@ const handleLogin = async () => {
 .login-footer {
   text-align: center;
   font-size: 0.7rem;
-  color: #333;
+  color: var(--kb-text-2);
   letter-spacing: 0.05em;
 }
 </style>

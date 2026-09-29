@@ -8,7 +8,8 @@
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "forgotNeedsEmail": "Escribe tu correo arriba y vuelve a pulsar.",
     "resetSent": "Si el correo tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva.",
-    "resetFailed": "No se pudo enviar el correo. Inténtalo más tarde."
+    "resetFailed": "No se pudo enviar el correo. Inténtalo más tarde.",
+    "tagline": "Primero ensaya. Después decide."
   },
   "common": {
     "confirm": "Confirmar",

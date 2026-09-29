@@ -273,7 +273,7 @@ const onBackdropClick = () => {
   inset: 0;
   z-index: 99999;
   pointer-events: none;
-  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--kb-font-sans);
 }
 
 .tour-backdrop {
@@ -286,25 +286,25 @@ const onBackdropClick = () => {
 .tour-ring {
   position: fixed;
   pointer-events: none;
-  border: 2px solid #FF4500;
+  border: 2px solid var(--kb-accent-line);
   box-shadow:
-    0 0 0 2px rgba(255, 69, 0, 0.25),
-    0 0 28px 4px rgba(255, 69, 0, 0.45);
+    0 0 0 2px rgba(204, 230, 115, 0.25),
+    0 0 28px 4px rgba(204, 230, 115, 0.45);
   border-radius: 4px;
   animation: tour-pulse 1.8s ease-in-out infinite;
   transition: all 150ms ease-out;
 }
 
 @keyframes tour-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.25), 0 0 28px 4px rgba(255, 69, 0, 0.45); }
-  50%      { box-shadow: 0 0 0 4px rgba(255, 69, 0, 0.18), 0 0 40px 8px rgba(255, 69, 0, 0.55); }
+  0%, 100% { box-shadow: 0 0 0 2px rgba(204, 230, 115, 0.25), 0 0 28px 4px rgba(204, 230, 115, 0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(204, 230, 115, 0.18), 0 0 40px 8px rgba(204, 230, 115, 0.55); }
 }
 
 .tour-card {
   position: fixed;
   background: #FFFFFF;
-  color: #000;
-  border: 1px solid #000;
+  color: var(--kb-text);
+  border: 1px solid var(--kb-text);
   box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.12);
   pointer-events: auto;
   padding: 18px 20px 16px;
@@ -312,7 +312,7 @@ const onBackdropClick = () => {
 }
 
 .tour-card.floating {
-  border: 1px solid #000;
+  border: 1px solid var(--kb-text);
 }
 
 .tour-header {
@@ -323,10 +323,10 @@ const onBackdropClick = () => {
 }
 
 .tour-badge {
-  background: #FF4500;
-  color: #fff;
+  background: var(--kb-accent-solid);
+  color: var(--kb-accent-on);
   padding: 3px 8px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.62rem;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -334,9 +334,9 @@ const onBackdropClick = () => {
 }
 
 .tour-count {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.72rem;
-  color: #999;
+  color: var(--kb-subtle);
   letter-spacing: 1px;
 }
 
@@ -345,13 +345,13 @@ const onBackdropClick = () => {
   font-weight: 600;
   margin: 0 0 8px 0;
   line-height: 1.3;
-  color: #000;
+  color: var(--kb-text);
 }
 
 .tour-body {
   font-size: 0.88rem;
   line-height: 1.55;
-  color: #333;
+  color: var(--kb-text-2);
   margin: 0 0 16px 0;
 }
 
@@ -365,8 +365,8 @@ const onBackdropClick = () => {
 .tour-skip {
   background: transparent;
   border: none;
-  color: #999;
-  font-family: 'JetBrains Mono', monospace;
+  color: var(--kb-subtle);
+  font-family: var(--kb-font-mono);
   font-size: 0.72rem;
   letter-spacing: 1px;
   cursor: pointer;
@@ -374,7 +374,7 @@ const onBackdropClick = () => {
   text-transform: uppercase;
 }
 
-.tour-skip:hover { color: #333; }
+.tour-skip:hover { color: var(--kb-text-2); }
 
 .tour-nav {
   display: flex;
@@ -382,24 +382,24 @@ const onBackdropClick = () => {
 }
 
 .tour-btn {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.8px;
   padding: 8px 14px;
   cursor: pointer;
-  border: 1px solid #000;
+  border: 1px solid var(--kb-text);
   text-transform: uppercase;
   transition: transform 120ms ease, background 120ms ease;
 }
 
 .tour-btn.ghost {
   background: #fff;
-  color: #000;
+  color: var(--kb-text);
 }
 
 .tour-btn.ghost:hover:not(:disabled) {
-  background: #F5F5F5;
+  background: var(--kb-soft);
 }
 
 .tour-btn.ghost:disabled {
@@ -408,14 +408,14 @@ const onBackdropClick = () => {
 }
 
 .tour-btn.primary {
-  background: #000;
+  background: var(--kb-text);
   color: #fff;
-  border-color: #000;
+  border-color: var(--kb-text);
 }
 
 .tour-btn.primary:hover {
-  background: #FF4500;
-  border-color: #FF4500;
+  background: var(--kb-accent-solid);
+  border-color: var(--kb-accent-line);
   transform: translateY(-1px);
 }
 
@@ -426,7 +426,7 @@ const onBackdropClick = () => {
   width: 12px;
   height: 12px;
   background: #fff;
-  border: 1px solid #000;
+  border: 1px solid var(--kb-text);
   transform: rotate(45deg);
 }
 

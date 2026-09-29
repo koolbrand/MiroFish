@@ -107,13 +107,13 @@ function goTo(step) {
 .stepper-bar {
   width: 18px;
   height: 2px;
-  background: #E0E0E0;
+  background: var(--kb-line);
   border-radius: 1px;
   transition: background-color 0.2s ease;
 }
 
 .stepper-bar.done {
-  background: #000;
+  background: var(--kb-text);
 }
 
 .stepper-chip {
@@ -124,7 +124,7 @@ function goTo(step) {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #999;
+  color: var(--kb-subtle);
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -135,7 +135,7 @@ function goTo(step) {
 
 .stepper-chip:hover:not(:disabled) {
   background: #F3F3F3;
-  color: #000;
+  color: var(--kb-text);
 }
 
 .stepper-chip:focus-visible {
@@ -144,16 +144,16 @@ function goTo(step) {
 }
 
 .stepper-chip.done {
-  color: #000;
+  color: var(--kb-text);
 }
 
 .stepper-chip.current {
-  color: #000;
+  color: var(--kb-text);
   cursor: default;
 }
 
 .stepper-chip.locked {
-  color: #CCC;
+  color: var(--kb-line-strong);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -165,7 +165,7 @@ function goTo(step) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 11px;
   font-weight: 700;
   border: 1.5px solid currentColor;
@@ -174,20 +174,20 @@ function goTo(step) {
 }
 
 .stepper-chip.done .chip-num {
-  background: #000;
+  background: var(--kb-text);
   color: #FFF;
-  border-color: #000;
+  border-color: var(--kb-text);
 }
 
 .stepper-chip.current .chip-num {
-  background: #FF5722;
-  color: #FFF;
-  border-color: #FF5722;
+  background: var(--kb-accent-solid);
+  color: var(--kb-accent-on);
+  border-color: var(--kb-accent-line);
 }
 
 .stepper-chip.locked .chip-num {
-  border-color: #E0E0E0;
-  color: #CCC;
+  border-color: var(--kb-line);
+  color: var(--kb-line-strong);
 }
 
 .chip-check {

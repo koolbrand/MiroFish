@@ -37,11 +37,11 @@ onUnmounted(() => {
 }
 
 #app {
-  font-family: 'JetBrains Mono', 'Space Grotesk', 'Noto Sans SC', monospace;
+  font-family: var(--kb-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #000000;
-  background-color: #ffffff;
+  color: var(--kb-text);
+  background-color: var(--kb-bg);
 }
 
 /* 滚动条样式 */
@@ -51,15 +51,15 @@ onUnmounted(() => {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--kb-soft);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #000000;
+  background: var(--kb-text);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: var(--kb-text-2);
 }
 
 /* 全局按钮样式 */

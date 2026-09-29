@@ -40,10 +40,10 @@ const onClick = () => {
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid #E5E5E5;
-  color: #333;
+  border: 1px solid var(--kb-line);
+  color: var(--kb-text-2);
   padding: 4px 10px 4px 6px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 1px;
@@ -53,8 +53,8 @@ const onClick = () => {
 }
 
 .help-btn:hover {
-  border-color: #FF4500;
-  color: #FF4500;
+  border-color: var(--kb-accent-line);
+  color: var(--kb-accent-text);
 }
 
 .help-btn.dark {
@@ -63,8 +63,8 @@ const onClick = () => {
 }
 
 .help-btn.dark:hover {
-  color: #FF4500;
-  border-color: #FF4500;
+  color: var(--kb-accent-text);
+  border-color: var(--kb-accent-line);
 }
 
 .help-q {
