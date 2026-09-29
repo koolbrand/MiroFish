@@ -1335,7 +1335,7 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #E8F5E9 0%, #F1F8E9 100%);
+  background: #E8F5E9;
   border: 1px solid #C8E6C9;
 }
 

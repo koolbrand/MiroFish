@@ -31,7 +31,7 @@
       >
         <!-- 卡片头部：simulation_id 和 功能可用状态 -->
         <div class="card-header">
-          <span class="card-id">{{ formatSimulationId(project.simulation_id) }}</span>
+          <span class="card-id tech-only">{{ formatSimulationId(project.simulation_id) }}</span>
           <div class="card-status-icons">
             <span
               class="status-icon"
@@ -84,7 +84,7 @@
         </div>
 
         <!-- 卡片标题（使用模拟需求的前20字作为标题） -->
-        <h3 class="card-title">{{ getSimulationTitle(project.simulation_requirement) }}</h3>
+        <h3 class="card-title">{{ project.project_name || getSimulationTitle(project.simulation_requirement) }}</h3>
 
         <!-- 卡片描述（模拟需求完整展示） -->
         <p class="card-desc">{{ truncateText(project.simulation_requirement, 55) }}</p>

@@ -668,11 +668,6 @@ const startSimulation = () => {
   font-size: 0.75rem;
 }
 
-.version-text {
-  color: var(--kb-subtle);
-  font-weight: 500;
-  letter-spacing: 0.5px;
-}
 
 .main-title {
   font-size: 4.5rem;
@@ -768,11 +763,6 @@ const startSimulation = () => {
   text-align: center;
 }
 
-.decoration-square {
-  width: 16px;
-  height: 16px;
-  background: var(--kb-accent-solid);
-}
 
 .hero-right {
   flex: 1;
@@ -912,23 +902,7 @@ const startSimulation = () => {
   text-transform: uppercase;
 }
 
-.scroll-down-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border);
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--kb-accent-text);
-  font-size: 1.2rem;
-  transition: all 0.2s;
-}
 
-.scroll-down-btn:hover {
-  border-color: var(--kb-accent-line);
-}
 
 /* Dashboard 双栏布局 */
 .dashboard-section {
@@ -1231,14 +1205,6 @@ const startSimulation = () => {
   min-height: 150px;
 }
 
-.model-badge {
-  position: absolute;
-  bottom: 10px;
-  right: 15px;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--kb-subtle);
-}
 
 .start-engine-btn {
   width: 100%;
