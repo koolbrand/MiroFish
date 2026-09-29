@@ -241,7 +241,7 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-assistant { margin-top: 12px; font-family: var(--kb-font-sans); font-size: 12px; }
 .brief-card {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  padding: 14px 16px; background: var(--kb-accent-subtle); border: 1px solid var(--kb-accent-line); border-radius: 8px;
+  padding: 14px 16px; background: var(--kb-accent-subtle); border: 1px solid var(--kb-accent-line); border-radius: 12px;
   font-family: var(--kb-font-sans); font-size: 13px;
 }
 .brief-card-text { display: grid; gap: 2px; min-width: 220px; flex: 1; }
@@ -288,11 +288,11 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-turn .q.current { color: var(--kb-accent-text); }
 .brief-turn .a { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--kb-line); color: var(--kb-text-2); white-space: pre-wrap; }
 .brief-answer textarea, .brief-draft textarea {
-  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-line); resize: vertical;
+  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-line); border-radius: 10px; resize: vertical;
 }
 .brief-answer-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .brief-btn {
-  font: inherit; padding: 8px 14px; border: 1px solid var(--kb-text); background: var(--kb-text); color: #fff; cursor: pointer;
+  font: inherit; font-weight: 600; padding: 9px 14px; border: 1px solid var(--kb-text); border-radius: 8px; background: var(--kb-text); color: #fff; cursor: pointer;
 }
 .brief-btn.ghost { background: #fff; color: var(--kb-text); }
 .brief-btn:disabled { opacity: 0.4; cursor: not-allowed; }

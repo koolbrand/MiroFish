@@ -1,163 +1,72 @@
 <template>
-  <div class="home-container">
-    <!-- 顶部导航栏 -->
-    <nav class="navbar">
-      <BrandLogo class="nav-brand" />
-      <div class="nav-links">
-        <AppVersion />
+  <div class="home">
+    <nav class="topbar">
+      <router-link to="/" class="topbar-brand" :aria-label="$t('home.heroDescBrand')">
+        <BrandLogo />
+      </router-link>
+      <div class="topbar-links">
+        <AppVersion class="topbar-version" />
         <LanguageSwitcher />
         <HelpButton tourId="home" />
-        <router-link to="/projects" class="github-link" data-tour="home-projects-link">
-          {{ $t('nav.projects') }} <span class="arrow">→</span>
+        <router-link to="/projects" class="nav-projects" data-tour="home-projects-link">
+          {{ $t('nav.projects') }} <span class="arrow" aria-hidden="true">→</span>
         </router-link>
       </div>
     </nav>
 
-    <div class="main-content">
-      <!-- 上半部分：Hero 区域 -->
-      <section class="hero-section">
-        <div class="hero-left">
-          <div class="tag-row">
-            <span class="orange-tag">{{ $t('home.tagline') }}</span>
-          </div>
-          
-          <h1 class="main-title">
-            {{ $t('home.heroTitle1') }}<br>
-            <span class="hl">{{ $t('home.heroTitle2') }}</span>
+    <main>
+      <!-- Portada: la multitud de ejemplo reacciona ronda a ronda detrás del titular -->
+      <header class="stage">
+        <CrowdCanvas :quiet-el="stageInner" :bottom-inset="overlap" />
+        <div ref="stageInner" class="stage-inner">
+          <p class="eyebrow" data-quiet><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
+          <h1 class="stage-title">
+            <i18n-t keypath="home.stageTitleLine1" tag="span" class="line" data-quiet>
+              <template #hl><span class="hl">{{ $t('home.stageTitleHl') }}</span></template>
+            </i18n-t>
+            <span class="line" data-quiet>{{ $t('home.stageTitleLine2') }}</span>
           </h1>
-          
-          <div class="hero-desc">
-            <p>
-              <i18n-t keypath="home.heroDesc" tag="span">
-                <template #brand><span class="highlight-bold">{{ $t('home.heroDescBrand') }}</span></template>
-                <template #agentScale><span class="highlight-orange">{{ $t('home.heroDescAgentScale') }}</span></template>
-                <template #optimalSolution><span class="highlight-code">{{ $t('home.heroDescOptimalSolution') }}</span></template>
-              </i18n-t>
-            </p>
-            <p class="slogan-text">
-              {{ $t('home.slogan') }}<span class="blinking-cursor">_</span>
-            </p>
-          </div>
-           
-          <button type="button" class="hero-cta" @click="scrollToForm">
-            {{ $t('home.heroCta') }} <span aria-hidden="true">→</span>
-          </button>
-        </div>
-        
-        <div class="hero-right">
-          <!-- D3 force-directed graph — same style as in-app graph -->
-          <div class="agent-vis-panel">
-            <div class="vis-top-bar">
-              <span class="vis-label">{{ $t('ui.simulationEngine') }}</span>
-              <span class="vis-live"><span class="live-dot"></span>{{ $t('ui.active') }}</span>
-            </div>
-            <div class="vis-svg-wrap">
-              <svg ref="simSvg" class="sim-svg"></svg>
-              <div class="sim-brand-overlay">
-                <BrandLogo class="sim-logo" />
-                <div class="sim-brand-sub">by <strong>KOOLBRAND</strong></div>
-              </div>
-            </div>
-            <div class="vis-bottom-bar">
-              <div class="vis-stat-row">
-                <div class="vis-stat"><span class="stat-val">10–120</span><span class="stat-lbl">{{ $t('home.visStatAgents') }}</span></div>
-                <div class="vis-stat"><span class="stat-val">5</span><span class="stat-lbl">{{ $t('home.visStatSteps') }}</span></div>
-                <div class="vis-stat"><span class="stat-val">2</span><span class="stat-lbl">{{ $t('home.visStatPlatforms') }}</span></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 下半部分：双栏布局 -->
-      <section class="dashboard-section">
-        <!-- 左栏：状态与步骤 -->
-        <div class="left-panel">
-          <div class="panel-header">
-            <span class="status-dot">■</span> {{ $t('home.systemStatus') }}
-          </div>
-          
-          <h2 class="section-title">{{ $t('home.systemReady') }}</h2>
-          <p class="section-desc">
-            {{ $t('home.systemReadyDesc') }}
+          <p class="stage-lede" data-quiet>
+            <i18n-t keypath="home.stageLede" tag="span">
+              <template #crowd><strong>{{ $t('home.stageLedeCrowd') }}</strong></template>
+            </i18n-t>
           </p>
-          
-          <!-- 数据指标卡片 -->
-          <div class="metrics-row">
-            <div class="metric-card">
-              <div class="metric-value">{{ $t('home.metricLowCost') }}</div>
-              <div class="metric-label">{{ $t('home.metricLowCostDesc') }}</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-value">{{ $t('home.metricHighAvail') }}</div>
-              <div class="metric-label">{{ $t('home.metricHighAvailDesc') }}</div>
-            </div>
-          </div>
-
-          <!-- 项目模拟步骤介绍 (新增区域) -->
-          <div class="steps-container">
-            <div class="steps-header">
-               <span class="diamond-icon">◇</span> {{ $t('home.workflowSequence') }}
-            </div>
-            <div class="workflow-list">
-              <div class="workflow-item">
-                <span class="step-num">01</span>
-                <div class="step-info">
-                  <div class="step-title">{{ $t('home.step01Title') }}</div>
-                  <div class="step-desc">{{ $t('home.step01Desc') }}</div>
-                </div>
-              </div>
-              <div class="workflow-item">
-                <span class="step-num">02</span>
-                <div class="step-info">
-                  <div class="step-title">{{ $t('home.step02Title') }}</div>
-                  <div class="step-desc">{{ $t('home.step02Desc') }}</div>
-                </div>
-              </div>
-              <div class="workflow-item">
-                <span class="step-num">03</span>
-                <div class="step-info">
-                  <div class="step-title">{{ $t('home.step03Title') }}</div>
-                  <div class="step-desc">{{ $t('home.step03Desc') }}</div>
-                </div>
-              </div>
-              <div class="workflow-item">
-                <span class="step-num">04</span>
-                <div class="step-info">
-                  <div class="step-title">{{ $t('home.step04Title') }}</div>
-                  <div class="step-desc">{{ $t('home.step04Desc') }}</div>
-                </div>
-              </div>
-              <div class="workflow-item">
-                <span class="step-num">05</span>
-                <div class="step-info">
-                  <div class="step-title">{{ $t('home.step05Title') }}</div>
-                  <div class="step-desc">{{ $t('home.step05Desc') }}</div>
-                </div>
-              </div>
-            </div>
+          <div class="stage-actions" data-quiet>
+            <button type="button" class="btn btn-lime" @click="scrollToForm">
+              {{ $t('home.heroCta') }} <span aria-hidden="true">↓</span>
+            </button>
+            <a href="#como-funciona" class="btn btn-outline-light">{{ $t('home.workflowSequence') }}</a>
           </div>
         </div>
+      </header>
 
-        <!-- 右栏：交互控制台 -->
-        <div class="right-panel">
-          <div class="console-box">
-            <!-- 上传区域 -->
-            <div class="console-section">
-              <div class="console-header">
-                <span class="console-label">{{ $t('home.realitySeed') }}</span>
-                <span class="console-meta">{{ $t('home.supportedFormats') }}</span>
-              </div>
-              
+      <!-- El ensayo: el formulario monta sobre el borde de la portada -->
+      <section id="ensayo" class="composer-wrap" :aria-label="$t('home.composerTitle')">
+        <div class="composer">
+          <header class="composer-head">
+            <div>
+              <span class="kicker">{{ $t('home.composerKicker') }}</span>
+              <h2 class="composer-title">{{ $t('home.composerTitle') }}</h2>
+            </div>
+          </header>
+
+          <div class="composer-grid">
+            <div class="cstep">
+              <div class="cstep-label"><span class="cstep-num">01</span>{{ $t('home.composerStep1') }}</div>
+              <p class="cstep-hint">{{ $t('home.composerStep1Hint') }}</p>
               <div
-                class="upload-zone"
+                class="dropzone"
                 data-tour="home-upload"
+                role="button"
+                tabindex="0"
+                :aria-label="$t('home.dragToUpload')"
                 :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0 }"
                 @dragover.prevent="handleDragOver"
                 @dragleave.prevent="handleDragLeave"
                 @drop.prevent="handleDrop"
                 @click="triggerFileInput"
+                @keydown.enter.prevent="triggerFileInput"
+                @keydown.space.prevent="triggerFileInput"
               >
                 <input
                   ref="fileInput"
@@ -168,21 +77,24 @@
                   style="display: none"
                   :disabled="loading"
                 />
-                
-                <div v-if="files.length === 0" class="upload-placeholder">
-                  <div class="upload-icon">↑</div>
-                  <div class="upload-title">{{ $t('home.dragToUpload') }}</div>
-                  <div class="upload-hint">{{ $t('home.orBrowse') }}</div>
-                </div>
-                
-                <div v-else class="file-list">
-                  <div v-for="(file, index) in files" :key="index" class="file-item">
-                    <span class="file-icon">📄</span>
-                    <span class="file-name">{{ file.name }}</span>
-                    <button @click.stop="removeFile(index)" class="remove-btn">×</button>
-                  </div>
+                <div class="drop-inner">
+                  <span class="drop-icon" aria-hidden="true">↑</span>
+                  <span class="drop-title">{{ files.length ? $t('home.addMoreFiles') : $t('home.dragToUpload') }}</span>
+                  <span class="drop-hint">{{ $t('home.orBrowse') }}</span>
+                  <span class="drop-formats">{{ $t('home.supportedFormats') }}</span>
                 </div>
               </div>
+              <ul v-if="files.length" class="file-chips">
+                <li v-for="(file, index) in files" :key="file.name + index" class="file-chip">
+                  <span class="file-chip-name" :title="file.name">{{ file.name }}</span>
+                  <button
+                    type="button"
+                    class="file-chip-remove"
+                    :aria-label="$t('home.removeFile', { name: file.name })"
+                    @click="removeFile(index)"
+                  >×</button>
+                </li>
+              </ul>
 
               <!-- Plantilla, revisión con Jev y entrevista para el brief -->
               <BriefAssistant
@@ -193,328 +105,232 @@
               />
             </div>
 
-            <!-- 分割线 -->
-            <div class="console-divider">
-              <span>{{ $t('home.inputParams') }}</span>
-            </div>
-
-            <!-- 项目名称 -->
-            <div class="console-section" data-tour="home-project-name">
-              <div class="console-header">
-                <span class="console-label">{{ $t('home.projectName') }}</span>
+            <div class="cstep-col">
+              <div class="cstep" data-tour="home-prompt">
+                <label class="cstep-label" for="home-question"><span class="cstep-num">02</span>{{ $t('home.composerStep2') }}</label>
+                <textarea
+                  id="home-question"
+                  ref="questionEl"
+                  v-model="formData.simulationRequirement"
+                  class="field field-question"
+                  :placeholder="$t('home.promptPlaceholder')"
+                  rows="5"
+                  :disabled="loading"
+                ></textarea>
+                <div class="examples">
+                  <span class="examples-label">{{ $t('home.examplesLabel') }}</span>
+                  <button
+                    v-for="ex in EXAMPLES"
+                    :key="ex"
+                    type="button"
+                    class="example-chip"
+                    :disabled="loading"
+                    @click="useExample(ex)"
+                  >{{ $t(`home.example${ex}Label`) }}</button>
+                </div>
               </div>
-              <div class="name-wrapper">
+
+              <div class="cstep" data-tour="home-project-name">
+                <label class="cstep-label" for="home-name">
+                  <span class="cstep-num">03</span>{{ $t('home.composerStep3') }}
+                  <span class="optional">{{ $t('home.optional') }}</span>
+                </label>
                 <input
+                  id="home-name"
                   v-model="formData.projectName"
                   type="text"
-                  class="name-input"
+                  class="field"
                   :placeholder="$t('home.projectNamePlaceholder')"
                   maxlength="120"
                   :disabled="loading"
                 />
               </div>
             </div>
-
-            <!-- 输入区域 -->
-            <div class="console-section" data-tour="home-prompt">
-              <div class="console-header">
-                <span class="console-label">{{ $t('home.simulationPrompt') }}</span>
-              </div>
-              <div class="input-wrapper">
-                <textarea
-                  v-model="formData.simulationRequirement"
-                  class="code-input"
-                  :placeholder="$t('home.promptPlaceholder')"
-                  rows="6"
-                  :disabled="loading"
-                ></textarea>
-              </div>
-            </div>
-
-            <!-- 启动按钮 -->
-            <div class="console-section btn-section">
-              <button
-                class="start-engine-btn"
-                data-tour="home-start"
-                @click="startSimulation"
-                :disabled="!canSubmit || loading"
-              >
-                <span v-if="!loading">{{ $t('home.startEngine') }}</span>
-                <span v-else>{{ $t('home.initializing') }}</span>
-                <span class="btn-arrow">→</span>
-              </button>
-              <p v-if="!canSubmit && !loading" class="start-hint">{{ $t('home.startHint') }}</p>
-            </div>
           </div>
+
+          <footer class="composer-foot">
+            <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
+              {{ statusText }}
+            </p>
+            <button
+              class="launch-btn"
+              data-tour="home-start"
+              :disabled="!canSubmit || loading"
+              @click="startSimulation"
+            >
+              {{ loading ? $t('home.initializing') : $t('home.startEngine') }}
+              <span class="arrow" aria-hidden="true">→</span>
+            </button>
+          </footer>
         </div>
       </section>
 
-      <!-- 历史项目数据库 -->
-      <HistoryDatabase />
-    </div>
+      <!-- Cómo funciona: línea de tiempo que se dibuja al entrar -->
+      <section id="como-funciona" class="section how">
+        <div v-reveal class="section-head">
+          <span class="kicker">{{ $t('home.workflowSequence') }}</span>
+          <h2 class="section-title">
+            <i18n-t keypath="home.howTitle" tag="span">
+              <template #hl><span class="hl alt">{{ $t('home.howTitleHl') }}</span></template>
+            </i18n-t>
+          </h2>
+        </div>
+        <ol v-reveal class="rail">
+          <li v-for="n in 5" :key="n" class="station" :style="{ '--i': n - 1 }">
+            <span class="station-num">0{{ n }}</span>
+            <h3 class="station-title">{{ $t(`home.step0${n}Title`) }}</h3>
+            <p class="station-desc">{{ $t(`home.step0${n}Desc`) }}</p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- Qué obtienes: entregables + gráfico de ejemplo animado -->
+      <section class="section results">
+        <div class="results-grid">
+          <div v-reveal class="results-copy">
+            <span class="kicker">{{ $t('home.resultsKicker') }}</span>
+            <h2 class="section-title small">{{ $t('home.resultsTitle') }}</h2>
+            <ul class="deliverables">
+              <li v-for="n in 4" :key="n">
+                <strong>{{ $t(`home.deliverable${n}Title`) }}</strong>
+                <span>{{ $t(`home.deliverable${n}Desc`) }}</span>
+              </li>
+            </ul>
+          </div>
+          <OpinionChart />
+        </div>
+      </section>
+
+      <!-- Cifras medidas, banda lima a sangre -->
+      <section class="figures" :aria-label="$t('home.figuresLabel')">
+        <ul class="figures-grid">
+          <li v-for="f in figures" :key="f.label" class="figure">
+            <span class="figure-value"><CountUp :value="f.value" /><span v-if="f.unit" class="figure-unit">{{ f.unit }}</span></span>
+            <span class="figure-label">{{ f.label }}</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="section projects">
+        <HistoryDatabase />
+      </section>
+
+      <section class="closing">
+        <h2 class="closing-title">
+          {{ $t('home.closingTitle') }}
+          <span class="hl">{{ $t('home.closingHl') }}</span>
+        </h2>
+        <button type="button" class="btn btn-lime" @click="scrollToForm">
+          {{ $t('home.heroCta') }} <span aria-hidden="true">↑</span>
+        </button>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>{{ $t('home.footerTagline') }}</span>
+      <a class="footer-by" href="https://koolbrand.com" target="_blank" rel="noopener">
+        {{ $t('home.footerBy') }}
+        <img src="/brand/koolbrand-logo-negativo-sin-claim.svg" alt="Koolbrand" width="112" height="22" />
+      </a>
+    </footer>
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import BriefAssistant from '../components/BriefAssistant.vue'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import * as d3 from 'd3'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import BriefAssistant from '../components/BriefAssistant.vue'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import HelpButton from '../components/HelpButton.vue'
+import CrowdCanvas from '../components/CrowdCanvas.vue'
+import OpinionChart from '../components/OpinionChart.vue'
+import CountUp from '../components/CountUp.vue'
+import { vReveal } from '../composables/useReveal'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
 
 const { t } = useI18n()
-
 const router = useRouter()
 const { maybeAutoStart } = useTutorial()
 
-// ── D3 force-directed graph (same style as in-app GraphPanel) ───────────────
-const simSvg = ref(null)
-let _d3sim = null
-let _d3resizeObs = null
+// Alto con el que la tarjeta del formulario monta sobre la portada (px).
+const overlap = ref(150)
+const stageInner = ref(null)
+const questionEl = ref(null)
 
-// Predefined demo graph — looks like a real simulation output
-const DEMO_NODES = [
-  { id: 'n1',  name: 'KoolBrand',  type: 'Brand' },
-  { id: 'n2',  name: 'BrandMind',  type: 'Product' },
-  { id: 'n3',  name: 'AI',         type: 'Tech' },
-  { id: 'n4',  name: 'Marketing',  type: 'Domain' },
-  { id: 'n5',  name: 'Startup...',  type: 'Entity' },
-  { id: 'n6',  name: 'Canva',      type: 'Competitor' },
-  { id: 'n7',  name: 'Designer...', type: 'Agent' },
-  { id: 'n8',  name: 'LatAm',      type: 'Market' },
-  { id: 'n9',  name: 'Social m...',type: 'Platform' },
-  { id: 'n10', name: 'PIX',        type: 'Entity' },
-  { id: 'n11', name: 'Carlos R...', type: 'Agent' },
-  { id: 'n12', name: 'SaaS Ent...',type: 'Segment' },
-  { id: 'n13', name: 'r/Entrep...', type: 'Community' },
-  { id: 'n14', name: 'Colombia',   type: 'Location' },
-  { id: 'n15', name: 'Freelanc...', type: 'Agent' },
-  { id: 'n16', name: 'Angel in...',type: 'Investor' },
-  { id: 'n17', name: 'Maria Lo...', type: 'Agent' },
-  { id: 'n18', name: 'Traditio...', type: 'Competitor' },
-]
-const DEMO_EDGES = [
-  { source: 'n1', target: 'n2', label: 'Owns' },
-  { source: 'n1', target: 'n3', label: 'Uses' },
-  { source: 'n2', target: 'n3', label: 'Powered by' },
-  { source: 'n2', target: 'n6', label: 'Has competitor' },
-  { source: 'n2', target: 'n9', label: 'Targets' },
-  { source: 'n2', target: 'n12', label: 'Serves' },
-  { source: 'n2', target: 'n13', label: 'Discussed in' },
-  { source: 'n4', target: 'n1', label: 'Supports' },
-  { source: 'n5', target: 'n2', label: 'Evaluates' },
-  { source: 'n7', target: 'n2', label: 'Reviews' },
-  { source: 'n8', target: 'n1', label: 'Is market of' },
-  { source: 'n10', target: 'n2', label: 'Integrates' },
-  { source: 'n11', target: 'n2', label: 'Advocates' },
-  { source: 'n14', target: 'n1', label: 'Located in' },
-  { source: 'n15', target: 'n7', label: 'Works with' },
-  { source: 'n16', target: 'n5', label: 'Funds' },
-  { source: 'n17', target: 'n2', label: 'Promotes' },
-  { source: 'n18', target: 'n2', label: 'Competes' },
-  { source: 'n3', target: 'n5', label: 'Enables' },
-]
-const DEMO_COLOR_MAP = {
-  Brand: '#FF6B35', Product: '#FF4500', Tech: '#E9724C',
-  Domain: '#004E89', Entity: '#7B2D8E', Competitor: '#C5283D',
-  Agent: '#3498db', Market: '#1A936F', Platform: '#9b59b6',
-  Segment: '#27ae60', Community: '#f39c12', Location: '#0D9488',
-  Investor: '#e74c3c',
+const EXAMPLES = ['Launch', 'Price', 'Campaign', 'Crisis']
+
+// Cifras medidas: el número se anima, la unidad («min») va aparte y más pequeña.
+const splitFigure = (s) => {
+  // «20–30 min» → «20–30» + «min»; «10–120» → «10–120»
+  const m = String(s).match(/^(\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?)\s*(.*)$/)
+  return m ? { value: m[1].trim(), unit: (m[2] || '').trim() } : { value: s, unit: '' }
 }
-const getNodeColor = (type) => DEMO_COLOR_MAP[type] || '#999'
-
-const initNetworkSvg = () => {
-  const el = simSvg.value
-  if (!el) return
-
-  // Stop any previous simulation so we don't leak running ticks when we
-  // rebuild the graph at a new container size.
-  if (_d3sim) {
-    try { _d3sim.stop() } catch (_) {}
-    _d3sim = null
-  }
-
-  const W = el.clientWidth || 500
-  const H = el.clientHeight || 310
-
-  const svg = d3.select(el)
-    .attr('width', W).attr('height', H)
-    .attr('viewBox', `0 0 ${W} ${H}`)
-
-  svg.selectAll('*').remove()
-
-  // Deep-copy nodes so D3 can mutate them freely
-  const nodes = DEMO_NODES.map(n => ({ ...n }))
-  const edges = DEMO_EDGES.map(e => ({ ...e }))
-
-  const sim = d3.forceSimulation(nodes)
-    .force('link',    d3.forceLink(edges).id(d => d.id).distance(110))
-    .force('charge',  d3.forceManyBody().strength(-320))
-    .force('center',  d3.forceCenter(W / 2, H / 2))
-    .force('collide', d3.forceCollide(40))
-    .force('x',       d3.forceX(W / 2).strength(0.05))
-    .force('y',       d3.forceY(H / 2).strength(0.05))
-    .alphaDecay(0)         // run forever — gentle continuous drift
-    .velocityDecay(0.45)
-
-  _d3sim = sim
-
-  const g = svg.append('g')
-
-  // Edges
-  const link = g.append('g').selectAll('line')
-    .data(edges).enter().append('line')
-    .attr('stroke', '#C0C0C0')
-    .attr('stroke-width', 1.5)
-
-  // Edge labels
-  const linkLabel = g.append('g').selectAll('text')
-    .data(edges).enter().append('text')
-    .text(d => d.label)
-    .attr('font-size', '8px')
-    .attr('fill', '#999')
-    .attr('text-anchor', 'middle')
-    .style('font-family', 'system-ui, sans-serif')
-    .style('pointer-events', 'none')
-
-  // Nodes
-  const node = g.append('g').selectAll('circle')
-    .data(nodes).enter().append('circle')
-    .attr('r', 10)
-    .attr('fill', d => getNodeColor(d.type))
-    .attr('stroke', '#fff')
-    .attr('stroke-width', 2.5)
-
-  // Node labels
-  const nodeLabel = g.append('g').selectAll('text')
-    .data(nodes).enter().append('text')
-    .text(d => d.name)
-    .attr('font-size', '11px')
-    .attr('fill', '#333')
-    .attr('font-weight', '500')
-    .attr('dx', 14).attr('dy', 4)
-    .style('font-family', 'system-ui, sans-serif')
-    .style('pointer-events', 'none')
-
-  sim.on('tick', () => {
-    link
-      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-      .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
-
-    linkLabel
-      .attr('x', d => (d.source.x + d.target.x) / 2)
-      .attr('y', d => (d.source.y + d.target.y) / 2)
-
-    node.attr('cx', d => d.x).attr('cy', d => d.y)
-    nodeLabel.attr('x', d => d.x).attr('y', d => d.y)
-  })
-}
+const figures = computed(() => [
+  { ...splitFigure(t('home.metricLowCost')), label: t('home.metricLowCostDesc') },
+  { ...splitFigure(t('home.metricHighAvail')), label: t('home.metricHighAvailDesc') },
+  { value: '2', unit: '', label: t('home.figurePlatformsDesc') },
+  { value: '5', unit: '', label: t('home.figureStepsDesc') },
+])
 
 onMounted(async () => {
   await nextTick()
-  initNetworkSvg()
-
-  // Re-render the graph whenever its container changes size. The panel now
-  // stretches vertically to match the hero-left text column, so its height
-  // depends on the surrounding layout (and on language/width changes).
-  const wrapEl = simSvg.value?.parentElement
-  if (wrapEl && typeof ResizeObserver !== 'undefined') {
-    let _rAF = null
-    let _lastW = 0
-    let _lastH = 0
-    _d3resizeObs = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) return
-      const { width, height } = entry.contentRect
-      // Debounce: only redraw on meaningful size changes.
-      if (Math.abs(width - _lastW) < 4 && Math.abs(height - _lastH) < 4) return
-      _lastW = width
-      _lastH = height
-      if (_rAF) cancelAnimationFrame(_rAF)
-      _rAF = requestAnimationFrame(() => {
-        _rAF = null
-        initNetworkSvg()
-      })
-    })
-    _d3resizeObs.observe(wrapEl)
-  }
-
-  // Auto-launch the Home tour on the user's first visit. Users can re-open
-  // it any time from the "?" button in the navbar.
+  overlap.value = window.innerWidth <= 640 ? 96 : 150
+  // Tutorial automático en la primera visita (se reabre con el botón «?»).
   maybeAutoStart('home', getTour('home'))
 })
 
-onUnmounted(() => {
-  if (_d3sim) _d3sim.stop()
-  if (_d3resizeObs) {
-    _d3resizeObs.disconnect()
-    _d3resizeObs = null
-  }
-})
-// ────────────────────────────────────────────────────────────────────────────
-
-// 表单数据
+// ── Formulario ──────────────────────────────────────────────────────────────
 const formData = ref({
   simulationRequirement: '',
   projectName: ''
 })
-
-// 文件列表
 const files = ref([])
-
-// 状态
 const loading = ref(false)
-const error = ref('')
 const isDragOver = ref(false)
-
-// 文件输入引用
 const fileInput = ref(null)
 
-// 计算属性:是否可以提交
-const canSubmit = computed(() => {
-  return formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
+const canSubmit = computed(() =>
+  formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
+)
+
+const statusText = computed(() => {
+  if (canSubmit.value) {
+    return files.value.length === 1
+      ? t('home.readyOne')
+      : t('home.readyMany', { n: files.value.length })
+  }
+  return t('home.startHint')
 })
 
-// 触发文件选择
 const triggerFileInput = () => {
-  if (!loading.value) {
-    fileInput.value?.click()
-  }
+  if (!loading.value) fileInput.value?.click()
 }
 
-// 处理文件选择
 const handleFileSelect = (event) => {
-  const selectedFiles = Array.from(event.target.files)
-  addFiles(selectedFiles)
+  addFiles(Array.from(event.target.files))
+  // Permite volver a elegir el mismo archivo tras quitarlo.
+  event.target.value = ''
 }
 
-// 处理拖拽相关
-const handleDragOver = (e) => {
-  if (!loading.value) {
-    isDragOver.value = true
-  }
+const handleDragOver = () => {
+  if (!loading.value) isDragOver.value = true
 }
 
-const handleDragLeave = (e) => {
+const handleDragLeave = () => {
   isDragOver.value = false
 }
 
 const handleDrop = (e) => {
   isDragOver.value = false
   if (loading.value) return
-  
-  const droppedFiles = Array.from(e.dataTransfer.files)
-  addFiles(droppedFiles)
+  addFiles(Array.from(e.dataTransfer.files))
 }
 
-// 添加文件
 const addFiles = (newFiles) => {
   const validFiles = newFiles.filter(file => {
     const ext = file.name.split('.').pop().toLowerCase()
@@ -523,29 +339,35 @@ const addFiles = (newFiles) => {
   files.value.push(...validFiles)
 }
 
-// 移除文件
 const removeFile = (index) => {
   files.value.splice(index, 1)
 }
 
-// Del botón del hero al formulario
-const scrollToForm = () => {
-  document.querySelector('[data-tour="home-upload"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+// Rellena la pregunta con un ejemplo y deja el cursor al final para editarlo.
+const useExample = (key) => {
+  formData.value.simulationRequirement = t(`home.example${key}`)
+  nextTick(() => {
+    const el = questionEl.value
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  })
 }
 
-// 开始模拟 - 立即跳转，API调用在Process页面进行
+const scrollToForm = () => {
+  document.getElementById('ensayo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// Pasa al asistente: la subida y la llamada a la API se hacen en Process.
 const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
 
-  // 存储待上传的数据
   import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
     setPendingUpload(
       files.value,
       formData.value.simulationRequirement,
       (formData.value.projectName || '').trim()
     )
-
-    // 立即跳转到Process页面（使用特殊标识表示新建项目）
     router.push({
       name: 'Process',
       params: { projectId: 'new' }
@@ -555,786 +377,613 @@ const startSimulation = () => {
 </script>
 
 <style scoped>
-/* Variables locales (en un estilo scoped, :root no aplica: van en el contenedor) */
-.home-container {
-  --black: var(--kb-text);
-  --white: #FFFFFF;
-  --orange: var(--kb-accent-solid);
-  --gray-light: var(--kb-soft);
-  --gray-text: var(--kb-muted);
-  --border: var(--kb-line);
-  /* 
-    使用 Space Grotesk 作为主要标题字体，JetBrains Mono 作为代码/标签字体
-    确保已在 index.html 引入这些 Google Fonts 
-  */
-  --font-mono: var(--kb-font-mono);
-  --font-sans: var(--kb-font-sans);
-  --font-cn: 'Noto Sans SC', system-ui, sans-serif;
-}
-
-.home-container {
+.home {
+  --gutter: clamp(16px, 4vw, 48px);
+  --overlap: 150px;
+  --stage-bg: #0B0B0B;
   min-height: 100vh;
   background: var(--kb-bg);
-  font-family: var(--font-sans);
-  color: var(--black);
+  color: var(--kb-text);
+  font-family: var(--kb-font-sans);
 }
 
-/* 顶部导航 */
-.navbar {
-  height: 60px;
-  background: var(--kb-surface);
-  border-bottom: 1px solid var(--kb-line);
-  color: var(--kb-text);
+/* ── Barra superior ─────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 0 40px;
-}
-
-.nav-brand {
-  font-size: 24px;
-  color: var(--kb-text);
-  display: inline-flex;
-  align-items: center;
-  transition: opacity 0.15s ease;
-  cursor: pointer;
-}
-
-.nav-brand:hover {
-  opacity: 0.7;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
   gap: 16px;
+  min-height: 64px;
+  padding-inline: var(--gutter);
+  background: rgba(242, 241, 239, 0.88);
+  backdrop-filter: saturate(1.4) blur(12px);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--kb-line);
 }
-
-.github-link {
+.topbar-brand {
+  font-size: 1.55rem;
   color: var(--kb-text);
   text-decoration: none;
-  font-family: var(--kb-font-sans);
-  font-size: 0.9rem;
-  font-weight: 500;
+}
+.topbar-links {
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: opacity 0.2s;
+  gap: 12px 20px;
 }
-
-.github-link:hover {
-  opacity: 0.8;
-}
-
-.arrow {
-  font-family: var(--kb-font-sans);
-}
-
-/* 主要内容区 */
-.main-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 60px 40px;
-}
-
-/* Hero 区域 */
-.hero-section {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 80px;
-  position: relative;
-}
-
-.hero-left {
-  flex: 1;
-  padding-right: 60px;
-}
-
-.tag-row {
-  display: flex;
+.nav-projects {
+  display: inline-flex;
   align-items: center;
-  gap: 15px;
-  margin-bottom: 25px;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-}
-
-.orange-tag {
-  background: var(--kb-accent-solid);
-  color: var(--kb-accent-on);
-  padding: 4px 10px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  font-size: 0.75rem;
-}
-
-
-.main-title {
-  font-size: 4.5rem;
-  line-height: 1.2;
-  font-weight: 500;
-  margin: 0 0 40px 0;
-  letter-spacing: -2px;
-  color: var(--black);
-}
-
-.gradient-text {
-  background: linear-gradient(90deg, var(--kb-text) 0%, #444444 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  display: inline-block;
-}
-
-.hero-desc {
-  font-size: 1.05rem;
-  line-height: 1.8;
-  color: var(--gray-text);
-  max-width: 640px;
-  margin-bottom: 50px;
-  font-weight: 400;
-  text-align: left;
-}
-
-.hero-desc p {
-  margin-bottom: 1.5rem;
-}
-
-.highlight-bold {
-  color: var(--black);
-  font-weight: 700;
-}
-
-.highlight-orange {
+  gap: 6px;
+  padding: 8px 2px;
+  font-weight: 600;
   color: var(--kb-text);
-  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
 }
+.nav-projects .arrow { transition: transform 0.2s ease; }
+.nav-projects:hover .arrow { transform: translateX(3px); }
 
-.highlight-code {
-  background: rgba(0, 0, 0, 0.05);
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-weight: 600;
-  color: var(--black);
-  font-weight: 600;
+/* ── Portada ────────────────────────────────────────────────────────────── */
+.stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-height: clamp(640px, calc(100svh - 64px + var(--overlap) - 110px), 1000px);
+  padding: clamp(56px, 9vh, 112px) var(--gutter) calc(var(--overlap) + 120px);
+  background:
+    radial-gradient(90% 70% at 50% 38%, rgba(204, 230, 115, 0.07) 0%, rgba(204, 230, 115, 0) 60%),
+    var(--stage-bg);
+  color: var(--cream-100);
 }
+.stage :focus-visible,
+.closing :focus-visible,
+.site-footer :focus-visible { outline-color: var(--lime-500); }
 
-.slogan-text {
-  font-size: 1.2rem;
-  font-weight: 520;
-  color: var(--black);
-  letter-spacing: 1px;
-  border-left: 3px solid var(--kb-accent-line);
-  padding-left: 15px;
-  margin-top: 20px;
+.stage-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 1040px;
+  text-align: center;
 }
-
-.blinking-cursor {
-  color: var(--kb-accent-text);
-  animation: blink 1s step-end infinite;
-  font-weight: 700;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.hero-cta {
-  margin-top: 8px;
+.eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 22px;
-  background: var(--kb-accent-solid);
-  color: var(--kb-accent-on);
+  margin: 0 0 28px;
+  font-family: var(--kb-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lime-500);
+  animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.eyebrow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lime-500);
+  animation: live 2s ease-out infinite;
+}
+.stage-title {
+  margin: 0;
+  font-size: clamp(3.1rem, 9.2vw, 8.5rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  color: var(--cream-100);
+  text-wrap: balance;
+}
+.stage-title .line {
+  display: block;
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
+}
+.stage-title .line + .line { animation-delay: 0.2s; }
+.stage-title .hl {
+  padding: 0 0.12em 0.06em;
+  border-radius: 0.08em;
+  animation: stamp 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) 0.55s both;
+}
+.stage-lede {
+  max-width: 58ch;
+  margin: 32px auto 0;
+  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  line-height: 1.55;
+  color: rgba(242, 241, 239, 0.76);
+  text-wrap: pretty;
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.32s both;
+}
+.stage-lede strong { color: var(--cream-100); font-weight: 600; }
+.stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.44s both;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 26px;
+  border-radius: 10px;
+  font: 600 1rem/1 var(--kb-font-sans);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-lime {
+  background: var(--lime-500);
+  color: var(--ink-950);
+  border: 1px solid var(--lime-500);
+}
+.btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translateY(-1px); }
+.btn-outline-light {
+  background: transparent;
+  color: var(--cream-100);
+  border: 1px solid rgba(242, 241, 239, 0.3);
+}
+.btn-outline-light:hover { border-color: var(--cream-100); }
+
+/* ── Formulario ─────────────────────────────────────────────────────────── */
+.composer-wrap {
+  position: relative;
+  z-index: 3;
+  margin-top: calc(-1 * var(--overlap));
+  padding-inline: var(--gutter);
+  scroll-margin-top: 88px;
+}
+.composer {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: clamp(24px, 4vw, 48px);
+  background: var(--kb-surface);
+  border-radius: 20px;
+  box-shadow: 0 50px 100px -50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(17, 17, 17, 0.06);
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
+}
+.composer-head { margin-bottom: 32px; }
+.kicker {
+  font-family: var(--kb-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kb-accent-text);
+}
+.composer-title {
+  margin: 8px 0 0;
+  font-size: clamp(1.6rem, 2.8vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.composer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px 48px;
+}
+.cstep-col { display: grid; align-content: start; gap: 28px; }
+.cstep-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--kb-text);
+}
+.cstep-num {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--ink-950);
+  color: var(--lime-500);
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.optional { font-size: 0.85rem; font-weight: 500; color: var(--kb-muted); }
+.cstep-hint {
+  margin: -2px 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+  text-wrap: pretty;
+}
+
+.dropzone {
+  display: grid;
+  place-items: center;
+  min-height: 176px;
+  padding: 24px;
+  border: 1.5px dashed var(--kb-line-strong);
+  border-radius: 14px;
+  background: var(--kb-surface-2);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dropzone:hover,
+.dropzone.drag-over { border-color: var(--lime-700); background: var(--lime-50); }
+.dropzone.has-files { min-height: 120px; }
+.drop-inner { display: grid; justify-items: center; gap: 6px; }
+.drop-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--ink-950);
+  color: var(--lime-500);
+  font-size: 1.2rem;
+  transition: transform 0.2s ease;
+}
+.dropzone:hover .drop-icon,
+.dropzone.drag-over .drop-icon { transform: translateY(-3px); }
+.drop-title { font-size: 1rem; font-weight: 600; }
+.drop-hint { font-size: 0.88rem; color: var(--kb-muted); }
+.drop-formats {
+  margin-top: 6px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--kb-subtle);
+}
+.file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--lime-600);
+  border-radius: 999px;
+  background: var(--lime-50);
+  font-size: 0.85rem;
+}
+.file-chip-name {
+  overflow: hidden;
+  max-width: 260px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-chip-remove {
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 8px;
-  font: 700 1rem var(--kb-font-sans);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--kb-text-2);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.file-chip-remove:hover { background: rgba(17, 17, 17, 0.08); }
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--kb-line-strong);
+  border-radius: 12px;
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  font: 400 1rem/1.5 var(--kb-font-sans);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field::placeholder { color: var(--kb-subtle); }
+.field:focus { outline: none; border-color: var(--ink-950); box-shadow: 0 0 0 3px rgba(204, 230, 115, 0.7); }
+.field:disabled { background: var(--kb-surface-2); cursor: not-allowed; }
+.field-question { min-height: 150px; resize: vertical; font-size: 1.05rem; }
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.examples-label { margin-inline-end: 2px; font-size: 0.85rem; color: var(--kb-muted); }
+.example-chip {
+  padding: 8px 12px;
+  border: 1px solid var(--kb-line-strong);
+  border-radius: 999px;
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  font: 500 0.85rem/1 var(--kb-font-sans);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.example-chip:hover:not(:disabled) { border-color: var(--ink-950); background: var(--lime-50); }
+.example-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.composer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--kb-line);
+}
+.composer-status {
+  max-width: 52ch;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+  text-wrap: pretty;
+}
+.composer-status.ready { color: var(--kb-accent-text); font-weight: 600; }
+.launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 30px;
+  border: none;
+  border-radius: 12px;
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font: 700 1.05rem/1 var(--kb-font-sans);
   cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.hero-cta:hover { background: var(--kb-accent-hover); }
-.hero-cta:active { transform: translateY(1px); }
+.launch-btn .arrow { transition: transform 0.2s ease; }
+.launch-btn:hover:not(:disabled) { background: var(--lime-600); transform: translateY(-1px); }
+.launch-btn:hover:not(:disabled) .arrow { transform: translateX(4px); }
+.launch-btn:disabled { background: var(--gray-100); color: var(--gray-600); cursor: not-allowed; }
 
-.start-hint {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--kb-muted);
-  text-align: center;
+/* ── Secciones ──────────────────────────────────────────────────────────── */
+.section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: clamp(96px, 12vw, 168px) var(--gutter) 0;
 }
-
-
-.hero-right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: stretch;
-}
-
-/* ── D3 graph panel ── */
-.agent-vis-panel {
-  width: 100%;
-  background: #fff;
-  border: 1px solid var(--kb-line);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  /* Grow to fill the hero-right column so its height matches the left text */
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.vis-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 18px;
-  border-bottom: 1px solid #EBEBEB;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 1.5px;
-  background: #fff;
-}
-
-.vis-label { color: var(--kb-subtle); font-weight: 600; }
-
-.vis-live {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--kb-accent-text);
-  font-weight: 700;
-}
-
-.live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--kb-accent-solid);
-  animation: pulse-live 1.8s ease-in-out infinite;
-}
-
-@keyframes pulse-live {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.35; transform: scale(0.65); }
-}
-
-.vis-svg-wrap {
-  position: relative;
-  /* Fill the remaining vertical space inside .agent-vis-panel so the
-     graph extends down to match the hero-left text column. */
-  flex: 1 1 auto;
-  min-height: 310px;
-  /* Exact same background as in-app GraphPanel */
-  background-color: var(--kb-surface-2);
-  background-image: radial-gradient(#D0D0D0 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
-  overflow: hidden;
-}
-
-.sim-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.sim-brand-overlay {
-  position: absolute;
-  bottom: 14px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  pointer-events: none;
-  background: rgba(250, 250, 250, 0.85);
-  backdrop-filter: blur(4px);
-  padding: 8px 12px;
-  border: 1px solid #E8E8E8;
-}
-
-.sim-logo {
-  font-size: 26px;
-  color: var(--kb-text);
-}
-
-.sim-brand-sub {
-  font-family: var(--font-mono);
-  font-size: 0.57rem;
-  color: var(--kb-subtle);
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-}
-
-.sim-brand-sub strong { color: var(--kb-accent-text); }
-
-.vis-bottom-bar {
-  padding: 12px 18px;
-  border-top: 1px solid #EBEBEB;
-  background: #fff;
-}
-
-.vis-stat-row {
-  display: flex;
-  gap: 28px;
-}
-
-.vis-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-val {
-  font-family: var(--kb-font-sans);
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  line-height: 1;
-}
-
-.stat-lbl {
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  color: var(--kb-subtle);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-
-
-/* Dashboard 双栏布局 */
-.dashboard-section {
-  display: flex;
-  gap: 60px;
-  border-top: 1px solid var(--border);
-  padding-top: 60px;
-  align-items: flex-start;
-}
-
-.dashboard-section .left-panel,
-.dashboard-section .right-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-/* 左侧面板 */
-.left-panel {
-  flex: 0.8;
-}
-
-.panel-header {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--kb-subtle);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.status-dot {
-  color: var(--kb-accent-text);
-  font-size: 0.8rem;
-}
-
 .section-title {
-  font-size: 2rem;
-  font-weight: 520;
-  margin: 0 0 15px 0;
+  max-width: 18ch;
+  margin: 12px 0 0;
+  font-size: clamp(2.2rem, 5.2vw, 4.4rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
 }
+.section-title.small { font-size: clamp(2rem, 3.8vw, 3.2rem); }
 
-.section-desc {
-  color: var(--gray-text);
-  margin-bottom: 25px;
-  line-height: 1.6;
-}
-
-.metrics-row {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-}
-
-.metric-card {
-  border: 1px solid var(--border);
-  padding: 20px 30px;
-  min-width: 150px;
-}
-
-.metric-value {
-  font-family: var(--kb-font-sans);
-  font-size: 1.8rem;
-  font-weight: 520;
-  margin-bottom: 5px;
-}
-
-.metric-label {
-  font-size: 0.85rem;
-  color: var(--kb-subtle);
-}
-
-/* 项目模拟步骤介绍 */
-.steps-container {
-  border: 1px solid var(--border);
-  padding: 30px;
+.rail {
   position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 64px 0 0;
+  padding: 0;
+  list-style: none;
 }
-
-.steps-header {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--kb-subtle);
-  margin-bottom: 25px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.rail.reveal { opacity: 1; transform: none; }
+.rail::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 6px;
+  height: 2px;
+  background: var(--ink-950);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 1.4s cubic-bezier(0.65, 0, 0.35, 1);
 }
-
-.diamond-icon {
-  font-size: 1.2rem;
-  line-height: 1;
+.rail.is-in::before { transform: scaleX(1); }
+.station {
+  position: relative;
+  padding-block-start: 38px;
+  padding-inline-end: 24px;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  transition-delay: calc(var(--i) * 0.18s + 0.25s);
 }
-
-.workflow-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.station::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink-950);
+  border-radius: 50%;
+  background: var(--lime-500);
 }
-
-.workflow-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-}
-
-.step-num {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--black);
-  opacity: 0.3;
-}
-
-.step-info {
-  flex: 1;
-}
-
-.step-title {
-  font-weight: 520;
-  font-size: 1rem;
-  margin-bottom: 4px;
-}
-
-.step-desc {
-  font-size: 0.85rem;
-  color: var(--gray-text);
-}
-
-/* 右侧交互控制台 */
-.right-panel {
-  flex: 1.2;
-}
-
-.console-box {
-  border: 1px solid var(--kb-line-strong); /* 外部实线 */
-  padding: 8px; /* 内边距形成双重边框感 */
-}
-
-.console-section {
-  padding: 20px;
-}
-
-.console-section.btn-section {
-  padding-top: 0;
-}
-
-.console-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 15px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+.rail.is-in .station { opacity: 1; transform: none; }
+.station-num {
+  font-family: var(--kb-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
   color: var(--kb-muted);
 }
+.station-title {
+  margin: 10px 0 8px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.station-desc {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--kb-text-2);
+  text-wrap: pretty;
+}
 
-.upload-zone {
-  border: 1px dashed var(--kb-line-strong);
-  height: 200px;
-  overflow-y: auto;
-  display: flex;
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  background: var(--kb-surface-2);
+  gap: 48px 64px;
+}
+.deliverables {
+  display: grid;
+  gap: 20px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.deliverables li {
+  display: grid;
+  gap: 4px;
+  padding-inline-start: 18px;
+  border-inline-start: 3px solid var(--lime-500);
+}
+.deliverables strong { font-size: 1.05rem; }
+.deliverables span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }
+
+.figures {
+  margin-top: clamp(96px, 12vw, 168px);
+  padding: clamp(56px, 8vw, 104px) var(--gutter);
+  background: var(--lime-500);
+  color: var(--ink-950);
+}
+.figures-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 40px 32px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.figure {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 2px solid var(--ink-950);
+}
+.figure-value {
+  font-size: clamp(2.6rem, 5vw, 4.8rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+.figure-unit { margin-inline-start: 0.2em; font-size: 0.45em; letter-spacing: -0.01em; }
+.figure-label {
+  max-width: 26ch;
+  font-size: 0.98rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink-800);
+  text-wrap: pretty;
 }
 
-.upload-zone.has-files {
-  align-items: flex-start;
-}
+.projects { padding-bottom: 0; }
 
-.upload-zone:hover {
-  background: var(--kb-soft);
-  border-color: var(--kb-subtle);
-}
-
-.upload-placeholder {
+.closing {
+  margin-top: clamp(96px, 12vw, 168px);
+  padding: clamp(96px, 14vw, 200px) var(--gutter);
+  background:
+    radial-gradient(70% 60% at 50% 100%, rgba(204, 230, 115, 0.1) 0%, rgba(204, 230, 115, 0) 70%),
+    var(--stage-bg);
+  color: var(--cream-100);
   text-align: center;
 }
+.closing-title {
+  max-width: 16ch;
+  margin: 0 auto 48px;
+  font-size: clamp(2.6rem, 7.4vw, 7rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.closing-title .hl { margin-top: 0.12em; padding: 0 0.12em 0.06em; }
 
-.upload-icon {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--kb-line-strong);
+.site-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  margin: 0 auto 15px;
-  color: var(--kb-subtle);
-}
-
-.upload-title {
-  font-weight: 500;
-  font-size: 0.9rem;
-  margin-bottom: 5px;
-}
-
-.upload-hint {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--kb-subtle);
-}
-
-.file-list {
-  width: 100%;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  background: var(--white);
-  padding: 8px 12px;
-  border: 1px solid var(--kb-line);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-}
-
-.file-name {
-  flex: 1;
-  margin: 0 10px;
-}
-
-.remove-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.2rem;
-  color: var(--kb-subtle);
-}
-
-.console-divider {
-  display: flex;
-  align-items: center;
-  margin: 10px 0;
-}
-
-.console-divider::before,
-.console-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--kb-line);
-}
-
-.console-divider span {
-  padding: 0 15px;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: #BBB;
-  letter-spacing: 1px;
-}
-
-.name-wrapper {
-  border: 1px solid var(--kb-line-strong);
-  background: var(--kb-surface-2);
-}
-
-.name-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 14px 18px;
-  font-family: var(--kb-font-sans);
-  font-size: 0.95rem;
-  color: var(--black);
-  outline: none;
-  letter-spacing: 0.5px;
-}
-
-.name-input::placeholder {
-  color: var(--kb-subtle);
-  font-style: italic;
-}
-
-.name-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.input-wrapper {
-  position: relative;
-  border: 1px solid var(--kb-line-strong);
-  background: var(--kb-surface-2);
-}
-
-.code-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 20px;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  line-height: 1.6;
-  resize: vertical;
-  outline: none;
-  min-height: 150px;
-}
-
-
-.start-engine-btn {
-  width: 100%;
-  background: var(--black);
-  color: var(--white);
-  border: none;
-  padding: 20px;
-  font-family: var(--kb-font-sans);
-  font-weight: 700;
-  font-size: 1.1rem;
-  display: flex;
   justify-content: space-between;
+  gap: 16px;
+  padding: 28px var(--gutter);
+  border-top: 1px solid rgba(242, 241, 239, 0.1);
+  background: var(--stage-bg);
+  color: rgba(242, 241, 239, 0.66);
+  font-size: 0.88rem;
+}
+.footer-by {
+  display: inline-flex;
   align-items: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  letter-spacing: 1px;
-  position: relative;
-  overflow: hidden;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.footer-by img { display: block; width: auto; height: 22px; }
+.footer-by:hover { color: var(--cream-100); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes stamp {
+  from { opacity: 0; transform: rotate(-1.4deg) scale(0.7); }
+  to { opacity: 1; transform: rotate(-1.4deg) scale(1); }
+}
+@keyframes live {
+  0% { box-shadow: 0 0 0 0 rgba(204, 230, 115, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(204, 230, 115, 0); }
 }
 
-/* 可点击状态（非禁用） */
-.start-engine-btn:not(:disabled) {
-  background: var(--black);
-  border: 1px solid var(--black);
-  animation: pulse-border 2s infinite;
+/* ── Adaptación ─────────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .results-grid { grid-template-columns: minmax(0, 1fr); }
+  .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
-.start-engine-btn:hover:not(:disabled) {
-  background: var(--kb-accent-solid);
-  border-color: var(--kb-accent-line);
-  transform: translateY(-2px);
-}
-
-.start-engine-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.start-engine-btn:disabled {
-  background: var(--kb-line);
-  color: var(--kb-subtle);
-  cursor: not-allowed;
-  transform: none;
-  border: 1px solid var(--kb-line);
-}
-
-/* 引导动画：微妙的边框脉冲 */
-@keyframes pulse-border {
-  0% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.2); }
-  70% { box-shadow: 0 0 0 6px rgba(0, 0, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
-}
-
-/* 响应式适配 */
-@media (max-width: 1024px) {
-  .dashboard-section {
-    flex-direction: column;
+@media (max-width: 900px) {
+  .composer-grid { grid-template-columns: minmax(0, 1fr); }
+  .rail { grid-template-columns: minmax(0, 1fr); margin-top: 48px; }
+  .rail::before {
+    inset-inline: auto;
+    inset-inline-start: 6px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    height: auto;
+    transform: scaleY(0);
+    transform-origin: center top;
   }
-  
-  .hero-section {
-    flex-direction: column;
-  }
-  
-  .hero-left {
-    padding-right: 0;
-    margin-bottom: 40px;
-  }
-
-  .hero-right {
-    width: 100%;
-    align-items: stretch;
-  }
-
-  .vis-canvas-wrap {
-    height: 240px;
-  }
+  .rail.is-in::before { transform: scaleY(1); }
+  .station { padding-block: 0 36px; padding-inline: 40px 0; }
+  .station::before { top: 2px; }
 }
-</style>
-
-<style>
-/* English locale adjustments (unscoped to target html[lang]) */
-html[lang="en"] .main-title {
-  font-size: 3.5rem;
-  font-family: var(--kb-font-sans);
-  letter-spacing: -1px;
+@media (max-width: 640px) {
+  .home { --overlap: 96px; }
+  .topbar-version { display: none; }
+  .topbar-links { gap: 10px; }
+  .stage { padding-bottom: calc(var(--overlap) + 120px); }
+  .launch-btn { width: 100%; justify-content: center; }
 }
-
-html[lang="en"] .hero-desc {
-  text-align: left;
-  font-family: var(--kb-font-sans);
-  letter-spacing: 0;
+@media (max-width: 480px) {
+  .figures-grid { grid-template-columns: minmax(0, 1fr); }
 }
-
-html[lang="en"] .slogan-text {
-  font-family: var(--kb-font-sans);
-  letter-spacing: 0;
-}
-
-html[lang="en"] .tag-row {
-  font-family: var(--kb-font-sans);
-}
-
-html[lang="en"] .navbar .nav-links {
-  font-family: var(--kb-font-sans);
-}
-
-/* Left pane: system status + workflow */
-html[lang="en"] .status-section {
-  font-family: var(--kb-font-sans);
-}
-
-html[lang="en"] .status-section .status-ready {
-  font-size: 1.6rem;
-}
-
-html[lang="en"] .status-section .metric-value {
-  font-family: var(--kb-font-sans);
-  font-size: 1.4rem;
-}
-
-html[lang="en"] .workflow-list .step-title {
-  font-family: var(--kb-font-sans);
-}
-
-html[lang="en"] .workflow-list .step-desc {
-  font-family: var(--kb-font-sans);
-  font-size: 0.72rem !important;
-  line-height: 1.4 !important;
-}
-
-html[lang="en"] .workflow-list {
-  font-family: var(--kb-font-sans);
+@media (prefers-reduced-motion: reduce) {
+  .eyebrow, .eyebrow-dot, .stage-title .line, .stage-title .hl,
+  .stage-lede, .stage-actions, .composer { animation: none; }
+  .rail::before, .station { transition: none; }
 }
 </style>

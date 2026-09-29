@@ -29,16 +29,16 @@ export const TOURS = {
       bodyKey:  'tutorial.home.uploadBody',
     },
     {
-      selector: '[data-tour="home-project-name"]',
-      placement: 'right',
-      titleKey: 'tutorial.home.nameTitle',
-      bodyKey:  'tutorial.home.nameBody',
-    },
-    {
       selector: '[data-tour="home-prompt"]',
-      placement: 'right',
+      placement: 'left',
       titleKey: 'tutorial.home.promptTitle',
       bodyKey:  'tutorial.home.promptBody',
+    },
+    {
+      selector: '[data-tour="home-project-name"]',
+      placement: 'left',
+      titleKey: 'tutorial.home.nameTitle',
+      bodyKey:  'tutorial.home.nameBody',
     },
     {
       selector: '[data-tour="home-start"]',
