@@ -2,6 +2,7 @@
 Security helpers for API authentication and safe error responses.
 """
 
+import hmac
 import time
 import re
 from typing import Any, Dict
@@ -29,7 +30,7 @@ def error_response(message: str, status_code: int = 500, **extra: Any):
 
 def _validate_static_token(token: str) -> bool:
     expected = Config.API_AUTH_TOKEN
-    return bool(expected) and token == expected
+    return bool(expected) and hmac.compare_digest(token.encode(), expected.encode())
 
 
 def _validate_pocketbase_token(token: str) -> bool:
@@ -37,6 +38,10 @@ def _validate_pocketbase_token(token: str) -> bool:
     cached_until = _PB_TOKEN_CACHE.get(token)
     if cached_until and cached_until > now:
         return True
+    # Purga de entradas caducadas para que la caché no crezca sin límite
+    if len(_PB_TOKEN_CACHE) > 1000:
+        for key in [k for k, until in _PB_TOKEN_CACHE.items() if until <= now]:
+            _PB_TOKEN_CACHE.pop(key, None)
 
     pb_url = (Config.POCKETBASE_URL or "").rstrip("/")
     if not pb_url:
@@ -51,7 +56,7 @@ def _validate_pocketbase_token(token: str) -> bool:
         if response.status_code == 200:
             _PB_TOKEN_CACHE[token] = now + _PB_CACHE_TTL_SECONDS
             return True
-    except httpx.HTTPError:
+    except (httpx.HTTPError, httpx.InvalidURL):
         return False
 
     return False
@@ -75,6 +80,16 @@ def validate_storage_id(value: str, *allowed_prefixes: str) -> str:
     if allowed_prefixes and not any(value.startswith(prefix) for prefix in allowed_prefixes):
         raise ValueError("Identificador no válido")
     return value
+
+
+def is_valid_storage_id(value: str, *allowed_prefixes: str) -> bool:
+    """Versión booleana de validate_storage_id, para filtrar listados de disco
+    (.DS_Store, duplicados de iCloud tipo 'proj_x 2', etc.)."""
+    try:
+        validate_storage_id(value, *allowed_prefixes)
+        return True
+    except ValueError:
+        return False
 
 
 def validate_platform(value: str, allowed=("reddit", "twitter", "parallel")) -> str:

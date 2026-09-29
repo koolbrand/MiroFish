@@ -18,7 +18,7 @@ from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
-from ..utils.security import validate_platform, validate_storage_id
+from ..utils.security import validate_platform, validate_storage_id, is_valid_storage_id
 
 logger = get_logger('mirofish.simulation')
 
@@ -137,11 +137,12 @@ class SimulationManager:
         # 内存中的模拟状态缓存
         self._simulations: Dict[str, SimulationState] = {}
     
-    def _get_simulation_dir(self, simulation_id: str) -> str:
-        """获取模拟数据目录"""
+    def _get_simulation_dir(self, simulation_id: str, create: bool = True) -> str:
+        """获取模拟数据目录（create=False para lecturas: un GET no debe crear carpetas）"""
         validate_storage_id(simulation_id, "sim_")
         sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
-        os.makedirs(sim_dir, exist_ok=True)
+        if create:
+            os.makedirs(sim_dir, exist_ok=True)
         return sim_dir
     
     def _save_simulation_state(self, state: SimulationState):
@@ -161,7 +162,7 @@ class SimulationManager:
         if simulation_id in self._simulations:
             return self._simulations[simulation_id]
         
-        sim_dir = self._get_simulation_dir(simulation_id)
+        sim_dir = self._get_simulation_dir(simulation_id, create=False)
         state_file = os.path.join(sim_dir, "state.json")
         
         if not os.path.exists(state_file):
@@ -470,7 +471,7 @@ class SimulationManager:
             for sim_id in os.listdir(self.SIMULATION_DATA_DIR):
                 # 跳过隐藏文件（如 .DS_Store）和非目录文件
                 sim_path = os.path.join(self.SIMULATION_DATA_DIR, sim_id)
-                if sim_id.startswith('.') or not os.path.isdir(sim_path):
+                if not is_valid_storage_id(sim_id, "sim_") or not os.path.isdir(sim_path):
                     continue
 
                 state = self._load_simulation_state(sim_id)
@@ -510,7 +511,7 @@ class SimulationManager:
         if not state:
             raise ValueError(f"La simulación no existe: {simulation_id}")
 
-        sim_dir = self._get_simulation_dir(simulation_id)
+        sim_dir = self._get_simulation_dir(simulation_id, create=False)
         profile_path = os.path.join(sim_dir, f"{platform}_profiles.json")
         
         if not os.path.exists(profile_path):
@@ -521,7 +522,7 @@ class SimulationManager:
     
     def get_simulation_config(self, simulation_id: str) -> Optional[Dict[str, Any]]:
         """获取模拟配置"""
-        sim_dir = self._get_simulation_dir(simulation_id)
+        sim_dir = self._get_simulation_dir(simulation_id, create=False)
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
         if not os.path.exists(config_path):
@@ -532,7 +533,7 @@ class SimulationManager:
     
     def get_run_instructions(self, simulation_id: str) -> Dict[str, str]:
         """获取运行说明"""
-        sim_dir = self._get_simulation_dir(simulation_id)
+        sim_dir = self._get_simulation_dir(simulation_id, create=False)
         config_path = os.path.join(sim_dir, "simulation_config.json")
         scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../scripts'))
         

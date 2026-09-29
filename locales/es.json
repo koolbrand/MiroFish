@@ -4,7 +4,11 @@
     "password": "Contraseña",
     "signIn": "Iniciar sesión",
     "invalidCredentials": "Credenciales incorrectas. Verifica tu email y contraseña.",
-    "protected": "Protegido por PocketBase Authentication"
+    "protected": "Protegido por PocketBase Authentication",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "forgotNeedsEmail": "Escribe tu correo arriba y vuelve a pulsar.",
+    "resetSent": "Si el correo tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva.",
+    "resetFailed": "No se pudo enviar el correo. Inténtalo más tarde."
   },
   "common": {
     "confirm": "Confirmar",
@@ -338,7 +342,8 @@
     "panelRelatedEdges": "Conexiones relacionadas",
     "panelRelatedNodes": "Nodos relacionados",
     "world1": "Mundo 1",
-    "world2": "Mundo 2"
+    "world2": "Mundo 2",
+    "reportFailed": "La generación del informe ha fallado: {error}"
   },
   "step5": {
     "interactiveTools": "Herramientas interactivas",
@@ -728,7 +733,8 @@
     "getReportInfoFailed": "Error al obtener información del informe: {error}",
     "enterStep": "Entrando al Paso {step}: {name}",
     "returnToStep": "Volviendo al Paso {step}: {name}",
-    "customSimRounds": "Rondas de simulación personalizadas: {rounds} rondas"
+    "customSimRounds": "Rondas de simulación personalizadas: {rounds} rondas",
+    "simAlreadyRunning": "Simulación ya en ejecución — reconectando..."
   },
   "report": {
     "taskStarted": "Tarea de generación de informe iniciada",

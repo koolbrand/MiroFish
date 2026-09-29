@@ -14,7 +14,9 @@ for (const path in localeFiles) {
   }
 }
 
-const savedLocale = localStorage.getItem('locale') || 'es'
+// Solo idiomas con archivo de traducciones (languages.json declara más)
+const storedLocale = localStorage.getItem('locale')
+const savedLocale = storedLocale && messages[storedLocale] ? storedLocale : 'es'
 
 const i18n = createI18n({
   legacy: false,

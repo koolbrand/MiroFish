@@ -268,6 +268,7 @@ def generate_ontology():
             }
         }
     """
+    project = None
     try:
         logger.info("=== Iniciando la generación de la ontología ===")
 
@@ -369,6 +370,13 @@ def generate_ontology():
         })
         
     except Exception as e:
+        logger.error(f"Fallo al generar la ontología: {e}")
+        # No dejar proyectos huérfanos a medio crear (sin ontología)
+        if project is not None and project.status != ProjectStatus.ONTOLOGY_GENERATED:
+            try:
+                ProjectManager.delete_project(project.project_id)
+            except Exception as cleanup_error:  # noqa: BLE001
+                logger.warning(f"No se pudo limpiar el proyecto {project.project_id}: {cleanup_error}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -578,7 +586,15 @@ def build_graph():
                     progress=95
                 )
                 graph_data = builder.get_graph_data(graph_id)
-                
+
+                # Un grafo sin entidades no sirve para simular: fallar aquí con
+                # un motivo claro en vez de "completado" y romper en el paso 2.
+                if not graph_data or graph_data.get("node_count", 0) == 0:
+                    raise RuntimeError(
+                        "El grafo se construyó sin entidades: el LLM no extrajo "
+                        "nada del documento (revisa el log del backend)"
+                    )
+
                 # 更新项目状态
                 project.status = ProjectStatus.GRAPH_COMPLETED
                 ProjectManager.save_project(project)

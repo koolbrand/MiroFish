@@ -30,7 +30,7 @@ from ..utils.locale import (
     has_foreign_script,
     t,
 )
-from ..utils.security import validate_storage_id
+from ..utils.security import validate_storage_id, is_valid_storage_id
 from .simulation_runner import SimulationRunner
 from .zep_tools import (
     ZepToolsService, 
@@ -2845,12 +2845,16 @@ class ReportManager:
             item_path = os.path.join(cls.REPORTS_DIR, item)
             # 新格式：文件夹
             if os.path.isdir(item_path):
+                if not is_valid_storage_id(item, "report_"):
+                    continue
                 report = cls.get_report(item)
                 if report and report.simulation_id == simulation_id:
                     return report
             # 兼容旧格式：JSON文件
             elif item.endswith('.json'):
                 report_id = item[:-5]
+                if not is_valid_storage_id(report_id, "report_"):
+                    continue
                 report = cls.get_report(report_id)
                 if report and report.simulation_id == simulation_id:
                     return report
@@ -2867,6 +2871,8 @@ class ReportManager:
             item_path = os.path.join(cls.REPORTS_DIR, item)
             # 新格式：文件夹
             if os.path.isdir(item_path):
+                if not is_valid_storage_id(item, "report_"):
+                    continue
                 report = cls.get_report(item)
                 if report:
                     if simulation_id is None or report.simulation_id == simulation_id:
@@ -2874,6 +2880,8 @@ class ReportManager:
             # 兼容旧格式：JSON文件
             elif item.endswith('.json'):
                 report_id = item[:-5]
+                if not is_valid_storage_id(report_id, "report_"):
+                    continue
                 report = cls.get_report(report_id)
                 if report:
                     if simulation_id is None or report.simulation_id == simulation_id:

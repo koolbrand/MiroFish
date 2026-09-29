@@ -12,6 +12,17 @@ from ..config import Config
 from .locale import t
 
 
+def strip_reasoning(content: Optional[str]) -> str:
+    """Quita el razonamiento <think>…</think> (también sin cerrar) y las vallas
+    de código ```json de la respuesta de un modelo de razonamiento."""
+    content = content or ""
+    content = re.sub(r'<think>[\s\S]*?</think>', '', content)
+    content = re.sub(r'<think>[\s\S]*$', '', content).strip()
+    content = re.sub(r'^```(?:json)?\s*\n?', '', content, flags=re.IGNORECASE)
+    content = re.sub(r'\n?```\s*$', '', content)
+    return content.strip()
+
+
 class LLMClient:
     """LLM客户端"""
     
@@ -63,9 +74,19 @@ class LLMClient:
             kwargs["response_format"] = response_format
         
         response = self.client.chat.completions.create(**kwargs)
-        content = response.choices[0].message.content
+
+        # Los modelos de razonamiento (MiniMax M2.7/M3, DeepSeek-R1…) gastan
+        # parte del presupuesto pensando: si se corta por longitud, un reintento
+        # con más margen (solo se cobra lo que se usa).
+        if response.choices[0].finish_reason == 'length' and max_tokens < Config.LLM_MAX_TOKENS_CAP:
+            kwargs["max_tokens"] = min(max_tokens * 4, Config.LLM_MAX_TOKENS_CAP)
+            response = self.client.chat.completions.create(**kwargs)
+
+        content = response.choices[0].message.content or ""
         # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
-        content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
+        content = re.sub(r'<think>[\s\S]*?</think>', '', content)
+        # Razonamiento sin cerrar (respuesta cortada): no es contenido útil
+        content = re.sub(r'<think>[\s\S]*$', '', content).strip()
         return content
     
     def chat_json(

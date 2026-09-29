@@ -11,11 +11,12 @@ from dotenv import load_dotenv
 # 路径: MiroFish/.env (相对于 backend/app/config.py)
 project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
 
+# override=False: las variables de entorno reales mandan sobre el .env
 if os.path.exists(project_root_env):
-    load_dotenv(project_root_env, override=True)
+    load_dotenv(project_root_env, override=False)
 else:
     # 如果根目录没有 .env，尝试加载环境变量（用于生产环境）
-    load_dotenv(override=True)
+    load_dotenv(override=False)
 
 
 class Config:
@@ -30,6 +31,10 @@ class Config:
         'VITE_POCKETBASE_URL',
         'https://pocketbase.koolgrowth.com'
     )
+    API_READ_RATE_LIMIT = os.environ.get('API_READ_RATE_LIMIT', '600 per minute')
+    API_WRITE_RATE_LIMIT = os.environ.get('API_WRITE_RATE_LIMIT', '30 per minute')
+    # Nº de proxies inversos delante (Coolify/Traefik = 1). 0 si se expone directo.
+    TRUSTED_PROXIES = int(os.environ.get('TRUSTED_PROXIES', '1'))
     CORS_ORIGINS = [
         origin.strip()
         for origin in os.environ.get(
@@ -46,6 +51,8 @@ class Config:
     LLM_API_KEY = os.environ.get('LLM_API_KEY')
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+    # Tope de max_tokens al reintentar respuestas cortadas (modelos de razonamiento)
+    LLM_MAX_TOKENS_CAP = int(os.environ.get('LLM_MAX_TOKENS_CAP', '32768'))
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph

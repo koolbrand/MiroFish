@@ -30,8 +30,18 @@ service.interceptors.request.use(
 // 响应拦截器（容错重试机制）
 service.interceptors.response.use(
   response => {
+    // Descargas: devolver la respuesta completa (hace falta Content-Disposition)
+    if (response.config.responseType === 'blob') {
+      return response
+    }
+
     const res = response.data
-    
+
+    // La API siempre responde JSON; un string (p. ej. index.html) es un error
+    if (typeof res !== 'object' || res === null) {
+      return Promise.reject(new Error('Respuesta inesperada del servidor'))
+    }
+
     // 如果返回的状态码不是success，则抛出错误
     if (!res.success && res.success !== undefined) {
       console.error('API Error:', res.error || res.message || 'Unknown error')
@@ -75,6 +85,8 @@ service.interceptors.response.use(
 // Retries network errors and 5xx responses. Does NOT retry 4xx —
 // those are deterministic rejections from the server (validation,
 // 409 conflict, 404 not found) and retrying them just spams the log.
+// Tampoco reintenta un POST/PATCH/DELETE que el servidor pudo haber procesado
+// (timeout, red caída o 500): duplicaría proyectos, simulaciones o informes.
 export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -82,12 +94,36 @@ export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) 
     } catch (error) {
       const status = error?.response?.status
       const isClientError = typeof status === 'number' && status >= 400 && status < 500
-      if (isClientError || i === maxRetries - 1) throw error
+      // Un POST solo se repite si el servidor seguro que no lo procesó
+      // (502/503/504 = el proxy no llegó a la app). Un 500 significa que la
+      // app lo ejecutó y falló: repetirlo duplica trabajo y gasto de LLM.
+      const method = (error?.config?.method || 'get').toLowerCase()
+      const notProcessed = [502, 503, 504].includes(status)
+      const unsafeToRepeat = method !== 'get' && !notProcessed
+      if (isClientError || unsafeToRepeat || i === maxRetries - 1) throw error
 
       console.warn(`Request failed, retrying (${i + 1}/${maxRetries})...`)
       await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
     }
   }
+}
+
+// Descarga un archivo de la API con el token (window.open no manda Authorization)
+export const downloadFile = async (url, fallbackName = 'download') => {
+  const response = await service.get(url, { responseType: 'blob' })
+  const disposition = response.headers['content-disposition'] || ''
+  const utf8Name = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  const plainName = disposition.match(/filename="?([^";]+)"?/i)
+  const filename = utf8Name ? decodeURIComponent(utf8Name[1]) : (plainName ? plainName[1] : fallbackName)
+
+  const objectUrl = URL.createObjectURL(response.data)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 export default service

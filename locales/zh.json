@@ -4,7 +4,11 @@
     "password": "密码",
     "signIn": "登录",
     "invalidCredentials": "凭据无效，请检查您的邮箱和密码。",
-    "protected": "由 PocketBase 身份验证保护"
+    "protected": "由 PocketBase 身份验证保护",
+    "forgotPassword": "忘记密码？",
+    "forgotNeedsEmail": "请先在上方输入邮箱，然后再次点击。",
+    "resetSent": "如果该邮箱已注册，我们已发送设置新密码的链接。",
+    "resetFailed": "邮件发送失败，请稍后重试。"
   },
   "common": {
     "confirm": "确认",
@@ -338,7 +342,8 @@
     "panelRelatedEdges": "相关关系",
     "panelRelatedNodes": "相关节点",
     "world1": "世界1",
-    "world2": "世界2"
+    "world2": "世界2",
+    "reportFailed": "报告生成失败：{error}"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -728,7 +733,8 @@
     "getReportInfoFailed": "获取报告信息失败: {error}",
     "enterStep": "进入 Step {step}: {name}",
     "returnToStep": "返回 Step {step}: {name}",
-    "customSimRounds": "自定义模拟轮数: {rounds} 轮"
+    "customSimRounds": "自定义模拟轮数: {rounds} 轮",
+    "simAlreadyRunning": "模拟已在运行 — 正在重新连接..."
   },
   "report": {
     "taskStarted": "报告生成任务开始",
