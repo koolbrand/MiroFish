@@ -85,7 +85,7 @@
     "deleteFailed": "{count} 个项目删除失败。请查看控制台。"
   },
   "home": {
-    "tagline": "简洁通用的群体智能引擎",
+    "tagline": "AI 舆论模拟",
     "version": "/ v0.1-预览版",
     "heroTitle1": "上传任意报告",
     "heroTitle2": "即刻推演未来",
@@ -101,7 +101,7 @@
     "metricLowCostDesc": "每次模拟（文本文档）",
     "metricHighAvail": "10–120",
     "metricHighAvailDesc": "每次模拟的智能体数量，取决于材料",
-    "workflowSequence": "工作流序列",
+    "workflowSequence": "运作方式",
     "step01Title": "图谱构建",
     "step01Desc": "现实种子提取 & 个体与群体记忆注入 & GraphRAG构建",
     "step02Title": "环境搭建",
@@ -120,8 +120,8 @@
     "simulationPrompt": ">_ 03 / 模拟提示词",
     "promptPlaceholder": "例如：我们的受众会如何看待这次发布？什么会阻止他们购买？",
     "engineBadge": "引擎: Simuloo-V1.0",
-    "startEngine": "启动引擎",
-    "initializing": "初始化中...",
+    "startEngine": "开始模拟",
+    "initializing": "正在启动…",
     "projectName": "02 / 项目名称",
     "projectNamePlaceholder": "例如：新应用发布",
     "heroCta": "开始模拟",

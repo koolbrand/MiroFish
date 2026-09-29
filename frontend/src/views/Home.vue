@@ -957,6 +957,11 @@ const startSimulation = () => {
   /* y el marcador de la simulación pasa a ocupar su propia franja bajo la tarjeta */
   .stage { padding-top: 190px; padding-bottom: calc(var(--overlap) + 176px); }
 }
+@media (min-width: 700px) and (max-width: 1240px) {
+  /* tarjeta más estrecha: deja franjas de muro a los lados con sitio para los bocadillos */
+  .stage-card { width: min(640px, 100%); }
+  .stage-title { font-size: clamp(2.3rem, 6vw, 4.4rem); }
+}
 @media (max-width: 1180px) {
   .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 40px; }
 }
