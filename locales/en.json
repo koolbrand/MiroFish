@@ -590,7 +590,8 @@
     "readingGraphEntities": "Reading Graph Entities",
     "generatingProfiles": "Generating Agent Profiles",
     "generatingSimConfig": "Generating Simulation Config",
-    "preparingScripts": "Preparing Scripts"
+    "preparingScripts": "Preparing Scripts",
+    "processingChunk": "Processing chunk {current}/{total} · {elapsed}s elapsed (each chunk can take a few minutes)"
   },
   "log": {
     "preparingGoBack": "Preparing to return to Step 2, closing simulation...",
