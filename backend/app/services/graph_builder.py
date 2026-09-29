@@ -49,6 +49,10 @@ class GraphBuilderService:
     图谱构建服务
     负责调用Zep API构建知识图谱
     """
+
+    # Cada cuántos segundos se repite el aviso de progreso de un fragmento
+    HEARTBEAT_SECONDS = 15
+
     
     def __init__(self, api_key: Optional[str] = None):
         self.client = get_graphiti_client()
@@ -233,50 +237,63 @@ class GraphBuilderService:
         batch_size: int = 3,
         progress_callback: Optional[Callable] = None
     ) -> List[str]:
-        """分批添加文本到图谱，返回所有 episode 的 uuid 列表"""
+        """分批添加文本到图谱，返回所有 episode 的 uuid 列表
+
+        Informa del progreso por fragmento (no por lote) y manda un latido
+        cada HEARTBEAT_SECONDS mientras un fragmento se procesa: con modelos
+        de razonamiento cada fragmento tarda minutos y, sin esto, la UI se
+        quedaba 40+ min en "Enviando lote 1/1" y parecía colgada.
+        """
         episode_uuids = []
         total_chunks = len(chunks)
-        
-        for i in range(0, total_chunks, batch_size):
-            batch_chunks = chunks[i:i + batch_size]
-            batch_num = i // batch_size + 1
-            total_batches = (total_chunks + batch_size - 1) // batch_size
-            
-            if progress_callback:
-                progress = (i + len(batch_chunks)) / total_chunks
+        started = time.time()
+
+        for index, chunk in enumerate(chunks):
+
+            def report():
+                if not progress_callback:
+                    return
                 progress_callback(
-                    t('progress.sendingBatch', current=batch_num, total=total_batches, chunks=len(batch_chunks)),
-                    progress
+                    t('progress.processingChunk',
+                      current=index + 1, total=total_chunks,
+                      elapsed=int(time.time() - started)),
+                    index / total_chunks
                 )
-            
-            # 构建episode数据
-            episodes = [
-                EpisodeData(data=chunk, type="text")
-                for chunk in batch_chunks
-            ]
-            
-            # 发送到Zep
+
+            report()
+            stop_heartbeat = threading.Event()
+
+            def heartbeat():
+                while not stop_heartbeat.wait(self.HEARTBEAT_SECONDS):
+                    report()
+
+            beat = threading.Thread(target=heartbeat, daemon=True)
+            beat.start()
             try:
                 batch_result = self.client.graph.add_batch(
                     graph_id=graph_id,
-                    episodes=episodes
+                    episodes=[EpisodeData(data=chunk, type="text")]
                 )
-                
-                # 收集返回的 episode uuid
-                if batch_result and isinstance(batch_result, list):
-                    for ep in batch_result:
-                        ep_uuid = getattr(ep, 'uuid_', None) or getattr(ep, 'uuid', None)
-                        if ep_uuid:
-                            episode_uuids.append(ep_uuid)
-                
-                # 避免请求过快
-                time.sleep(1)
-                
             except Exception as e:
                 if progress_callback:
-                    progress_callback(t('progress.batchFailed', batch=batch_num, error=str(e)), 0)
+                    progress_callback(t('progress.batchFailed', batch=index + 1, error=str(e)), 0)
                 raise
-        
+            finally:
+                stop_heartbeat.set()
+
+            # 收集返回的 episode uuid
+            if batch_result and isinstance(batch_result, list):
+                for ep in batch_result:
+                    ep_uuid = getattr(ep, 'uuid_', None) or getattr(ep, 'uuid', None)
+                    if ep_uuid:
+                        episode_uuids.append(ep_uuid)
+
+        if progress_callback:
+            progress_callback(
+                t('progress.processingChunk', current=total_chunks, total=total_chunks,
+                  elapsed=int(time.time() - started)),
+                1.0
+            )
         return episode_uuids
     
     def _wait_for_episodes(

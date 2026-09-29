@@ -590,7 +590,8 @@
     "readingGraphEntities": "Leyendo entidades del grafo",
     "generatingProfiles": "Generando perfiles de agentes",
     "generatingSimConfig": "Generando configuración de simulación",
-    "preparingScripts": "Preparando scripts"
+    "preparingScripts": "Preparando scripts",
+    "processingChunk": "Procesando fragmento {current}/{total} · {elapsed}s transcurridos (cada fragmento puede tardar unos minutos)"
   },
   "log": {
     "preparingGoBack": "Preparando retorno al Paso 2, cerrando simulación...",
