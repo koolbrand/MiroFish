@@ -515,7 +515,21 @@
     "deleteConfirmMsg": "删除模拟 {id}？其数据、配置和相关报告都将被清除。",
     "deleteWarning": "此操作无法撤销。",
     "deleting": "删除中…",
-    "cancel": "取消"
+    "cancel": "取消",
+    "kicker": "你的模拟",
+    "heading": "从上次停下的地方继续",
+    "seeAll": "查看全部项目",
+    "emptyTitle": "你的第一次模拟会显示在这里",
+    "emptyBody": "在上方上传简报并启动。使用文本文档时，报告通常在 20–30 分钟内完成。",
+    "emptyCta": "立即开始",
+    "stageGraph": "图谱",
+    "stageSim": "模拟",
+    "stageReport": "报告",
+    "open": "打开",
+    "ready": "已完成",
+    "pending": "未完成",
+    "deleteNamed": "删除「{name}」",
+    "stepLabel": "第 {n} 步"
   },
   "api": {
     "projectNotFound": "项目不存在: {id}",

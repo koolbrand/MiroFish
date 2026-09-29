@@ -1,134 +1,99 @@
 <template>
-  <div 
-    class="history-database"
-    :class="{ 'no-projects': projects.length === 0 && !loading }"
-    ref="historyContainer"
-  >
-    <!-- 背景装饰：技术网格线（只在有项目时显示） -->
-    <div v-if="projects.length > 0 || loading" class="tech-grid-bg">
-      <div class="grid-pattern"></div>
-      <div class="gradient-overlay"></div>
-    </div>
+  <div class="history-database" :class="{ 'no-projects': projects.length === 0 && !loading }">
+    <header class="history-head">
+      <div>
+        <span class="history-kicker">{{ $t('history.kicker') }}</span>
+        <h2 class="history-title">{{ $t('history.heading') }}</h2>
+      </div>
+      <router-link v-if="projects.length" to="/projects" class="history-all">
+        {{ $t('history.seeAll') }} <span aria-hidden="true">→</span>
+      </router-link>
+    </header>
 
-    <!-- 标题区域 -->
-    <div class="section-header">
-      <div class="section-line"></div>
-      <span class="section-title">{{ $t('history.title') }}</span>
-      <div class="section-line"></div>
-    </div>
-
-    <!-- 卡片容器（只在有项目时显示） -->
-    <div v-if="projects.length > 0" class="cards-container" :class="{ expanded: isExpanded }" :style="containerStyle">
-      <div 
-        v-for="(project, index) in projects" 
-        :key="project.simulation_id"
-        class="project-card"
-        :class="{ expanded: isExpanded, hovering: hoveringCard === index }"
-        :style="getCardStyle(index)"
-        @mouseenter="hoveringCard = index"
-        @mouseleave="hoveringCard = null"
-        @click="navigateToProject(project)"
-      >
-        <!-- 卡片头部：simulation_id 和 功能可用状态 -->
-        <div class="card-header">
-          <span class="card-id tech-only">{{ formatSimulationId(project.simulation_id) }}</span>
-          <div class="card-status-icons">
-            <span
-              class="status-icon"
-              :class="{ available: project.project_id, unavailable: !project.project_id }"
-              :title="$t('history.graphBuild')"
-            >◇</span>
-            <span
-              class="status-icon available"
-              :title="$t('history.envSetup')"
-            >◈</span>
-            <span
-              class="status-icon"
-              :class="{ available: project.report_id, unavailable: !project.report_id }"
-              :title="$t('history.analysisReport')"
-            >◆</span>
-            <button
-              class="card-delete-btn"
-              :title="$t('history.deleteSim')"
-              @click.stop="askDeleteSimulation(project)"
-              :disabled="deletingIds.has(project.simulation_id)"
-            >×</button>
-          </div>
-        </div>
-
-        <!-- 文件列表区域 -->
-        <div class="card-files-wrapper">
-          <!-- 角落装饰 - 取景框风格 -->
-          <div class="corner-mark top-left-only"></div>
-          
-          <!-- 文件列表 -->
-          <div class="files-list" v-if="project.files && project.files.length > 0">
-            <div 
-              v-for="(file, fileIndex) in project.files.slice(0, 3)" 
-              :key="fileIndex"
-              class="file-item"
-            >
-              <span class="file-tag" :class="getFileType(file.filename)">{{ getFileTypeLabel(file.filename) }}</span>
-              <span class="file-name">{{ truncateFilename(file.filename, 20) }}</span>
-            </div>
-            <!-- 如果有更多文件，显示提示 -->
-            <div v-if="project.files.length > 3" class="files-more">
-              {{ $t('history.moreFiles', { count: project.files.length - 3 }) }}
-            </div>
-          </div>
-          <!-- 无文件时的占位 -->
-          <div class="files-empty" v-else>
-            <span class="empty-file-icon">◇</span>
-            <span class="empty-file-text">{{ $t('history.noFiles') }}</span>
-          </div>
-        </div>
-
-        <!-- 卡片标题（使用模拟需求的前20字作为标题） -->
-        <h3 class="card-title">{{ project.project_name || getSimulationTitle(project.simulation_requirement) }}</h3>
-
-        <!-- 卡片描述（模拟需求完整展示） -->
-        <p class="card-desc">{{ truncateText(project.simulation_requirement, 55) }}</p>
-
-        <!-- 卡片底部 -->
-        <div class="card-footer">
-          <div class="card-datetime">
-            <span class="card-date">{{ formatDate(project.created_at) }}</span>
-            <span class="card-time">{{ formatTime(project.created_at) }}</span>
-          </div>
-          <span class="card-progress" :class="getProgressClass(project)">
-            <span class="status-dot">●</span> {{ formatRounds(project) }}
-          </span>
-        </div>
-        
-        <!-- 底部装饰线 (hover时展开) -->
-        <div class="card-bottom-line"></div>
+    <!-- Cargando: esqueletos con brillo -->
+    <div v-if="loading" class="sim-grid" aria-busy="true" :aria-label="$t('history.loadingText')">
+      <div v-for="n in 3" :key="n" class="sim-card skeleton">
+        <span class="sk sk-pill"></span>
+        <span class="sk sk-title"></span>
+        <span class="sk sk-line"></span>
+        <span class="sk sk-line short"></span>
+        <span class="sk sk-bar"></span>
       </div>
     </div>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-state">
-      <span class="loading-spinner"></span>
-      <span class="loading-text">{{ $t('history.loadingText') }}</span>
+    <!-- Tarjetas: la barra de etapas se rellena al entrar en pantalla -->
+    <div v-else-if="projects.length" v-reveal class="sim-grid">
+      <article
+        v-for="(project, index) in projects"
+        :key="project.simulation_id"
+        class="sim-card"
+        :style="{ '--i': Math.min(index, 8) }"
+      >
+        <div class="sim-card-top">
+          <span class="sim-status" :class="getProgressClass(project)">
+            <i class="dot" aria-hidden="true"></i>{{ formatRounds(project) }}
+          </span>
+          <button
+            type="button"
+            class="sim-delete"
+            :aria-label="$t('history.deleteNamed', { name: cardTitle(project) })"
+            :title="$t('history.deleteSim')"
+            :disabled="deletingIds.has(project.simulation_id)"
+            @click="askDeleteSimulation(project)"
+          >×</button>
+        </div>
+
+        <h3 class="sim-title">
+          <!-- el botón cubre toda la tarjeta (patrón «enlace estirado») -->
+          <button type="button" class="sim-open" @click="navigateToProject(project)">
+            {{ cardTitle(project) }}
+          </button>
+        </h3>
+        <p v-if="project.simulation_requirement" class="sim-desc">{{ project.simulation_requirement }}</p>
+
+        <ol class="pipeline">
+          <li v-for="stage in stagesOf(project)" :key="stage.key" :class="{ done: stage.value >= 1 }">
+            <span class="track"><span class="fill" :style="{ '--v': stage.value }"></span></span>
+            <span class="stage-label">
+              {{ stage.label }}
+              <span class="sr-only">— {{ stage.value >= 1 ? $t('history.ready') : $t('history.pending') }}</span>
+            </span>
+          </li>
+        </ol>
+
+        <div class="sim-card-foot">
+          <span class="sim-meta">
+            <time :datetime="project.created_at">{{ formatDate(project.created_at) }} · {{ formatTime(project.created_at) }}</time>
+            <template v-if="project.files?.length"> · {{ filesLabel(project) }}</template>
+          </span>
+          <span class="sim-go" aria-hidden="true">{{ $t('history.open') }} →</span>
+        </div>
+      </article>
     </div>
 
-    <!-- 删除确认弹窗 -->
+    <!-- Sin simulaciones todavía -->
+    <div v-else class="history-empty">
+      <p class="history-empty-title">{{ $t('history.emptyTitle') }}</p>
+      <p class="history-empty-body">{{ $t('history.emptyBody') }}</p>
+      <a href="#ensayo" class="history-empty-cta">{{ $t('history.emptyCta') }} <span aria-hidden="true">↑</span></a>
+    </div>
+
+    <!-- Confirmar borrado -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
-          <div class="delete-modal">
-            <div class="modal-header">
+        <div v-if="deleteTarget" class="kb-modal-overlay" @click.self="cancelDelete">
+          <div class="kb-modal small" role="dialog" aria-modal="true" :aria-label="$t('history.deleteConfirmTitle')">
+            <div class="kb-modal-head">
               <h3>{{ $t('history.deleteConfirmTitle') }}</h3>
-              <button class="modal-close" @click="cancelDelete">×</button>
+              <button type="button" class="kb-modal-close" :aria-label="$t('history.cancel')" @click="cancelDelete">×</button>
             </div>
-            <div class="modal-body">
-              <p>{{ $t('history.deleteConfirmMsg', { id: formatSimulationId(deleteTarget.simulation_id) }) }}</p>
-              <p class="delete-warning">{{ $t('history.deleteWarning') }}</p>
-            </div>
-            <div class="modal-actions">
-              <button class="modal-btn" @click="cancelDelete" :disabled="confirming">
+            <p class="kb-modal-text">{{ $t('history.deleteConfirmMsg', { id: cardTitle(deleteTarget) }) }}</p>
+            <p class="kb-modal-warning">{{ $t('history.deleteWarning') }}</p>
+            <div class="kb-modal-actions">
+              <button type="button" class="kb-btn ghost" :disabled="confirming" @click="cancelDelete">
                 {{ $t('history.cancel') }}
               </button>
-              <button class="modal-btn danger" @click="confirmDelete" :disabled="confirming">
+              <button type="button" class="kb-btn danger" :disabled="confirming" @click="confirmDelete">
                 {{ confirming ? $t('history.deleting') : $t('history.deleteSim') }}
               </button>
             </div>
@@ -137,84 +102,56 @@
       </Transition>
     </Teleport>
 
-    <!-- 历史回放详情弹窗 -->
+    <!-- Detalle: volver a cualquier paso ya hecho -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="selectedProject" class="modal-overlay" @click.self="closeModal">
-          <div class="modal-content">
-            <!-- 弹窗头部 -->
-            <div class="modal-header">
-              <div class="modal-title-section">
-                <span class="modal-id">{{ formatSimulationId(selectedProject.simulation_id) }}</span>
-                <span class="modal-progress" :class="getProgressClass(selectedProject)">
-                  <span class="status-dot">●</span> {{ formatRounds(selectedProject) }}
+        <div v-if="selectedProject" class="kb-modal-overlay" @click.self="closeModal">
+          <div class="kb-modal" role="dialog" aria-modal="true" :aria-label="cardTitle(selectedProject)">
+            <div class="kb-modal-head">
+              <div class="kb-modal-meta">
+                <span class="sim-status" :class="getProgressClass(selectedProject)">
+                  <i class="dot" aria-hidden="true"></i>{{ formatRounds(selectedProject) }}
                 </span>
-                <span class="modal-create-time">{{ formatDate(selectedProject.created_at) }} {{ formatTime(selectedProject.created_at) }}</span>
+                <span class="kb-modal-date">{{ formatDate(selectedProject.created_at) }} · {{ formatTime(selectedProject.created_at) }}</span>
+                <span class="kb-modal-id tech-only">{{ formatSimulationId(selectedProject.simulation_id) }}</span>
               </div>
-              <button class="modal-close" @click="closeModal">×</button>
+              <button type="button" class="kb-modal-close" :aria-label="$t('common.close')" @click="closeModal">×</button>
             </div>
 
-            <!-- 弹窗内容 -->
-            <div class="modal-body">
-              <!-- 模拟需求 -->
-              <div class="modal-section">
-                <div class="modal-label">{{ $t('history.simRequirement') }}</div>
-                <div class="modal-requirement">{{ selectedProject.simulation_requirement || $t('common.none') }}</div>
-              </div>
+            <h3 class="kb-modal-title">{{ cardTitle(selectedProject) }}</h3>
 
-              <!-- 文件列表 -->
-              <div class="modal-section">
-                <div class="modal-label">{{ $t('history.relatedFiles') }}</div>
-                <div class="modal-files" v-if="selectedProject.files && selectedProject.files.length > 0">
-                  <div v-for="(file, index) in selectedProject.files" :key="index" class="modal-file-item">
-                    <span class="file-tag" :class="getFileType(file.filename)">{{ getFileTypeLabel(file.filename) }}</span>
-                    <span class="modal-file-name">{{ file.filename }}</span>
-                  </div>
-                </div>
-                <div class="modal-empty" v-else>{{ $t('history.noRelatedFiles') }}</div>
-              </div>
+            <div class="kb-modal-section">
+              <div class="kb-modal-label">{{ $t('history.simRequirement') }}</div>
+              <p class="kb-modal-requirement">{{ selectedProject.simulation_requirement || $t('common.none') }}</p>
             </div>
 
-            <!-- 推演回放分割线 -->
-            <div class="modal-divider">
-              <span class="divider-line"></span>
-              <span class="divider-text">{{ $t('history.replayTitle') }}</span>
-              <span class="divider-line"></span>
+            <div class="kb-modal-section">
+              <div class="kb-modal-label">{{ $t('history.relatedFiles') }}</div>
+              <ul v-if="selectedProject.files?.length" class="kb-modal-files">
+                <li v-for="(file, index) in selectedProject.files" :key="index">
+                  <span class="file-ext">{{ getFileTypeLabel(file.filename) }}</span>
+                  <span class="file-name">{{ file.filename }}</span>
+                </li>
+              </ul>
+              <p v-else class="kb-modal-muted">{{ $t('history.noRelatedFiles') }}</p>
             </div>
 
-            <!-- 导航按钮 -->
-            <div class="modal-actions">
-              <button 
-                class="modal-btn btn-project" 
-                @click="goToProject"
-                :disabled="!selectedProject.project_id"
-              >
-                <span class="btn-step">Step1</span>
-                <span class="btn-icon">◇</span>
-                <span class="btn-text">{{ $t('history.step1Button') }}</span>
+            <div class="kb-modal-label replay">{{ $t('history.replayTitle') }}</div>
+            <div class="replay-grid">
+              <button type="button" class="replay-btn" :disabled="!selectedProject.project_id" @click="goToProject">
+                <span class="replay-step">{{ $t('history.stepLabel', { n: 1 }) }}</span>
+                <span class="replay-name">{{ $t('history.step1Button') }}</span>
               </button>
-              <button 
-                class="modal-btn btn-simulation" 
-                @click="goToSimulation"
-              >
-                <span class="btn-step">Step2</span>
-                <span class="btn-icon">◈</span>
-                <span class="btn-text">{{ $t('history.step2Button') }}</span>
+              <button type="button" class="replay-btn" @click="goToSimulation">
+                <span class="replay-step">{{ $t('history.stepLabel', { n: 2 }) }}</span>
+                <span class="replay-name">{{ $t('history.step2Button') }}</span>
               </button>
-              <button 
-                class="modal-btn btn-report" 
-                @click="goToReport"
-                :disabled="!selectedProject.report_id"
-              >
-                <span class="btn-step">Step4</span>
-                <span class="btn-icon">◆</span>
-                <span class="btn-text">{{ $t('history.step4Button') }}</span>
+              <button type="button" class="replay-btn" :disabled="!selectedProject.report_id" @click="goToReport">
+                <span class="replay-step">{{ $t('history.stepLabel', { n: 4 }) }}</span>
+                <span class="replay-name">{{ $t('history.step4Button') }}</span>
               </button>
             </div>
-            <!-- 不可回放提示 -->
-            <div class="modal-playback-hint">
-              <span class="hint-text">{{ $t('history.replayHint') }}</span>
-            </div>
+            <p class="kb-modal-muted hint">{{ $t('history.replayHint') }}</p>
           </div>
         </div>
       </Transition>
@@ -223,170 +160,62 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
+import { ref, onMounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getSimulationHistory, deleteSimulation } from '../api/simulation'
+import { vReveal } from '../composables/useReveal'
 
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-// 状态
 const projects = ref([])
 const loading = ref(true)
-const isExpanded = ref(false)
-const hoveringCard = ref(null)
-const historyContainer = ref(null)
-const selectedProject = ref(null)  // 当前选中的项目（用于弹窗）
-const deleteTarget = ref(null)  // 待删除的模拟
+const selectedProject = ref(null)
+const deleteTarget = ref(null)
 const confirming = ref(false)
 const deletingIds = ref(new Set())
-let observer = null
-let isAnimating = false  // 动画锁，防止闪烁
-let expandDebounceTimer = null  // 防抖定时器
-let pendingState = null  // 记录待执行的目标状态
 
-// 卡片布局配置 - 调整为更宽的比例
-const CARDS_PER_ROW = 4
-const CARD_WIDTH = 280  
-const CARD_HEIGHT = 280 
-const CARD_GAP = 24
-
-// 动态计算容器高度样式
-const containerStyle = computed(() => {
-  if (!isExpanded.value) {
-    // 折叠态：固定高度
-    return { minHeight: '420px' }
-  }
-  
-  // 展开态：根据卡片数量动态计算高度
-  const total = projects.value.length
-  if (total === 0) {
-    return { minHeight: '280px' }
-  }
-  
-  const rows = Math.ceil(total / CARDS_PER_ROW)
-  // 计算实际需要的高度：行数 * 卡片高度 + (行数-1) * 间距 + 少量底部间距
-  const expandedHeight = rows * CARD_HEIGHT + (rows - 1) * CARD_GAP + 10
-  
-  return { minHeight: `${expandedHeight}px` }
-})
-
-// 获取卡片样式
-const getCardStyle = (index) => {
-  const total = projects.value.length
-  
-  if (isExpanded.value) {
-    // 展开态：网格布局
-    const transition = 'transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease, border-color 0.3s ease'
-
-    const col = index % CARDS_PER_ROW
-    const row = Math.floor(index / CARDS_PER_ROW)
-    
-    // 计算当前行的卡片数量，确保每行居中
-    const currentRowStart = row * CARDS_PER_ROW
-    const currentRowCards = Math.min(CARDS_PER_ROW, total - currentRowStart)
-    
-    const rowWidth = currentRowCards * CARD_WIDTH + (currentRowCards - 1) * CARD_GAP
-    
-    const startX = -(rowWidth / 2) + (CARD_WIDTH / 2)
-    const colInRow = index % CARDS_PER_ROW
-    const x = startX + colInRow * (CARD_WIDTH + CARD_GAP)
-    
-    // 向下展开，增加与标题的间距
-    const y = 20 + row * (CARD_HEIGHT + CARD_GAP)
-
-    return {
-      transform: `translate(${x}px, ${y}px) rotate(0deg) scale(1)`,
-      zIndex: 100 + index,
-      opacity: 1,
-      transition: transition
-    }
-  } else {
-    // 折叠态：扇形堆叠
-    const transition = 'transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease, border-color 0.3s ease'
-
-    const centerIndex = (total - 1) / 2
-    const offset = index - centerIndex
-    
-    const x = offset * 35
-    // 调整起始位置，靠近标题但保持适当间距
-    const y = 25 + Math.abs(offset) * 8
-    const r = offset * 3
-    const s = 0.95 - Math.abs(offset) * 0.05
-    
-    return {
-      transform: `translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`,
-      zIndex: 10 + index,
-      opacity: 1,
-      transition: transition
-    }
-  }
-}
-
-// 根据轮数进度获取样式类
 const getProgressClass = (simulation) => {
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
-  
-  if (total === 0 || current === 0) {
-    // 未开始
-    return 'not-started'
-  } else if (current >= total) {
-    // 已完成
-    return 'completed'
-  } else {
-    // 进行中
-    return 'in-progress'
-  }
+  if (total === 0 || current === 0) return 'not-started'
+  if (current >= total) return 'completed'
+  return 'in-progress'
 }
 
-// 格式化日期（只显示日期部分）
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   try {
-    const date = new Date(dateStr)
-    return date.toISOString().slice(0, 10)
+    return new Date(dateStr).toISOString().slice(0, 10)
   } catch {
     return dateStr?.slice(0, 10) || ''
   }
 }
 
-// 格式化时间（显示时:分）
 const formatTime = (dateStr) => {
   if (!dateStr) return ''
   try {
     const date = new Date(dateStr)
-    const hours = date.getHours().toString().padStart(2, '0')
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    return `${hours}:${minutes}`
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
   } catch {
     return ''
   }
 }
 
-// 截断文本
-const truncateText = (text, maxLength) => {
-  if (!text) return ''
-  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
-}
-
-// 从模拟需求生成标题（取前20字）
 const getSimulationTitle = (requirement) => {
   if (!requirement) return t('history.untitledSimulation')
-  const title = requirement.slice(0, 20)
-  return requirement.length > 20 ? title + '...' : title
+  return requirement.length > 60 ? requirement.slice(0, 60) + '…' : requirement
 }
 
-// 格式化 simulation_id 显示（截取前6位）
+const cardTitle = (project) => project?.project_name || getSimulationTitle(project?.simulation_requirement)
+
 const formatSimulationId = (simulationId) => {
   if (!simulationId) return 'SIM_UNKNOWN'
-  const prefix = simulationId.replace('sim_', '').slice(0, 6)
-  return `SIM_${prefix.toUpperCase()}`
+  return `SIM_${simulationId.replace('sim_', '').slice(0, 6).toUpperCase()}`
 }
 
-// 格式化轮数显示（当前轮/总轮数）
 const formatRounds = (simulation) => {
   const current = simulation.current_round || 0
   const total = simulation.total_rounds || 0
@@ -394,84 +223,64 @@ const formatRounds = (simulation) => {
   return t('history.roundsProgress', { current, total })
 }
 
-// 获取文件类型（用于样式）
-const getFileType = (filename) => {
-  if (!filename) return 'other'
-  const ext = filename.split('.').pop()?.toLowerCase()
-  const typeMap = {
-    'pdf': 'pdf',
-    'doc': 'doc', 'docx': 'doc',
-    'xls': 'xls', 'xlsx': 'xls', 'csv': 'xls',
-    'ppt': 'ppt', 'pptx': 'ppt',
-    'txt': 'txt', 'md': 'txt', 'json': 'code',
-    'jpg': 'img', 'jpeg': 'img', 'png': 'img', 'gif': 'img',
-    'zip': 'zip', 'rar': 'zip', '7z': 'zip'
-  }
-  return typeMap[ext] || 'other'
-}
-
-// 获取文件类型标签文本
 const getFileTypeLabel = (filename) => {
   if (!filename) return 'FILE'
-  const ext = filename.split('.').pop()?.toUpperCase()
-  return ext || 'FILE'
+  return filename.split('.').pop()?.toUpperCase() || 'FILE'
 }
 
-// 截断文件名（保留扩展名）
 const truncateFilename = (filename, maxLength) => {
   if (!filename) return t('history.unknownFile')
   if (filename.length <= maxLength) return filename
-  
   const ext = filename.includes('.') ? '.' + filename.split('.').pop() : ''
-  const nameWithoutExt = filename.slice(0, filename.length - ext.length)
-  const truncatedName = nameWithoutExt.slice(0, maxLength - ext.length - 3) + '...'
-  return truncatedName + ext
+  return filename.slice(0, maxLength - ext.length - 1) + '…' + ext
 }
 
-// 打开项目详情弹窗
+const filesLabel = (project) => {
+  const files = project.files || []
+  const first = truncateFilename(files[0]?.filename, 22)
+  return files.length > 1 ? `${first} ${t('history.moreFiles', { count: files.length - 1 })}` : first
+}
+
+// Tres etapas visibles del proyecto: 0 = pendiente, 1 = hecha (la simulación admite parcial).
+const stagesOf = (project) => {
+  const total = project.total_rounds || 0
+  const current = project.current_round || 0
+  return [
+    { key: 'graph', label: t('history.stageGraph'), value: project.project_id ? 1 : 0 },
+    { key: 'sim', label: t('history.stageSim'), value: total ? Math.min(1, current / total) : 0 },
+    { key: 'report', label: t('history.stageReport'), value: project.report_id ? 1 : 0 },
+  ]
+}
+
 const navigateToProject = (simulation) => {
   selectedProject.value = simulation
 }
 
-// 关闭弹窗
 const closeModal = () => {
   selectedProject.value = null
 }
 
-// 导航到图谱构建页面（Project）
 const goToProject = () => {
   if (selectedProject.value?.project_id) {
-    router.push({
-      name: 'Process',
-      params: { projectId: selectedProject.value.project_id }
-    })
+    router.push({ name: 'Process', params: { projectId: selectedProject.value.project_id } })
     closeModal()
   }
 }
 
-// 导航到环境配置页面（Simulation）
 const goToSimulation = () => {
   if (selectedProject.value?.simulation_id) {
-    router.push({
-      name: 'Simulation',
-      params: { simulationId: selectedProject.value.simulation_id }
-    })
+    router.push({ name: 'Simulation', params: { simulationId: selectedProject.value.simulation_id } })
     closeModal()
   }
 }
 
-// 导航到分析报告页面（Report）
 const goToReport = () => {
   if (selectedProject.value?.report_id) {
-    router.push({
-      name: 'Report',
-      params: { reportId: selectedProject.value.report_id }
-    })
+    router.push({ name: 'Report', params: { reportId: selectedProject.value.report_id } })
     closeModal()
   }
 }
 
-// 请求删除模拟（打开确认弹窗）
 const askDeleteSimulation = (sim) => {
   deleteTarget.value = sim
 }
@@ -483,8 +292,7 @@ const cancelDelete = () => {
 
 const confirmDelete = async () => {
   if (!deleteTarget.value || confirming.value) return
-  const sim = deleteTarget.value
-  const sid = sim.simulation_id
+  const sid = deleteTarget.value.simulation_id
   confirming.value = true
   const next = new Set(deletingIds.value)
   next.add(sid)
@@ -492,7 +300,7 @@ const confirmDelete = async () => {
   try {
     const res = await deleteSimulation(sid)
     if (res.success) {
-      // Optimistic UI update: drop the card immediately
+      // La tarjeta desaparece sin esperar a recargar la lista
       projects.value = projects.value.filter(p => p.simulation_id !== sid)
     } else {
       console.warn('deleteSimulation failed:', res.error)
@@ -508,7 +316,12 @@ const confirmDelete = async () => {
   }
 }
 
-// 加载历史项目
+const onKeydown = (e) => {
+  if (e.key !== 'Escape') return
+  if (deleteTarget.value) cancelDelete()
+  else if (selectedProject.value) closeModal()
+}
+
 const loadHistory = async () => {
   try {
     loading.value = true
@@ -524,998 +337,361 @@ const loadHistory = async () => {
   }
 }
 
-// 初始化 IntersectionObserver
-const initObserver = () => {
-  if (observer) {
-    observer.disconnect()
-  }
-  
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const shouldExpand = entry.isIntersecting
-        
-        // 更新待执行的目标状态（无论是否在动画中都要记录最新的目标状态）
-        pendingState = shouldExpand
-        
-        // 清除之前的防抖定时器（新的滚动意图会覆盖旧的）
-        if (expandDebounceTimer) {
-          clearTimeout(expandDebounceTimer)
-          expandDebounceTimer = null
-        }
-        
-        // 如果正在动画中，只记录状态，等动画结束后处理
-        if (isAnimating) return
-        
-        // 如果目标状态与当前状态相同，不需要处理
-        if (shouldExpand === isExpanded.value) {
-          pendingState = null
-          return
-        }
-        
-        // 使用防抖延迟状态切换，防止快速闪烁
-        // 展开时延迟较短(50ms)，收起时延迟较长(200ms)以增加稳定性
-        const delay = shouldExpand ? 50 : 200
-        
-        expandDebounceTimer = setTimeout(() => {
-          // 检查是否正在动画
-          if (isAnimating) return
-          
-          // 检查待执行状态是否仍需要执行（可能已被后续滚动覆盖）
-          if (pendingState === null || pendingState === isExpanded.value) return
-          
-          // 设置动画锁
-          isAnimating = true
-          isExpanded.value = pendingState
-          pendingState = null
-          
-          // 动画完成后解除锁定，并检查是否有待处理的状态变化
-          setTimeout(() => {
-            isAnimating = false
-            
-            // 动画结束后，检查是否有新的待执行状态
-            if (pendingState !== null && pendingState !== isExpanded.value) {
-              // 延迟一小段时间再执行，避免太快切换
-              expandDebounceTimer = setTimeout(() => {
-                if (pendingState !== null && pendingState !== isExpanded.value) {
-                  isAnimating = true
-                  isExpanded.value = pendingState
-                  pendingState = null
-                  setTimeout(() => {
-                    isAnimating = false
-                  }, 750)
-                }
-              }, 100)
-            }
-          }, 750)
-        }, delay)
-      })
-    },
-    {
-      // 使用多个阈值，使检测更平滑
-      threshold: [0.4, 0.6, 0.8],
-      // 调整 rootMargin，视口底部向上收缩，需要滚动更多才触发展开
-      rootMargin: '0px 0px -150px 0px'
-    }
-  )
-  
-  // 开始观察
-  if (historyContainer.value) {
-    observer.observe(historyContainer.value)
-  }
-}
-
-// 监听路由变化，当返回首页时重新加载数据
+// Al volver a la portada se recarga la lista
 watch(() => route.path, (newPath) => {
-  if (newPath === '/') {
-    loadHistory()
-  }
+  if (newPath === '/') loadHistory()
+})
+
+watch([selectedProject, deleteTarget], ([sel, del]) => {
+  if (sel || del) window.addEventListener('keydown', onKeydown)
+  else window.removeEventListener('keydown', onKeydown)
 })
 
 onMounted(async () => {
-  // 确保 DOM 渲染完成后再加载数据
   await nextTick()
   await loadHistory()
-  
-  // 等待 DOM 渲染后初始化观察器
-  setTimeout(() => {
-    initObserver()
-  }, 100)
 })
 
-// 如果使用 keep-alive，在组件激活时重新加载数据
 onActivated(() => {
   loadHistory()
-})
-
-onUnmounted(() => {
-  // 清理 Intersection Observer
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-  // 清理防抖定时器
-  if (expandDebounceTimer) {
-    clearTimeout(expandDebounceTimer)
-    expandDebounceTimer = null
-  }
 })
 </script>
 
 <style scoped>
-/* 容器 */
-.history-database {
-  position: relative;
-  width: 100%;
-  min-height: 280px;
-  margin-top: 40px;
-  padding: 35px 0 40px;
-  overflow: visible;
-}
+.history-database { font-family: var(--kb-font-sans); color: var(--kb-text); }
 
-/* 无项目时简化显示 */
-.history-database.no-projects {
-  min-height: auto;
-  padding: 40px 0 20px;
-}
-
-/* 技术网格背景 */
-.tech-grid-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* 使用CSS背景图案创建固定间距的正方形网格 */
-.grid-pattern {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-  background-size: 50px 50px;
-  /* 从左上角开始定位，高度变化时只在底部扩展，不影响已有网格位置 */
-  background-position: top left;
-}
-
-.gradient-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.9) 0%, transparent 15%, transparent 85%, rgba(255, 255, 255, 0.9) 100%),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.8) 0%, transparent 20%, transparent 80%, rgba(255, 255, 255, 0.8) 100%);
-  pointer-events: none;
-}
-
-/* 标题区域 */
-.section-header {
-  position: relative;
-  z-index: 100;
+.history-head {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 24px;
-  font-family: var(--kb-font-mono);
-  padding: 0 40px;
-}
-
-.section-line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--kb-line), transparent);
-  max-width: 300px;
-}
-
-.section-title {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--kb-subtle);
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
-
-/* 卡片容器 */
-.cards-container {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 0 40px;
-  transition: min-height 700ms cubic-bezier(0.23, 1, 0.32, 1);
-  /* min-height 由 JS 动态计算，根据卡片数量自适应 */
-}
-
-/* 项目卡片 */
-.project-card {
-  position: absolute;
-  width: 280px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 0;
-  padding: 14px;
-  cursor: pointer;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 700ms cubic-bezier(0.23, 1, 0.32, 1), opacity 700ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.project-card:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.4);
-  z-index: 1000 !important;
-}
-
-.project-card.hovering {
-  z-index: 1000 !important;
-}
-
-/* 卡片头部 */
-.card-header {
-  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--kb-soft);
+  gap: 16px 32px;
+  margin-bottom: 40px;
+}
+.history-kicker {
   font-family: var(--kb-font-mono);
-  font-size: 0.7rem;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kb-accent-text);
 }
-
-.card-id {
-  color: var(--kb-muted);
-  letter-spacing: 0.5px;
-  font-weight: 500;
+.history-title {
+  margin: 12px 0 0;
+  font-size: clamp(2rem, 3.8vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
 }
-
-/* 功能状态图标组 */
-.card-status-icons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.status-icon {
-  font-size: 0.75rem;
-  transition: all 0.2s ease;
-  cursor: default;
-}
-
-.status-icon.available {
-  opacity: 1;
-}
-
-/* 不同功能的颜色 */
-.status-icon:nth-child(1).available { color: #3B82F6; } /* 图谱构建 - 蓝色 */
-.status-icon:nth-child(2).available { color: #F59E0B; } /* 环境搭建 - 橙色 */
-.status-icon:nth-child(3).available { color: #10B981; } /* 分析报告 - 绿色 */
-
-.status-icon.unavailable {
-  color: var(--kb-line-strong);
-  opacity: 0.5;
-}
-
-/* Delete (x) button on each card */
-.card-delete-btn {
+.history-all {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-left: 4px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--kb-line-strong);
-  font-size: 0.95rem;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: all 0.15s ease;
-  padding: 0;
-}
-
-.card-delete-btn:hover:not(:disabled) {
-  color: #DC2626;
-  border-color: #FCA5A5;
-  background: rgba(220, 38, 38, 0.08);
-}
-
-.card-delete-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Delete confirm modal */
-.delete-modal {
-  background: #FFFFFF;
-  width: 420px;
-  max-width: 90vw;
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.delete-modal .modal-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-.delete-modal .modal-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--kb-text);
-}
-
-.delete-modal .modal-body {
-  padding: 20px 24px;
-  font-size: 0.9rem;
-  color: var(--kb-text-2);
-}
-
-.delete-modal .modal-body p { margin: 0 0 10px 0; }
-
-.delete-modal .delete-warning {
-  margin-top: 12px !important;
-  padding: 10px 12px;
-  background: rgba(220, 38, 38, 0.08);
-  color: #DC2626;
-  font-size: 0.8rem;
-  border-left: 3px solid #DC2626;
-  font-family: var(--kb-font-mono);
-}
-
-.delete-modal .modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  padding: 14px 24px;
-  border-top: 1px solid var(--kb-soft);
-  background: #fff;
-}
-
-.delete-modal .modal-btn {
-  background: #fff;
-  border: 1px solid var(--kb-line);
-  padding: 8px 16px;
-  font-family: var(--kb-font-mono);
-  font-size: 0.8rem;
-  cursor: pointer;
-  color: var(--kb-text-2);
-  border-radius: 4px;
-}
-
-.delete-modal .modal-btn:hover:not(:disabled) {
-  border-color: var(--kb-text);
-  color: var(--kb-text);
-}
-
-.delete-modal .modal-btn.danger {
-  border-color: #DC2626;
-  color: #DC2626;
-}
-
-.delete-modal .modal-btn.danger:hover:not(:disabled) {
-  background: #DC2626;
-  color: #fff;
-}
-
-.delete-modal .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* 轮数进度显示 */
-.card-progress {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  letter-spacing: 0.5px;
+  padding: 8px 0;
   font-weight: 600;
-  font-size: 0.65rem;
+  color: var(--kb-text);
+  text-decoration: none;
+  white-space: nowrap;
 }
+.history-all span { transition: transform 0.2s ease; }
+.history-all:hover span { transform: translateX(3px); }
 
-.status-dot {
-  font-size: 0.5rem;
+/* ── Rejilla de tarjetas ─────────────────────────────────────────────────── */
+.sim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
 }
+.sim-grid.reveal { opacity: 1; transform: none; }
 
-/* 进度状态颜色 */
-.card-progress.completed { color: #10B981; }    /* 已完成 - 绿色 */
-.card-progress.in-progress { color: #F59E0B; }  /* 进行中 - 橙色 */
-.card-progress.not-started { color: var(--kb-subtle); }  /* 未开始 - 灰色 */
-.card-status.pending { color: var(--kb-subtle); }
-
-/* 文件列表区域 */
-.card-files-wrapper {
+.sim-card {
   position: relative;
-  width: 100%;
-  min-height: 48px;
-  max-height: 110px;
-  margin-bottom: 12px;
-  padding: 8px 10px;
-  background: linear-gradient(135deg, var(--kb-surface-2) 0%, var(--kb-soft) 100%);
-  border-radius: 4px;
-  border: 1px solid var(--kb-line);
-  overflow: hidden;
-}
-
-.files-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
+  padding: 22px 22px 18px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+  border-radius: 16px;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
-
-/* 更多文件提示 */
-.files-more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 6px;
-  font-family: var(--kb-font-mono);
-  font-size: 0.6rem;
-  color: var(--kb-muted);
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 3px;
-  letter-spacing: 0.3px;
+.sim-grid.reveal .sim-card {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+  transition-delay: calc(var(--i) * 0.08s), calc(var(--i) * 0.08s), 0s, 0s;
 }
-
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 3px;
-  transition: all 0.2s ease;
+.sim-grid.is-in .sim-card { opacity: 1; transform: none; }
+.sim-grid.is-in .sim-card:hover,
+.sim-card:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: 0 18px 40px -24px rgba(17, 17, 17, 0.35);
 }
+.sim-grid.is-in .sim-card:hover { transform: translateY(-3px); transition-delay: 0s; }
 
-.file-item:hover {
-  background: rgba(255, 255, 255, 1);
-  transform: translateX(2px);
-  border-color: var(--kb-line);
-}
-
-/* 简约文件标签样式 */
-.file-tag {
+.sim-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sim-status {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 2px;
-  font-family: var(--kb-font-mono);
-  font-size: 0.55rem;
-  font-weight: 600;
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.2px;
-  flex-shrink: 0;
-  min-width: 28px;
-}
-
-/* 低饱和度配色方案 - Morandi色系 */
-.file-tag.pdf { background: #f2e6e6; color: #a65a5a; }
-.file-tag.doc { background: #e6eff5; color: #5a7ea6; }
-.file-tag.xls { background: #e6f2e8; color: #5aa668; }
-.file-tag.ppt { background: #f5efe6; color: #a6815a; }
-.file-tag.txt { background: var(--kb-soft); color: #757575; }
-.file-tag.code { background: #eae6f2; color: #815aa6; }
-.file-tag.img { background: #e6f2f2; color: #5aa6a6; }
-.file-tag.zip { background: #f2f0e6; color: #a69b5a; }
-.file-tag.other { background: var(--kb-soft); color: var(--kb-muted); }
-
-.file-name {
-  font-family: var(--kb-font-sans);
-  font-size: 0.7rem;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--kb-soft);
   color: var(--kb-text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: 0.1px;
-}
-
-/* 无文件时的占位 */
-.files-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 48px;
-  color: var(--kb-subtle);
-}
-
-.empty-file-icon {
-  font-size: 1rem;
-  opacity: 0.5;
-}
-
-.empty-file-text {
   font-family: var(--kb-font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.5px;
-}
-
-/* 悬停时文件区域效果 */
-.project-card:hover .card-files-wrapper {
-  border-color: var(--kb-line-strong);
-  background: linear-gradient(135deg, #ffffff 0%, var(--kb-surface-2) 100%);
-}
-
-/* 角落装饰 */
-.corner-mark.top-left-only {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 8px;
-  height: 8px;
-  border-top: 1.5px solid rgba(0, 0, 0, 0.4);
-  border-left: 1.5px solid rgba(0, 0, 0, 0.4);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* 卡片标题 */
-.card-title {
-  font-family: var(--kb-font-sans);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  margin: 0 0 6px 0;
-  line-height: 1.4;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 0.3s ease;
+  font-variant-numeric: tabular-nums;
 }
+.sim-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-500); }
+.sim-status.completed { background: var(--lime-50); color: var(--lime-800); }
+.sim-status.completed .dot { background: var(--lime-700); }
+.sim-status.in-progress { background: var(--ink-950); color: var(--lime-500); }
+.sim-status.in-progress .dot { background: var(--lime-500); animation: pulse 1.6s ease-in-out infinite; }
 
-.project-card:hover .card-title {
-  color: #2563EB;
-}
-
-/* 卡片描述 */
-.card-desc {
-  font-family: var(--kb-font-sans);
-  font-size: 0.75rem;
+.sim-delete {
+  position: relative;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--kb-muted);
-  margin: 0 0 16px 0;
-  line-height: 1.5;
-  height: 34px;
-  overflow: hidden;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sim-delete:hover:not(:disabled) { background: #FDECEC; color: var(--kb-danger); }
+.sim-delete:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.sim-title { margin: 4px 0 0; font-size: 1.15rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+.sim-open {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  text-wrap: balance;
+}
+.sim-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.sim-open:focus-visible { outline: none; }
+.sim-card:has(.sim-open:focus-visible) { outline: 2px solid var(--kb-accent-text); outline-offset: 2px; }
+
+.sim-desc {
   display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--kb-text-2);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
-/* 卡片底部 */
-.card-footer {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--kb-soft);
-  font-family: var(--kb-font-mono);
-  font-size: 0.65rem;
-  color: var(--kb-subtle);
-  font-weight: 500;
-}
-
-/* 日期时间组合 */
-.card-datetime {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 底部轮数进度显示 */
-.card-footer .card-progress {
-  display: flex;
-  align-items: center;
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-  font-size: 0.65rem;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
 }
-
-.card-footer .status-dot {
-  font-size: 0.5rem;
+.pipeline li { display: grid; gap: 6px; }
+.track { display: block; height: 6px; overflow: hidden; border-radius: 3px; background: var(--kb-soft); }
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--lime-500);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.9s cubic-bezier(0.65, 0, 0.35, 1);
+  transition-delay: calc(var(--i) * 0.08s + 0.35s);
 }
+.pipeline li:nth-child(2) .fill { transition-delay: calc(var(--i) * 0.08s + 0.6s); }
+.pipeline li:nth-child(3) .fill { transition-delay: calc(var(--i) * 0.08s + 0.85s); }
+.sim-grid.is-in .fill { transform: scaleX(var(--v)); }
+.stage-label { font-family: var(--kb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--kb-subtle); }
+.pipeline li.done .stage-label { color: var(--kb-text-2); }
 
-/* 进度状态颜色 - 底部 */
-.card-footer .card-progress.completed { color: #10B981; }
-.card-footer .card-progress.in-progress { color: #F59E0B; }
-.card-footer .card-progress.not-started { color: var(--kb-subtle); }
-
-/* 底部装饰线 */
-.card-bottom-line {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  width: 0;
-  background-color: var(--kb-text);
-  transition: width 0.5s cubic-bezier(0.23, 1, 0.32, 1);
-  z-index: 20;
-}
-
-.project-card:hover .card-bottom-line {
-  width: 100%;
-}
-
-/* 空状态 */
-.empty-state, .loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 48px;
-  color: var(--kb-subtle);
-}
-
-.empty-icon {
-  font-size: 2rem;
-  opacity: 0.5;
-}
-
-.loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--kb-line);
-  border-top-color: var(--kb-muted);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* 响应式 */
-@media (max-width: 1200px) {
-  .project-card {
-    width: 240px;
-  }
-}
-
-@media (max-width: 768px) {
-  .cards-container {
-    padding: 0 20px;
-  }
-  .project-card {
-    width: 200px;
-  }
-}
-
-/* ===== 历史回放详情弹窗样式 ===== */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+.sim-card-foot {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  background: #FFFFFF;
-  width: 560px;
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow-y: auto;
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* 动画过渡 */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-active .modal-content {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.modal-leave-active .modal-content {
-  transition: all 0.2s ease-in;
-}
-
-.modal-enter-from .modal-content {
-  transform: scale(0.95) translateY(10px);
-  opacity: 0;
-}
-
-.modal-leave-to .modal-content {
-  transform: scale(0.95) translateY(10px);
-  opacity: 0;
-}
-
-/* 弹窗头部 */
-.modal-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 20px 32px;
-  border-bottom: 1px solid var(--kb-soft);
-  background: #FFFFFF;
-}
-
-.modal-title-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.modal-id {
-  font-family: var(--kb-font-mono);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--kb-text);
-  letter-spacing: 0.5px;
-}
-
-.modal-progress {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--kb-font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: var(--kb-surface-2);
-}
-
-.modal-progress.completed { color: #10B981; background: rgba(16, 185, 129, 0.1); }
-.modal-progress.in-progress { color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
-.modal-progress.not-started { color: var(--kb-subtle); background: var(--kb-soft); }
-
-.modal-create-time {
-  font-family: var(--kb-font-mono);
-  font-size: 0.75rem;
-  color: var(--kb-subtle);
-  letter-spacing: 0.3px;
-}
-
-.modal-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  font-size: 1.5rem;
-  color: var(--kb-subtle);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  border-radius: 6px;
-}
-
-.modal-close:hover {
-  background: var(--kb-soft);
-  color: var(--kb-text);
-}
-
-/* 弹窗内容 */
-.modal-body {
-  padding: 24px 32px;
-}
-
-.modal-section {
-  margin-bottom: 24px;
-}
-
-.modal-section:last-child {
-  margin-bottom: 0;
-}
-
-.modal-label {
-  font-family: var(--kb-font-mono);
-  font-size: 0.75rem;
-  color: var(--kb-muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-  font-weight: 500;
-}
-
-.modal-requirement {
-  font-size: 0.95rem;
-  color: var(--kb-text-2);
-  line-height: 1.6;
-  padding: 16px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-soft);
-  border-radius: 8px;
-}
-
-.modal-files {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-/* 自定义滚动条样式 */
-.modal-files::-webkit-scrollbar {
-  width: 4px;
-}
-
-.modal-files::-webkit-scrollbar-track {
-  background: var(--kb-soft);
-  border-radius: 2px;
-}
-
-.modal-files::-webkit-scrollbar-thumb {
-  background: var(--kb-line-strong);
-  border-radius: 2px;
-}
-
-.modal-files::-webkit-scrollbar-thumb:hover {
-  background: var(--kb-subtle);
-}
-
-.modal-file-item {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--kb-line);
+  font-size: 0.8rem;
 }
-
-.modal-file-item:hover {
-  border-color: var(--kb-line-strong);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-}
-
-.modal-file-name {
-  font-size: 0.85rem;
-  color: var(--kb-text-2);
-  flex: 1;
+.sim-meta {
   overflow: hidden;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  color: var(--kb-subtle);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
+.sim-go { flex: none; font-weight: 600; color: var(--kb-text); transition: transform 0.2s ease; }
+.sim-card:hover .sim-go { transform: translateX(3px); }
 
-.modal-empty {
-  font-size: 0.85rem;
-  color: var(--kb-subtle);
-  padding: 16px;
-  background: var(--kb-surface-2);
-  border: 1px dashed var(--kb-line);
+/* Esqueletos */
+.skeleton { gap: 14px; }
+.sk {
+  display: block;
   border-radius: 6px;
-  text-align: center;
+  background: linear-gradient(90deg, var(--kb-soft) 0%, #F7F7F7 50%, var(--kb-soft) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
 }
+.sk-pill { width: 96px; height: 22px; border-radius: 999px; }
+.sk-title { width: 70%; height: 20px; }
+.sk-line { width: 100%; height: 12px; }
+.sk-line.short { width: 55%; }
+.sk-bar { width: 100%; height: 6px; margin-top: 10px; }
 
-/* 推演回放分割线 */
-.modal-divider {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 32px 0;
-  background: #FFFFFF;
+/* Vacío */
+.history-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: clamp(28px, 4vw, 40px);
+  border: 1.5px dashed var(--kb-line-strong);
+  border-radius: 16px;
+  background: var(--kb-surface-2);
 }
+.history-empty-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.history-empty-body { max-width: 60ch; margin: 0; color: var(--kb-text-2); line-height: 1.5; text-wrap: pretty; }
+.history-empty-cta {
+  margin-top: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--ink-950);
+  color: var(--cream-100);
+  font-weight: 600;
+  text-decoration: none;
+}
+.history-empty-cta:hover { background: var(--ink-800); }
 
-.divider-line {
-  flex: 1;
+.sr-only {
+  position: absolute;
+  width: 1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--kb-line), transparent);
-}
-
-.divider-text {
-  font-family: var(--kb-font-mono);
-  font-size: 0.7rem;
-  color: var(--kb-subtle);
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
-/* 导航按钮 */
-.modal-actions {
-  display: flex;
-  gap: 16px;
-  padding: 20px 32px;
-  background: #FFFFFF;
-}
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes pulse { 50% { opacity: 0.35; } }
 
-.modal-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+@media (prefers-reduced-motion: reduce) {
+  .sim-grid.reveal .sim-card, .fill { transition: none; }
+  .sk, .sim-status .dot { animation: none; }
+}
+</style>
+
+<!-- Ventanas (teleport a body): sin scoped para que los estilos lleguen -->
+<style>
+.kb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
   padding: 16px;
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  background: #FFFFFF;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
+  background: rgba(17, 17, 17, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-
-.modal-btn:hover:not(:disabled) {
-  border-color: var(--kb-text);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.modal-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--kb-surface-2);
-}
-
-.btn-step {
-  font-family: var(--kb-font-mono);
-  font-size: 0.6rem;
-  font-weight: 500;
-  color: var(--kb-subtle);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.btn-icon {
-  font-size: 1.4rem;
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-.btn-text {
-  font-family: var(--kb-font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--kb-text-2);
-}
-
-.modal-btn.btn-project .btn-icon { color: #3B82F6; }
-.modal-btn.btn-simulation .btn-icon { color: #F59E0B; }
-.modal-btn.btn-report .btn-icon { color: #10B981; }
-
-.modal-btn:hover:not(:disabled) .btn-text {
+.kb-modal {
+  box-sizing: border-box;
+  width: min(640px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: clamp(22px, 4vw, 32px);
+  border-radius: 20px;
+  background: var(--kb-surface);
   color: var(--kb-text);
+  font-family: var(--kb-font-sans);
+  box-shadow: 0 40px 100px -40px rgba(0, 0, 0, 0.55);
 }
-
-/* 不可回放提示 */
-.modal-playback-hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 32px 20px;
-  background: #FFFFFF;
+.kb-modal.small { width: min(460px, 100%); }
+.kb-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.kb-modal-head h3 { margin: 0; font-size: 1.2rem; font-weight: 700; }
+.kb-modal-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.kb-modal-meta .sim-status {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px;
+  background: var(--kb-soft); color: var(--kb-text-2); font-family: var(--kb-font-mono); font-size: 11px; font-weight: 600;
 }
+.kb-modal-meta .sim-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-500); }
+.kb-modal-meta .sim-status.completed { background: var(--lime-50); color: var(--lime-800); }
+.kb-modal-meta .sim-status.completed .dot { background: var(--lime-700); }
+.kb-modal-meta .sim-status.in-progress { background: var(--ink-950); color: var(--lime-500); }
+.kb-modal-meta .sim-status.in-progress .dot { background: var(--lime-500); }
+.kb-modal-date, .kb-modal-id { font-family: var(--kb-font-mono); font-size: 11px; color: var(--kb-subtle); }
+.kb-modal-close {
+  flex: none; width: 36px; height: 36px; margin: -6px -6px 0 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--kb-text-2); font-size: 1.4rem; line-height: 1; cursor: pointer;
+}
+.kb-modal-close:hover { background: var(--kb-soft); }
+.kb-modal-title { margin: 16px 0 20px; font-size: clamp(1.4rem, 3vw, 1.8rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; text-wrap: balance; }
+.kb-modal-section { margin-bottom: 18px; }
+.kb-modal-label {
+  margin-bottom: 8px; font-family: var(--kb-font-mono); font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--kb-muted);
+}
+.kb-modal-label.replay { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--kb-line); }
+.kb-modal-requirement {
+  margin: 0; padding: 14px 16px; border-radius: 12px; background: var(--kb-surface-2);
+  font-size: 0.95rem; line-height: 1.55; color: var(--kb-text-2); white-space: pre-wrap;
+}
+.kb-modal-files { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.kb-modal-files li { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 0.9rem; }
+.kb-modal-files .file-ext {
+  flex: none; padding: 2px 6px; border-radius: 5px; background: var(--ink-950); color: var(--lime-500);
+  font-family: var(--kb-font-mono); font-size: 10px; font-weight: 600;
+}
+.kb-modal-files .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-modal-muted { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--kb-muted); }
+.kb-modal-muted.hint { margin-top: 14px; }
+.kb-modal-text { margin: 14px 0 6px; line-height: 1.5; color: var(--kb-text-2); }
+.kb-modal-warning { margin: 0 0 22px; font-size: 0.9rem; color: var(--kb-danger); }
+.kb-modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 
-.hint-text {
-  font-family: var(--kb-font-mono);
-  font-size: 0.7rem;
-  color: var(--kb-subtle);
-  letter-spacing: 0.3px;
-  text-align: center;
-  line-height: 1.5;
+.replay-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.replay-btn {
+  display: grid; gap: 4px; padding: 14px; border: 1px solid var(--kb-line-strong); border-radius: 12px;
+  background: var(--kb-surface); color: var(--kb-text); font-family: var(--kb-font-sans); text-align: start; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.replay-btn:hover:not(:disabled) { border-color: var(--ink-950); background: var(--lime-50); }
+.replay-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.replay-step { font-family: var(--kb-font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-accent-text); }
+.replay-name { font-size: 0.92rem; font-weight: 600; line-height: 1.3; }
+
+.kb-btn {
+  padding: 11px 18px; border-radius: 10px; font: 600 0.95rem/1 var(--kb-font-sans); cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.kb-btn.ghost { border: 1px solid var(--kb-line-strong); background: var(--kb-surface); color: var(--kb-text); }
+.kb-btn.ghost:hover:not(:disabled) { border-color: var(--ink-950); }
+.kb-btn.danger { border: 1px solid var(--kb-danger); background: var(--kb-danger); color: #fff; }
+.kb-btn.danger:hover:not(:disabled) { background: #B91C1C; border-color: #B91C1C; }
+.kb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-active .kb-modal, .modal-leave-active .kb-modal { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from .kb-modal, .modal-leave-to .kb-modal { transform: translateY(12px) scale(0.98); }
+
+@media (max-width: 560px) {
+  .replay-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
