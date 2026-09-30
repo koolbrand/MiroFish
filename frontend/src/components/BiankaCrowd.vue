@@ -478,15 +478,14 @@ const updateStats = () => {
   const c = { favor: 0, undecided: 0, against: 0 }
   // Solo las que están a la vista (no las tapadas por la tarjeta, el marcador o el formulario):
   // el marcador dice lo mismo que enseña el muro.
-  let n = 0
-  const looks = new Set()
-  for (const a of agents) {
-    if (!a.shown || now < a.born + 0.3) continue
-    c[bucketOf(a.o)]++; n++
-    looks.add(a.look.key)
-  }
+  const born = agents.filter(a => now >= a.born + 0.3)
+  const seen = born.filter(a => a.shown)
   // cuántas se ven y cuántos aspectos distintos hay entre ellas (medible desde fuera, sin tocar el lienzo)
-  if (root.value) { root.value.dataset.agents = String(n); root.value.dataset.looks = String(looks.size) }
+  if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size) }
+  // Con muy pocas a la vista (un móvil enseña ~5) el reparto saltaría de 20 en 20 %: ahí cuenta a toda la multitud.
+  const pool = seen.length >= 12 ? seen : born
+  let n = 0
+  for (const a of pool) { c[bucketOf(a.o)]++; n++ }
   if (!n) return
   stats.favor = Math.round((c.favor / n) * 100)
   stats.against = Math.round((c.against / n) * 100)
