@@ -17,7 +17,7 @@
     </div>
 
     <!-- Revisión del brief con Jev -->
-    <div v-if="checking || check" class="brief-check">
+    <div v-if="checking || (check && check.available)" class="brief-check">
       <div class="brief-check-head">
         <span class="brief-check-title">{{ $t('brief.checkTitle') }}</span>
         <span v-if="checking" class="brief-muted">{{ $t('brief.checking') }}</span>

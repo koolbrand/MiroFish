@@ -5,7 +5,7 @@
         <BrandLogo />
       </router-link>
       <div class="topbar-links">
-        <AppVersion class="topbar-version" />
+        <AppVersion class="topbar-version tech-only" />
         <LanguageSwitcher />
         <HelpButton tourId="home" />
         <router-link to="/projects" class="nav-projects" data-tour="home-projects-link">
@@ -18,7 +18,7 @@
       <!-- Portada: un muro de Biankas de todo tipo que opinan, conversan y cambian
            de idea ronda a ronda; el mensaje va en una tarjeta en el centro -->
       <header class="stage">
-        <BiankaCrowd :avoid-el="stageCard" :bottom-inset="overlap" />
+        <BiankaCrowd :avoid-el="stageCard" :bottom-inset="overlap" :top-inset="topInset" />
         <div ref="stageCard" class="stage-card">
           <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
           <h1 class="stage-title">
@@ -176,37 +176,50 @@
             </i18n-t>
           </h2>
         </div>
-        <ol v-reveal class="rail">
-          <li v-for="n in 5" :key="n" class="station" :style="{ '--i': n - 1 }">
-            <span class="station-num">0{{ n }}</span>
-            <h3 class="station-title">{{ $t(`home.step0${n}Title`) }}</h3>
-            <p class="station-desc">{{ $t(`home.step0${n}Desc`) }}</p>
-          </li>
-        </ol>
+        <div ref="trackEl" class="track" :class="{ wide: isWide }">
+          <div class="track-line" aria-hidden="true"><span class="track-fill"></span></div>
+          <canvas ref="walkerEl" class="walker" aria-hidden="true"></canvas>
+          <ol class="stations">
+            <li
+              v-for="n in 5"
+              :key="n"
+              :ref="el => (stationEls[n - 1] = el)"
+              class="station"
+              :class="{ reached: isReached(n - 1) }"
+            >
+              <div class="vignette"><BiankaScene :scene="SCENE_IDS[n - 1]" :active="isReached(n - 1)" /></div>
+              <span class="station-num">0{{ n }}</span>
+              <h3 class="station-title">{{ $t(`home.step0${n}Title`) }}</h3>
+              <p class="station-desc">{{ $t(`home.step0${n}Desc`) }}</p>
+            </li>
+          </ol>
+        </div>
       </section>
 
-      <!-- Qué obtienes: entregables + gráfico de ejemplo animado -->
+      <!-- Qué obtienes: la prueba tangible del resultado (informe de ejemplo) -->
       <section class="section results">
+        <div v-reveal class="section-head">
+          <span class="kicker">{{ $t('home.resultsKicker') }}</span>
+          <h2 class="section-title wide">{{ $t('home.resultsTitle') }}</h2>
+        </div>
         <div class="results-grid">
-          <div v-reveal class="results-copy">
-            <span class="kicker">{{ $t('home.resultsKicker') }}</span>
-            <h2 class="section-title small">{{ $t('home.resultsTitle') }}</h2>
-            <ul class="deliverables">
-              <li v-for="n in 4" :key="n">
-                <strong>{{ $t(`home.deliverable${n}Title`) }}</strong>
-                <span>{{ $t(`home.deliverable${n}Desc`) }}</span>
-              </li>
-            </ul>
-          </div>
-          <OpinionChart />
+          <ul v-reveal class="deliverables">
+            <li v-for="n in 4" :key="n">
+              <strong>{{ $t(`home.deliverable${n}Title`) }}</strong>
+              <span>{{ $t(`home.deliverable${n}Desc`) }}</span>
+            </li>
+          </ul>
+          <ReportExample />
         </div>
       </section>
 
       <!-- Cifras medidas, banda lima a sangre -->
       <section class="figures" :aria-label="$t('home.figuresLabel')">
+        <div class="figures-peek" aria-hidden="true"><BiankaRow mood="mix" :pixel="3" :visible-px="66" /></div>
         <ul class="figures-grid">
           <li v-for="f in figures" :key="f.label" class="figure">
-            <span class="figure-value"><CountUp :value="f.value" /><span v-if="f.unit" class="figure-unit">{{ f.unit }}</span></span>
+            <span class="figure-value"><CountUp :value="f.value" /></span>
+            <span v-if="f.unit" class="figure-unit">{{ f.unit }}</span>
             <span class="figure-label">{{ f.label }}</span>
           </li>
         </ul>
@@ -224,11 +237,12 @@
         <button type="button" class="btn btn-lime" @click="scrollToForm">
           {{ $t('home.heroCta') }} <span aria-hidden="true">↑</span>
         </button>
+        <div class="closing-crowd" aria-hidden="true"><BiankaRow mood="favor" :pixel="4" :visible-px="104" /></div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <span>{{ $t('home.footerTagline') }}</span>
+      <span class="footer-tag"><BiankaAvatar :look="{ ears: 'up', head: 'cap', body: 'scarf' }" bucket="favor" :pixel="2" />{{ $t('home.footerTagline') }}</span>
       <a class="footer-by" href="https://koolbrand.com" target="_blank" rel="noopener">
         {{ $t('home.footerBy') }}
         <img src="/brand/koolbrand-logo-negativo-sin-claim.svg" alt="Koolbrand" width="112" height="22" />
@@ -239,7 +253,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import BriefAssistant from '../components/BriefAssistant.vue'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
@@ -248,8 +262,12 @@ import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import HelpButton from '../components/HelpButton.vue'
 import BiankaCrowd from '../components/BiankaCrowd.vue'
-import OpinionChart from '../components/OpinionChart.vue'
+import ReportExample from '../components/ReportExample.vue'
+import BiankaRow from '../components/BiankaRow.vue'
+import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
+import BiankaScene from '../components/BiankaScene.vue'
+import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
@@ -260,6 +278,7 @@ const { maybeAutoStart } = useTutorial()
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
+const topInset = ref(88)               // barra flotante: nadie habla debajo
 const stageCard = ref(null)
 const questionEl = ref(null)
 
@@ -272,17 +291,109 @@ const splitFigure = (s) => {
   return m ? { value: m[1].trim(), unit: (m[2] || '').trim() } : { value: s, unit: '' }
 }
 const figures = computed(() => [
-  { ...splitFigure(t('home.metricLowCost')), label: t('home.metricLowCostDesc') },
-  { ...splitFigure(t('home.metricHighAvail')), label: t('home.metricHighAvailDesc') },
-  { value: '2', unit: '', label: t('home.figurePlatformsDesc') },
-  { value: '5', unit: '', label: t('home.figureStepsDesc') },
+  { value: '20–30', unit: t('home.figureUnitMinutes'), label: t('home.metricLowCostDesc') },
+  { value: '10–120', unit: t('home.figureUnitPeople'), label: t('home.metricHighAvailDesc') },
+  { value: '2', unit: t('home.figureUnitNetworks'), label: t('home.figurePlatformsDesc') },
+  { value: '5', unit: t('home.figureUnitSteps'), label: t('home.figureStepsDesc') },
 ])
 
 onMounted(async () => {
   await nextTick()
   overlap.value = window.innerWidth <= 640 ? 56 : 72
+  topInset.value = window.innerWidth <= 640 ? 76 : 88
   // Tutorial automático en la primera visita (se reabre con el botón «?»).
   maybeAutoStart('home', getTour('home'))
+})
+
+
+// ── «Cómo funciona»: una Bianka camina por la línea del proceso según bajas ─────
+const SCENE_IDS = ['read', 'build', 'talk', 'report', 'chat']
+const trackEl = ref(null)
+const walkerEl = ref(null)
+const stationEls = []
+const progress = ref(0)              // 0..1 según el scroll
+const isWide = ref(true)
+const seen = ref([false, false, false, false, false])
+const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+// Un paso está «alcanzado» cuando llega la Bianka (escritorio) o cuando entra en pantalla (móvil).
+const isReached = (i) => reduceMotion || (isWide.value ? progress.value >= i / 4 - 0.02 : seen.value[i])
+
+const WALK_P = 2
+const walkerLook = fixedLook({ ears: 'up', head: 'cap', body: 'scarf' })
+let wctx = null, wW = 0, wH = 76, wdpr = 1, wraf = null, wVisible = false, pos = 0
+let scrollRaf = null, mq = null, io = null, trackIO = null
+
+const stationX = (i) => i * (wW / 5) + 7 - 13 * WALK_P          // esquina izquierda del sprite sobre el punto del paso
+const updateProgress = () => {
+  scrollRaf = null
+  const el = trackEl.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  progress.value = Math.min(1, Math.max(0, (window.innerHeight * 0.8 - r.top) / 560))
+}
+const onScroll = () => { if (!scrollRaf) scrollRaf = requestAnimationFrame(updateProgress) }
+
+const sizeWalker = () => {
+  const cv = walkerEl.value, tr = trackEl.value
+  if (!cv || !tr) return
+  wW = tr.clientWidth
+  wdpr = Math.min(window.devicePixelRatio || 1, 2)
+  cv.width = Math.round(wW * wdpr); cv.height = Math.round(wH * wdpr)
+  wctx = cv.getContext('2d'); wctx.setTransform(wdpr, 0, 0, wdpr, 0, 0); wctx.imageSmoothingEnabled = false
+}
+const walkerTick = () => {
+  wraf = null
+  if (!wVisible || !wctx || !isWide.value) return
+  const x0 = stationX(0), span = stationX(4) - x0
+  const target = span * progress.value
+  const diff = target - pos
+  const walking = Math.abs(diff) > 0.6
+  pos = walking ? pos + diff * 0.14 : target
+  const t = performance.now() / 1000
+  wctx.clearRect(0, 0, wW, wH)
+  wctx.imageSmoothingEnabled = false
+  // camina a saltitos; parada, respira
+  const hop = walking ? (Math.floor(t / 0.16) % 2) * WALK_P : ((t / 1.4) % 1 < 0.5 ? 0 : WALK_P)
+  drawBianka(wctx, {
+    x: x0 + pos, y: wH - 29 * WALK_P - 4 - hop, P: WALK_P, look: walkerLook, bucket: 'favor',
+    mirror: diff < -0.6, now: t, gaze: [diff < -0.6 ? -1 : 1, 0], blink: (t % 3.4) > 3.25, happy: !walking && progress.value >= 0.995, talking: false,
+  })
+  trackEl.value?.style.setProperty('--fill', `${x0 + pos + 13 * WALK_P}px`)
+  wraf = requestAnimationFrame(walkerTick)
+}
+const startWalker = () => { if (!wraf && wVisible && isWide.value && !reduceMotion) wraf = requestAnimationFrame(walkerTick) }
+
+const layoutMode = () => {
+  isWide.value = window.innerWidth > 900
+  sizeWalker()
+  updateProgress()
+  startWalker()
+}
+
+onMounted(() => {
+  mq = () => layoutMode()
+  window.addEventListener('resize', mq, { passive: true })
+  window.addEventListener('scroll', onScroll, { passive: true })
+  layoutMode()
+  if (reduceMotion) {
+    trackEl.value?.style.setProperty('--fill', '100%')
+  } else {
+    trackIO = new IntersectionObserver(([e]) => { wVisible = e.isIntersecting; if (wVisible) startWalker() }, { rootMargin: '120px' })
+    trackIO.observe(trackEl.value)
+    // en móvil (sin caminante) cada paso se activa al entrar en pantalla
+    io = new IntersectionObserver((entries) => entries.forEach((e) => {
+      const i = stationEls.indexOf(e.target)
+      if (e.isIntersecting && i >= 0 && !seen.value[i]) { const a = [...seen.value]; a[i] = true; seen.value = a }
+    }), { threshold: 0.35 })
+    stationEls.forEach(el => el && io.observe(el))
+  }
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', mq)
+  window.removeEventListener('scroll', onScroll)
+  if (wraf) cancelAnimationFrame(wraf)
+  if (scrollRaf) cancelAnimationFrame(scrollRaf)
+  io?.disconnect(); trackIO?.disconnect()
 })
 
 // ── Formulario ──────────────────────────────────────────────────────────────
@@ -390,22 +501,28 @@ const startSimulation = () => {
 
 /* ── Barra superior ─────────────────────────────────────────────────────── */
 .topbar {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  top: 14px;
+  inset-inline: 0;
+  margin-inline: auto;
   z-index: 50;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 64px;
-  padding-inline: var(--gutter);
-  background: rgba(242, 241, 239, 0.88);
-  backdrop-filter: saturate(1.4) blur(12px);
-  -webkit-backdrop-filter: saturate(1.4) blur(12px);
-  border-bottom: 1px solid var(--kb-line);
+  width: min(calc(100% - 2 * var(--gutter)), 1144px);
+  height: 58px;
+  padding-inline: 22px 20px;
+  background: rgba(247, 246, 243, 0.94);
+  backdrop-filter: saturate(1.4) blur(10px);
+  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  border: 2px solid var(--ink-950);
+  border-radius: 999px;
+  box-shadow: 4px 4px 0 var(--ink-950);
 }
 .topbar-brand {
-  font-size: 1.55rem;
+  font-size: 1.4rem;
   color: var(--kb-text);
   text-decoration: none;
 }
@@ -435,8 +552,8 @@ const startSimulation = () => {
   display: grid;
   align-items: center;
   justify-items: center;
-  min-height: max(620px, calc(100svh - 64px + var(--overlap)));
-  padding: clamp(40px, 8vh, 96px) var(--gutter) calc(var(--overlap) + 96px);
+  min-height: max(640px, calc(100svh + var(--overlap)));
+  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + 96px);
   background: var(--cream-100);
   color: var(--kb-text);
 }
@@ -763,37 +880,47 @@ const startSimulation = () => {
   letter-spacing: -0.04em;
   text-wrap: balance;
 }
+.section-title.wide { max-width: 26ch; }
 .section-title.small { font-size: clamp(2rem, 3.8vw, 3.2rem); }
 
-.rail {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  margin: 64px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.rail.reveal { opacity: 1; transform: none; }
-.rail::before {
-  content: '';
+.track { position: relative; margin-top: 96px; }
+.track-line {
   position: absolute;
   inset-inline: 0;
   top: 6px;
   height: 2px;
   background: var(--ink-950);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 1.4s cubic-bezier(0.65, 0, 0.35, 1);
 }
-.rail.is-in::before { transform: scaleX(1); }
+/* el tramo ya recorrido se rellena de lima detrás de la línea */
+.track-fill {
+  position: absolute;
+  inset-block: -3px;
+  inset-inline-start: 0;
+  width: var(--fill, 0px);
+  border-radius: 4px;
+  background: var(--lime-500);
+}
+.walker {
+  position: absolute;
+  inset-inline: 0;
+  top: -66px;
+  width: 100%;
+  height: 76px;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.stations {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .station {
   position: relative;
   padding-block-start: 38px;
-  padding-inline-end: 24px;
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-  transition-delay: calc(var(--i) * 0.18s + 0.25s);
+  padding-inline-end: 20px;
 }
 .station::before {
   content: '';
@@ -805,9 +932,21 @@ const startSimulation = () => {
   height: 14px;
   border: 2px solid var(--ink-950);
   border-radius: 50%;
-  background: var(--lime-500);
+  background: var(--kb-surface);
+  transition: background 0.25s ease;
 }
-.rail.is-in .station { opacity: 1; transform: none; }
+.station.reached::before { background: var(--lime-500); }
+.vignette {
+  margin: 0 0 18px;
+  padding: 10px 0;
+  border: 2px solid var(--ink-950);
+  border-radius: 12px;
+  background:
+    radial-gradient(rgba(17, 17, 17, 0.09) 1px, transparent 1.5px) 0 0 / 12px 12px,
+    var(--kb-surface);
+  box-shadow: 4px 4px 0 var(--ink-950);
+  overflow: hidden;
+}
 .station-num {
   font-family: var(--kb-font-mono);
   font-size: 12px;
@@ -832,8 +971,9 @@ const startSimulation = () => {
 .results-grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  align-items: center;
-  gap: 48px 64px;
+  align-items: start;
+  gap: 48px clamp(40px, 6vw, 88px);
+  margin-top: 56px;
 }
 .deliverables {
   display: grid;
@@ -857,11 +997,14 @@ const startSimulation = () => {
   background: var(--lime-500);
   color: var(--ink-950);
 }
+/* Biankas que asoman por el borde superior de la banda (sus cuerpos quedan «detrás» de ella) */
+.figures { position: relative; }
+.figures-peek { position: absolute; inset-inline: 0; bottom: 100%; height: 66px; pointer-events: auto; }
 .figures-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 40px 32px;
-  max-width: 1240px;
+  max-width: min(1144px, 100%);
   margin: 0 auto;
   padding: 0;
   list-style: none;
@@ -876,15 +1019,23 @@ const startSimulation = () => {
   border-top: 2px solid var(--ink-950);
 }
 .figure-value {
-  font-size: clamp(2.4rem, 4vw, 4.2rem);
+  display: block;
   font-size: min(4.8rem, 23cqi);
   font-weight: 800;
   line-height: 0.95;
-  /* más suelto que en los titulares: con -0.045em el guion de «20–30» se pegaba a las cifras */
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.figure-unit { margin-inline-start: 0.18em; font-size: 0.42em; letter-spacing: 0; }
+.figure-unit {
+  display: block;
+  margin-block-start: 10px;
+  font-family: var(--kb-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+}
 .figure-label {
   max-width: 26ch;
   font-size: 0.98rem;
@@ -905,6 +1056,9 @@ const startSimulation = () => {
   color: var(--cream-100);
   text-align: center;
 }
+.closing { position: relative; overflow: hidden; padding-bottom: clamp(190px, 20vw, 260px); }
+.closing-crowd { position: absolute; inset-inline: 0; bottom: 0; height: 104px; }
+.footer-tag { display: inline-flex; align-items: center; gap: 12px; }
 .closing-title {
   max-width: 16ch;
   margin: 0 auto 48px;
@@ -970,23 +1124,24 @@ const startSimulation = () => {
 }
 @media (max-width: 900px) {
   .composer-grid { grid-template-columns: minmax(0, 1fr); }
-  .rail { grid-template-columns: minmax(0, 1fr); margin-top: 48px; }
-  .rail::before {
-    inset-inline: auto;
-    inset-inline-start: 6px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    height: auto;
-    transform: scaleY(0);
-    transform-origin: center top;
-  }
-  .rail.is-in::before { transform: scaleY(1); }
-  .station { padding-block: 0 36px; padding-inline: 40px 0; }
+  .track { margin-top: 48px; }
+  .walker, .track-fill { display: none; }
+  .track-line { inset-inline: auto; inset-inline-start: 6px; inset-block: 0; width: 2px; height: auto; }
+  .stations { grid-template-columns: minmax(0, 1fr); }
+  .station { padding-block: 0 40px; padding-inline: 40px 0; }
   .station::before { top: 2px; }
 }
 @media (max-width: 640px) {
   .home { --overlap: 56px; }
+  .topbar { top: 10px; height: 52px; padding-inline: 16px 14px; width: calc(100% - 20px); }
+  /* la tarjeta baja: todo el aire queda encima, en el muro, donde caben los bocadillos */
+  .stage { padding-top: 96px; align-items: end; }
+  .stage-card { padding: 24px 18px 22px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.08em; margin-bottom: 14px; }
+  .stage-title { font-size: 2.35rem; }
+  .stage-lede { font-size: 0.98rem; margin-top: 16px; }
+  .stage-actions { flex-direction: column; margin-top: 22px; }
+  .stage-actions .btn { width: 100%; justify-content: center; }
   .topbar-version { display: none; }
   .topbar-links { gap: 10px; }
   .launch-btn { width: 100%; justify-content: center; }
@@ -996,6 +1151,6 @@ const startSimulation = () => {
 }
 @media (prefers-reduced-motion: reduce) {
   .eyebrow-dot, .stage-card, .stage-title .hl, .composer { animation: none; }
-  .rail::before, .station { transition: none; }
+  .station::before { transition: none; }
 }
 </style>

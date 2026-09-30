@@ -1,8 +1,8 @@
 <template>
   <!-- Gráfico de ejemplo: reparto de la opinión ronda a ronda (100 % apilado).
        Se dibuja de izquierda a derecha al entrar en pantalla. -->
-  <figure v-reveal class="opinion-chart">
-    <figcaption class="chart-caption">
+  <figure v-reveal class="opinion-chart" :class="{ flat }">
+    <figcaption v-if="!flat" class="chart-caption">
       <span class="chart-kicker">{{ $t('home.chartKicker') }}</span>
       <span class="chart-title">{{ $t('home.chartTitle') }}</span>
     </figcaption>
@@ -34,6 +34,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { vReveal } from '../composables/useReveal'
+
+// flat: sin tarjeta ni título propios (va dentro de otro artefacto, p. ej. el informe de ejemplo)
+defineProps({ flat: { type: Boolean, default: false } })
 
 const { t } = useI18n()
 
@@ -70,6 +73,9 @@ const ariaLabel = computed(() =>
 </script>
 
 <style scoped>
+.opinion-chart.flat { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.opinion-chart.flat .chart-body { padding-inline-end: 96px; }
+.opinion-chart.flat .chart-svg { height: clamp(120px, 15vw, 160px); }
 .opinion-chart {
   margin: 0;
   background: var(--kb-surface);

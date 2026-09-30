@@ -30,6 +30,8 @@
         :style="{ '--i': Math.min(index, 8) }"
       >
         <div class="sim-card-top">
+          <!-- cada proyecto tiene su propia Bianka (la misma siempre) y su color dice cómo acabó -->
+          <BiankaAvatar class="sim-face" :seed="project.simulation_id" :bucket="faceBucket(project)" :pixel="2" />
           <span class="sim-status" :class="getProgressClass(project)">
             <i class="dot" aria-hidden="true"></i>{{ formatRounds(project) }}
           </span>
@@ -165,6 +167,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getSimulationHistory, deleteSimulation } from '../api/simulation'
 import { vReveal } from '../composables/useReveal'
+import BiankaAvatar from './BiankaAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -216,6 +219,9 @@ const getSimulationTitle = (requirement) => {
   if (!requirement) return t('history.untitledSimulation')
   return requirement.length > 60 ? requirement.slice(0, 60) + '…' : requirement
 }
+
+// Lima si terminó bien, tinta si falló, blanca en cualquier otro caso
+const faceBucket = (project) => ({ completed: 'favor', failed: 'against' }[statusKind(project)] || 'undecided')
 
 const cardTitle = (project) => project?.project_name || getSimulationTitle(project?.simulation_requirement)
 
@@ -444,7 +450,7 @@ onActivated(() => {
 }
 .sim-grid.is-in .sim-card:hover { transform: translateY(-3px); transition-delay: 0s; }
 
-.sim-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sim-card-top { display: flex; align-items: center; gap: 12px; }
 .sim-status {
   display: inline-flex;
   align-items: center;
@@ -471,6 +477,7 @@ onActivated(() => {
 .sim-status.failed .dot { background: var(--kb-danger); }
 
 .sim-delete {
+  margin-inline-start: auto;
   position: relative;
   z-index: 2;
   width: 32px;
