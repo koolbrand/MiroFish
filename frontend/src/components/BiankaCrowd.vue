@@ -2,7 +2,7 @@
   <!-- Muro de Biankas en pixel art: cada una es una persona simulada que opina
        (lima a favor, blanca indecisa, tinta en contra), conversa con sus
        vecinas y cambia de idea. Decorativo: el contenido no depende de él. -->
-  <div ref="root" class="bianka-crowd" aria-hidden="true">
+  <div ref="root" class="bianka-crowd" :style="{ '--px': pxCss }" aria-hidden="true">
     <canvas
       ref="canvas"
       class="crowd-canvas"
@@ -18,20 +18,25 @@
       :class="[`is-${b.bucket}`, `to-${b.side}`, `kind-${b.kind}`, `dir-${b.dir}`, { 'is-stacked': b.stacked }]"
       :style="{ maxWidth: `${b.width}px` }"
     >
-      <span class="crowd-bubble-who">
-        <i class="swatch" :class="`is-${b.bucket}`"></i>
-        <span class="who-text">{{ b.who }}</span>
-        <span class="who-tag">{{ b.tag }}</span>
-      </span>
-      <span class="crowd-bubble-text">{{ b.text }}</span>
+      <div class="bubble-shape">
+        <div class="bubble-inner">
+          <span class="crowd-bubble-who">
+            <i class="swatch" :class="`is-${b.bucket}`"></i>
+            <span class="who-text">{{ b.who }}</span>
+            <span class="who-tag">{{ b.tag }}</span>
+          </span>
+          <span class="crowd-bubble-text">{{ b.text }}</span>
+        </div>
+      </div>
     </div>
 
-    <div ref="readout" class="crowd-readout" :style="{ bottom: `${bottomInset + 24}px` }">
+    <!-- El marcador cuelga de la tarjeta como su pie (mismo ancho, marco y sombra): una sola pieza enmarcada, no dos -->
+    <div ref="readout" class="crowd-readout" :class="{ 'is-attached': !!readoutPos }" :style="readoutPos ? { top: `${readoutPos.top}px`, left: `${readoutPos.left}px`, width: `${readoutPos.width}px` } : { bottom: `${bottomInset + 24}px` }">
       <div class="readout-head">
-        <span>{{ $t('home.crowdCaption') }}</span>
+        <span class="readout-cap">{{ $t('home.crowdCaption') }}</span>
         <span class="readout-round">{{ $t('home.crowdRound') }} {{ String(round).padStart(2, '0') }}/{{ ROUNDS }}</span>
+        <span class="readout-event"><span class="event-tag">{{ $t('home.crowdEventTag') }}</span>{{ eventLabel || '—' }}</span>
       </div>
-      <div class="readout-event"><span class="event-tag">{{ $t('home.crowdEventTag') }}</span>{{ eventLabel || '—' }}</div>
       <div class="readout-bar">
         <span class="seg is-favor" :style="{ width: `${stats.favor}%` }"></span>
         <span class="seg is-undecided" :style="{ width: `${stats.undecided}%` }"></span>
@@ -51,7 +56,7 @@
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  bucketOf, rand, pick, gauss, randomLean, initialOpinion, makeLook, drawBianka, PAL,
+  bucketOf, rand, pick, gauss, randomLean, initialOpinion, makeLook, drawBianka, PAL, EARS, shapeOf, PADDLE_POSES, POSE_COUNT,
 } from '../lib/biankaSprite'
 
 const props = defineProps({
@@ -81,6 +86,8 @@ const eventLabel = ref('')
 const stats = reactive({ favor: 0, undecided: 100, against: 0 })
 const bubbles = ref([])
 const hovering = ref(false)
+const readoutPos = ref(null)   // dónde cuelga el marcador: justo bajo la tarjeta (px dentro del muro)
+const pxCss = ref('5px')   // una celda de la retícula, en px de pantalla (la usa el CSS de los bocadillos)
 
 let ctx = null
 let W = 0, H = 0, dpr = 1, P = 4, CX = 68, RY = 76
@@ -112,14 +119,21 @@ const say = (keys) => {
   return text
 }
 const bucketLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdUndecided', against: 'home.crowdAgainst' }[b])
+// en el bocadillo habla UNA persona: la postura va en singular/neutra («Dudando», no «Indecisos»)
+const tagLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdTagUndecided', against: 'home.crowdAgainst' }[b])
 const setBubbleEl = (id, el) => { if (el) bubbleEls.set(id, el); else bubbleEls.delete(id) }
 const seedAgents = () => {
   // Personajes grandes y solapados (una multitud, no una retícula): el píxel crece con la pantalla.
-  // Cada Bianka se lee entera (orejas, cara y complemento): unas ~45 a la vista en un escritorio de
-  // 1440 px, con un solape moderado (≈ 14 % de lado a lado y ≈ 18 % de arriba abajo).
+  // Cada Bianka se lee entera (orejas, cara, complemento y un trozo de cuerpo): unas ~45 a la vista en un
+  // escritorio de 1440 px.
   P = W >= 2200 ? 8 : W >= 1900 ? 7 : W >= 1600 ? 6 : W >= 600 ? 5 : 4
-  CX = 17 * P
-  RY = 21 * P
+  pxCss.value = `${P}px`
+  // En escritorio hay sitio para verlas: el paso entre Biankas es más holgado (solape ≈ un tercio de lado a lado y
+  // las orejas de la fila de abajo ya no se comen el cuerpo de la de arriba). En móvil, apretadas: cada píxel cuenta.
+  // Portátiles (900–1399 px): un punto intermedio para no quedarse sin caras en pantallas bajas.
+  const tier = W >= 1400 ? 2 : W >= 900 ? 1 : 0
+  CX = [17, 19, 20][tier] * P
+  RY = [21, 25, 26][tier] * P
   // La primera fila se coloca de modo que su cara quepa entera en la franja de muro que queda entre la barra y
   // la tarjeta (si no, ahí solo asomarían orejas); el resto de filas cuelga de esa; y la primera columna, con la
   // cara entera dentro del lienzo por la izquierda.
@@ -149,8 +163,9 @@ const seedAgents = () => {
         look = makeLook()
       }
       parts[`${row}:${col}`] = { key: look.key, head: look.head?.id, body: look.body?.id, face: look.face?.id }
-      const x = xFirst + col * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-1, 1)) * P
-      const y = yFirst + row * RY + (row ? Math.round(rand(-1, 1)) * P : 0)
+      // la retícula se rompe: desfase de hasta 2 celdas de lado a lado y 3 de arriba abajo (la primera fila no, que va alineada con la franja)
+      const x = xFirst + col * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-2, 2)) * P
+      const y = yFirst + row * RY + (row ? Math.round(rand(-3, 3)) * P : 0)
       agents.push({
         x, y, row, col,
         look,
@@ -161,6 +176,8 @@ const seedAgents = () => {
         bobPeriod: rand(1.6, 2.8),
         bobPhase: Math.random(),
         nextBlink: rand(0, 5),
+        nextTwitch: rand(2, 12),   // gesto propio: una oreja que se mueve o la cabeza que se ladea
+        twitch: null, twitchDir: 1, twitchUntil: 0,
         blinkUntil: 0,
         hopAt: -10,
         glyph: null,
@@ -203,8 +220,23 @@ const measureAvoid = () => {
   }
   if (props.bottomInset) avoid.push({ l: 0, t: H - props.bottomInset, r: W, b: H })
   if (props.topInset) avoid.push({ l: 0, t: 0, r: W, b: props.topInset })
-  if (readout.value) avoid.push(rel(readout.value.getBoundingClientRect()))
+  if (readout.value) {
+    // el marcador va pegado bajo la tarjeta, con su ancho; su caja se calcula de la de la tarjeta (sin transformaciones)
+    const c0 = avoid[0]
+    if (props.avoidEl && c0) {
+      const pos = { top: c0.b, left: c0.l, width: c0.r - c0.l }
+      if (!readoutPos.value || readoutPos.value.top !== pos.top || readoutPos.value.left !== pos.left || readoutPos.value.width !== pos.width) readoutPos.value = pos
+      avoid.push({ l: c0.l, t: c0.b, r: c0.r, b: c0.b + readout.value.offsetHeight })
+    } else avoid.push(rel(readout.value.getBoundingClientRect()))
+  }
   for (const a of agents) a.shown = faceShown(a)
+  // Las que quedan enteras detrás de la tarjeta o del marcador (opacos) o fuera del lienzo no se dibujan: no se ven
+  // y, con todo el muro por detrás de la interfaz, son casi la mitad (dibujarlas solo gastaba CPU).
+  const opaque = [avoid[0], readout.value ? avoid[avoid.length - 1] : null].filter(Boolean)
+  for (const a of agents) {
+    const l = a.x - 2 * P, r = a.x + 24 * P, tp = a.y - 5 * P, b = a.y + 34 * P
+    a.covered = r < 0 || l > W || b < 0 || tp > H || opaque.some(q => l >= q.l && r <= q.r && tp >= q.t && b <= q.b)
+  }
 }
 
 // La cara (ojos, boca y mejillas) tiene que verse entera frente a lo que tapa el muro y al menos en un 60 %
@@ -301,7 +333,7 @@ const heightFor = (w) => (w >= 210 ? 76 : w >= 175 ? 88 : 104)
 const monoW = (s) => [...s].reduce((n, ch) => n + (ch.codePointAt(0) > 0x2e80 ? 11 : 7), 0)
 const BUBBLE_CHROME = 26    // relleno lateral (2 × 11 px) + borde (2 × 2 px)
 const whoNeed = (a) => 14 + monoW(t(`home.biankas.${a.look.persona}`))   // muestra + hueco + nombre
-const tagNeed = () => Math.max(...['favor', 'undecided', 'against'].map(b => monoW(bucketLabel(b))))
+const tagNeed = () => Math.max(...['favor', 'undecided', 'against'].map(b => monoW(tagLabel(b))))
 const headerRows = (a, w) => (whoNeed(a) + 14 + tagNeed() <= w - BUBBLE_CHROME ? 1 : 2)
 const bubbleWidths = (a, full) => {
   const all = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
@@ -402,7 +434,7 @@ const addBubble = (i, text, kind, life, place) => {
   bubbles.value.push({
     id, agent: i, bucket, text, kind,
     who: t(`home.biankas.${a.look.persona}`),
-    tag: bucketLabel(bucket),
+    tag: tagLabel(bucket),
     side: place.side,
     dir: place.dir,
     width: place.width,
@@ -485,9 +517,12 @@ const updateStats = () => {
   const born = agents.filter(a => now >= a.born + 0.3)
   const seen = born.filter(a => a.shown)
   // cuántas se ven y cuántos aspectos distintos hay entre ellas (medible desde fuera, sin tocar el lienzo)
-  if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size) }
-  // Con muy pocas a la vista (un móvil enseña ~5) el reparto saltaría de 20 en 20 %: ahí cuenta a toda la multitud.
-  const pool = seen.length >= 12 ? seen : born
+  if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size)
+    root.value.dataset.paddles = String(seen.filter(a => a.look.pose != null && PADDLE_POSES[bucketOf(a.o)]?.[a.look.pose % POSE_COUNT]).length)
+  }
+  // Con pocas a la vista (un móvil enseña 5–14) el reparto saltaría de 8 en 8 % y contaría una historia distinta que en escritorio:
+  // por debajo de 30 caras cuenta a toda la multitud (así el mismo ejemplo da el mismo reparto en cualquier pantalla).
+  const pool = seen.length >= 30 ? seen : born
   let n = 0
   for (const a of pool) { c[bucketOf(a.o)]++; n++ }
   if (!n) return
@@ -569,6 +604,21 @@ const offsetOf = (a) => {
   return bob - hop
 }
 
+// Gestos individuales: una oreja que se endereza un instante y cabezas que se ladean. Cada variante es otra silueta
+// del mismo aspecto (se cachea por aspecto y gesto), así que no cuesta nada dibujarla.
+const EAR_PERK = { classic: 'up', up: 'classic', v: 'classic', flop: 'up', short: 'up' }
+const twitchLooks = new Map()
+const twitchLook = (a) => {
+  const key = `${a.look.key}|${a.twitch}${a.twitch === 'tilt' ? a.twitchDir : ''}`
+  let v = twitchLooks.get(key)
+  if (v) return v
+  v = a.twitch === 'ear'
+    ? { ...a.look, key, ears: EARS.find(e => e.id === EAR_PERK[a.look.ears.id]) || a.look.ears }
+    : { ...a.look, key, shape: shapeOf({ ...a.look.shape, lean: a.twitchDir }) }
+  twitchLooks.set(key, v)
+  return v
+}
+
 const draw = () => {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -581,11 +631,15 @@ const draw = () => {
     const rise = k < 1 ? Math.ceil((1 - k) * 3) * P : 0
     const dy = offsetOf(a) + rise
     drawBianka(ctx, {
-      x: a.x, y: a.y + dy, P, look: a.look, bucket: bucketOf(a.o), mirror: a.mirror, now, lift: lifted,
+      x: a.x, y: a.y + dy, P, look: now < a.twitchUntil ? twitchLook(a) : a.look, bucket: bucketOf(a.o), mirror: a.mirror, now, lift: lifted,
       gaze: gazeOf(a), blink: now < a.blinkUntil, happy: now < a.happyUntil, talking: now < a.talkUntil,
     })
   }
   const talking = new Set(bubbles.value.map(b => b.agent))
+  // las que quedan detrás de la tarjeta, la píldora o el marcador (sin cara a la vista) se dibujan primero: el muro sigue por detrás
+  // (en móvil, solo por encima y por debajo de la tarjeta: a los lados quedan tiras de ~16 px donde sus restos leerían como ruido)
+  const behindOk = (a) => W >= 700 || !avoid[0] || (a.x + 13 * P > avoid[0].l && a.x + 13 * P < avoid[0].r)
+  agents.forEach((a) => { if (!a.shown && !a.covered && behindOk(a)) paint(a, false) })
   agents.forEach((a, i) => { if (a.shown && !talking.has(i)) paint(a, false) })
   // quien habla sale al frente y con una sombra dura (sin cambiar su contorno): el bocadillo siempre tiene dueña
   agents.forEach((a, i) => { if (a.shown && talking.has(i)) paint(a, true) })
@@ -615,6 +669,11 @@ const tick = (ts) => {
   for (const a of agents) {
     if (now > a.nextBlink) { a.blinkUntil = now + 0.13; a.nextBlink = now + rand(2.5, 6.5) }
     if (now > a.nextIdle) { a.idleGaze = [Math.round(rand(-1, 1)), Math.round(rand(-1, 0.4))]; a.nextIdle = now + rand(2, 6) }
+    if (now > a.nextTwitch) {
+      a.nextTwitch = now + rand(5, 14)
+      if (Math.random() < 0.5) { a.twitch = 'ear'; a.twitchUntil = now + 0.26 }
+      else { a.twitch = 'tilt'; a.twitchDir = Math.random() < 0.5 ? -1 : 1; a.twitchUntil = now + 0.8 }
+    }
     // saltito espontáneo, pequeño: la multitud no está quieta entre evento y evento
     if (now > a.nextHop && now > a.born + 0.5) { a.hopAt = now; a.hopAmp = 2; a.nextHop = now + rand(8, 20) }
   }
@@ -777,25 +836,34 @@ onUnmounted(() => {
 .crowd-canvas { display: block; image-rendering: pixelated; }
 .crowd-canvas.is-hovering { cursor: pointer; }
 
+/* Bocadillo en la retícula del muro: contorno de una celda con las esquinas escalonadas, sombra dura de una celda y
+   pico hecho de celdas (la misma mano que las Biankas; nada redondeado ni de 2 px). --px = una celda. */
 .crowd-bubble {
+  --step: polygon(var(--px) 0, calc(100% - var(--px)) 0, calc(100% - var(--px)) var(--px), 100% var(--px), 100% calc(100% - var(--px)), calc(100% - var(--px)) calc(100% - var(--px)), calc(100% - var(--px)) 100%, var(--px) 100%, var(--px) calc(100% - var(--px)), 0 calc(100% - var(--px)), 0 var(--px), var(--px) var(--px));
   position: absolute;
   top: 0;
   left: 0;
   z-index: 3;
   width: max-content;
   translate: -18px calc(-100% - 12px);
-  padding: 8px 11px 9px;
-  background: var(--kb-surface);
   color: var(--kb-text);
-  border: 2px solid var(--ink-950);
-  border-radius: 4px;
-  box-shadow: 4px 4px 0 var(--ink-950);
-  display: grid;
-  gap: 3px;
   pointer-events: none;
+  filter: drop-shadow(var(--px) var(--px) 0 var(--ink-950));
   animation: bubble-pop 0.22s steps(3, end) both;
 }
-.crowd-bubble.kind-reply { background: var(--cream-100); }
+.bubble-shape {
+  padding: var(--px);
+  background: var(--ink-950);
+  clip-path: var(--step);
+}
+.bubble-inner {
+  display: grid;
+  gap: 3px;
+  padding: calc(10px - var(--px)) calc(13px - var(--px)) calc(11px - var(--px));
+  background: var(--kb-surface);
+  clip-path: var(--step);
+}
+.crowd-bubble.kind-reply .bubble-inner { background: var(--cream-100); }
 .crowd-bubble.to-left { translate: calc(-100% + 18px) calc(-100% - 12px); }
 .crowd-bubble.dir-down { translate: -18px 12px; }
 .crowd-bubble.dir-down.to-left { translate: calc(-100% + 18px) 12px; }
@@ -804,28 +872,26 @@ onUnmounted(() => {
 .crowd-bubble.dir-free::after { display: none; }
 .crowd-bubble.dir-side { translate: 12px -50%; }
 .crowd-bubble.dir-side.to-left { translate: calc(-100% - 12px) -50%; }
-/* pico escalonado, en píxeles */
+/* pico escalonado, en celdas: dos escalones hacia la cabeza */
 .crowd-bubble::before,
 .crowd-bubble::after {
   content: '';
   position: absolute;
-  left: 12px;
-  width: 8px;
-  height: 6px;
+  left: calc(var(--px) * 3);
   background: var(--ink-950);
 }
-.crowd-bubble::before { bottom: -8px; }
-.crowd-bubble::after { bottom: -12px; left: 12px; width: 4px; height: 4px; }
+.crowd-bubble::before { bottom: calc(var(--px) * -1); width: calc(var(--px) * 2); height: var(--px); }
+.crowd-bubble::after { bottom: calc(var(--px) * -2); width: var(--px); height: var(--px); }
 .crowd-bubble.to-left::before,
-.crowd-bubble.to-left::after { left: auto; right: 12px; }
+.crowd-bubble.to-left::after { left: auto; right: calc(var(--px) * 3); }
 /* si se abre hacia abajo, el pico va arriba */
-.crowd-bubble.dir-down::before { bottom: auto; top: -8px; }
-.crowd-bubble.dir-down::after { bottom: auto; top: -12px; }
+.crowd-bubble.dir-down::before { bottom: auto; top: calc(var(--px) * -1); }
+.crowd-bubble.dir-down::after { bottom: auto; top: calc(var(--px) * -2); }
 /* al lado de la cabeza, el pico sale por el costado */
-.crowd-bubble.dir-side::before { bottom: auto; top: calc(50% - 4px); left: -8px; width: 6px; height: 8px; }
-.crowd-bubble.dir-side::after { bottom: auto; top: calc(50% - 2px); left: -12px; width: 4px; height: 4px; }
-.crowd-bubble.dir-side.to-left::before { left: auto; right: -8px; }
-.crowd-bubble.dir-side.to-left::after { left: auto; right: -12px; }
+.crowd-bubble.dir-side::before { bottom: auto; top: calc(50% - var(--px) / 2); left: calc(var(--px) * -1); width: var(--px); height: var(--px); }
+.crowd-bubble.dir-side::after { bottom: auto; top: calc(50% - var(--px) / 2); left: calc(var(--px) * -2); width: var(--px); height: var(--px); }
+.crowd-bubble.dir-side.to-left::before { left: auto; right: calc(var(--px) * -1); }
+.crowd-bubble.dir-side.to-left::after { left: auto; right: calc(var(--px) * -2); }
 .crowd-bubble-who {
   display: flex;
   min-width: 0;
@@ -871,10 +937,11 @@ onUnmounted(() => {
 .crowd-readout {
   position: absolute;
   z-index: 3;
-  inset-inline-start: clamp(16px, 4vw, 48px);
+  inset-inline: 0;
+  margin-inline: auto;
   bottom: 24px;
-  width: min(400px, calc(100% - 32px));
-  padding: 14px 16px;
+  width: min(580px, calc(100% - 32px));
+  padding: 10px 16px 11px;
   background: var(--kb-surface);
   border: 2px solid var(--ink-950);
   border-radius: 6px;
@@ -885,28 +952,39 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   pointer-events: none;
 }
+.crowd-readout.is-attached {
+  bottom: auto;
+  inset-inline: auto;
+  margin-inline: 0;
+  box-sizing: border-box;
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
+  box-shadow: 8px 8px 0 var(--ink-950);
+  padding: 12px clamp(20px, 4vw, 56px) 14px;
+  animation: readout-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+@keyframes readout-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
 .readout-head {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
   color: var(--kb-muted);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 .readout-round { color: var(--kb-text); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* móviles muy estrechos (320–360 px): las dos etiquetas de la cabecera caben en una línea cada una */
-@media (max-width: 360px) {
-  .readout-head { gap: 8px; letter-spacing: 0.06em; white-space: nowrap; }
-}
-@media (max-width: 340px) {
-  .readout-head { font-size: 10px; letter-spacing: 0.02em; }
-}
 .readout-event {
-  margin-top: 6px;
+  margin-inline-start: auto;
+  min-width: 0;
   font-family: var(--kb-font-sans);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  text-transform: none;
   color: var(--kb-text);
 }
 .event-tag {
@@ -920,7 +998,7 @@ onUnmounted(() => {
 .readout-bar {
   display: flex;
   height: 12px;
-  margin: 10px 0;
+  margin: 8px 0 7px;
   overflow: hidden;
   border: 2px solid var(--ink-950);
   background: #fff;
@@ -929,24 +1007,40 @@ onUnmounted(() => {
 .readout-bar .is-favor { background: var(--lime-500); }
 .readout-bar .is-undecided { background: #fff; }
 .readout-bar .is-against { background: #2A2A2A; }
-.readout-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--kb-text-2); }
+.readout-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; font-size: 13px; color: var(--kb-text-2); }
 .readout-legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .readout-legend .swatch { width: 12px; height: 12px; }
 .readout-legend b { font-weight: 700; color: var(--kb-text); font-variant-numeric: tabular-nums; }
-.readout-hint { margin-top: 9px; padding-top: 8px; border-top: 1px dashed rgba(17, 17, 17, 0.25); font-size: 11px; letter-spacing: 0.02em; color: var(--kb-muted); }
+.readout-hint { margin-top: 7px; padding-top: 6px; border-top: 1px dashed rgba(17, 17, 17, 0.25); font-size: 11px; letter-spacing: 0.02em; color: var(--kb-muted); }
 
+/* móvil: la tira ocupa el ancho, el evento baja a su fila y la pista sobra (se pulsa sin más) */
 @media (max-width: 700px) {
-  .crowd-readout { inset-inline-start: 16px; bottom: 16px; }
-  /* en móvil la franja de muro sobre la tarjeta es corta y cada píxel del marcador se la quita a los
-     bocadillos: sin la pista (se pulsa sin más) y con la leyenda en una sola línea */
+  .crowd-readout:not(.is-attached) { bottom: 16px; padding: 9px 14px 10px; }
+  .crowd-readout.is-attached { padding: 10px 14px 12px; }
   .readout-hint { display: none; }
+  .readout-event { margin-inline-start: 0; flex-basis: 100%; }
 }
 @media (max-width: 480px) {
-  .readout-legend { gap: 6px 12px; font-size: 12px; }
-  .readout-legend span { gap: 5px; }
+  .readout-legend { flex-wrap: nowrap; gap: 6px; font-size: 11px; letter-spacing: 0; }
+  .readout-legend span { gap: 4px; }
+  .readout-legend .swatch { width: 10px; height: 10px; }
+}
+/* móviles muy estrechos (≤ 370 px): las etiquetas de la cabecera caben en una línea y la leyenda pasa a tres
+   columnas de dos filas (etiqueta arriba, cifra debajo): en monoespaciada, y en cualquier idioma, cabe sin cortar un «%» */
+@media (max-width: 370px) {
+  .readout-head { gap: 2px 8px; letter-spacing: 0.06em; }
+  .readout-legend { display: grid; grid-template-columns: repeat(3, max-content); justify-content: space-between; gap: 0 8px; font-size: 11px; }
+  .readout-legend span { display: grid; grid-template-columns: 10px auto; column-gap: 4px; align-items: center; }
+  .readout-legend b { grid-column: 2; }
+}
+@media (max-width: 340px) {
+  .crowd-readout.is-attached { padding-inline: 12px; }
+  .readout-head { font-size: 10px; letter-spacing: 0.02em; }
+  .readout-legend { font-size: 10px; gap: 0 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .crowd-bubble { animation: none; }
+  .crowd-readout.is-attached { animation: none; }
   .readout-bar .seg { transition: none; }
 }
 </style>

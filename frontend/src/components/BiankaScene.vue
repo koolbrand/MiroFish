@@ -158,6 +158,105 @@ const SCENES = {
     if (t > 5.6 && t < 7.4) { bubble(8, 8, 56, 28, 22, 1); quest(24, 12) }
     if (t > 6.2 && t < 7.8) { bubble(W - 110, 24, 100, 46, W - 34 - 4, 1); lines(W - 100, 34, 3, 80, 7, GREY); heart(W - 34, 30) }
   } },
+
+  // ── Viñetas de «Qué obtienes» (una por entregable) ───────────────────────────
+  // A · Un informe de predicción: un folio con el veredicto y el sello que cae con un golpe
+  verdict: { period: 6, poster: 3.4, draw(t) {
+    const analyst = look('vd', { ears: 'classic', head: 'graduate', face: 'glasses', body: 'pencil' })
+    const land = 1.5
+    const shake = t > land && t < land + 0.18 ? 2 : 0
+    const px = 92, py = 14 + shake, pw = 100, ph = 124
+    box(px, py, pw, ph, WHITE)
+    rect(px + 10, py + 12, 48, 4, INK)                        // título
+    lines(px + 10, py + 26, 4, pw - 20, 7, GREY)              // texto
+    rect(px + 10, py + 62, 34, 10, CREAM); rect(px + 10, py + 62, 34, 2, INK)   // «veredicto»
+    lines(px + 10, py + 80, 2, pw - 20, 7, GREY)
+    // sello: cae desde arriba y deja su marca
+    const fall = ease((t - 0.7) / (land - 0.7))
+    const sy = t < land ? py + 92 - (1 - fall) * 46 : py + 92
+    if (t > 0.7) {
+      const a = t < land ? 0.9 : 1
+      rect(px + pw - 46, sy, 34, 30, INK); rect(px + pw - 44, sy + 2, 30, 26, a < 1 ? CREAM : LIME)
+      ;[[0, 4], [1, 5], [2, 6], [3, 5], [4, 4], [5, 3], [6, 2], [7, 1]].forEach(([i, j]) => { if (t >= land) rect(px + pw - 40 + i * 3, sy + 6 + j * 2 + 2, 4, 4, INK) })
+    }
+    bianka(analyst, t > land + 0.5 ? 'favor' : 'undecided', 6, H - 29 * P - 4, t, { gaze: [1, 0], happy: t > land + 0.4 && t < land + 2.6, talking: t > 3 && t < 4.2 })
+  } },
+
+  // B · Qué argumentos ganan: una balanza; la Bianka convencida pesa más
+  args: { period: 7, poster: 4.2, draw(t) {
+    const fav = look('af', { ears: 'up', head: 'cap', face: null, body: 'heart' })
+    const ag = look('ag', { ears: 'v', head: 'beret', face: null, body: 'scarf' })
+    const cx = 104, beamY = 62
+    // la balanza oscila y acaba inclinada hacia la Bianka convencida (la de la izquierda baja: pesa más)
+    const sway = t < 4 ? Math.sin(t * 1.9) * (1 - t / 5) : 0
+    const tilt = ease((t - 2.4) / 1.6) + sway * 0.45
+    const dy = Math.round(tilt * 14)
+    rect(cx - 2, beamY, 4, 88, INK)                                   // poste
+    rect(cx - 24, 146, 48, 6, INK); rect(cx - 22, 148, 44, 2, LIME)   // base
+    // barra: escalones de 6 px
+    for (let i = -10; i <= 10; i++) rect(cx + i * 6 - 3, beamY + Math.round((i / 10) * dy * -1) - 2, 6, 4, INK)
+    rect(cx - 5, beamY - 7, 10, 10, INK); rect(cx - 3, beamY - 5, 6, 6, LIME)   // pivote
+    // platos y Biankas pequeñas encima
+    for (const [side, lk, bk] of [[-1, fav, 'favor'], [1, ag, 'against']]) {
+      const ex = cx + side * 60, ey = beamY + Math.round(side * dy * -1 * -1) - 0
+      const ply = beamY + 26 + Math.round(side * dy * -1)
+      rect(ex - 1, beamY + Math.round((side * 10 / 10) * dy * -1) + 2, 2, ply - beamY - 4, INK)
+      rect(ex - 24, ply, 48, 4, INK); rect(ex - 22, ply + 2, 44, 2, WHITE)
+      drawBianka(ctx, { x: ex - 13 * 2, y: ply - 29 * 2 - 1 + (((t / 1.3) % 1) < 0.5 ? 0 : 2), P: 2, look: lk, bucket: bk, mirror: side > 0, now: t, gaze: [0, 0], blink: blinkAt(t + side), happy: side < 0 && t > 4, talking: false })
+    }
+    if (t > 4.4) { heart(cx - 60 - 5, 6 + Math.round(Math.sin(t * 5) * 2), LIME); rect(cx - 60 - 5, 6 + 12, 12, 2, INK) }
+  } },
+
+  // C · Entrevista a cualquier persona simulada: micrófono y una ficha que se va llenando de respuesta
+  interview: { period: 7, poster: 4.6, draw(t) {
+    const rep = look('rp', { ears: 'classic', head: 'beanie', face: null, body: 'kbrand' })
+    bianka(rep, 'undecided', 6, H - 29 * P - 4, t, { gaze: [1, 0], talking: t > 0.4 && t < 1.8 || t > 4.8 && t < 5.6 })
+    // micrófono (mango de tinta y cabeza lima) que se adelanta al preguntar
+    const reach = ease((t - 0.3) / 0.5) * (t < 2 ? 1 : Math.max(0, 1 - (t - 2) / 0.6))
+    const mx = 70 + Math.round(reach * 12), my = 88
+    rect(mx, my + 8, 4, 20, INK); rect(mx - 3, my - 4, 10, 12, INK); rect(mx - 1, my - 2, 6, 8, LIME)
+    // ondas que van hacia la ficha
+    if (t > 0.6 && t < 2.2) for (let i = 0; i < 3; i++) { const u = ((t * 1.3 + i / 3) % 1); rect(mx + 8 + u * 38, my - 2 + Math.sin((u + i) * 6) * 3, 3, 3, INK) }
+    // ficha de la persona: retrato y respuesta que crece
+    const fx = 118, fy = 18, fw = 82, fh = 122
+    box(fx, fy, fw, fh, WHITE)
+    rect(fx + 8, fy + 8, 28, 28, CREAM); rect(fx + 8, fy + 8, 28, 2, INK); rect(fx + 8, fy + 34, 28, 2, INK); rect(fx + 8, fy + 8, 2, 28, INK); rect(fx + 34, fy + 8, 2, 28, INK)
+    drawBianka(ctx, { x: fx + 10, y: fy + 12, P: 1, look: look('pt', { ears: 'up', head: 'headphones', face: null, body: null }), bucket: t > 4.6 ? 'favor' : 'undecided', now: t, gaze: [-1, 0], blink: false, happy: false, talking: false })
+    rect(fx + 42, fy + 12, 30, 4, INK); rect(fx + 42, fy + 22, 22, 3, GREY)
+    const ans = ease((t - 2.4) / 2.2)
+    lines(fx + 8, fy + 48, 6, (fw - 16), 9, GREY, ans)
+    if (t > 4.6) { const s = 12; rect(fx + fw - 22, fy + fh - 22, s, s, LIME); rect(fx + fw - 22, fy + fh - 22, s, 2, INK); rect(fx + fw - 22, fy + fh - 12, s, 2, INK) }
+  } },
+
+  // D · Todo descargable: el folio cae en la bandeja y una flecha lima lo confirma
+  download: { period: 6, poster: 3.6, draw(t) {
+    const fan = look('dl', { ears: 'flop', head: 'cap', face: 'sunglasses', body: null })
+    // bandeja
+    const tx = 50, ty = 104, tw = 108
+    rect(tx, ty, tw, 40, INK); rect(tx + 4, ty + 4, tw - 8, 36, CREAM); rect(tx + 4, ty + 4, tw - 8, 6, INK)
+    // folio que cae (entra por la ranura y queda asomando)
+    const fall = ease((t - 0.5) / 1.2)
+    const dropY = 10 + fall * 70
+    const docH = 58
+    if (t < 3.6 || true) {
+      ctx.save(); ctx.beginPath(); ctx.rect(tx + 6, 0, tw - 12, ty + 6); ctx.clip()
+      box(tx + 26, dropY, 56, docH, WHITE, false)
+      rect(tx + 34, dropY + 10, 26, 3, INK); lines(tx + 34, dropY + 20, 3, 40, 6, GREY)
+      ctx.restore()
+    }
+    // flecha lima que empuja hacia abajo (y confirma al llegar)
+    if (t < 1.8) {
+      const ay = 8 + Math.round(Math.abs(Math.sin(t * 5)) * 6)
+      rect(tx + 52, ay, 8, 16, INK); rect(tx + 54, ay + 2, 4, 12, LIME)
+      rect(tx + 44, ay + 14, 24, 4, INK); rect(tx + 48, ay + 18, 16, 4, INK); rect(tx + 52, ay + 22, 8, 4, INK)
+      rect(tx + 46, ay + 15, 20, 2, LIME); rect(tx + 50, ay + 19, 12, 2, LIME)
+    } else {
+      const s = Math.round(18 * ease((t - 1.8) / 0.3))
+      rect(tx + 61 - s / 2, 18 - s / 2 + 10, s, s, INK); if (s > 4) rect(tx + 63 - s / 2, 20 - s / 2 + 10, s - 4, s - 4, LIME)
+      if (t > 2.1) [[0, 4], [1, 5], [2, 4], [3, 3], [4, 2]].forEach(([i, j]) => rect(tx + 53 + i * 3, 22 + j * 2, 4, 4, INK))
+    }
+    bianka(fan, t > 1.8 ? 'favor' : 'undecided', W - 8 - 26 * P, H - 29 * P - 4, t, { mirror: true, gaze: [-1, 0], happy: t > 2 && t < 4.4 })
+  } },
 }
 
 const size = () => {

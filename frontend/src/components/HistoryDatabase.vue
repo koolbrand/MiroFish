@@ -52,6 +52,7 @@
           </button>
         </h3>
         <p v-if="project.simulation_requirement" class="sim-desc">{{ plainText(project.simulation_requirement) }}</p>
+        <p v-else class="sim-desc is-empty">{{ $t('history.noDescription') }}</p>
 
         <ol class="pipeline">
           <li v-for="stage in stagesOf(project)" :key="stage.key" :class="{ done: stage.value >= 1 }">
@@ -514,6 +515,7 @@ onActivated(() => {
 .sim-open:focus-visible { outline: none; }
 .sim-card:has(.sim-open:focus-visible) { outline: 2px solid var(--kb-accent-text); outline-offset: 2px; }
 
+.sim-desc.is-empty { color: var(--kb-muted); font-style: italic; }
 .sim-desc {
   display: -webkit-box;
   margin: 0;
@@ -611,12 +613,12 @@ onActivated(() => {
   margin-top: 10px;
   padding: 10px 16px;
   border-radius: 10px;
-  background: var(--ink-950);
-  color: var(--cream-100);
+  background: var(--lime-500);   /* el mismo relleno lima de la acción principal en portada, formulario y cierre */
+  color: var(--ink-950);
   font-weight: 600;
   text-decoration: none;
 }
-.history-empty-cta:hover { background: var(--ink-800); }
+.history-empty-cta:hover { filter: brightness(0.96); }
 
 .sr-only {
   position: absolute;

@@ -7,7 +7,7 @@
         <span>{{ $t('brief.cardBody') }}</span>
       </div>
       <div class="brief-card-actions">
-        <button type="button" class="brief-btn" :disabled="disabled" @click.stop="openInterview">
+        <button type="button" class="brief-btn ghost" :disabled="disabled" @click.stop="openInterview">
           {{ $t('brief.startInterview') }} →
         </button>
         <a class="brief-link" href="/plantilla-brief-simuloo.md" download="plantilla-brief-simuloo.md" @click.stop>

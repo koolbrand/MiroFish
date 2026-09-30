@@ -1,11 +1,15 @@
 <template>
   <!-- Una fila de Biankas: asoman por un borde (`visiblePx`) o se ven enteras. Miran al cursor, saltan
        al entrar en pantalla y al pulsarlas. Decorativa (aria-hidden). -->
-  <canvas ref="canvas" class="bianka-row" aria-hidden="true" @click="onClick"></canvas>
+  <!-- La caja mide lo que mide su contenedor; el lienzo sobresale por arriba (`lift`) para que quepan el salto, el
+       júbilo y los gorros altos sin que el borde del lienzo los corte «como una máscara demasiado justa». -->
+  <div class="bianka-row-box" aria-hidden="true" @click="onClick">
+    <canvas ref="canvas" class="bianka-row" :style="{ top: `-${lift}px`, height: `calc(100% + ${lift}px)` }"></canvas>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { drawBianka, makeLook, rand } from '../lib/biankaSprite'
 
 const props = defineProps({
@@ -20,6 +24,8 @@ const props = defineProps({
 })
 
 const canvas = ref(null)
+// aire por encima: gorro de mago (6 celdas) + salto (4) + júbilo (2) + 2 de margen
+const lift = computed(() => 14 * props.pixel)
 let ctx = null
 let W = 0, H = 0, dpr = 1
 let agents = []
@@ -50,7 +56,7 @@ const seed = () => {
   const n = Math.max(3, Math.ceil(W / slot) + 1)
   agents = Array.from({ length: n }, (_, i) => ({
     x: i * slot - slot * 0.35 + rand(-P * 2, P * 2),
-    look: makeLook(),
+    look: { ...makeLook(), pose: null },   // la fila asoma por un borde: sin paletas
     mirror: i % 2 === 1,
     bucket: bucketFor(i),
     phase: Math.random() * 3,
@@ -137,11 +143,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.bianka-row {
-  display: block;
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-  cursor: pointer;
-}
+.bianka-row-box { position: relative; width: 100%; height: 100%; cursor: pointer; }
+.bianka-row { position: absolute; left: 0; display: block; width: 100%; image-rendering: pixelated; pointer-events: none; }
 </style>

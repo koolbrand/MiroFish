@@ -3,7 +3,8 @@
        al entrar en pantalla. El lector de pantalla lee siempre el valor final. -->
   <span ref="el" class="count-up">
     <span class="sr-only">{{ value }}</span>
-    <span aria-hidden="true">{{ display }}</span>
+    <!-- la raya de un rango («20–120») va aparte, con aire a cada lado: con el interletrado apretado de la cifra grande se pegaba a los dígitos -->
+    <span aria-hidden="true"><template v-for="(p, i) in shown" :key="i"><span v-if="p.sep" class="count-sep">{{ p.t }}</span><template v-else>{{ p.t }}</template></template></span>
   </span>
 </template>
 
@@ -26,12 +27,12 @@ const parts = computed(() =>
   props.value.split(/(\d+(?:[.,]\d+)?)/).map(p => (/^\d/.test(p) ? { n: parseFloat(p.replace(',', '.')), raw: p } : { s: p }))
 )
 
-const display = computed(() =>
+const shown = computed(() =>
   parts.value.map(p => {
-    if (p.s !== undefined) return p.s
-    if (progress.value >= 1) return p.raw
-    return String(Math.round(p.n * progress.value))
-  }).join('')
+    if (p.s !== undefined) return { t: p.s.trim() === '–' || p.s.trim() === '-' ? '–' : p.s, sep: p.s.trim() === '–' || p.s.trim() === '-' }
+    if (progress.value >= 1) return { t: p.raw }
+    return { t: String(Math.round(p.n * progress.value)) }
+  })
 )
 
 const run = () => {
@@ -59,6 +60,8 @@ onUnmounted(() => {
 
 <style scoped>
 .count-up { font-variant-numeric: tabular-nums; }
+/* la raya del rango respira: aire a cada lado y sin el interletrado apretado de la cifra */
+.count-sep { display: inline-block; margin-inline: 0.09em; letter-spacing: 0; }
 .sr-only {
   position: absolute;
   width: 1px;
