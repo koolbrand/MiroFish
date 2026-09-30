@@ -196,7 +196,7 @@
     "chartAria": "Illustrative chart: after ten rounds, {favor}% in favour, {undecided}% undecided and {against}% against.",
     "figuresLabel": "Simuloo in numbers",
     "figurePlatformsDesc": "Two simulated conversation styles: X-like and Reddit-like.",
-    "figureStepsDesc": "From document to report, nothing to configure",
+    "figureStepsDesc": "From document to report, step by step",
     "closingTitle": "Got a launch coming up?",
     "closingHl": "Rehearse it first.",
     "footerTagline": "Simuloo · AI public opinion simulation",
@@ -322,7 +322,13 @@
     "multQuoteA2": "I call the club and it’s free.",
     "multQuoteA3": "For one Sunday game a month, it’s not worth it.",
     "multQuoteA4": "I don’t trust leaving my card on a new app.",
-    "multChanged": "Changes their mind"
+    "multChanged": "Changes their mind",
+    "multQuoteF5": "Exactly what I needed to stop chasing people on WhatsApp.",
+    "multQuoteF6": "My friends and I would use it every weekend.",
+    "multQuoteU5": "What if the court I want never shows as free?",
+    "multQuoteU6": "I’d be convinced if they told me what a single booking costs.",
+    "multQuoteA5": "€4.99 a month for something I already do for free.",
+    "multQuoteA6": "I’d rather pay only when I play."
   },
   "main": {
     "layoutGraph": "Graph",

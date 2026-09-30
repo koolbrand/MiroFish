@@ -613,12 +613,12 @@ onActivated(() => {
   margin-top: 10px;
   padding: 10px 16px;
   border-radius: 10px;
-  background: var(--ink-950);
-  color: var(--cream-100);
+  background: var(--lime-500);   /* el mismo relleno lima de la acción principal en portada, formulario y cierre */
+  color: var(--ink-950);
   font-weight: 600;
   text-decoration: none;
 }
-.history-empty-cta:hover { background: var(--ink-800); }
+.history-empty-cta:hover { filter: brightness(0.96); }
 
 .sr-only {
   position: absolute;

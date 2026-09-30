@@ -1258,7 +1258,6 @@ const startSimulation = () => {
     radial-gradient(rgba(17, 17, 17, 0.09) 1px, transparent 1.5px) 0 0 / 12px 12px,
     var(--kb-surface);
 }
-.deliverable.d2 .del-scene { background: radial-gradient(rgba(17, 17, 17, 0.12) 1px, transparent 1.5px) 0 0 / 12px 12px, var(--lime-500); }
 .del-text { display: grid; gap: 6px; padding: 18px 20px 22px; }
 .del-text strong { font-size: 1.1rem; letter-spacing: -0.01em; }
 .del-text span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }

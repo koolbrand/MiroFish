@@ -196,7 +196,7 @@
     "chartAria": "示意图：十轮之后，{favor}% 支持，{undecided}% 犹豫，{against}% 反对。",
     "figuresLabel": "Simuloo 数据",
     "figurePlatformsDesc": "两种模拟的讨论风格：类似 X 与 Reddit。",
-    "figureStepsDesc": "从文档到报告，无需配置",
+    "figureStepsDesc": "从文档到报告，一步一步来",
     "closingTitle": "有即将发布的\n项目？",
     "closingHl": "先演练一遍。",
     "footerTagline": "Simuloo · AI 舆论模拟",
@@ -322,7 +322,13 @@
     "multQuoteA2": "我打电话给俱乐部，订场是免费的。",
     "multQuoteA3": "一个月只打一个周日，不划算。",
     "multQuoteA4": "我不放心把银行卡放在一个新应用里。",
-    "multChanged": "改变看法"
+    "multChanged": "改变看法",
+    "multQuoteF5": "正是我需要的，不用再在微信群里追着人问了。",
+    "multQuoteF6": "我和朋友们每个周末都会用。",
+    "multQuoteU5": "如果我想订的场地总是没空位呢？",
+    "multQuoteU6": "如果告诉我单次预订要多少钱，我就会更有把握。",
+    "multQuoteA5": "我现在免费就能订，何必每月花 4.99 欧元。",
+    "multQuoteA6": "我更愿意只在打球时付费。"
   },
   "main": {
     "layoutGraph": "图谱",

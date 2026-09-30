@@ -520,8 +520,9 @@ const updateStats = () => {
   if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size)
     root.value.dataset.paddles = String(seen.filter(a => a.look.pose != null && PADDLE_POSES[bucketOf(a.o)]?.[a.look.pose % POSE_COUNT]).length)
   }
-  // Con muy pocas a la vista (un móvil enseña ~5) el reparto saltaría de 20 en 20 %: ahí cuenta a toda la multitud.
-  const pool = seen.length >= 12 ? seen : born
+  // Con pocas a la vista (un móvil enseña 5–14) el reparto saltaría de 8 en 8 % y contaría una historia distinta que en escritorio:
+  // por debajo de 30 caras cuenta a toda la multitud (así el mismo ejemplo da el mismo reparto en cualquier pantalla).
+  const pool = seen.length >= 30 ? seen : born
   let n = 0
   for (const a of pool) { c[bucketOf(a.o)]++; n++ }
   if (!n) return

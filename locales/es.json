@@ -196,7 +196,7 @@
     "chartAria": "Gráfico ilustrativo: tras diez rondas, {favor} % a favor, {undecided} % indecisos y {against} % en contra.",
     "figuresLabel": "Simuloo en cifras",
     "figurePlatformsDesc": "Dos estilos de conversación simulados: tipo X y tipo Reddit.",
-    "figureStepsDesc": "Del documento al informe, sin configurar nada",
+    "figureStepsDesc": "Del documento al informe, paso a paso",
     "closingTitle": "¿Tienes un lanzamiento a la vista?",
     "closingHl": "Ensáyalo antes.",
     "footerTagline": "Simuloo · Simulación de opinión pública con IA",
@@ -322,7 +322,13 @@
     "multQuoteA2": "Llamo al club y me sale gratis.",
     "multQuoteA3": "Para jugar un domingo al mes no me compensa.",
     "multQuoteA4": "No me fío de dejar la tarjeta en una app nueva.",
-    "multChanged": "Cambia de idea"
+    "multChanged": "Cambia de idea",
+    "multQuoteF5": "Justo lo que necesitaba para no perseguir a nadie por WhatsApp.",
+    "multQuoteF6": "Con los amigos lo usaríamos cada finde.",
+    "multQuoteU5": "¿Y si la pista que quiero nunca sale libre?",
+    "multQuoteU6": "Me convence si me dicen cuánto cuesta una reserva suelta.",
+    "multQuoteA5": "4,99 € al mes por algo que ya hago gratis.",
+    "multQuoteA6": "Prefiero pagar solo cuando juego."
   },
   "main": {
     "layoutGraph": "Grafo",

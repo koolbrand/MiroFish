@@ -41,7 +41,7 @@
             <div class="oc-msg-text">
               <span class="oc-who">
                 <template v-if="m.from"><i class="swatch" :class="`is-${m.from}`"></i><span aria-hidden="true">→</span></template>
-                <i class="swatch" :class="`is-${m.bucket}`"></i>{{ m.who }} · {{ m.tag }}
+                <i class="swatch" :class="`is-${m.bucket}`"></i><span class="oc-role">{{ m.who }}</span><span class="oc-tag">· {{ m.tag }}</span>
               </span>
               <p>{{ m.text }}</p>
             </div>
@@ -70,9 +70,9 @@ const HOLD_SECS = 5
 // — interesa, pero el precio genera dudas —, de modo que las dos piezas de la página cuentan la misma historia.
 const FINAL = { favor: 46, undecided: 49, against: 25 }
 const QUOTES = {
-  favor: ['home.multQuoteF1', 'home.multQuoteF2', 'home.multQuoteF3', 'home.multQuoteF4'],
-  undecided: ['home.multQuoteU1', 'home.multQuoteU2', 'home.multQuoteU3', 'home.multQuoteU4'],
-  against: ['home.multQuoteA1', 'home.multQuoteA2', 'home.multQuoteA3', 'home.multQuoteA4'],
+  favor: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteF${i}`),
+  undecided: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteU${i}`),
+  against: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteA${i}`),
 }
 const TAG = { favor: 'home.crowdFor', undecided: 'home.crowdTagUndecided', against: 'home.crowdAgainst' }
 
@@ -184,14 +184,18 @@ const say = (a, r) => {
   a.spokeIn = r
   a.speakUntil = tNow + 1.7
   a.hopAt = tNow
-  feed.value = [{ id: ++msgSeq, key, look: a.look, bucket, from, who: t(`home.biankas.${a.look.persona}`), tag: from ? t('home.multChanged') : t(TAG[bucket]), text: t(key) }, ...feed.value].slice(0, 4)
+  feed.value = [{ id: ++msgSeq, key, persona: a.look.persona, look: a.look, bucket, from, who: t(`home.biankas.${a.look.persona}`), tag: from ? t('home.multChanged') : t(TAG[bucket]), text: t(key) }, ...feed.value].slice(0, 4)
 }
-const primeFeed = () => { const a = pickOf(agents); say(a, round.value); say(pickOf(agents.filter(x => x !== a)), round.value) }
+const primeFeed = () => { const a = pickOf(agents); say(a, round.value); say(pickOf(agents.filter(x => x.look.persona !== a.look.persona)), round.value) }
 const speakNext = () => {
   const r = round.value
   // primero quien acaba de cambiar de idea en esta ronda (y lo cuenta); si no, cualquiera
-  const fresh = agents.filter(a => a.flipAt === r && a.spokeIn !== r)
-  say(pickOf(fresh.length ? fresh : agents), r)
+  // (y nunca dos personas del mismo tipo a la vez en la columna: dos «Friolero» seguidos restan a la idea de 120 personas distintas)
+  const onScreen = new Set(feed.value.map(m => m.persona))
+  const eligible = agents.filter(a => !onScreen.has(a.look.persona))
+  const pool = eligible.length ? eligible : agents
+  const fresh = pool.filter(a => a.flipAt === r && a.spokeIn !== r)
+  say(pickOf(fresh.length ? fresh : pool), r)
 }
 
 // ── Reloj ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -322,8 +326,9 @@ onUnmounted(() => { stop(); ro?.disconnect(); io?.disconnect(); document.removeE
   box-shadow: 3px 3px 0 var(--ink-950);
 }
 .oc-msg-text { display: grid; gap: 3px; min-width: 0; }
-.oc-who { display: inline-flex; align-items: center; gap: 7px; font-family: var(--kb-font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-muted); min-width: 0; }
+.oc-who { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; font-family: var(--kb-font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-muted); min-width: 0; }
 .oc-who .swatch { width: 10px; height: 10px; }
+.oc-role, .oc-tag { white-space: nowrap; }
 .oc-msg p { margin: 0; font-size: 0.98rem; line-height: 1.35; color: var(--kb-text); text-wrap: pretty; }
 .oc-note { font-size: 0.85rem; line-height: 1.45; color: var(--kb-text-2); padding-top: 14px; border-top: 1px dashed rgba(17, 17, 17, 0.25); max-width: 72ch; text-wrap: pretty; }
 
