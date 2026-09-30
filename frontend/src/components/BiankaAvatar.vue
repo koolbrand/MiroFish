@@ -31,7 +31,8 @@ const h = computed(() => 29 * props.pixel + 6 + props.headroom)
 let raf = null, visible = false, io = null, running = false, hopAt = -10
 const phase = Math.random() * 3
 const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-const lk = props.look ? fixedLook(props.look) : makeLook(props.seed ? seededRng(props.seed) : Math.random)
+// sin paleta de votación: el lienzo del avatar es justo y la paleta sobresale de la silueta
+const lk = props.look ? fixedLook(props.look) : { ...makeLook(props.seed ? seededRng(props.seed) : Math.random), pose: null }
 
 const paint = (t) => {
   const el = canvas.value

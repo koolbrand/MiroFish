@@ -141,6 +141,21 @@ export const EYES = [
   { id: 'sleepy', w: 12 },  // medio cerrados: una raya
 ]
 
+// ── Paletas de votación: lo que piensa, en alto ──────────────────────────────────────────────────────────
+// Una de cada tres Biankas levanta una paleta junto a la cabeza (sobresale de la silueta): ✓ a favor, ? dudando,
+// ✗ en contra. Cuando cambia de opinión, cambia el símbolo (el sprite se cachea por aspecto y opinión). Cae en el hueco
+// entre vecinas, por encima del hombro y fuera de la cara. Coordenadas de BASE; tablero de tinta (se ve sobre un muro de conejos blancos), 'b' = color del cuerpo.
+const PADDLE_BOARD = [[3, 21, 'kkkkkkk'], [4, 21, 'kkkkkkk'], [5, 21, 'kkkkkkk'], [6, 21, 'kkkkkkk'], [7, 21, 'kkkkkkk'], [8, 21, 'kkkkkkk'], [9, 21, 'kkkkkkk'], [10, 21, 'kkkkkkk']]
+const PADDLE_STICK = [[11, 24, 'b'], [12, 24, 'b'], [13, 24, 'b'], [14, 24, 'b'], [15, 24, 'b'], [16, 24, 'b'], [17, 24, 'b'], [18, 23, 'bb'], [19, 22, 'bb'], [20, 21, 'bb'], [21, 21, 'bb']]
+const PADDLE_SYMBOL = {
+  favor: [[5, 26], [6, 25], [7, 24], [8, 23], [7, 22]],                                                      // ✓
+  undecided: [[4, 23], [4, 24], [4, 25], [5, 25], [6, 24], [8, 24]],                                         // ?
+  against: [[4, 22], [4, 26], [5, 23], [5, 25], [6, 24], [7, 23], [7, 25], [8, 22], [8, 26]],                // ✗
+}
+// qué Biankas llevan paleta según el gesto que les tocó (0–4) y lo que piensan
+export const PADDLE_POSES = { favor: [1, 0, 1, 0, 1], undecided: [1, 0, 0, 1, 0], against: [1, 0, 1, 0, 1] }
+export const POSE_COUNT = 5
+
 // ── Siluetas ────────────────────────────────────────────────────────────────
 // La Bianka es siempre el mismo conejo, pero «de todo tipo»: orejas largas, cuerpo alto o achaparrado, ancho o
 // estrecho, y la cabeza ladeada. Se aplican sobre la cuadrícula ya compuesta (con gorro, cara y complemento), así
@@ -264,12 +279,14 @@ export const makeLook = (rng = Math.random) => {
     const shape = pickWeighted(BODY_TYPES, rng).shape
     // El rótulo del bocadillo sale del rasgo más visible
     const persona = (body || head || face)?.id || 'plain'
-    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}|${shape.id}|${eyes.id}`, ears, head, face, body, persona, shape, eyes }
+    // su repertorio de gestos (se sortea el último para no mover lo que ya salía con una semilla)
+    const pose = Math.floor(rng() * POSE_COUNT)
+    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}|${shape.id}|${eyes.id}|p${pose}`, ears, head, face, body, persona, shape, eyes, pose }
   }
 }
 
 export const spriteFor = (look, bucket) => {
-  const key = `${look.key}|${bucket}`
+  const key = `${look.key}|${bucket}|${look.pose ?? 'x'}`
   let spr = spriteCache.get(key)
   if (spr) return spr
   const colors = LOOK[bucket]
@@ -304,6 +321,13 @@ export const spriteFor = (look, bucket) => {
   }
   if (earsOver) drawEars()
   if (look.shape && look.shape !== STD_SHAPE && look.shape.id !== STD_SHAPE.id) grid = applyShape(grid, look.shape)
+  // paleta de votación (solo en quien tiene gesto: los looks fijos de las ilustraciones no llevan): va después de la
+  // forma para que no se estire con el cuerpo
+  if (look.pose != null && PADDLE_POSES[bucket]?.[look.pose % POSE_COUNT]) {
+    const putG = (r, c, color) => { const R = r + OYE, C = c + OX; if (R >= 0 && R < GHE && C >= 0 && C < GW) grid[R][C] = color }
+    for (const [r0, c0, str] of [...PADDLE_BOARD, ...PADDLE_STICK]) for (let i = 0; i < str.length; i++) putG(r0, c0 + i, str[i] === 'b' ? colors.body : PAL.k)
+    for (const [r, c] of PADDLE_SYMBOL[bucket]) putG(r, c, bucket === 'favor' ? PAL.l : PAL.w)
+  }
   // contorno de tinta alrededor de la silueta completa
   const outline = []
   for (let r = 0; r < GHE; r++) {
@@ -386,7 +410,7 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
 // Silueta de tinta de una Bianka (con su halo): la sombra dura de quien habla.
 const silCache = new Map()
 const silhouetteFor = (look, bucket) => {
-  const key = `${look.key}|${bucket}`
+  const key = `${look.key}|${bucket}|${look.pose ?? 'x'}`
   let sil = silCache.get(key)
   if (sil) return sil
   const spr = spriteFor(look, bucket)

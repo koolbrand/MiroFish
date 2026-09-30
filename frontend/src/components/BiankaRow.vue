@@ -50,7 +50,7 @@ const seed = () => {
   const n = Math.max(3, Math.ceil(W / slot) + 1)
   agents = Array.from({ length: n }, (_, i) => ({
     x: i * slot - slot * 0.35 + rand(-P * 2, P * 2),
-    look: makeLook(),
+    look: { ...makeLook(), pose: null },   // la fila asoma por un borde: sin paletas
     mirror: i % 2 === 1,
     bucket: bucketFor(i),
     phase: Math.random() * 3,

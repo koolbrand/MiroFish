@@ -55,7 +55,7 @@
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  bucketOf, rand, pick, gauss, randomLean, initialOpinion, makeLook, drawBianka, PAL, EARS, shapeOf,
+  bucketOf, rand, pick, gauss, randomLean, initialOpinion, makeLook, drawBianka, PAL, EARS, shapeOf, PADDLE_POSES, POSE_COUNT,
 } from '../lib/biankaSprite'
 
 const props = defineProps({
@@ -506,7 +506,9 @@ const updateStats = () => {
   const born = agents.filter(a => now >= a.born + 0.3)
   const seen = born.filter(a => a.shown)
   // cuántas se ven y cuántos aspectos distintos hay entre ellas (medible desde fuera, sin tocar el lienzo)
-  if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size) }
+  if (root.value) { root.value.dataset.agents = String(seen.length); root.value.dataset.looks = String(new Set(seen.map(a => a.look.key)).size)
+    root.value.dataset.paddles = String(seen.filter(a => a.look.pose != null && PADDLE_POSES[bucketOf(a.o)]?.[a.look.pose % POSE_COUNT]).length)
+  }
   // Con muy pocas a la vista (un móvil enseña ~5) el reparto saltaría de 20 en 20 %: ahí cuenta a toda la multitud.
   const pool = seen.length >= 12 ? seen : born
   let n = 0
