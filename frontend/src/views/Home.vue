@@ -181,18 +181,31 @@
                 <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
                   {{ statusText }}
                 </p>
-                <p v-if="canSubmit" class="composer-note">{{ isAuth ? $t('home.readyNote') : $t('home.readyNoteGuest') }}</p>
+                <p v-if="canSubmit" class="composer-note">{{ readyNote }}</p>
               </div>
             </div>
-            <button
-              class="launch-btn"
-              data-tour="home-start"
-              :disabled="!canSubmit || loading"
-              @click="startSimulation"
-            >
-              {{ loading ? $t('home.initializing') : $t('home.startEngine') }}
-              <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <div class="composer-launch">
+              <!-- Paso a paso (tú decides cuándo avanzar) o automático (el servidor sigue hasta el informe) -->
+              <div class="mode-switch" role="radiogroup" :aria-label="$t('home.modeLabel')" data-tour="home-mode">
+                <label class="mode-opt" :class="{ on: runMode === 'manual' }">
+                  <input v-model="runMode" type="radio" name="run-mode" value="manual" />
+                  <span>{{ $t('home.modeManual') }}</span>
+                </label>
+                <label class="mode-opt" :class="{ on: runMode === 'auto' }">
+                  <input v-model="runMode" type="radio" name="run-mode" value="auto" />
+                  <span>{{ $t('home.modeAuto') }}</span>
+                </label>
+              </div>
+              <button
+                class="launch-btn"
+                data-tour="home-start"
+                :disabled="!canSubmit || loading"
+                @click="startSimulation"
+              >
+                {{ loading ? $t('home.initializing') : $t('home.startEngine') }}
+                <span class="arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
           </footer>
         </div>
       </section>
@@ -523,6 +536,7 @@ const formData = ref({
   projectName: ''
 })
 const files = ref([])
+const runMode = ref('manual')   // 'manual' · 'auto'
 const loading = ref(false)
 const isDragOver = ref(false)
 const fileInput = ref(null)
@@ -534,6 +548,7 @@ if (pending.isPending && (pending.files.length || pending.simulationRequirement)
   files.value = [...pending.files]
   formData.value.simulationRequirement = pending.simulationRequirement
   formData.value.projectName = pending.projectName
+  runMode.value = pending.mode === 'auto' ? 'auto' : 'manual'
   clearPendingUpload()
 }
 
@@ -543,6 +558,12 @@ const docCount = computed(() => files.value.length + (hasPasted.value ? 1 : 0))
 const canSubmit = computed(() =>
   formData.value.simulationRequirement.trim() !== '' && docCount.value > 0
 )
+
+const readyNote = computed(() => {
+  const auto = runMode.value === 'auto'
+  if (isAuth.value) return auto ? t('home.readyNoteAuto') : t('home.readyNote')
+  return auto ? t('home.readyNoteAutoGuest') : t('home.readyNoteGuest')
+})
 
 const statusText = computed(() => {
   if (canSubmit.value) {
@@ -641,7 +662,8 @@ const stashForm = () => {
   setPendingUpload(
     files.value,
     formData.value.simulationRequirement,
-    (formData.value.projectName || '').trim()
+    (formData.value.projectName || '').trim(),
+    runMode.value
   )
 }
 
@@ -1127,6 +1149,29 @@ const startSimulation = () => {
 .composer-status.ready { color: var(--kb-accent-text); font-weight: 600; }
 .composer-copy { display: grid; gap: 2px; min-width: 0; }
 .composer-note { max-width: 52ch; margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+.composer-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 16px; }
+.mode-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--kb-control-line);
+  border-radius: 12px;
+  background: var(--kb-surface);
+}
+.mode-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font: 600 0.9rem/1 var(--kb-font-sans);
+  color: var(--kb-text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.mode-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.mode-opt.on { background: var(--kb-text); color: #fff; }
+.mode-opt:has(input:focus-visible) { outline: 2px solid var(--kb-text); outline-offset: 2px; }
 .launch-btn {
   display: inline-flex;
   align-items: center;

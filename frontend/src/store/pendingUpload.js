@@ -8,13 +8,15 @@ const state = reactive({
   files: [],
   simulationRequirement: '',
   projectName: '',
+  mode: 'manual',        // 'manual' (paso a paso) o 'auto' (el servidor sigue hasta el informe)
   isPending: false
 })
 
-export function setPendingUpload(files, requirement, projectName = '') {
+export function setPendingUpload(files, requirement, projectName = '', mode = 'manual') {
   state.files = files
   state.simulationRequirement = requirement
   state.projectName = projectName
+  state.mode = mode === 'auto' ? 'auto' : 'manual'
   state.isPending = true
 }
 
@@ -23,6 +25,7 @@ export function getPendingUpload() {
     files: state.files,
     simulationRequirement: state.simulationRequirement,
     projectName: state.projectName,
+    mode: state.mode,
     isPending: state.isPending
   }
 }
@@ -31,6 +34,7 @@ export function clearPendingUpload() {
   state.files = []
   state.simulationRequirement = ''
   state.projectName = ''
+  state.mode = 'manual'
   state.isPending = false
 }
 

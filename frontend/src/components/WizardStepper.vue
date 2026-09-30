@@ -37,8 +37,9 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getSimulation, listSimulations } from '../api/simulation'
+import { listSimulations, getRunStatus } from '../api/simulation'
 import { checkReportForSimulation } from '../api/report'
+import { usePipeline } from '../composables/usePipeline'
 
 const props = defineProps({
   currentStep: {
@@ -59,36 +60,36 @@ const { t, tm } = useI18n()
 const stepNames = computed(() => tm('main.stepNames'))
 
 // Cada vista solo conoce los identificadores de «su» paso (la del paso 2 no sabe si ya hay informe), así que el
-// indicador completa lo que falta preguntando al servidor hasta dónde ha llegado este proyecto. Así se puede ir
-// a cualquier paso que ya exista —también hacia delante—, no solo volver atrás.
+// indicador pregunta al servidor hasta dónde ha llegado el proyecto. Se puede ir a cualquier paso que YA HAYA
+// OCURRIDO —atrás, o adelante hasta donde se llegó— y nunca más allá: abrir un paso no debe lanzar nada
+// (el paso 3 de una simulación preparada y sin ejecutar la arranca).
 const ids = reactive({ project: props.projectId, simulation: props.simulationId, report: props.reportId })
-const simStatus = ref(null)          // estado de la simulación (created · preparing · ready · running · …)
+const runnerStatus = ref(null)       // estado de la ejecución (idle = nunca se ejecutó · running · completed · …)
 const reportStatus = ref(null)       // estado del informe (generating · completed · …) o null si no hay
 let resolveSeq = 0
 
-const PREPARED = ['ready', 'running', 'paused', 'stopped', 'completed', 'failed']
+const { state: pipeline } = usePipeline(() => ids.project)
 
 async function resolveProgress() {
   const seq = ++resolveSeq
   ids.project = props.projectId || ids.project
-  ids.simulation = props.simulationId || null
+  ids.simulation = props.simulationId || ids.simulation || null
   ids.report = props.reportId || null
   try {
     // desde el paso 1 solo se conoce el proyecto: la simulación más reciente de ese proyecto
-    if (!ids.simulation && ids.project) {
+    if (!props.simulationId && ids.project) {
       const r = await listSimulations(ids.project)
       const list = (r?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
       if (seq !== resolveSeq) return
       ids.simulation = list[0]?.simulation_id || null
     }
     if (ids.simulation) {
-      const [sim, rep] = await Promise.all([
-        getSimulation(ids.simulation).catch(() => null),
+      const [run, rep] = await Promise.all([
+        getRunStatus(ids.simulation).catch(() => null),
         checkReportForSimulation(ids.simulation).catch(() => null),
       ])
       if (seq !== resolveSeq) return
-      simStatus.value = sim?.data?.status || null
-      ids.project = ids.project || sim?.data?.project_id || null
+      runnerStatus.value = run?.data?.runner_status || null
       ids.report = props.reportId || rep?.data?.report_id || null
       reportStatus.value = rep?.data?.has_report ? (rep.data.report_status || null) : null
     }
@@ -99,6 +100,10 @@ async function resolveProgress() {
 
 onMounted(resolveProgress)
 watch(() => [props.projectId, props.simulationId, props.reportId, props.currentStep], resolveProgress)
+// en automático el proyecto avanza solo: cada cambio de etapa desbloquea la siguiente
+watch(() => [pipeline.value?.stage, pipeline.value?.simulation_id, pipeline.value?.report_id, pipeline.value?.status], (now, before) => {
+  if (before && now.join('|') !== before.join('|')) resolveProgress()
+})
 
 function idForStep(step) {
   if (step === 1) return ids.project
@@ -107,14 +112,15 @@ function idForStep(step) {
   return null
 }
 
-// ¿Existe ya ese paso? (el actual siempre; los demás, si hay con qué abrirlos)
-// Hacia delante solo con el proyecto terminado (informe completo): en curso se avanza paso a paso,
-// porque abrir el paso 3 de una simulación preparada y sin ejecutar la lanza.
+// ¿Ha ocurrido ya ese paso? (el actual siempre)
 function isAvailable(step) {
   if (step === props.currentStep) return true
-  if (step > props.currentStep && reportStatus.value !== 'completed') return false
   if (!idForStep(step)) return false
-  if (step === 3) return PREPARED.includes(simStatus.value)            // entorno preparado
+  if (step === 3) {
+    // solo si la simulación ya se ejecutó (o la está lanzando el automático)
+    const autoAtRun = pipeline.value?.mode === 'auto' && pipeline.value?.status === 'running' && (pipeline.value?.stage_index || 0) >= 3
+    return (!!runnerStatus.value && runnerStatus.value !== 'idle') || autoAtRun
+  }
   if (step === 5) return reportStatus.value === 'completed'            // informe terminado (la conversación lo necesita)
   return true
 }
@@ -260,8 +266,8 @@ function goTo(step) {
   text-overflow: ellipsis;
 }
 
-/* Responsive: oculta el nombre del paso actual en pantallas muy estrechas */
-@media (max-width: 1100px) {
+/* Responsive: oculta el nombre del paso actual solo en móviles (en portátiles las etapas tienen su propia fila) */
+@media (max-width: 520px) {
   .chip-name {
     display: none;
   }

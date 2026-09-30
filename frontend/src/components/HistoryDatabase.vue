@@ -45,6 +45,10 @@
           >×</button>
         </div>
 
+        <p v-if="project.pipeline_mode === 'auto'" class="sim-auto" :class="`is-${project.pipeline_status || 'running'}`">
+          {{ $t('history.autoBadge', { status: $t(`history.autoStatus.${project.pipeline_status || 'running'}`) }) }}
+        </p>
+
         <h3 class="sim-title">
           <!-- el botón cubre toda la tarjeta (patrón «enlace estirado») -->
           <button type="button" class="sim-open" @click="navigateToProject(project)">
@@ -384,6 +388,15 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.sim-auto {
+  margin: 10px 0 -4px;
+  font: 600 11px var(--kb-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kb-text-2);
+}
+.sim-auto.is-running { color: var(--kb-accent-text); }
+.sim-auto.is-failed, .sim-auto.is-interrupted { color: var(--kb-text); }
 .history-database { font-family: var(--kb-font-sans); color: var(--kb-text); }
 
 .history-head {

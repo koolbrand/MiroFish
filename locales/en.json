@@ -302,7 +302,7 @@
     "pasteAdd": "Add as a document",
     "pastedFileName": "pasted-text",
     "fileRejectedPaste": "Paste text",
-    "readyNote": "Takes about 20–30 min, and you decide when to move on from one stage to the next. If you close the tab, the project stays in your history.",
+    "readyNote": "Takes about 20⁠–⁠30 min, and you decide when to move on from one stage to the next. If you close the tab, the project stays in your history.",
     "crowdTagUndecided": "Undecided",
     "multKicker": "The crowd",
     "multTitle": "A whole crowd weighs in on your idea.",
@@ -332,7 +332,12 @@
     "multQuoteU6": "I’d be convinced if they told me what a single booking costs.",
     "multQuoteA5": "€4.99 a month for something I already do for free.",
     "multQuoteA6": "I’d rather pay only when I play.",
-    "readyNoteGuest": "Takes about 20–30 min, and you decide when to move on from one stage to the next. You'll sign in when you launch it, and your material will be waiting."
+    "readyNoteGuest": "Takes about 20⁠–⁠30 min, and you decide when to move on from one stage to the next. You'll sign in when you launch it, and your material will be waiting.",
+    "modeLabel": "How to proceed",
+    "modeManual": "Step by step",
+    "modeAuto": "Automatic",
+    "readyNoteAuto": "It runs on its own until the report, even if you close the tab: you'll find it in Projects. Takes about 20⁠–⁠30 min.",
+    "readyNoteAutoGuest": "It runs on its own until the report, even if you close the tab. Takes about 20⁠–⁠30 min. You'll sign in when you launch it, and your material will be waiting."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -379,7 +384,8 @@
     "creating": "Creating...",
     "enterEnvSetup": "Enter Environment Setup",
     "createSimulationFailed": "Failed to create simulation: {error}",
-    "createSimulationException": "Simulation creation error: {error}"
+    "createSimulationException": "Simulation creation error: {error}",
+    "viewEnvSetup": "View the setup"
   },
   "step2": {
     "simInstanceInit": "Simulation Instance Initialization",
@@ -465,7 +471,9 @@
     "genderOther": "Other",
     "yearsOld": "years old",
     "initializing": "Initializing",
-    "generating": "Generating"
+    "generating": "Generating",
+    "readOnlyNote": "This simulation already ran with {rounds} rounds: here you can review how it was set up, without launching it again.",
+    "viewSimulation": "View the simulation"
   },
   "step3": {
     "startGenerateReport": "Generate Report",
@@ -513,7 +521,8 @@
     "clearFilters": "Clear",
     "noMatchingActions": "No actions match the current filters",
     "restartSimulation": "Restart simulation",
-    "restartConfirm": "Restart the simulation? Current run data will be lost."
+    "restartConfirm": "Restart the simulation? Current run data will be lost.",
+    "viewReportBtn": "View the report"
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -672,7 +681,15 @@
     "statusRunning": "Running · {current}/{total}",
     "statusStopped": "Stopped at {current}/{total}",
     "statusFailed": "Failed at {current}/{total}",
-    "noDescription": "No question saved: open it to continue."
+    "noDescription": "No question saved: open it to continue.",
+    "autoBadge": "Automatic · {status}",
+    "autoStatus": {
+      "running": "running",
+      "completed": "done",
+      "failed": "error",
+      "cancelled": "stopped",
+      "interrupted": "interrupted"
+    }
   },
   "api": {
     "projectNotFound": "Project not found: {id}",
@@ -984,7 +1001,8 @@
     "jevFilterSummary": "Jev reviewed the entities: {dropped} dropped as non-participants; {kept} agents; real audience {audience}%.",
     "jevFilterDropped": "Dropped: {names}",
     "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended ≥ {minimum}%). Competitors and companies will weigh more: add more detail about the audience to the document.",
-    "jevAudienceExpanded": "Audience expanded: +{count} distinct people within the audience groups, so your customers make up at least 40% of the simulation."
+    "jevAudienceExpanded": "Audience expanded: +{count} distinct people within the audience groups, so your customers make up at least 40% of the simulation.",
+    "autoStarted": "Automatic mode started for project {id}: the server will continue until the report."
   },
   "report": {
     "taskStarted": "Report generation task started",
@@ -1109,7 +1127,9 @@
       "startTitle": "4. Start the engine",
       "startBody": "Clicking this takes you into the 5-step wizard where you'll watch the graph being built in real time.",
       "projectsTitle": "5. Your previous projects",
-      "projectsBody": "From here you can jump back into any project you've created, review its graph, simulations and reports."
+      "projectsBody": "From here you can jump back into any project you've created, review its graph, simulations and reports.",
+      "modeTitle": "Step by step or automatic",
+      "modeBody": "Step by step: you review each stage and decide when to continue. Automatic: the server runs all five stages on its own, even if you close the tab."
     },
     "main1": {
       "welcomeTitle": "5-step wizard",
@@ -1119,7 +1139,7 @@
       "stepTitle": "Right panel — step controls",
       "stepBody": "Here you drive the current phase: ontology, graph build, system logs. Once Step 1 is done you'll see the button to move on to Step 2.",
       "stepperTitle": "Progress indicator",
-      "stepperBody": "Shows which step of the flow you're on (1→5). You can go back to finished steps; once the project is done, you can also jump ahead.",
+      "stepperBody": "Shows which step of the flow you're on (1→5). You can go to any step you've already been through, back or ahead; the next ones open as you move forward.",
       "layoutTitle": "Layout views",
       "layoutBody": "Toggle between: graph-only, split view, or workbench-only. Handy when you want to focus on one of the two zones."
     },
@@ -1139,7 +1159,7 @@
       "startTitle": "Launch simulation",
       "startBody": "Once you've reviewed profiles and set the number of rounds, press \"Start dual simulation\" to move on to Step 3 (live run).",
       "stepperTitle": "Overall progress",
-      "stepperBody": "You're in Step 2 of 5. Go back to review earlier steps; the next ones open as you move forward."
+      "stepperBody": "You're in Step 2 of 5. Go back to review earlier steps; anything that already ran is shown without launching it again."
     },
     "run": {
       "welcomeTitle": "Step 3 — live simulation",
@@ -1264,5 +1284,27 @@
     "adjust": "Adjust",
     "agentsShowAll": "Show all {count} agents",
     "agentsShowLess": "Show less"
+  },
+  "auto": {
+    "tag": "Automatic",
+    "cancel": "Stop",
+    "resume": "Resume",
+    "running": "Stage {n} of 5 · {stage}. You can close the tab: it keeps going on the server and you'll find it in Projects.",
+    "failed": "Stopped at “{stage}”: {error}",
+    "interrupted": "Interrupted at “{stage}” because the server restarted.",
+    "cancelled": "Stopped at “{stage}”.",
+    "cancelConfirm": "Stop automatic mode? If the simulation is running, it will stop.",
+    "actionFailed": "Couldn't do it: {error}",
+    "stage": {
+      "ontology": "Reading the material",
+      "graph": "Building the map",
+      "prepare": "Creating the people",
+      "simulate": "Simulating",
+      "report": "Writing the report",
+      "done": "Done"
+    },
+    "step1Note": "Automatic mode will open the setup as soon as the map is ready.",
+    "step2Note": "Automatic mode will launch the simulation with 40 rounds as soon as the people are ready.",
+    "step3Note": "The report will be written automatically when it finishes."
   }
 }
