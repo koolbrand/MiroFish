@@ -716,7 +716,8 @@ const startSimulation = () => {
   justify-items: center;
   min-height: max(640px, calc(100svh + var(--overlap)));
   /* abajo se reserva el hueco del marcador (su alto real + aire), para que la tarjeta nunca lo pise */
-  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + var(--readout-h, 150px) + 40px);
+  /* y en pantallas altas (> 800 px) un poco más, para que el bloque tarjeta+marcador suba y quede muro de sobra debajo (≥ 170 px a 900 de alto) */
+  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + var(--readout-h, 150px) + 40px + max(0px, calc((100svh - 800px) * 0.7)));
   background: var(--cream-100);
   color: var(--kb-text);
 }
@@ -728,7 +729,7 @@ const startSimulation = () => {
   z-index: 2;
   box-sizing: border-box;
   width: min(760px, 100%);
-  padding: clamp(28px, 4.5vw, 52px) clamp(20px, 4vw, 56px);
+  padding: clamp(24px, 3.2vw, 38px) clamp(20px, 4vw, 56px);
   background: var(--kb-surface);
   border: 2px solid var(--ink-950);
   border-radius: 18px 18px 0 0;   /* el pie de la tarjeta es el marcador de opinión (BiankaCrowd), que cuelga de aquí */
@@ -740,7 +741,7 @@ const startSimulation = () => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 20px;
+  margin: 0 0 14px;
   font-family: var(--kb-font-mono);
   font-size: 12px;
   letter-spacing: 0.16em;
@@ -771,7 +772,7 @@ const startSimulation = () => {
 }
 .stage-lede {
   max-width: 50ch;
-  margin: 24px auto 0;
+  margin: 18px auto 0;
   font-size: clamp(1rem, 1.4vw, 1.15rem);
   line-height: 1.55;
   color: var(--kb-text-2);
@@ -783,7 +784,7 @@ const startSimulation = () => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  margin-top: 32px;
+  margin-top: 26px;
 }
 
 .btn {
@@ -802,7 +803,8 @@ const startSimulation = () => {
   color: var(--ink-950);
   border: 1px solid var(--lime-500);
 }
-.btn-lg { padding: 22px 38px; border-radius: 12px; font-size: 1.2rem; }   /* el remate del cierre: a la altura del titular */
+.btn-lg { padding: 22px 38px; border-radius: 12px; font-size: 1.2rem; white-space: nowrap; }
+@media (max-width: 420px) { .btn-lg { padding: 18px 22px; font-size: 1.02rem; } }   /* el remate del cierre: a la altura del titular */
 .btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
 .btn-outline {
   background: var(--kb-surface);
