@@ -31,7 +31,7 @@
         <span>{{ $t('home.crowdCaption') }}</span>
         <span class="readout-round">{{ $t('home.crowdRound') }} {{ String(round).padStart(2, '0') }}/{{ ROUNDS }}</span>
       </div>
-      <div class="readout-event">{{ eventLabel || '—' }}</div>
+      <div class="readout-event"><span class="event-tag">{{ $t('home.crowdEventTag') }}</span>{{ eventLabel || '—' }}</div>
       <div class="readout-bar">
         <span class="seg is-favor" :style="{ width: `${stats.favor}%` }"></span>
         <span class="seg is-undecided" :style="{ width: `${stats.undecided}%` }"></span>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   bucketOf, rand, pick, gauss, randomLean, initialOpinion, makeLook, drawBianka, PAL,
@@ -93,6 +93,7 @@ let raf = null, running = false, visible = true, last = 0, now = 0
 let roundClock = 0, talkClock = 0.9, statsClock = 0, measureClock = 0, resetClock = -1
 let bubbleSeq = 0
 let epoch = 0
+let seededFor = null   // tarjeta con la que se sembró el muro (la primera fila se alinea con la franja de arriba)
 let pointer = null
 const bubbleEls = new Map()
 let resizeObs = null, interObs = null, readoutObs = null
@@ -117,10 +118,19 @@ const seedAgents = () => {
   // Cada Bianka se lee entera (orejas, cara y complemento): unas ~45 a la vista en un escritorio de
   // 1440 px, con un solape moderado (≈ 14 % de lado a lado y ≈ 18 % de arriba abajo).
   P = W >= 1800 ? 8 : W >= 1500 ? 7 : W >= 1000 ? 6 : 5
-  CX = 19 * P
-  RY = 23 * P
-  const cols = Math.ceil(W / CX) + 2
-  const rows = Math.ceil((H + 10 * P) / RY) + 1
+  CX = 17 * P
+  RY = 21 * P
+  // La primera fila se coloca de modo que su cara quepa entera en la franja de muro que queda entre la barra y
+  // la tarjeta (si no, ahí solo asomarían orejas); el resto de filas cuelga de esa; y la primera columna, con la
+  // cara entera dentro del lienzo por la izquierda.
+  seededFor = props.avoidEl
+  const card = props.avoidEl && avoid.length ? avoid[0] : null
+  const stripTop = (props.topInset || 0) + 3
+  const stripBottom = card ? card.t - 3 : stripTop + 90
+  const yFirst = Math.round(stripTop + Math.max(0, (stripBottom - stripTop - 8 * P) / 2) - 13 * P)
+  const xFirst = 10 - 7 * P
+  const cols = Math.ceil((W - xFirst) / CX) + 1
+  const rows = Math.ceil((H - yFirst) / RY) + 1
   agents = []
   const parts = {}
   for (let row = 0; row < rows; row++) {
@@ -135,8 +145,8 @@ const seedAgents = () => {
         look = makeLook()
       }
       parts[`${row}:${col}`] = { key: look.key, head: look.head?.id, body: look.body?.id, face: look.face?.id }
-      const x = (col - 1) * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-2, 2)) * P - 6 * P
-      const y = row * RY - 9 * P + Math.round(rand(-1, 1)) * P
+      const x = xFirst + col * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-1, 1)) * P
+      const y = yFirst + row * RY + (row ? Math.round(rand(-1, 1)) * P : 0)
       agents.push({
         x, y, row, col,
         look,
@@ -157,6 +167,7 @@ const seedAgents = () => {
         idleGaze: [0, 0],
         nextIdle: rand(1, 5),
         happyUntil: 0,
+        shown: true,          // ¿se le ve la cara? (se mide contra la tarjeta, la barra, el marcador y el formulario)
         born: 0,
         hopAmp: 3,
         nextHop: rand(3, 14),
@@ -178,19 +189,32 @@ const measureAvoid = () => {
   const c = root.value.getBoundingClientRect()
   const rel = (r) => ({ l: r.left - c.left, t: r.top - c.top, r: r.right - c.left, b: r.bottom - c.top })
   avoid = []
-  if (props.avoidEl) avoid.push(rel(props.avoidEl.getBoundingClientRect()))
+  if (props.avoidEl) {
+    // La tarjeta entra con una animación que la desplaza unos píxeles al principio: se usa su caja de
+    // maquetación (sin transformaciones) para que la primera fila del muro se alinee con su posición final.
+    const el = props.avoidEl
+    avoid.push(el.offsetParent && el.offsetParent === root.value.offsetParent
+      ? { l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight }
+      : rel(el.getBoundingClientRect()))
+  }
   if (props.bottomInset) avoid.push({ l: 0, t: H - props.bottomInset, r: W, b: H })
   if (props.topInset) avoid.push({ l: 0, t: 0, r: W, b: props.topInset })
   if (readout.value) avoid.push(rel(readout.value.getBoundingClientRect()))
+  for (const a of agents) a.shown = faceShown(a)
 }
 
+// La cara (ojos, boca y mejillas) tiene que verse entera frente a lo que tapa el muro y al menos en un 60 %
+// dentro del lienzo: una Bianka de la que solo asoman las orejas por encima de la tarjeta no se dibuja
+// (en el muro solo hay individuos legibles, no fragmentos), ni cuenta en el marcador ni se puede pulsar.
+const faceShown = (a) => {
+  const f = { l: a.x + 7 * P, r: a.x + 19 * P, t: a.y + 13 * P, b: a.y + 21 * P }
+  if (hitsAvoid(f, 3)) return false
+  const iw = Math.min(f.r, W) - Math.max(f.l, 0), ih = Math.min(f.b, H) - Math.max(f.t, 0)
+  return iw > 0 && ih > 0 && (iw * ih) / ((f.r - f.l) * (f.b - f.t)) >= 0.6
+}
 const hitsAvoid = (box, pad) => avoid.some(q => box.l < q.r + pad && box.r > q.l - pad && box.t < q.b + pad && box.b > q.t - pad)
 const coveredAt = (x, y) => hitsAvoid({ l: x, r: x, t: y, b: y }, 0)
-const headVisible = (a) => {
-  if (now < a.born + 0.3) return false
-  const h = { l: a.x + 6 * P, r: a.x + 20 * P, t: a.y + 12 * P, b: a.y + 20 * P }
-  return h.r > 0 && h.l < W && h.t > 0 && h.b < H && !hitsAvoid(h, 0)
-}
+const headVisible = (a) => a.shown && now >= a.born + 0.3
 
 const resize = () => {
   const el = root.value
@@ -205,7 +229,7 @@ const resize = () => {
   ctx = canvas.value.getContext('2d')
   const reseed = !agents.length || Math.abs(w - W) > 40 || Math.abs(h - H) > 80
   W = w; H = h
-  if (reseed) { epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = [] }
+  if (reseed) { measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = [] }
   measureAvoid()
   updateStats()
   if (!running) draw()
@@ -397,7 +421,7 @@ const neighborsOf = (i, radius) => {
 }
 
 const startConversation = (forced = null, forcedPlace = null) => {
-  const max = W < 700 ? 2 : 3
+  const max = 2
   if (bubbles.value.length >= max && forced === null) return
   let i = forced
   let place = forcedPlace
@@ -455,12 +479,14 @@ const updateStats = () => {
   // Solo las que están a la vista (no las tapadas por la tarjeta, el marcador o el formulario):
   // el marcador dice lo mismo que enseña el muro.
   let n = 0
+  const looks = new Set()
   for (const a of agents) {
-    if (now < a.born + 0.3) continue
-    const h = { l: a.x + 6 * P, r: a.x + 20 * P, t: a.y + 12 * P, b: a.y + 20 * P }
-    if (h.r < 0 || h.l > W || h.b < 0 || h.t > H || hitsAvoid(h, 0)) continue
+    if (!a.shown || now < a.born + 0.3) continue
     c[bucketOf(a.o)]++; n++
+    looks.add(a.look.key)
   }
+  // cuántas se ven y cuántos aspectos distintos hay entre ellas (medible desde fuera, sin tocar el lienzo)
+  if (root.value) { root.value.dataset.agents = String(n); root.value.dataset.looks = String(looks.size) }
   if (!n) return
   stats.favor = Math.round((c.favor / n) * 100)
   stats.against = Math.round((c.against / n) * 100)
@@ -545,20 +571,24 @@ const draw = () => {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.imageSmoothingEnabled = false
   ctx.clearRect(0, 0, W, H)
-  for (const a of agents) {
+  const paint = (a, thick) => {
     const k = Math.min(1, (now - a.born) / 0.3)
-    if (k <= 0) continue
+    if (k <= 0) return
     // al nacer sube desde abajo en tres escalones (pixel art: sin interpolar)
     const rise = k < 1 ? Math.ceil((1 - k) * 3) * P : 0
     const dy = offsetOf(a) + rise
     drawBianka(ctx, {
-      x: a.x, y: a.y + dy, P, look: a.look, bucket: bucketOf(a.o), mirror: a.mirror, now,
+      x: a.x, y: a.y + dy, P, look: a.look, bucket: bucketOf(a.o), mirror: a.mirror, now, thick,
       gaze: gazeOf(a), blink: now < a.blinkUntil, happy: now < a.happyUntil, talking: now < a.talkUntil,
     })
   }
+  const talking = new Set(bubbles.value.map(b => b.agent))
+  agents.forEach((a, i) => { if (a.shown && !talking.has(i)) paint(a, false) })
+  // quien habla sale al frente y con el contorno de tinta más grueso: el bocadillo siempre tiene dueña
+  agents.forEach((a, i) => { if (a.shown && talking.has(i)) paint(a, true) })
   drawThreads()
   drawLeaders()
-  for (const a of agents) if (a.glyph && now < a.glyphUntil) drawGlyph(a, offsetOf(a))
+  for (const a of agents) if (a.shown && a.glyph && now < a.glyphUntil) drawGlyph(a, offsetOf(a))
   for (const bub of bubbles.value) {
     const el = bubbleEls.get(bub.id)
     const a = agents[bub.agent]
@@ -631,6 +661,7 @@ const onVisibility = () => (document.hidden ? stop() : start())
 const agentAt = (x, y) => {
   for (let k = agents.length - 1; k >= 0; k--) {
     const a = agents[k]
+    if (!a.shown) continue
     const dy = offsetOf(a)
     if (x > a.x + 5 * P && x < a.x + 21 * P && y > a.y + dy + 12 * P && y < a.y + dy + 22 * P) return k
   }
@@ -692,6 +723,12 @@ const renderStatic = () => {
   updateStats()
   draw()
 }
+
+watch(() => props.avoidEl, (el) => {
+  if (!el || !agents.length || seededFor === el) return
+  measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = []
+  measureAvoid(); updateStats(); if (!running) draw()
+})
 
 onMounted(() => {
   resize()
@@ -854,6 +891,14 @@ onUnmounted(() => {
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--kb-text);
+}
+.event-tag {
+  margin-inline-end: 8px;
+  font: 500 10px var(--kb-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+  vertical-align: 2px;
 }
 .readout-bar {
   display: flex;

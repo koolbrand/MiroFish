@@ -188,8 +188,8 @@ export const makeLook = (rng = Math.random) => {
   }
 }
 
-export const spriteFor = (look, bucket) => {
-  const key = `${look.key}|${bucket}`
+export const spriteFor = (look, bucket, thick = false) => {
+  const key = `${look.key}|${bucket}${thick ? '|t' : ''}`
   let spr = spriteCache.get(key)
   if (spr) return spr
   const colors = LOOK[bucket]
@@ -230,6 +230,20 @@ export const spriteFor = (look, bucket) => {
       if (grid[r][c]) continue
       if ((grid[r - 1]?.[c]) || (grid[r + 1]?.[c]) || grid[r][c - 1] || grid[r][c + 1]) outline.push([r, c])
     }
+  }
+  // «habla»: el contorno de tinta se ensancha una celda más, para que quien habla destaque en el muro
+  if (thick) {
+    const have = new Set(outline.map(([r, c]) => `${r}:${c}`))
+    const extra = []
+    for (let r = 0; r < GH; r++) {
+      for (let c = 0; c < GW; c++) {
+        if (grid[r][c] || have.has(`${r}:${c}`)) continue
+        let near = false
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) if (have.has(`${r + dr}:${c + dc}`)) { near = true; break }
+        if (near) extra.push([r, c])
+      }
+    }
+    outline.push(...extra)
   }
   // halo crema de una celda alrededor del contorno: al solaparse, cada Bianka se recorta limpia
   // sobre la de detrás (como una pegatina) en vez de fundirse con ella
@@ -293,8 +307,8 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
 
 // Sprite + cara en (x, y) = esquina superior izquierda de la retícula de la Bianka.
 export const drawBianka = (ctx, opts) => {
-  const { x, y, P, look, bucket, mirror = false } = opts
-  const spr = spriteFor(look, bucket)
+  const { x, y, P, look, bucket, mirror = false, thick = false } = opts
+  const spr = spriteFor(look, bucket, thick)
   const sx = x - OX * P, sy = y - OY * P
   if (mirror) {
     ctx.save()

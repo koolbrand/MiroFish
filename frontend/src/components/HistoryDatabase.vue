@@ -432,8 +432,10 @@ onActivated(() => {
   gap: 12px;
   padding: 22px 22px 18px;
   background: var(--kb-surface);
-  border: 1px solid var(--kb-line);
-  border-radius: 16px;
+  /* contorno de tinta y sombra dura, como el resto de las tarjetas de la portada */
+  border: 2px solid var(--ink-950);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--ink-950);
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .sim-grid.reveal .sim-card {
@@ -445,10 +447,9 @@ onActivated(() => {
 .sim-grid.is-in .sim-card { opacity: 1; transform: none; }
 .sim-grid.is-in .sim-card:hover,
 .sim-card:focus-within {
-  border-color: var(--ink-950);
-  box-shadow: 0 18px 40px -24px rgba(17, 17, 17, 0.35);
+  box-shadow: 7px 7px 0 var(--ink-950);
 }
-.sim-grid.is-in .sim-card:hover { transform: translateY(-3px); transition-delay: 0s; }
+.sim-grid.is-in .sim-card:hover { transform: translate(-2px, -2px); transition-delay: 0s; }
 
 .sim-card-top { display: flex; align-items: center; gap: 12px; }
 .sim-status {

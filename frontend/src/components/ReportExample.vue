@@ -37,7 +37,7 @@
     <section class="report-quote">
       <BiankaAvatar :look="{ ears: 'flop', head: 'beanie', body: 'coffee' }" bucket="undecided" :pixel="2" />
       <div>
-        <p class="quote-text">«{{ $t('home.reportQuote') }}»</p>
+        <p class="quote-text">{{ $t('home.reportQuote') }}</p>
         <span class="quote-by">{{ $t('home.reportQuoteBy') }}</span>
       </div>
     </section>

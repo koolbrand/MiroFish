@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <nav class="topbar" :class="{ 'is-scrolled': scrolledNav }">
+    <nav class="topbar" :class="{ 'is-scrolled': scrolledNav, 'is-hidden': navHidden }">
       <router-link to="/" class="topbar-brand" :aria-label="$t('home.heroDescBrand')">
         <BrandLogo />
       </router-link>
@@ -90,6 +90,11 @@
                   <span class="drop-formats">{{ $t('home.supportedFormats') }}</span>
                   <span class="drop-tip">{{ $t('home.uploadTip') }}</span>
                 </div>
+              </div>
+              <button type="button" class="paste-toggle" :aria-expanded="pasteOpen" :disabled="loading" @click="pasteOpen = !pasteOpen">{{ $t('home.pasteToggle') }}</button>
+              <div v-if="pasteOpen" class="paste-box">
+                <textarea v-model="pasteText" class="field" rows="6" :placeholder="$t('home.pastePlaceholder')" :aria-label="$t('home.pastePlaceholder')" :disabled="loading"></textarea>
+                <button type="button" class="paste-add" :disabled="!pasteText.trim() || loading" @click="addPasted">{{ $t('home.pasteAdd') }}</button>
               </div>
               <p v-if="rejected.length" class="file-error" role="alert">
                 <span class="file-error-mark" aria-hidden="true">!</span>{{ rejectedText }}
@@ -292,8 +297,10 @@ const { maybeAutoStart } = useTutorial()
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
 const scrolledNav = ref(false)          // barra aligerada al bajar de la portada
+const navHidden = ref(false)           // y escondida mientras se baja (reaparece al subir)
+let lastY = 0
 const readoutH = ref(150)              // alto del marcador de la portada (lo mide BiankaCrowd)
-const topInset = ref(88)               // barra flotante: nadie habla debajo
+const topInset = ref(80)               // barra flotante: nadie habla debajo
 const stageCard = ref(null)
 const questionEl = ref(null)
 
@@ -301,13 +308,13 @@ const EXAMPLES = ['Launch', 'Price', 'Campaign', 'Crisis']
 
 // Cifras medidas: el número se anima, la unidad («min») va aparte y más pequeña.
 const splitFigure = (s) => {
-  // «20–30 min» → «20–30» + «min»; «10–120» → «10–120»
+  // «20–30 min» → «20–30» + «min»; «20–120» → «20–120»
   const m = String(s).match(/^(\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?)\s*(.*)$/)
   return m ? { value: m[1].trim(), unit: (m[2] || '').trim() } : { value: s, unit: '' }
 }
 const figures = computed(() => [
   { value: '20–30', unit: t('home.figureUnitMinutes'), label: t('home.metricLowCostDesc') },
-  { value: '10–120', unit: t('home.figureUnitPeople'), label: t('home.metricHighAvailDesc') },
+  { value: '20–120', unit: t('home.figureUnitPeople'), label: t('home.metricHighAvailDesc') },
   { value: '2', unit: t('home.figureUnitNetworks'), label: t('home.figurePlatformsDesc') },
   { value: '5', unit: t('home.figureUnitSteps'), label: t('home.figureStepsDesc') },
 ])
@@ -315,7 +322,7 @@ const figures = computed(() => [
 onMounted(async () => {
   await nextTick()
   overlap.value = window.innerWidth <= 640 ? 56 : 72
-  topInset.value = window.innerWidth <= 640 ? 76 : 88
+  topInset.value = window.innerWidth <= 640 ? 70 : 80
   // Tutorial automático en la primera visita (se reabre con el botón «?»).
   maybeAutoStart('home', getTour('home'))
 })
@@ -348,7 +355,12 @@ const updateProgress = () => {
   progress.value = Math.min(1, Math.max(0, (window.innerHeight * 0.8 - r.top) / 560))
 }
 const onScroll = () => {
-  scrolledNav.value = window.scrollY > 72
+  const y = window.scrollY
+  scrolledNav.value = y > 72
+  if (y < 160) navHidden.value = false
+  else if (y > lastY + 6) navHidden.value = true
+  else if (y < lastY - 6) navHidden.value = false
+  lastY = y
   if (!scrollRaf) scrollRaf = requestAnimationFrame(updateProgress)
 }
 
@@ -464,6 +476,17 @@ const handleDrop = (e) => {
 }
 
 // Los archivos que no se pueden leer (un Word, un PowerPoint…) no se descartan en silencio: se avisa de cuáles y qué hacer.
+const pasteOpen = ref(false)
+const pasteText = ref('')
+let pastedCount = 0
+const addPasted = () => {
+  const text = pasteText.value.trim()
+  if (!text) return
+  pastedCount += 1
+  files.value.push(new File([text], `${t('home.pastedFileName')}${pastedCount > 1 ? `-${pastedCount}` : ''}.md`, { type: 'text/markdown' }))
+  pasteText.value = ''
+  pasteOpen.value = false
+}
 const rejected = ref([])
 let rejectedTimer = null
 const rejectedText = computed(() => (rejected.value.length === 1
@@ -550,7 +573,9 @@ const startSimulation = () => {
   box-shadow: 4px 4px 0 var(--ink-950);
 }
 /* al bajar, la píldora deja de pesar sobre los titulares: contorno fino y sombra suave en lugar de la dura */
-.topbar { transition: height 0.25s ease, border-width 0.25s ease, box-shadow 0.25s ease, background 0.25s ease; }
+.topbar { transition: height 0.25s ease, border-width 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, transform 0.25s ease; }
+.topbar.is-hidden { transform: translateY(calc(-100% - 28px)); }
+.topbar.is-hidden:focus-within { transform: none; }
 .topbar.is-scrolled {
   height: 50px;
   border-width: 1px;
@@ -699,8 +724,10 @@ const startSimulation = () => {
   margin: 0 auto;
   padding: clamp(24px, 4vw, 48px);
   background: var(--kb-surface);
-  border-radius: 20px;
-  box-shadow: 0 50px 100px -50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(17, 17, 17, 0.06);
+  /* mismo lenguaje que la tarjeta de la portada: contorno de tinta y sombra dura */
+  border: 2px solid var(--ink-950);
+  border-radius: 18px;
+  box-shadow: 8px 8px 0 var(--ink-950);
   animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
 }
 .composer-head { margin-bottom: 32px; }
@@ -791,6 +818,33 @@ const startSimulation = () => {
   .t-touch { display: inline; }
 }
 .drop-tip { margin-top: 2px; font-size: 0.8rem; color: var(--kb-muted); }
+.paste-toggle {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--kb-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.paste-toggle:hover:not(:disabled) { background: rgba(204, 230, 115, 0.4); text-decoration-thickness: 2px; }
+.paste-box { display: grid; gap: 10px; margin-top: 10px; }
+.paste-add {
+  justify-self: start;
+  padding: 10px 16px;
+  border: 1px solid var(--ink-950);
+  border-radius: 8px;
+  background: var(--ink-950);
+  color: #fff;
+  font: 600 0.9rem/1 var(--kb-font-sans);
+  cursor: pointer;
+}
+.paste-add:hover:not(:disabled) { background: var(--lime-500); color: var(--ink-950); }
+.paste-add:disabled { opacity: 0.4; cursor: not-allowed; }
 .file-error {
   display: flex;
   align-items: flex-start;
@@ -1134,6 +1188,7 @@ const startSimulation = () => {
 .closing-crowd { position: absolute; inset-inline: 0; bottom: 0; height: 104px; }
 .footer-tag { display: inline-flex; align-items: center; gap: 12px; }
 .closing-title {
+  white-space: pre-line;   /* respeta el salto que pone la traducción (en chino, para no partir «项目») */
   max-width: 16ch;
   margin: 0 auto 48px;
   font-size: clamp(2.6rem, 7.4vw, 7rem);
@@ -1231,9 +1286,10 @@ const startSimulation = () => {
   .topbar-version { display: none; }
   .topbar-links { gap: 10px; }
   .launch-btn { width: 100%; justify-content: center; }
+  .composer { box-shadow: 5px 5px 0 var(--ink-950); }
 }
 @media (max-width: 480px) {
-  .figures-grid { grid-template-columns: minmax(0, 1fr); }
+  .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 20px; }
 }
 @media (max-width: 400px) {
   /* móviles estrechos: la píldora de navegación tiene que caber entera */

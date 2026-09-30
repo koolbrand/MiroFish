@@ -102,7 +102,7 @@ const ariaLabel = computed(() =>
   border-radius: 8px;
   /* revelado de izquierda a derecha */
   clip-path: inset(0 100% 0 0);
-  transition: clip-path 1.8s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: clip-path 1.2s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .area.is-favor { fill: var(--lime-500); }
 .area.is-undecided { fill: var(--gray-100); }
@@ -114,7 +114,7 @@ const ariaLabel = computed(() =>
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  transition: stroke-dashoffset 1.8s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .edge.is-favor { stroke: var(--lime-800); }
 .edge.is-against { stroke: var(--kb-text); stroke-width: 1.5; }
@@ -135,7 +135,7 @@ const ariaLabel = computed(() =>
   line-height: 1.2;
   color: var(--kb-muted);
   opacity: 0;
-  transition: opacity 0.5s ease 1.6s;
+  transition: opacity 0.5s ease 1.0s;
   white-space: nowrap;
 }
 .chart-ends b {
@@ -164,7 +164,7 @@ const ariaLabel = computed(() =>
 
 @media (max-width: 560px) {
   /* el eje va justo bajo el gráfico y la leyenda debajo del eje */
-  .chart-body { display: flex; flex-direction: column; padding-inline-end: 0; }
+  .chart-body, .opinion-chart.flat .chart-body { display: flex; flex-direction: column; padding-inline-end: 0; }
   .chart-plot { display: contents; }
   .chart-svg { order: 1; }
   .chart-axis { order: 2; }
