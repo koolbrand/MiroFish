@@ -290,7 +290,9 @@
     "crowdReDiff_undecided_favor_2": "Hmm, me lo apunto para probarlo.",
     "crowdReDiff_undecided_against_2": "No sé, quizá me estoy precipitando.",
     "crowdReDiff_against_favor_2": "Eso dicen todos al principio.",
-    "crowdReDiff_against_undecided_2": "Yo no perdería el tiempo."
+    "crowdReDiff_against_undecided_2": "Yo no perdería el tiempo.",
+    "fileRejectedOne": "«{name}» no se puede leer todavía. Expórtalo a PDF y súbelo de nuevo.",
+    "fileRejectedMany": "{n} archivos no se han añadido: formato no admitido. Expórtalos a PDF."
   },
   "main": {
     "layoutGraph": "Grafo",

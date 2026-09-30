@@ -290,7 +290,9 @@
     "crowdReDiff_undecided_favor_2": "Hmm, I'll note it down to try.",
     "crowdReDiff_undecided_against_2": "Not sure, maybe I'm being hasty.",
     "crowdReDiff_against_favor_2": "Everyone says that at first.",
-    "crowdReDiff_against_undecided_2": "I wouldn't waste my time."
+    "crowdReDiff_against_undecided_2": "I wouldn't waste my time.",
+    "fileRejectedOne": "“{name}” can’t be read yet. Export it to PDF and upload it again.",
+    "fileRejectedMany": "{n} files weren’t added: unsupported format. Export them to PDF."
   },
   "main": {
     "layoutGraph": "Graph",

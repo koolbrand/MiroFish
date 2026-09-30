@@ -290,7 +290,9 @@
     "crowdReDiff_undecided_favor_2": "嗯，我记下来试试。",
     "crowdReDiff_undecided_against_2": "不确定，也许我太草率了。",
     "crowdReDiff_against_favor_2": "大家一开始都这么说。",
-    "crowdReDiff_against_undecided_2": "我不会浪费时间。"
+    "crowdReDiff_against_undecided_2": "我不会浪费时间。",
+    "fileRejectedOne": "暂时无法读取“{name}”。请先导出为 PDF 再上传。",
+    "fileRejectedMany": "有 {n} 个文件未添加：格式不受支持。请先导出为 PDF。"
   },
   "main": {
     "layoutGraph": "图谱",

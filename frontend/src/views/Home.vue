@@ -91,6 +91,9 @@
                   <span class="drop-tip">{{ $t('home.uploadTip') }}</span>
                 </div>
               </div>
+              <p v-if="rejected.length" class="file-error" role="alert">
+                <span class="file-error-mark" aria-hidden="true">!</span>{{ rejectedText }}
+              </p>
               <ul v-if="files.length" class="file-chips">
                 <li v-for="(file, index) in files" :key="file.name + index" class="file-chip">
                   <span class="file-chip-name" :title="file.name">{{ file.name }}</span>
@@ -460,12 +463,20 @@ const handleDrop = (e) => {
   addFiles(Array.from(e.dataTransfer.files))
 }
 
+// Los archivos que no se pueden leer (un Word, un PowerPoint…) no se descartan en silencio: se avisa de cuáles y qué hacer.
+const rejected = ref([])
+let rejectedTimer = null
+const rejectedText = computed(() => (rejected.value.length === 1
+  ? t('home.fileRejectedOne', { name: rejected.value[0] })
+  : t('home.fileRejectedMany', { n: rejected.value.length })))
 const addFiles = (newFiles) => {
-  const validFiles = newFiles.filter(file => {
-    const ext = file.name.split('.').pop().toLowerCase()
-    return ['pdf', 'md', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)
-  })
+  const readable = ['pdf', 'md', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif']
+  const validFiles = [], unreadable = []
+  for (const file of newFiles) (readable.includes(file.name.split('.').pop().toLowerCase()) ? validFiles : unreadable).push(file)
   files.value.push(...validFiles)
+  clearTimeout(rejectedTimer)
+  rejected.value = unreadable.map(f => f.name)
+  if (unreadable.length) rejectedTimer = setTimeout(() => { rejected.value = [] }, 10000)
 }
 
 const removeFile = (index) => {
@@ -780,6 +791,31 @@ const startSimulation = () => {
   .t-touch { display: inline; }
 }
 .drop-tip { margin-top: 2px; font-size: 0.8rem; color: var(--kb-muted); }
+.file-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--cream-100);
+  border: 2px solid var(--ink-950);
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--ink-950);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--kb-text);
+}
+.file-error-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  background: var(--ink-950);
+  color: var(--lime-500);
+  font: 800 0.8rem/1 var(--kb-font-mono);
+  border-radius: 4px;
+}
 .drop-hint { font-size: 0.88rem; color: var(--kb-muted); }
 .drop-formats {
   margin-top: 6px;

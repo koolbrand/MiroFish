@@ -252,7 +252,7 @@ const closeInterview = () => { interviewOpen.value = false }
   background: none; border: none; padding: 0; cursor: pointer; color: var(--kb-text);
   font: inherit; text-decoration: underline; text-underline-offset: 3px;
 }
-.brief-link:hover:not(:disabled) { color: var(--kb-accent-text); }
+.brief-link:hover:not(:disabled) { color: var(--kb-accent-text); background: rgba(204, 230, 115, 0.4); text-decoration-thickness: 2px; }
 .brief-link:disabled { opacity: 0.4; cursor: not-allowed; }
 .brief-check { margin-top: 12px; border: 1px solid var(--kb-line); padding: 12px 14px; }
 .brief-check-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -294,6 +294,8 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-btn {
   font: inherit; font-weight: 600; padding: 9px 14px; border: 1px solid var(--kb-text); border-radius: 8px; background: var(--kb-text); color: #fff; cursor: pointer;
 }
+.brief-btn:hover:not(:disabled) { background: var(--lime-500); color: var(--ink-950); border-color: var(--ink-950); }
 .brief-btn.ghost { background: #fff; color: var(--kb-text); }
+.brief-btn.ghost:hover:not(:disabled) { background: var(--lime-50); }
 .brief-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
