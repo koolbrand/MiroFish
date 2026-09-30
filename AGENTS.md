@@ -177,8 +177,16 @@ docker run -d \
 | `frontend/src/components/OpinionCrowd.vue` | Apartado «La multitud»: 120 Biankas de ejemplo que cambian de opinión ronda a ronda + «lo que van diciendo» (mismo final que el gráfico de `OpinionChart`) |
 | `frontend/src/lib/biankaSprite.js` | Motor de sprites de la Bianka (conejo en pixel art), compartido por el muro, las escenas y los avatares |
 | `frontend/src/components/Bianka{Scene,Row,Avatar}.vue`, `ReportExample.vue` | Escenas de «cómo funciona», filas que asoman, avatar con semilla y el informe de ejemplo |
+| `backend/app/services/auto_pipeline.py`, `pipeline_state.py`, `api/pipeline.py` | Modo automático en el servidor: encadena las cinco etapas con los mismos parámetros que la pantalla (40 rondas de tope); estado en `uploads/projects/<id>/pipeline.json`; al arrancar, lo que estaba en marcha pasa a `interrupted` y no se reanuda solo |
+| `frontend/src/composables/usePipeline.js`, `components/AutoPipelineBanner.vue` | Estado del automático compartido en pantalla y aviso en las cinco pantallas del proceso (detener, reanudar, seguir la etapa) |
 | `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
 | `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
+
+### Al tocar las pantallas del proceso
+
+- **Una etapa ya hecha es de solo lectura**: abrirla no puede crear, preparar, lanzar, detener ni regenerar nada. Ojo con lo que dispara el montaje: el paso 2 prepara si la simulación no lo está, y el paso 3 **la lanza** si nunca se ejecutó (`runner_status: idle`). El indicador de etapas solo abre lo que ya ha ocurrido.
+- En automático la pantalla observa: no lanza el grafo, la preparación, la simulación ni el informe (lo hace el servidor).
+- Las pruebas sin interfaz de estas pantallas deben **abortar toda petición que no sea GET** (salvo lo que se compruebe a propósito): abrir una etapa a medias gasta LLM de verdad.
 
 ### Al tocar la portada
 
