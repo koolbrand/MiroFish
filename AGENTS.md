@@ -172,7 +172,7 @@ docker run -d \
 | `backend/pyproject.toml` | Python dependencies |
 | `frontend/package.json` | Node.js dependencies |
 | `coolify.json` | Coolify integration config |
-| `frontend/src/views/Home.vue` | Portada: muro de Biankas, formulario en 3 pasos, «cómo funciona», informe de ejemplo, cifras, historial y cierre |
+| `frontend/src/views/Home.vue` | Portada pública: muro de Biankas, formulario en 3 pasos, «cómo funciona», informe de ejemplo, cifras, historial (solo con sesión) y cierre |
 | `frontend/src/components/BiankaCrowd.vue` | Muro de Biankas (canvas): color = opinión, conversan en bocadillos, marcador de 10 rondas (cuelga de la tarjeta como su pie: una sola pieza enmarcada) |
 | `frontend/src/components/OpinionCrowd.vue` | Apartado «La multitud»: 120 Biankas de ejemplo que cambian de opinión ronda a ronda + «lo que van diciendo» (mismo final que el gráfico de `OpinionChart`) |
 | `frontend/src/lib/biankaSprite.js` | Motor de sprites de la Bianka (conejo en pixel art), compartido por el muro, las escenas y los avatares |
@@ -183,7 +183,9 @@ docker run -d \
 ### Al tocar la portada
 
 - Comprobar a **320, 360, 390, 768, 1000, 1366×768, 1440×900 y 1920** px, en es/en/zh y con «reducir movimiento»: sin scroll horizontal, el marcador cuelga pegado bajo la tarjeta (nunca la pisa, y los portátiles de 720–800 px de alto son el caso que falla) y ningún bocadillo corta texto.
-- Las pruebas sin interfaz funcionan con una sesión de PocketBase **falsa solo en el navegador** (`localStorage.pocketbase_auth`); en producción, además, `API_AUTH_TOKEN` temporal y borrarlo al acabar.
+- **La portada es pública** (`/` con `requiresAuth: false`): sin sesión no llama a la API (ni historial ni entrevista/revisión del brief) y el inicio de sesión se pide al pulsar «Iniciar simulación», con el material guardado en memoria (`store/pendingUpload.js`) y `?redirect=` de vuelta (solo rutas internas, `lib/authRedirect.js`). Cualquier pantalla nueva que llame a la API desde la portada debe comprobar la sesión antes.
+- Las pruebas sin interfaz funcionan con una sesión de PocketBase **falsa solo en el navegador** (`localStorage.pocketbase_auth`) y **cortando las peticiones a PocketBase** (si llegan, rechaza el token falso y borra la sesión); en producción, además, `API_AUTH_TOKEN` temporal y borrarlo al acabar.
+- Backend local: `NEO4J_URI=bolt://localhost:7687` (el valor por defecto `neo4j:7687` es el nombre de Docker Compose y da 500 en `/api/graph/data`).
 - Los gráficos van animados (petición expresa) y nada de interfaz debe superar 700 ms.
 - Los campos, chips y botones de contorno usan `--kb-control-line` (#858585, ≥ 3:1 sobre blanco y crema, WCAG 1.4.11); `--kb-line` y `--kb-line-strong` son para divisores, no para controles.
 - Lo que hay tras pulsar «Iniciar simulación» también cuenta: `MainView.vue` muestra un aviso claro con «Reintentar» y «Volver al inicio» si falla el análisis o la construcción del mapa (antes quedaba un «generando…» eterno), y las cinco pantallas del proceso abren en «Mesa de trabajo» y reparten el encabezado en filas por debajo de 900 px.
