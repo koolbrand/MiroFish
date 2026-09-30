@@ -446,7 +446,7 @@ const placeTitleCrowds = () => {
     const lastLine = lines[lines.length - 1], prev = lines[lines.length - 2]
     if (!lastLine) continue
     let left = lastLine.right + 26
-    if (prev && lastLine.bottom - crowd.offsetHeight < prev.bottom) left = Math.max(left, prev.right + 14)
+    if (prev && lastLine.bottom - crowd.offsetHeight < prev.bottom) left = Math.max(left, prev.right + 26)
     const feet = lastLine.bottom - lastLine.h * 0.2      // la base del texto: el contenido de la línea baja un poco más allá
     crowd.style.left = `${Math.round(left - hr.left)}px`
     crowd.style.insetInlineEnd = 'auto'
@@ -1267,9 +1267,9 @@ const startSimulation = () => {
 .results-report { max-width: 860px; margin: 72px auto 0; }
 
 .figures {
-  /* 66 px de la fila de Biankas que asoma + ≥ 120 px de aire sobre ella (≥ 96 px en móvil) */
+  /* el aire de la banda: 128 px a 1440 (≥ 120 px, el listón) y 64 px como mínimo en móvil; la fila de Biankas que asoma va fuera, encima */
   margin-top: 0;
-  padding: clamp(56px, 8vw, 104px) var(--gutter);
+  padding: clamp(64px, 9vw, 128px) var(--gutter);
   background: var(--lime-500);
   color: var(--ink-950);
 }

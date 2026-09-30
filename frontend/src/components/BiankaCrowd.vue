@@ -122,12 +122,16 @@ const tagLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdTagUnd
 const setBubbleEl = (id, el) => { if (el) bubbleEls.set(id, el); else bubbleEls.delete(id) }
 const seedAgents = () => {
   // Personajes grandes y solapados (una multitud, no una retícula): el píxel crece con la pantalla.
-  // Cada Bianka se lee entera (orejas, cara y complemento): unas ~45 a la vista en un escritorio de
-  // 1440 px, con un solape moderado (≈ 14 % de lado a lado y ≈ 18 % de arriba abajo).
+  // Cada Bianka se lee entera (orejas, cara, complemento y un trozo de cuerpo): unas ~45 a la vista en un
+  // escritorio de 1440 px.
   P = W >= 2200 ? 8 : W >= 1900 ? 7 : W >= 1600 ? 6 : W >= 600 ? 5 : 4
   pxCss.value = `${P}px`
-  CX = 17 * P
-  RY = 21 * P
+  // En escritorio hay sitio para verlas: el paso entre Biankas es más holgado (solape ≈ un tercio de lado a lado y
+  // las orejas de la fila de abajo ya no se comen el cuerpo de la de arriba). En móvil, apretadas: cada píxel cuenta.
+  // Portátiles (900–1399 px): un punto intermedio para no quedarse sin caras en pantallas bajas.
+  const tier = W >= 1400 ? 2 : W >= 900 ? 1 : 0
+  CX = [17, 19, 20][tier] * P
+  RY = [21, 25, 26][tier] * P
   // La primera fila se coloca de modo que su cara quepa entera en la franja de muro que queda entre la barra y
   // la tarjeta (si no, ahí solo asomarían orejas); el resto de filas cuelga de esa; y la primera columna, con la
   // cara entera dentro del lienzo por la izquierda.
@@ -991,13 +995,18 @@ onUnmounted(() => {
   .readout-legend span { gap: 4px; }
   .readout-legend .swatch { width: 10px; height: 10px; }
 }
-/* móviles muy estrechos (320–360 px): las etiquetas de la cabecera caben en una línea */
-@media (max-width: 360px) {
+/* móviles muy estrechos (≤ 370 px): las etiquetas de la cabecera caben en una línea y la leyenda pasa a tres
+   columnas de dos filas (etiqueta arriba, cifra debajo): en monoespaciada, y en cualquier idioma, cabe sin cortar un «%» */
+@media (max-width: 370px) {
   .readout-head { gap: 2px 8px; letter-spacing: 0.06em; }
+  .readout-legend { display: grid; grid-template-columns: repeat(3, max-content); justify-content: space-between; gap: 0 8px; font-size: 11px; }
+  .readout-legend span { display: grid; grid-template-columns: 10px auto; column-gap: 4px; align-items: center; }
+  .readout-legend b { grid-column: 2; }
 }
 @media (max-width: 340px) {
+  .crowd-readout { padding-inline: 10px; }
   .readout-head { font-size: 10px; letter-spacing: 0.02em; }
-  .readout-legend { font-size: 10px; gap: 4px; }
+  .readout-legend { font-size: 10px; gap: 0 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .crowd-bubble { animation: none; }
