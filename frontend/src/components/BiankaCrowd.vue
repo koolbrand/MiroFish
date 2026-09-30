@@ -117,7 +117,7 @@ const seedAgents = () => {
   // Personajes grandes y solapados (una multitud, no una retícula): el píxel crece con la pantalla.
   // Cada Bianka se lee entera (orejas, cara y complemento): unas ~45 a la vista en un escritorio de
   // 1440 px, con un solape moderado (≈ 14 % de lado a lado y ≈ 18 % de arriba abajo).
-  P = W >= 1800 ? 8 : W >= 1500 ? 7 : W >= 1000 ? 6 : 5
+  P = W >= 2200 ? 8 : W >= 1900 ? 7 : W >= 1600 ? 6 : W >= 600 ? 5 : 4
   CX = 17 * P
   RY = 21 * P
   // La primera fila se coloca de modo que su cara quepa entera en la franja de muro que queda entre la barra y
@@ -127,7 +127,11 @@ const seedAgents = () => {
   const card = props.avoidEl && avoid.length ? avoid[0] : null
   const stripTop = (props.topInset || 0) + 3
   const stripBottom = card ? card.t - 3 : stripTop + 90
-  const yFirst = Math.round(stripTop + Math.max(0, (stripBottom - stripTop - 8 * P) / 2) - 13 * P)
+  // cuántas filas de caras caben en la franja (un móvil, dos; un escritorio, una) y se centran en ella
+  const stripH = stripBottom - stripTop
+  const nfit = Math.max(1, Math.floor((stripH - 8 * P) / RY) + 1)
+  const block = (nfit - 1) * RY + 8 * P
+  const yFirst = Math.round(stripTop + Math.max(0, (stripH - block) / 2) - 13 * P)
   const xFirst = 10 - 7 * P
   const cols = Math.ceil((W - xFirst) / CX) + 1
   const rows = Math.ceil((H - yFirst) / RY) + 1
@@ -229,7 +233,7 @@ const resize = () => {
   ctx = canvas.value.getContext('2d')
   const reseed = !agents.length || Math.abs(w - W) > 40 || Math.abs(h - H) > 80
   W = w; H = h
-  if (reseed) { measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = [] }
+  if (reseed) { measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = []; if (reducedMotion) settleOpinions() }
   measureAvoid()
   updateStats()
   if (!running) draw()
@@ -570,20 +574,20 @@ const draw = () => {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.imageSmoothingEnabled = false
   ctx.clearRect(0, 0, W, H)
-  const paint = (a, thick) => {
+  const paint = (a, lifted) => {
     const k = Math.min(1, (now - a.born) / 0.3)
     if (k <= 0) return
     // al nacer sube desde abajo en tres escalones (pixel art: sin interpolar)
     const rise = k < 1 ? Math.ceil((1 - k) * 3) * P : 0
     const dy = offsetOf(a) + rise
     drawBianka(ctx, {
-      x: a.x, y: a.y + dy, P, look: a.look, bucket: bucketOf(a.o), mirror: a.mirror, now, thick,
+      x: a.x, y: a.y + dy, P, look: a.look, bucket: bucketOf(a.o), mirror: a.mirror, now, lift: lifted,
       gaze: gazeOf(a), blink: now < a.blinkUntil, happy: now < a.happyUntil, talking: now < a.talkUntil,
     })
   }
   const talking = new Set(bubbles.value.map(b => b.agent))
   agents.forEach((a, i) => { if (a.shown && !talking.has(i)) paint(a, false) })
-  // quien habla sale al frente y con el contorno de tinta más grueso: el bocadillo siempre tiene dueña
+  // quien habla sale al frente y con una sombra dura (sin cambiar su contorno): el bocadillo siempre tiene dueña
   agents.forEach((a, i) => { if (a.shown && talking.has(i)) paint(a, true) })
   drawThreads()
   drawLeaders()
@@ -707,16 +711,22 @@ const onClick = (e) => {
   else react(a, 'bang', 0.8)
 }
 
-// Sin animación: las diez rondas de golpe y el resultado quieto.
+// Sin animación: el resultado quieto. En vez de repetir las diez rondas, se reparte la multitud donde suele acabar
+// un ensayo (la animación termina, medido en tres ejecuciones, en ≈ 45 % a favor, ≈ 45 % indecisos y ≈ 10 % en contra),
+// para que la portada quieta cuente lo mismo que la viva: un tira y afloja que se decanta, no «no se movió nada».
+// Se aplica tras cada siembra (al conocerse la tarjeta y al cambiar de tamaño), o la nueva multitud vuelve a empezar.
+const settleOpinions = () => {
+  const order = agents.map((a, i) => ({ i, k: a.lean + gauss() * 0.35 })).sort((p, q) => q.k - p.k)
+  const nFavor = Math.round(agents.length * 0.44)
+  const nAgainst = Math.round(agents.length * 0.1)
+  order.forEach(({ i }, rank) => {
+    agents[i].o = rank < nFavor ? 0.42 + Math.random() * 0.45
+      : rank >= order.length - nAgainst ? -(0.42 + Math.random() * 0.4)
+      : gauss() * 0.2
+  })
+}
 const renderStatic = () => {
-  for (let r = 0; r < ROUNDS; r++) {
-    const v = VALENCE[r]
-    for (const a of agents) {
-      const affinity = 1 + 1.3 * Math.max(0, Math.sign(v) * a.lean)
-      a.o = Math.max(-1, Math.min(1, a.o + v * (0.3 + 0.7 * Math.random()) * (1 - a.stub) * affinity))
-      a.o += (a.lean * 0.9 - a.o) * 0.25 * (r / ROUNDS)
-    }
-  }
+  settleOpinions()
   round.value = ROUNDS
   eventLabel.value = t(`home.crowdEvent${ROUNDS}`)
   updateStats()
@@ -726,6 +736,7 @@ const renderStatic = () => {
 watch(() => props.avoidEl, (el) => {
   if (!el || !agents.length || seededFor === el) return
   measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = []
+  if (reducedMotion) settleOpinions()
   measureAvoid(); updateStats(); if (!running) draw()
 })
 
@@ -883,6 +894,13 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 .readout-round { color: var(--kb-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* móviles muy estrechos (320–360 px): las dos etiquetas de la cabecera caben en una línea cada una */
+@media (max-width: 360px) {
+  .readout-head { gap: 8px; letter-spacing: 0.06em; white-space: nowrap; }
+}
+@media (max-width: 340px) {
+  .readout-head { font-size: 10px; letter-spacing: 0.02em; }
+}
 .readout-event {
   margin-top: 6px;
   font-family: var(--kb-font-sans);

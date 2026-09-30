@@ -22,13 +22,13 @@
         <div ref="stageCard" class="stage-card">
           <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
           <h1 class="stage-title">
-            <i18n-t keypath="home.stageTitleLine1" tag="span" class="line">
+            <i18n-t keypath="home.stageTitleLine1" scope="global" tag="span" class="line">
               <template #hl><span class="hl">{{ $t('home.stageTitleHl') }}</span></template>
             </i18n-t>
             <span class="line">{{ $t('home.stageTitleLine2') }}</span>
           </h1>
           <p class="stage-lede">
-            <i18n-t keypath="home.stageLede" tag="span">
+            <i18n-t keypath="home.stageLede" scope="global" tag="span">
               <template #crowd><strong>{{ $t('home.stageLedeCrowd') }}</strong></template>
             </i18n-t>
           </p>
@@ -91,14 +91,19 @@
                   <span class="drop-tip">{{ $t('home.uploadTip') }}</span>
                 </div>
               </div>
-              <button type="button" class="paste-toggle" :aria-expanded="pasteOpen" :disabled="loading" @click="pasteOpen = !pasteOpen">{{ $t('home.pasteToggle') }}</button>
+              <button type="button" class="paste-toggle" :aria-expanded="pasteOpen" :disabled="loading" @click="togglePaste">
+                <svg class="paste-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="10" height="11.5" rx="1.5"/><path d="M6 3V2h4v1M5.5 7.5h5M5.5 10.5h3.5" stroke-linecap="round"/></svg>
+                {{ $t('home.pasteToggle') }}
+              </button>
               <div v-if="pasteOpen" class="paste-box">
-                <textarea v-model="pasteText" class="field" rows="6" :placeholder="$t('home.pastePlaceholder')" :aria-label="$t('home.pastePlaceholder')" :disabled="loading"></textarea>
+                <textarea ref="pasteEl" v-model="pasteText" class="field" rows="6" :placeholder="$t('home.pastePlaceholder')" :aria-label="$t('home.pastePlaceholder')" :disabled="loading"></textarea>
                 <button type="button" class="paste-add" :disabled="!pasteText.trim() || loading" @click="addPasted">{{ $t('home.pasteAdd') }}</button>
               </div>
-              <p v-if="rejected.length" class="file-error" role="alert">
-                <span class="file-error-mark" aria-hidden="true">!</span>{{ rejectedText }}
-              </p>
+              <div v-if="rejected.length" class="file-error" role="alert">
+                <span class="file-error-mark" aria-hidden="true">!</span>
+                <span class="file-error-text">{{ rejectedText }}</span>
+                <button type="button" class="file-error-action" @click="pasteFromNotice">{{ $t('home.fileRejectedPaste') }}</button>
+              </div>
               <ul v-if="files.length" class="file-chips">
                 <li v-for="(file, index) in files" :key="file.name + index" class="file-chip">
                   <span class="file-chip-name" :title="file.name">{{ file.name }}</span>
@@ -167,9 +172,12 @@
             <!-- una Bianka que te guía: blanca mientras falta algo, lima y contenta cuando ya se puede lanzar -->
             <div class="composer-guide">
               <BiankaAvatar class="guide-face" :look="guideLook" :bucket="canSubmit ? 'favor' : 'undecided'" :happy="canSubmit" :headroom="8" :pixel="3" />
-              <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
-                {{ statusText }}
-              </p>
+              <div class="composer-copy">
+                <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
+                  {{ statusText }}
+                </p>
+                <p v-if="canSubmit" class="composer-note">{{ $t('home.readyNote') }}</p>
+              </div>
             </div>
             <button
               class="launch-btn"
@@ -189,7 +197,7 @@
         <div v-reveal class="section-head">
           <span class="kicker">{{ $t('home.workflowSequence') }}</span>
           <h2 class="section-title">
-            <i18n-t keypath="home.howTitle" tag="span">
+            <i18n-t keypath="home.howTitle" scope="global" tag="span">
               <template #hl><span class="hl alt">{{ $t('home.howTitleHl') }}</span></template>
             </i18n-t>
           </h2>
@@ -284,6 +292,7 @@ import ReportExample from '../components/ReportExample.vue'
 import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
+import { getPendingUpload, setPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import BiankaScene from '../components/BiankaScene.vue'
 import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
@@ -438,15 +447,28 @@ const loading = ref(false)
 const isDragOver = ref(false)
 const fileInput = ref(null)
 
+// Si el análisis falló y se «vuelve al inicio», el material y la pregunta vuelven al formulario (una sola vez):
+// nadie tiene que subirlo y escribirlo de nuevo.
+const pending = getPendingUpload()
+if (pending.isPending && pending.files.length) {
+  files.value = [...pending.files]
+  formData.value.simulationRequirement = pending.simulationRequirement
+  formData.value.projectName = pending.projectName
+  clearPendingUpload()
+}
+
+// El texto que está en el cuadro de pegar cuenta como un documento más aunque aún no se haya pulsado «Añadir»
+const hasPasted = computed(() => pasteOpen.value && pasteText.value.trim() !== '')
+const docCount = computed(() => files.value.length + (hasPasted.value ? 1 : 0))
 const canSubmit = computed(() =>
-  formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
+  formData.value.simulationRequirement.trim() !== '' && docCount.value > 0
 )
 
 const statusText = computed(() => {
   if (canSubmit.value) {
-    return files.value.length === 1
+    return docCount.value === 1
       ? t('home.readyOne')
-      : t('home.readyMany', { n: files.value.length })
+      : t('home.readyMany', { n: docCount.value })
   }
   return t('home.startHint')
 })
@@ -478,6 +500,18 @@ const handleDrop = (e) => {
 // Los archivos que no se pueden leer (un Word, un PowerPoint…) no se descartan en silencio: se avisa de cuáles y qué hacer.
 const pasteOpen = ref(false)
 const pasteText = ref('')
+const pasteEl = ref(null)
+const openPaste = () => {
+  pasteOpen.value = true
+  nextTick(() => pasteEl.value?.focus())
+}
+const togglePaste = () => (pasteOpen.value ? (pasteOpen.value = false) : openPaste())
+// desde el aviso de «no se puede leer»: el aviso se retira y el cuadro de pegar se abre listo para escribir
+const pasteFromNotice = () => {
+  clearTimeout(rejectedTimer)
+  rejected.value = []
+  openPaste()
+}
 let pastedCount = 0
 const addPasted = () => {
   const text = pasteText.value.trim()
@@ -524,17 +558,16 @@ const scrollToForm = () => {
 // Pasa al asistente: la subida y la llamada a la API se hacen en Process.
 const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
+  if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
 
-  import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
-    setPendingUpload(
-      files.value,
-      formData.value.simulationRequirement,
-      (formData.value.projectName || '').trim()
-    )
-    router.push({
-      name: 'Process',
-      params: { projectId: 'new' }
-    })
+  setPendingUpload(
+    files.value,
+    formData.value.simulationRequirement,
+    (formData.value.projectName || '').trim()
+  )
+  router.push({
+    name: 'Process',
+    params: { projectId: 'new' }
   })
 }
 </script>
@@ -706,7 +739,7 @@ const startSimulation = () => {
 .btn-outline {
   background: var(--kb-surface);
   color: var(--kb-text);
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
 }
 .btn-outline:hover { border-color: var(--ink-950); background: var(--cream-100); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
 .btn:active { transform: none; box-shadow: none; }
@@ -786,7 +819,7 @@ const startSimulation = () => {
   place-items: center;
   min-height: 176px;
   padding: 24px;
-  border: 1.5px dashed var(--kb-line-strong);
+  border: 1.5px dashed var(--kb-control-line);
   border-radius: 14px;
   background: var(--kb-surface-2);
   text-align: center;
@@ -819,19 +852,24 @@ const startSimulation = () => {
 }
 .drop-tip { margin-top: 2px; font-size: 0.8rem; color: var(--kb-muted); }
 .paste-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   align-self: flex-start;
   margin-top: 10px;
-  padding: 2px 0;
-  background: none;
-  border: 0;
-  font: inherit;
-  font-size: 0.88rem;
+  padding: 9px 14px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-control-line);
+  border-radius: 10px;
+  font: 500 0.9rem/1 var(--kb-font-sans);
   color: var(--kb-text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
-.paste-toggle:hover:not(:disabled) { background: rgba(204, 230, 115, 0.4); text-decoration-thickness: 2px; }
+.paste-toggle:hover:not(:disabled) { border-color: var(--ink-950); background: var(--lime-50); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
+.paste-toggle[aria-expanded='true'] { border-color: var(--ink-950); background: var(--lime-50); }
+.paste-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.paste-icon { flex: none; }
 .paste-box { display: grid; gap: 10px; margin-top: 10px; }
 .paste-add {
   justify-self: start;
@@ -847,8 +885,9 @@ const startSimulation = () => {
 .paste-add:disabled { opacity: 0.4; cursor: not-allowed; }
 .file-error {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px 10px;
   margin: 10px 0 0;
   padding: 10px 12px;
   background: var(--cream-100);
@@ -859,6 +898,19 @@ const startSimulation = () => {
   line-height: 1.4;
   color: var(--kb-text);
 }
+.file-error-text { flex: 1 1 200px; min-width: 0; text-wrap: pretty; }
+.file-error-action {
+  flex: none;
+  margin-inline-start: 30px;
+  padding: 6px 12px;
+  background: var(--lime-500);
+  border: 1px solid var(--ink-950);
+  border-radius: 6px;
+  font: 600 0.85rem/1 var(--kb-font-sans);
+  color: var(--ink-950);
+  cursor: pointer;
+}
+.file-error-action:hover { background: var(--lime-600); }
 .file-error-mark {
   flex: none;
   display: grid;
@@ -920,7 +972,7 @@ const startSimulation = () => {
   box-sizing: border-box;
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
   border-radius: 12px;
   background: var(--kb-surface);
   color: var(--kb-text);
@@ -941,7 +993,7 @@ const startSimulation = () => {
 .examples-label { flex-basis: 100%; margin-bottom: -2px; font-size: 0.85rem; color: var(--kb-muted); }   /* la etiqueta va sola arriba: los cuatro ejemplos caben en una fila */
 .example-chip {
   padding: 8px 12px;
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
   border-radius: 999px;
   background: var(--kb-surface);
   color: var(--kb-text);
@@ -973,6 +1025,8 @@ const startSimulation = () => {
   text-wrap: pretty;
 }
 .composer-status.ready { color: var(--kb-accent-text); font-weight: 600; }
+.composer-copy { display: grid; gap: 2px; min-width: 0; }
+.composer-note { max-width: 52ch; margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
 .launch-btn {
   display: inline-flex;
   align-items: center;
@@ -1104,6 +1158,9 @@ const startSimulation = () => {
 }
 .deliverables {
   display: grid;
+  align-self: start;
+  position: sticky;
+  top: 104px;
   gap: 20px;
   margin: 36px 0 0;
   padding: 0;
@@ -1250,6 +1307,7 @@ const startSimulation = () => {
 }
 @media (max-width: 960px) {
   .results-grid { grid-template-columns: minmax(0, 1fr); }
+  .deliverables { position: static; }
 }
 @media (min-width: 641px) and (max-height: 820px) {
   /* pantallas bajas (portátiles de 720–800 px): tarjeta compacta, todo cabe sin bajar */

@@ -184,6 +184,9 @@ docker run -d \
 - Comprobar a **320, 360, 390, 768, 1000, 1366×768, 1440×900 y 1920** px, en es/en/zh y con «reducir movimiento»: sin scroll horizontal, la tarjeta nunca pisa el marcador (los portátiles de 720–800 px de alto son el caso que falla) y ningún bocadillo corta texto.
 - Las pruebas sin interfaz funcionan con una sesión de PocketBase **falsa solo en el navegador** (`localStorage.pocketbase_auth`); en producción, además, `API_AUTH_TOKEN` temporal y borrarlo al acabar.
 - Los gráficos van animados (petición expresa) y nada de interfaz debe superar 700 ms.
+- Los campos, chips y botones de contorno usan `--kb-control-line` (#858585, ≥ 3:1 sobre blanco y crema, WCAG 1.4.11); `--kb-line` y `--kb-line-strong` son para divisores, no para controles.
+- Lo que hay tras pulsar «Iniciar simulación» también cuenta: `MainView.vue` muestra un aviso claro con «Reintentar» y «Volver al inicio» si falla el análisis o la construcción del mapa (antes quedaba un «generando…» eterno), y las cinco pantallas del proceso abren en «Mesa de trabajo» y reparten el encabezado en filas por debajo de 900 px.
+- La nota de duración del formulario («20–30 min») y las cifras de la portada salen de ejecuciones medidas (18, 26 y 35 min; 19, 23 y 113 personas): si cambia el motor, se vuelven a medir.
 
 ## 🔗 Useful Resources
 

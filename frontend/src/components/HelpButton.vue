@@ -40,7 +40,7 @@ const onClick = () => {
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   color: var(--kb-text-2);
   padding: 4px 10px 4px 6px;
   font-family: var(--kb-font-mono);

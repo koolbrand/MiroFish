@@ -5188,6 +5188,16 @@ watch(() => props.reportId, (newId) => {
 .log-msg.error { color: #EF5350; }
 .log-msg.warning { color: #FFA726; }
 .log-msg.success { color: #66BB6A; }
+
+/* Pantallas estrechas: informe arriba y flujo de trabajo debajo, en una sola columna que se desplaza */
+@media (max-width: 900px) {
+  .main-split-layout { flex-direction: column; overflow-y: auto; }
+  .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 22px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
+  .right-panel { flex: none; overflow: visible; }
+  .right-panel :is(.workflow-overview, .workflow-timeline, .wf-step, .wf-step-content, .wf-step-title-row) { min-width: 0; max-width: 100%; }
+  .timeline-item { grid-template-columns: 24px minmax(0, 1fr); }
+  :deep(.interview-display .qa-answer-header) { flex-wrap: wrap; gap: 4px 8px; }
+}
 </style>
 
 <style>

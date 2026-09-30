@@ -105,7 +105,7 @@
     "step01Title": "图谱构建",
     "step01Desc": "我们把你的文档变成一张“谁是谁、如何关联”的关系图。",
     "step02Title": "环境搭建",
-    "step02Desc": "我们生成有各自记忆、兴趣和声音的人物，让他们生活在有规则和节奏的网络里。",
+    "step02Desc": "我们为他们生成各自的记忆、兴趣和声音。",
     "step03Title": "开始模拟",
     "step03Desc": "数十位人物在两个社交平台上并行互动，一轮接一轮。",
     "step04Title": "报告生成",
@@ -195,7 +195,7 @@
     "chartRoundShort": "R",
     "chartAria": "示意图：十轮之后，{favor}% 支持，{undecided}% 犹豫，{against}% 反对。",
     "figuresLabel": "Simuloo 数据",
-    "figurePlatformsDesc": "均为模拟，并非真实平台：类似 X 与 Reddit",
+    "figurePlatformsDesc": "两种模拟的讨论风格：类似 X 与 Reddit。",
     "figureStepsDesc": "从文档到报告，无需配置",
     "closingTitle": "有即将发布的\n项目？",
     "closingHl": "先演练一遍。",
@@ -268,7 +268,7 @@
     "crowdReChanged_against": "仔细想想，还是不了。",
     "figureUnitMinutes": "分钟",
     "dropTouchTitle": "点按选择文档或图片",
-    "uploadTip": "Word 或 PowerPoint？请先导出为 PDF。",
+    "uploadTip": "Word 或 PowerPoint？可粘贴其文字，或先导出为 PDF。",
     "crowdHint": "点一点 Bianka，听听 TA 怎么想。",
     "crowdVoice10": "这正是我一直在找的。",
     "crowdVoice11": "这个价格，我要了。",
@@ -291,13 +291,15 @@
     "crowdReDiff_undecided_against_2": "不确定，也许我太草率了。",
     "crowdReDiff_against_favor_2": "大家一开始都这么说。",
     "crowdReDiff_against_undecided_2": "我不会浪费时间。",
-    "fileRejectedOne": "暂时无法读取“{name}”。请先导出为 PDF 再上传。",
-    "fileRejectedMany": "有 {n} 个文件未添加：格式不受支持。请先导出为 PDF。",
+    "fileRejectedOne": "暂时无法读取“{name}”。请导出为 PDF，或粘贴其文字。",
+    "fileRejectedMany": "有 {n} 个文件未添加：格式不受支持。请导出为 PDF，或粘贴其文字。",
     "crowdEventTag": "事件",
-    "pasteToggle": "想直接粘贴文字？",
+    "pasteToggle": "粘贴文字",
     "pastePlaceholder": "在这里粘贴简报文字…",
     "pasteAdd": "添加为文档",
-    "pastedFileName": "pasted-text"
+    "pastedFileName": "pasted-text",
+    "fileRejectedPaste": "粘贴文字",
+    "readyNote": "约需 20–30 分钟，何时进入下一步由你决定。关闭标签页后，项目会保留在历史记录中。"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -310,7 +312,14 @@
       "开始模拟",
       "报告生成",
       "深度互动"
-    ]
+    ],
+    "failTitle": "未能处理你的文档",
+    "failBodyNew": "分析失败了。你的材料还在：可以重试，或返回首页。",
+    "failBodyBuild": "关系图构建被中断。可以重试。",
+    "failBodyNoFiles": "没有待处理的文档（是否刷新了页面？）。请返回首页重新上传。",
+    "failRetry": "重试",
+    "failBack": "返回首页",
+    "failDetails": "技术细节"
   },
   "stepper": {
     "ariaLabel": "向导导航",

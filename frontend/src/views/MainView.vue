@@ -48,7 +48,7 @@
     <!-- Main Content Area -->
     <main class="content-area">
       <!-- Left Panel: Graph -->
-      <div class="panel-wrapper left" :style="leftPanelStyle" data-tour="main-graph-panel">
+      <div class="panel-wrapper left" :class="{ 'has-failure': failed }" :inert="failed || undefined" :style="leftPanelStyle" data-tour="main-graph-panel">
         <GraphPanel
           :graphData="graphData"
           :loading="graphLoading"
@@ -59,7 +59,23 @@
       </div>
 
       <!-- Right Panel: Step Components -->
-      <div class="panel-wrapper right" :style="rightPanelStyle" data-tour="main-step-panel">
+      <div class="panel-wrapper right" :class="{ 'has-failure': failed }" :style="rightPanelStyle" data-tour="main-step-panel">
+        <!-- Si algo falla (el análisis del documento o la construcción del mapa), se dice claro y con salida -->
+        <div v-if="failed" class="failure" role="alert">
+          <BiankaAvatar class="failure-face" :look="failureLook" bucket="undecided" :pixel="3" />
+          <div class="failure-body">
+            <h2 class="failure-title">{{ $t('main.failTitle') }}</h2>
+            <p class="failure-text">{{ failureText }}</p>
+            <div class="failure-actions">
+              <button v-if="canRetry" type="button" class="failure-retry" :disabled="loading" @click="retryFromError">{{ $t('main.failRetry') }}</button>
+              <router-link to="/" class="failure-back">{{ $t('main.failBack') }}</router-link>
+            </div>
+            <details class="failure-details">
+              <summary>{{ $t('main.failDetails') }}</summary>
+              <code>{{ error }}</code>
+            </details>
+          </div>
+        </div>
         <!-- Step 1: 图谱构建 -->
         <Step1GraphBuild 
           v-if="currentStep === 1"
@@ -101,6 +117,7 @@ import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProjectNameChip from '../components/ProjectNameChip.vue'
 import HelpButton from '../components/HelpButton.vue'
+import BiankaAvatar from '../components/BiankaAvatar.vue'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
 
@@ -117,7 +134,7 @@ const resolveMainTour = () => {
 }
 
 // Layout State
-const viewMode = ref('split') // graph | split | workbench
+const viewMode = ref(typeof window !== 'undefined' && window.innerWidth <= 900 ? 'workbench' : 'split') // graph | split | workbench (en móvil, solo uno a la vez)
 
 // Step State
 const currentStep = ref(1) // 1: 图谱构建, 2: 环境搭建, 3: 开始模拟, 4: 报告生成, 5: 深度互动
@@ -153,6 +170,20 @@ const rightPanelStyle = computed(() => {
 })
 
 // --- Status Computed ---
+// El aviso de fallo: qué ha pasado, en cristiano, y qué se puede hacer (el detalle técnico queda plegado)
+const failureLook = { ears: 'flop', body: 'bowtie' }
+const failed = computed(() => !!error.value && currentStep.value === 1)
+const noPending = computed(() => error.value === t('log.noPendingFilesError'))
+const failureText = computed(() => (noPending.value ? t('main.failBodyNoFiles') : currentProjectId.value === 'new' ? t('main.failBodyNew') : t('main.failBodyBuild')))
+const canRetry = computed(() => !noPending.value && (currentProjectId.value !== 'new' || getPendingUpload().isPending))
+const retryFromError = async () => {
+  if (loading.value) return
+  const isNew = currentProjectId.value === 'new'
+  error.value = ''
+  if (isNew) await handleNewProject()
+  else await startBuildGraph()
+}
+
 const statusClass = computed(() => {
   if (error.value) return 'error'
   if (currentPhase.value >= 2) return 'completed'
@@ -250,10 +281,14 @@ const handleNewProject = async () => {
     } else {
       error.value = res.error || 'Ontology generation failed'
       addLog(t('log.ontologyError', { error: error.value }))
+      ontologyProgress.value = null
+      currentPhase.value = -1
     }
   } catch (err) {
     error.value = err.message
     addLog(`Exception in handleNewProject: ${err.message}`)
+    ontologyProgress.value = null
+    currentPhase.value = -1
   } finally {
     loading.value = false
   }
@@ -627,5 +662,70 @@ watch(currentStep, (step, prev) => {
 
 .panel-wrapper.left {
   border-right: 1px solid var(--kb-line);
+}
+
+/* El aviso de fallo ocupa su alto natural arriba y el paso llena el resto (sin quedar recortado por abajo) */
+.panel-wrapper.right { display: flex; flex-direction: column; }
+.panel-wrapper.right :deep(.workbench-panel) { height: auto; flex: 1 1 0; min-height: 0; }
+/* mientras dura el fallo, lo que hay alrededor del aviso queda apagado: no dice «esperando…» ni «completada» */
+.panel-wrapper.left.has-failure > *, .panel-wrapper.right.has-failure :deep(.scroll-container) { opacity: 0.4; filter: grayscale(1); transition: opacity 0.2s ease; }
+.panel-wrapper.right.has-failure :deep(.scroll-container) { pointer-events: none; user-select: none; }
+
+/* Aviso de fallo (análisis o construcción del mapa) */
+.failure {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin: 20px 24px 8px;
+  padding: 18px 20px;
+  background: var(--cream-100, #F2F1EF);
+  border: 2px solid var(--ink-950, #111);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--ink-950, #111);
+}
+.failure-face { flex: none; }
+.failure-body { min-width: 0; }
+.failure-title { margin: 0 0 6px; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+.failure-text { margin: 0 0 14px; font-size: 0.92rem; line-height: 1.5; color: var(--kb-text-2, #2A2A2A); text-wrap: pretty; }
+.failure-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.failure-retry, .failure-back {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--ink-950, #111);
+  border-radius: 8px;
+  font: 600 0.9rem/1 var(--kb-font-sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+.failure-retry { background: var(--lime-500, #CCE673); color: var(--ink-950, #111); }
+.failure-retry:hover:not(:disabled) { background: var(--lime-600, #ACC451); }
+.failure-retry:disabled { opacity: 0.5; cursor: not-allowed; }
+.failure-back { background: #fff; color: var(--ink-950, #111); }
+.failure-back:hover { background: var(--cream-100, #F2F1EF); }
+.failure-details { margin-top: 12px; font-size: 0.8rem; color: var(--kb-muted, #6E6E6E); }
+.failure-details summary { cursor: pointer; }
+.failure-details code { display: block; margin-top: 6px; padding: 8px 10px; background: #fff; border: 1px solid var(--kb-line, #DDD); border-radius: 6px; font-family: var(--kb-font-mono); font-size: 0.75rem; overflow-wrap: anywhere; }
+
+/* Pantallas estrechas: el encabezado se reparte en filas y el aviso de fallo cabe entero */
+@media (max-width: 900px) {
+  .main-view { height: 100dvh; }
+  .app-header {
+    display: flex;
+    flex-wrap: wrap;
+    height: auto;
+    gap: 8px 12px;
+    padding: 10px 16px;
+  }
+  .header-left { flex: 1 1 auto; }
+  .header-center { order: 3; flex: 1 1 100%; }
+  .view-switcher { width: 100%; }
+  .switch-btn { flex: 1; padding-inline: 8px; }
+  .header-right { flex: 1 1 100%; justify-content: space-between; gap: 10px; }
+  .header-right :deep(.app-version-badge), .step-divider { display: none; }
+  .failure { margin: 14px 14px 8px; padding: 16px; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .failure { flex-direction: column; }
 }
 </style>

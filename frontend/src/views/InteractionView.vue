@@ -398,4 +398,22 @@ onMounted(() => {
 .panel-wrapper.left {
   border-right: 1px solid var(--kb-line);
 }
+
+/* Pantallas estrechas: el encabezado se reparte en filas (el mapa y la mesa de trabajo no caben juntos) */
+@media (max-width: 900px) {
+  .main-view { height: 100dvh; }
+  .app-header {
+    display: flex;
+    flex-wrap: wrap;
+    height: auto;
+    gap: 8px 12px;
+    padding: 10px 16px;
+  }
+  .header-left { flex: 1 1 auto; }
+  .header-center { order: 3; flex: 1 1 100%; }
+  .view-switcher { width: 100%; }
+  .switch-btn { flex: 1; padding-inline: 8px; }
+  .header-right { flex: 1 1 100%; justify-content: space-between; gap: 10px; }
+  .header-right :deep(.app-version-badge), .step-divider { display: none; }
+}
 </style>

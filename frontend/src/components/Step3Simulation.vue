@@ -1764,4 +1764,11 @@ onUnmounted(() => {
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
 }
+
+/* Pantallas estrechas: la barra de control y las tarjetas de plataforma se reparten en filas */
+@media (max-width: 900px) {
+  .control-bar { height: auto; flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px; }
+  .status-group { flex-wrap: wrap; width: 100%; }
+  .platform-status { flex: 1 1 150px; min-width: 0; }
+}
 </style>

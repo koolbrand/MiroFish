@@ -288,7 +288,7 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-turn .q.current { color: var(--kb-accent-text); }
 .brief-turn .a { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--kb-line); color: var(--kb-text-2); white-space: pre-wrap; }
 .brief-answer textarea, .brief-draft textarea {
-  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-line); border-radius: 10px; resize: vertical;
+  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-control-line); border-radius: 10px; resize: vertical;
 }
 .brief-answer-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .brief-btn {

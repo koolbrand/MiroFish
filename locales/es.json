@@ -105,7 +105,7 @@
     "step01Title": "Lee la realidad",
     "step01Desc": "Convertimos tus documentos en un mapa de quién es quién y cómo se conectan.",
     "step02Title": "Construye el mundo",
-    "step02Desc": "Creamos personas con memoria, intereses y voz propias, dentro de una red con sus reglas y sus ritmos.",
+    "step02Desc": "Creamos personas con memoria, intereses y voz propias.",
     "step03Title": "Ejecuta la simulación",
     "step03Desc": "Decenas de personas interactúan en paralelo en dos redes sociales, ronda tras ronda.",
     "step04Title": "Lee el informe",
@@ -195,7 +195,7 @@
     "chartRoundShort": "R",
     "chartAria": "Gráfico ilustrativo: tras diez rondas, {favor} % a favor, {undecided} % indecisos y {against} % en contra.",
     "figuresLabel": "Simuloo en cifras",
-    "figurePlatformsDesc": "Simuladas, no reales: al estilo de X y de Reddit",
+    "figurePlatformsDesc": "Dos estilos de conversación simulados: tipo X y tipo Reddit.",
     "figureStepsDesc": "Del documento al informe, sin configurar nada",
     "closingTitle": "¿Tienes un lanzamiento a la vista?",
     "closingHl": "Ensáyalo antes.",
@@ -268,7 +268,7 @@
     "crowdReChanged_against": "Pensándolo mejor, no me convence.",
     "figureUnitMinutes": "minutos",
     "dropTouchTitle": "Toca para elegir documentos o imágenes",
-    "uploadTip": "¿Word o PowerPoint? Expórtalo antes a PDF.",
+    "uploadTip": "¿Word o PowerPoint? Pega su texto o expórtalo a PDF.",
     "crowdHint": "Pulsa una Bianka y te cuenta qué piensa.",
     "crowdVoice10": "Justo lo que estaba buscando.",
     "crowdVoice11": "Por ese precio, me lo quedo.",
@@ -291,13 +291,15 @@
     "crowdReDiff_undecided_against_2": "No sé, quizá me estoy precipitando.",
     "crowdReDiff_against_favor_2": "Eso dicen todos al principio.",
     "crowdReDiff_against_undecided_2": "Yo no perdería el tiempo.",
-    "fileRejectedOne": "«{name}» no se puede leer todavía. Expórtalo a PDF y súbelo de nuevo.",
-    "fileRejectedMany": "{n} archivos no se han añadido: formato no admitido. Expórtalos a PDF.",
+    "fileRejectedOne": "«{name}» no se puede leer todavía. Expórtalo a PDF o pega su texto.",
+    "fileRejectedMany": "{n} archivos no se han añadido: formato no admitido. Expórtalos a PDF o pega su texto.",
     "crowdEventTag": "Evento",
-    "pasteToggle": "¿Prefieres pegar el texto?",
+    "pasteToggle": "Pegar texto",
     "pastePlaceholder": "Pega aquí el texto de tu brief…",
     "pasteAdd": "Añadir como documento",
-    "pastedFileName": "texto-pegado"
+    "pastedFileName": "texto-pegado",
+    "fileRejectedPaste": "Pegar texto",
+    "readyNote": "Tarda unos 20–30 min y tú decides cuándo pasar de un paso al siguiente. Si cierras la pestaña, el proyecto queda en tu historial."
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -310,7 +312,14 @@
       "Ejecutar simulación",
       "Generar informe",
       "Interacción profunda"
-    ]
+    ],
+    "failTitle": "No hemos podido preparar tu documento",
+    "failBodyNew": "El análisis ha fallado. Tu material sigue aquí: puedes reintentar o volver al inicio.",
+    "failBodyBuild": "La construcción del mapa se ha interrumpido. Puedes reintentarlo.",
+    "failBodyNoFiles": "No hay ningún documento pendiente (¿has recargado la página?). Vuelve al inicio y súbelo de nuevo.",
+    "failRetry": "Reintentar",
+    "failBack": "Volver al inicio",
+    "failDetails": "Detalle técnico"
   },
   "stepper": {
     "ariaLabel": "Navegación del asistente",

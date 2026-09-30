@@ -6,6 +6,7 @@
  *   oliva #5C6C16 sobre blanco / crema .... 5,81 / 5,15  (texto de acento, AA)
  *   lima sobre #0A0A0A (fondos oscuros) .... 14,27
  *   #ACC451 sobre blanco ................... 1,95  (solo decorativo, nunca texto)
+ *   borde de control #858585 sobre blanco / crema  3,69 / 3,27  (WCAG 1.4.11: ≥ 3:1)
  */
 :root {
   /* Primitivos: rampa lima (OKLCH, tono 120 constante) y neutros cálidos */
@@ -18,6 +19,7 @@
   --ink-800: #2A2A2A;
   --gray-600: #6E6E6E;
   --gray-500: #8A8A8A;
+  --gray-400: #858585;
   --gray-300: #CFCFCF;
   --gray-200: #DDDDDD;
   --gray-100: #ECECEC;
@@ -34,6 +36,7 @@
   --kb-subtle: var(--gray-600);           /* metadatos: #6E6E6E = 4,52 sobre crema (AA); #8A8A8A daba 3,06 */
   --kb-line: var(--gray-200);
   --kb-line-strong: var(--gray-300);
+  --kb-control-line: var(--gray-400);     /* borde de campos, chips y botones: lo que hace que se vean como controles */
   --kb-soft: var(--gray-100);
   --kb-accent-solid: var(--lime-500);     /* rellenos de acción y highlights */
   --kb-accent-hover: var(--lime-600);

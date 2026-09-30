@@ -99,14 +99,14 @@ const SCENES = {
     const total = cols * rows
     for (let i = 0; i < total; i++) {
       const col = i % cols, row = Math.floor(i / cols)
-      const born = 0.4 + i * 0.5
+      const born = i < 3 ? 0 : 0.25 + (i - 3) * 0.35   // tres ya están al llegar; el resto se suma en ≈ 2 s (nunca una tarjeta a medio llenar)
       const u = ease((t - born) / 0.35); if (u <= 0) continue
       const x = 8 + col * ((W - 76) / (cols - 1)) + ((row % 2) ? 8 : 0), y = 8 + row * 58
       const wave = t > total * 0.5 + 1 && ((t - (total * 0.5 + 1)) * 6 - i) % (total * 3) < 1.2 ? -Q * 2 : 0
       drawBianka(ctx, { x, y: y + (u < 1 ? (1 - u) * 20 : 0) + wave + (u >= 1 ? bob(t + i * 0.3) / P : 0), P: Q, look: mk(i), bucket: buckets[i], mirror: i % 2 === 1, now: t, blink: blinkAt(t + i), gaze: [0, 0] })
     }
     // marco de «mundo» que se va completando
-    const done = Math.min(1, t / (total * 0.5 + 0.6))
+    const done = Math.min(1, t / 2.4)
     rect(4, H - 8, (W - 8) * done, 3, LIME); rect(4, H - 8, W - 8, 1, INK)
   } },
 
@@ -214,5 +214,5 @@ onUnmounted(() => { stop(); interObs?.disconnect(); document.removeEventListener
   image-rendering: pixelated;
   transition: opacity 0.5s ease, filter 0.5s ease;
 }
-.scene.dim { opacity: 0.45; filter: grayscale(0.6); }
+.scene.dim { opacity: 0.72; filter: grayscale(0.2); }
 </style>

@@ -73,7 +73,7 @@ onUnmounted(() => {
 .switcher-trigger {
   background: transparent;
   color: var(--kb-text-2);
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
   padding: 4px 12px;
   font-family: var(--kb-font-mono);
   font-size: 0.8rem;

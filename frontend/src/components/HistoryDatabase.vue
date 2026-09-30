@@ -75,6 +75,7 @@
 
     <!-- Sin simulaciones todavía -->
     <div v-else class="history-empty">
+      <BiankaAvatar class="history-empty-face" :look="emptyLook" bucket="undecided" :pixel="4" />
       <p class="history-empty-title">{{ $t('history.emptyTitle') }}</p>
       <p class="history-empty-body">{{ $t('history.emptyBody') }}</p>
       <a href="#ensayo" class="history-empty-cta">{{ $t('history.emptyCta') }} <span aria-hidden="true">↑</span></a>
@@ -168,6 +169,9 @@ import { useI18n } from 'vue-i18n'
 import { getSimulationHistory, deleteSimulation } from '../api/simulation'
 import { vReveal } from '../composables/useReveal'
 import BiankaAvatar from './BiankaAvatar.vue'
+
+// la Bianka que espera en el historial vacío: dudosa (blanca), con gafas, mirando al frente
+const emptyLook = { ears: 'up', face: 'glasses', body: 'bowtie' }
 
 const router = useRouter()
 const route = useRoute()
@@ -589,9 +593,17 @@ onActivated(() => {
   justify-items: start;
   gap: 8px;
   padding: clamp(28px, 4vw, 40px);
-  border: 1.5px dashed var(--kb-line-strong);
+  border: 1.5px dashed var(--kb-control-line);
   border-radius: 16px;
   background: var(--kb-surface-2);
+}
+.history-empty-face { margin-bottom: 4px; }
+/* con sitio, la Bianka va al lado del texto (no arriba, dejando media tarjeta vacía) */
+@media (min-width: 720px) {
+  .history-empty { grid-template-columns: auto minmax(0, 1fr); column-gap: 32px; align-items: center; }
+  .history-empty-face { grid-row: 1 / span 3; margin: 0; }
+  .history-empty > :not(.history-empty-face) { grid-column: 2; }
+  .history-empty-cta { justify-self: start; }
 }
 .history-empty-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
 .history-empty-body { max-width: 60ch; margin: 0; color: var(--kb-text-2); line-height: 1.5; text-wrap: pretty; }
@@ -709,7 +721,7 @@ onActivated(() => {
   padding: 11px 18px; border-radius: 10px; font: 600 0.95rem/1 var(--kb-font-sans); cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.kb-btn.ghost { border: 1px solid var(--kb-line-strong); background: var(--kb-surface); color: var(--kb-text); }
+.kb-btn.ghost { border: 1px solid var(--kb-control-line); background: var(--kb-surface); color: var(--kb-text); }
 .kb-btn.ghost:hover:not(:disabled) { border-color: var(--ink-950); }
 .kb-btn.danger { border: 1px solid var(--kb-danger); background: var(--kb-danger); color: #fff; }
 .kb-btn.danger:hover:not(:disabled) { background: #B91C1C; border-color: #B91C1C; }

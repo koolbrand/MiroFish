@@ -105,7 +105,7 @@
     "step01Title": "Read the reality",
     "step01Desc": "We turn your documents into a map of who is who and how they connect.",
     "step02Title": "Build the world",
-    "step02Desc": "We create people with their own memory, interests and voice, inside a network with its own rules and rhythms.",
+    "step02Desc": "We create people with their own memory, interests and voice.",
     "step03Title": "Run the simulation",
     "step03Desc": "Dozens of people interact in parallel on two social networks, round after round.",
     "step04Title": "Read the report",
@@ -195,7 +195,7 @@
     "chartRoundShort": "R",
     "chartAria": "Illustrative chart: after ten rounds, {favor}% in favour, {undecided}% undecided and {against}% against.",
     "figuresLabel": "Simuloo in numbers",
-    "figurePlatformsDesc": "Simulated, not real: in the style of X and Reddit",
+    "figurePlatformsDesc": "Two simulated conversation styles: X-like and Reddit-like.",
     "figureStepsDesc": "From document to report, nothing to configure",
     "closingTitle": "Got a launch coming up?",
     "closingHl": "Rehearse it first.",
@@ -268,7 +268,7 @@
     "crowdReChanged_against": "On second thought, not for me.",
     "figureUnitMinutes": "minutes",
     "dropTouchTitle": "Tap to choose documents or images",
-    "uploadTip": "Word or PowerPoint? Export it to PDF first.",
+    "uploadTip": "Word or PowerPoint? Paste its text or export it to PDF.",
     "crowdHint": "Tap a Bianka to hear what they think.",
     "crowdVoice10": "Exactly what I was looking for.",
     "crowdVoice11": "At that price, I'm in.",
@@ -291,13 +291,15 @@
     "crowdReDiff_undecided_against_2": "Not sure, maybe I'm being hasty.",
     "crowdReDiff_against_favor_2": "Everyone says that at first.",
     "crowdReDiff_against_undecided_2": "I wouldn't waste my time.",
-    "fileRejectedOne": "“{name}” can’t be read yet. Export it to PDF and upload it again.",
-    "fileRejectedMany": "{n} files weren’t added: unsupported format. Export them to PDF.",
+    "fileRejectedOne": "“{name}” can’t be read yet. Export it to PDF or paste its text.",
+    "fileRejectedMany": "{n} files weren’t added: unsupported format. Export them to PDF or paste their text.",
     "crowdEventTag": "Event",
-    "pasteToggle": "Rather paste the text?",
+    "pasteToggle": "Paste text",
     "pastePlaceholder": "Paste the text of your brief here…",
     "pasteAdd": "Add as a document",
-    "pastedFileName": "pasted-text"
+    "pastedFileName": "pasted-text",
+    "fileRejectedPaste": "Paste text",
+    "readyNote": "Takes about 20–30 min, and you decide when to move from one step to the next. If you close the tab, the project stays in your history."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -310,7 +312,14 @@
       "Run Simulation",
       "Report Generation",
       "Deep Interaction"
-    ]
+    ],
+    "failTitle": "We couldn't process your document",
+    "failBodyNew": "The analysis failed. Your material is still here: retry or go back to the start.",
+    "failBodyBuild": "Building the map was interrupted. You can try again.",
+    "failBodyNoFiles": "There's no pending document (did you reload the page?). Go back to the start and upload it again.",
+    "failRetry": "Retry",
+    "failBack": "Back to the start",
+    "failDetails": "Technical detail"
   },
   "stepper": {
     "ariaLabel": "Wizard navigation",

@@ -188,8 +188,8 @@ export const makeLook = (rng = Math.random) => {
   }
 }
 
-export const spriteFor = (look, bucket, thick = false) => {
-  const key = `${look.key}|${bucket}${thick ? '|t' : ''}`
+export const spriteFor = (look, bucket) => {
+  const key = `${look.key}|${bucket}`
   let spr = spriteCache.get(key)
   if (spr) return spr
   const colors = LOOK[bucket]
@@ -230,20 +230,6 @@ export const spriteFor = (look, bucket, thick = false) => {
       if (grid[r][c]) continue
       if ((grid[r - 1]?.[c]) || (grid[r + 1]?.[c]) || grid[r][c - 1] || grid[r][c + 1]) outline.push([r, c])
     }
-  }
-  // «habla»: el contorno de tinta se ensancha una celda más, para que quien habla destaque en el muro
-  if (thick) {
-    const have = new Set(outline.map(([r, c]) => `${r}:${c}`))
-    const extra = []
-    for (let r = 0; r < GH; r++) {
-      for (let c = 0; c < GW; c++) {
-        if (grid[r][c] || have.has(`${r}:${c}`)) continue
-        let near = false
-        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) if (have.has(`${r + dr}:${c + dc}`)) { near = true; break }
-        if (near) extra.push([r, c])
-      }
-    }
-    outline.push(...extra)
   }
   // halo crema de una celda alrededor del contorno: al solaparse, cada Bianka se recorta limpia
   // sobre la de detrás (como una pegatina) en vez de fundirse con ella
@@ -305,18 +291,40 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
   else { cell(18, 12); cell(18, 13); cell(19, 12) }
 }
 
+// Silueta de tinta de una Bianka (con su halo): la sombra dura de quien habla.
+const silCache = new Map()
+const silhouetteFor = (look, bucket) => {
+  const key = `${look.key}|${bucket}`
+  let sil = silCache.get(key)
+  if (sil) return sil
+  const spr = spriteFor(look, bucket)
+  sil = document.createElement('canvas')
+  sil.width = spr.width; sil.height = spr.height
+  const g = sil.getContext('2d')
+  g.drawImage(spr, 0, 0)
+  g.globalCompositeOperation = 'source-in'
+  g.fillStyle = PAL.k
+  g.fillRect(0, 0, sil.width, sil.height)
+  silCache.set(key, sil)
+  return sil
+}
+
 // Sprite + cara en (x, y) = esquina superior izquierda de la retícula de la Bianka.
+// `lift`: sale al frente con una sombra dura de una celda (como las tarjetas), sin tocar su contorno.
 export const drawBianka = (ctx, opts) => {
-  const { x, y, P, look, bucket, mirror = false, thick = false } = opts
-  const spr = spriteFor(look, bucket, thick)
+  const { x, y, P, look, bucket, mirror = false, lift = false } = opts
+  const spr = spriteFor(look, bucket)
   const sx = x - OX * P, sy = y - OY * P
+  const sil = lift ? silhouetteFor(look, bucket) : null
   if (mirror) {
     ctx.save()
     ctx.translate(sx + GW * P, sy)
     ctx.scale(-1, 1)
+    if (sil) ctx.drawImage(sil, -P, P, GW * P, GH * P)
     ctx.drawImage(spr, 0, 0, GW * P, GH * P)
     ctx.restore()
   } else {
+    if (sil) ctx.drawImage(sil, sx + P, sy + P, GW * P, GH * P)
     ctx.drawImage(spr, sx, sy, GW * P, GH * P)
   }
   drawFace(ctx, opts)
