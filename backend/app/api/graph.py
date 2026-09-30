@@ -3,13 +3,15 @@
 采用项目上下文机制，服务端持久化状态
 """
 
+import io
 import os
 import traceback
 import threading
-from flask import request, jsonify
+from flask import request, jsonify, send_file
 
 from . import graph_bp
 from ..config import Config
+from ..services import web_research as web_research_service
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
@@ -119,6 +121,35 @@ def get_project(project_id: str):
         "success": True,
         "data": project.to_dict()
     })
+
+
+@graph_bp.route('/project/<project_id>/research', methods=['GET'])
+def download_project_research(project_id: str):
+    """
+    Descarga el documento de la investigación en internet del proyecto
+    (text/markdown, investigacion-internet.md). 404 si no la tiene: solo
+    existe cuando la investigación encontró algo y entró en el material.
+    """
+    project = ProjectManager.get_project(project_id)
+    if not project:
+        return jsonify({
+            "success": False,
+            "error": t('api.projectNotFound', id=project_id)
+        }), 404
+
+    markdown = ProjectManager.get_research_document(project_id)
+    if markdown is None:
+        return jsonify({
+            "success": False,
+            "error": "Este proyecto no tiene investigación en internet"
+        }), 404
+
+    return send_file(
+        io.BytesIO(markdown.encode('utf-8')),
+        mimetype='text/markdown',
+        as_attachment=True,
+        download_name=ProjectManager.RESEARCH_DOCUMENT_FILENAME
+    )
 
 
 @graph_bp.route('/project/list', methods=['GET'])
@@ -387,6 +418,98 @@ def create_project_from_upload(simulation_requirement: str, project_name: str, u
     return project, document_texts
 
 
+# ============== Investigación en internet (opcional, antes de la ontología) ==============
+
+WEB_RESEARCH_GENERATED = "web_research"
+# Cabecera del documento dentro del texto extraído. Distinta de la de un archivo
+# subido («=== nombre ===») para poder quitarla sin tocar el material del usuario.
+_RESEARCH_TEXT_HEADER = (
+    f"\n\n=== {ProjectManager.RESEARCH_DOCUMENT_FILENAME} (investigación automática) ===\n"
+)
+_RESEARCH_KEYS = ("status", "sources", "queries", "error", "note", "usage", "model",
+                  "created_at", "duration_s")
+
+
+def read_web_research_flag(form) -> bool:
+    """Campo de formulario opcional `web_research` ("true"/"1"). Sin él, desactivado."""
+    value = form.get('web_research', '')
+    return isinstance(value, str) and value.strip().lower() in ('true', '1')
+
+
+def _drop_previous_research(project, extracted: str) -> str:
+    """
+    Quita del material una investigación anterior (solo pasa si se repite tras
+    un corte a medias). Devuelve el texto extraído sin ella.
+    """
+    stripped = extracted.split(_RESEARCH_TEXT_HEADER, 1)[0]
+    project.files = [f for f in project.files if f.get("generated") != WEB_RESEARCH_GENERATED]
+    if stripped != extracted:
+        ProjectManager.save_extracted_text(project.project_id, stripped)
+        project.total_text_length = len(stripped)
+    ProjectManager.delete_research_document(project.project_id)
+    return stripped
+
+
+def run_project_web_research(project, document_texts=None, locale=None):
+    """
+    Investiga en internet el tema del proyecto y, si encuentra algo
+    (`status == done`), lo añade al material: `files/investigacion-internet.md`,
+    una entrada en `project.files` con `"generated": "web_research"` y su texto
+    al final del texto extraído (así entra en la ontología y en el grafo).
+
+    Guarda el resultado (sin el Markdown) en `project.web_research` y el
+    proyecto en disco. Nunca lanza: si falla o no encuentra nada, el proyecto
+    sigue sin ella. Devuelve `document_texts` con el documento añadido si entró
+    (None si se pasó None: quien llama leerá el texto extraído de disco).
+    """
+    texts = list(document_texts) if document_texts is not None else None
+    project_id = project.project_id
+    extracted = None
+    try:
+        extracted = _drop_previous_research(project, ProjectManager.get_extracted_text(project_id) or "")
+        material = extracted or "\n\n".join(texts or [])
+        result = web_research_service.research_for_brief(
+            project.simulation_requirement or "", material, locale or get_locale()
+        )
+    except Exception as exc:  # noqa: BLE001 — la investigación nunca tumba el proyecto
+        logger.error(f"Error preparando la investigación en internet de {project_id}: {type(exc).__name__}: {exc}")
+        result = web_research_service.failed_result("Error interno al preparar la investigación en internet")
+
+    in_material, document = False, None
+    if result.get("status") == "done" and result.get("markdown") and extracted is not None:
+        markdown = result["markdown"]
+        try:
+            info = ProjectManager.save_research_document(project_id, markdown)
+            document = ProjectManager.RESEARCH_DOCUMENT_FILENAME
+            new_text = extracted + _RESEARCH_TEXT_HEADER + markdown
+            ProjectManager.save_extracted_text(project_id, new_text)
+            project.files.append({
+                "filename": document,
+                "size": info["size"],
+                "generated": WEB_RESEARCH_GENERATED,
+            })
+            project.total_text_length = len(new_text)
+            if texts is not None:
+                texts.append(markdown)
+            in_material = True
+        except OSError as exc:
+            logger.warning(f"No se pudo añadir la investigación al material de {project_id}: {exc}")
+            result = {**result, "error": "No se pudo añadir la investigación al material"}
+
+    stored = {key: result.get(key) for key in _RESEARCH_KEYS}
+    stored.update(in_material=in_material, document=document if in_material else None)
+    project.web_research = stored
+    try:
+        ProjectManager.save_project(project)
+    except OSError as exc:
+        logger.warning(f"No se pudo guardar la investigación en el proyecto {project_id}: {exc}")
+    logger.info(
+        f"Investigación en internet de {project_id}: {stored['status']}"
+        f"{' (añadida al material)' if in_material else ''}"
+    )
+    return texts
+
+
 def generate_project_ontology(project, document_texts, additional_context=None):
     """
     Genera la ontología con el LLM y la guarda en el proyecto
@@ -428,7 +551,10 @@ def generate_ontology():
         simulation_requirement: 模拟需求描述（必填）
         project_name: 项目名称（可选）
         additional_context: 额外说明（可选）
-        
+        web_research: "true"/"1" para investigar en internet antes de la
+            ontología (opcional; sin él la respuesta no cambia). Con él, la
+            respuesta añade "web_research" (el resultado, sin el Markdown).
+
     返回：
         {
             "success": true,
@@ -453,6 +579,7 @@ def generate_ontology():
         try:
             simulation_requirement, project_name, additional_context, uploaded_files = \
                 read_ontology_form(request.form, request.files)
+            web_research = read_web_research_flag(request.form)
             # 创建项目 + 保存文件并提取文本
             project, document_texts = create_project_from_upload(
                 simulation_requirement, project_name, uploaded_files
@@ -463,19 +590,26 @@ def generate_ontology():
                 "error": rejected.message
             }), rejected.status_code
 
+        # Investigación en internet (opcional): si encuentra algo, entra en el material
+        if web_research:
+            document_texts = run_project_web_research(project, document_texts, get_locale())
+
         # Generar ontología
         generate_project_ontology(project, document_texts, additional_context)
 
+        data = {
+            "project_id": project.project_id,
+            "project_name": project.name,
+            "ontology": project.ontology,
+            "analysis_summary": project.analysis_summary,
+            "files": project.files,
+            "total_text_length": project.total_text_length
+        }
+        if web_research:
+            data["web_research"] = project.web_research
         return jsonify({
             "success": True,
-            "data": {
-                "project_id": project.project_id,
-                "project_name": project.name,
-                "ontology": project.ontology,
-                "analysis_summary": project.analysis_summary,
-                "files": project.files,
-                "total_text_length": project.total_text_length
-            }
+            "data": data
         })
         
     except Exception as e:

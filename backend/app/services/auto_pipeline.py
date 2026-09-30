@@ -1,6 +1,8 @@
 """
 Modo automático: el servidor encadena las cinco etapas (ontología → grafo →
 preparación → simulación → informe) aunque el usuario cierre la pestaña.
+Si se pidió, antes de la ontología va la investigación en internet (etapa
+«research»): nunca hace fallar el pipeline y no se repite si ya hay resultado.
 
 Hace la misma secuencia y con los mismos parámetros que la pantalla, llamando
 a las mismas rutas con `app.test_client()` y el secreto interno del proceso
@@ -168,6 +170,18 @@ def _ontology_done(project) -> bool:
     return bool(project.ontology)
 
 
+def _research_pending(project) -> bool:
+    """
+    ¿Falta la investigación en internet? Solo antes de la ontología (después
+    ya no alimentaría nada) y si no hay resultado, sea el que sea: un
+    `failed` o `empty` tampoco se repite (cuesta dinero y el proyecto sigue).
+    """
+    if _ontology_done(project):
+        return False
+    research = project.web_research
+    return not (isinstance(research, dict) and research.get("status"))
+
+
 def _graph_done(project) -> bool:
     return project.status == ProjectStatus.GRAPH_COMPLETED and bool(project.graph_id)
 
@@ -213,8 +227,11 @@ def _is_alive(simulation_id: str) -> bool:
     return simulation_id in SimulationRunner.get_running_simulations()
 
 
-def _estimate_stage(project, previous_stage: Optional[str]) -> Tuple[str, Optional[str]]:
+def _estimate_stage(project, previous_stage: Optional[str],
+                    web_research: bool = False) -> Tuple[str, Optional[str]]:
     """Primera etapa sin completar (para que la respuesta de resume ya diga adónde ir)."""
+    if web_research and _research_pending(project):
+        return "research", None
     if not _ontology_done(project):
         return "ontology", None
     if not _graph_done(project):
@@ -286,6 +303,7 @@ class AutoPipelineRunner:
         previous_stage: Optional[str] = None,
         document_texts=None,
         additional_context: Optional[str] = None,
+        web_research: bool = False,
     ):
         self.project_id = project_id
         self.run_id = run_id
@@ -293,6 +311,7 @@ class AutoPipelineRunner:
         self.previous_stage = previous_stage
         self.document_texts = document_texts
         self.additional_context = additional_context
+        self.web_research = web_research
         self.api = InternalApiClient(app, locale)
         self.cancel_event = threading.Event()
         self.thread = threading.Thread(target=self.run, name=f"pipeline-{project_id}", daemon=True)
@@ -308,6 +327,7 @@ class AutoPipelineRunner:
         set_locale(self.locale)
         logger.info(f"{self._tag} Arranca el modo automático (ejecución {self.run_id[:8]})")
         try:
+            self._stage_research()
             self._stage_ontology()
             graph_id = self._stage_graph()
             simulation_id = self._stage_prepare(graph_id)
@@ -386,6 +406,27 @@ class AutoPipelineRunner:
             logger.warning(f"{self._tag} El proyecto ya no existe: se detiene el modo automático")
             raise _RunStopped()
         return project
+
+    # ---------- etapa 1 (opcional): investigación en internet ----------
+
+    def _stage_research(self):
+        if not self.web_research:
+            return
+        project = self._project()
+        if not _research_pending(project):
+            return
+        self._enter_stage("research")
+
+        from ..api.graph import run_project_web_research  # import diferido: evita el ciclo services ↔ api
+        try:
+            # Sin textos en memoria (reanudación) lee el extraído de disco, y la
+            # ontología lo volverá a leer ya con la investigación añadida.
+            texts = run_project_web_research(project, self.document_texts, self.locale)
+            if self.document_texts is not None:
+                self.document_texts = texts
+        except Exception as exc:  # noqa: BLE001 — la investigación nunca hace fallar el pipeline
+            logger.warning(f"{self._tag} La investigación en internet falló; se sigue sin ella: {exc}")
+        self._checkpoint()
 
     # ---------- etapa 1a: ontología ----------
 
@@ -661,11 +702,15 @@ def start_pipeline(
     locale: str,
     document_texts=None,
     additional_context: Optional[str] = None,
+    web_research: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Arranca el modo automático (proyecto recién creado, con `document_texts`)
     o lo reanuda desde la primera etapa sin completar. PipelineConflict si ya
     hay una ejecución viva para el proyecto.
+
+    `web_research`: investigar en internet antes de la ontología. None (resume)
+    = lo que se pidió al arrancar, guardado en pipeline.json.
     """
     with pipeline_lock(project_id):
         current = read_pipeline(project_id)
@@ -681,11 +726,13 @@ def start_pipeline(
         previous_stage = current.get("stage") if current else None
         if additional_context is None and current:
             additional_context = current.get("additional_context") or None
+        if web_research is None:
+            web_research = bool(current.get("web_research")) if current else False
 
         if document_texts is not None:
-            stage, simulation_id = "ontology", None
+            stage, simulation_id = ("research" if web_research else "ontology"), None
         else:
-            stage, simulation_id = _estimate_stage(project, previous_stage)
+            stage, simulation_id = _estimate_stage(project, previous_stage, web_research)
 
         run_id = uuid.uuid4().hex
         state = {
@@ -698,6 +745,7 @@ def start_pipeline(
             "error": None,
             "started_at": now_iso(),
             "finished_at": None,
+            "web_research": bool(web_research),
             # Internos (no salen al cliente)
             "run_id": run_id,
             "additional_context": additional_context or "",
@@ -712,6 +760,7 @@ def start_pipeline(
             previous_stage=previous_stage,
             document_texts=document_texts,
             additional_context=additional_context,
+            web_research=bool(web_research),
         )
         _register(runner)
         runner.thread.start()

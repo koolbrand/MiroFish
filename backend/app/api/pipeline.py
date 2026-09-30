@@ -19,6 +19,7 @@ from .graph import (
     _delete_project_quietly,
     create_project_from_upload,
     read_ontology_form,
+    read_web_research_flag,
 )
 from ..config import Config
 from ..models.project import ProjectManager
@@ -56,7 +57,8 @@ def start_auto_pipeline():
     """
     Crea el proyecto y guarda los archivos en la petición (mismas validaciones
     y límites que ontology/generate) y lanza en segundo plano la ontología y
-    todo lo que sigue. Responde en pocos segundos.
+    todo lo que sigue. Responde en pocos segundos. Con `web_research`
+    ("true"/"1"), antes de la ontología va la etapa «research».
 
     Devuelve: {"success": true, "data": {"project_id": "proj_…", "pipeline": <estado>}}
     """
@@ -64,6 +66,7 @@ def start_auto_pipeline():
     try:
         simulation_requirement, project_name, additional_context, uploaded_files = \
             read_ontology_form(request.form, request.files)
+        web_research = read_web_research_flag(request.form)
         project, document_texts = create_project_from_upload(
             simulation_requirement, project_name, uploaded_files
         )
@@ -85,6 +88,7 @@ def start_auto_pipeline():
             locale=get_locale(),
             document_texts=document_texts,
             additional_context=additional_context,
+            web_research=web_research,
         )
     except PipelineConflict:
         return jsonify({"success": False, "error": _CONFLICT_MESSAGE}), 409

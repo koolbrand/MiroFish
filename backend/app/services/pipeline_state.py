@@ -22,8 +22,9 @@ logger = get_logger('mirofish.pipeline')
 
 PIPELINE_FILENAME = 'pipeline.json'
 
-# ontology y graph comparten la pantalla 1 del proceso
+# research (opcional), ontology y graph comparten la pantalla 1 del proceso
 STAGE_INDEX = {
+    "research": 1,
     "ontology": 1,
     "graph": 1,
     "prepare": 2,
@@ -33,9 +34,10 @@ STAGE_INDEX = {
 }
 
 # Lo único que sale al cliente. El resto (run_id, additional_context...) es interno.
+# `web_research`: si se pidió la investigación en internet (etapa «research»).
 PUBLIC_KEYS = (
     "mode", "status", "stage", "stage_index", "project_id", "simulation_id",
-    "report_id", "error", "started_at", "updated_at", "finished_at",
+    "report_id", "error", "started_at", "updated_at", "finished_at", "web_research",
 )
 
 ERROR_MAX_CHARS = 2000
@@ -125,7 +127,9 @@ def update_pipeline(project_id: str, run_id: str, **fields) -> Optional[Dict[str
 def public_view(state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not state or state.get("mode") != "auto":
         return {"mode": "manual"}
-    return {key: state.get(key) for key in PUBLIC_KEYS}
+    view = {key: state.get(key) for key in PUBLIC_KEYS}
+    view["web_research"] = bool(view["web_research"])  # pipelines anteriores: False
+    return view
 
 
 def mark_running_pipelines_interrupted() -> int:

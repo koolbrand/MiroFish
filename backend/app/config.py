@@ -131,6 +131,30 @@ class Config:
         os.environ.get('VISION_LLM_MODEL_NAME') or 'MiniMax-VL-01'
     )
 
+    # Investigación en internet antes de la ontología (paso opcional que elige
+    # el usuario). Búsqueda web en el servidor del proveedor con su API
+    # compatible con Anthropic: POST {base}/anthropic/v1/messages. La base se
+    # deriva de LLM_BASE_URL quitando un /v1 final (MiniMax: api.minimax.io).
+    WEB_RESEARCH_ENABLED = os.environ.get('WEB_RESEARCH_ENABLED', 'true').lower() == 'true'
+    WEB_RESEARCH_MODEL = (
+        os.environ.get('WEB_RESEARCH_MODEL')
+        or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+    )
+    WEB_RESEARCH_BASE_URL = (
+        os.environ.get('WEB_RESEARCH_BASE_URL')
+        or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
+    )
+    WEB_RESEARCH_API_KEY = (
+        os.environ.get('WEB_RESEARCH_API_KEY')
+        or os.environ.get('LLM_API_KEY')
+    )
+    WEB_RESEARCH_MAX_TOKENS = int(os.environ.get('WEB_RESEARCH_MAX_TOKENS', '4000'))
+    WEB_RESEARCH_TIMEOUT = float(os.environ.get('WEB_RESEARCH_TIMEOUT', '240'))
+    # tool_choice=any: el modelo tiene que buscar al menos una vez. Sin él,
+    # MiniMax-M3 puede contestar de memoria con citas [n] que no respalda nada
+    # (medido el 1-oct-2026: 0 búsquedas y 11 citas sin fuente).
+    WEB_RESEARCH_FORCE_SEARCH = os.environ.get('WEB_RESEARCH_FORCE_SEARCH', 'true').lower() == 'true'
+
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
