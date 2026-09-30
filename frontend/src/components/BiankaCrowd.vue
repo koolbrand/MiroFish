@@ -42,6 +42,7 @@
         <span><i class="swatch is-undecided"></i>{{ $t('home.crowdUndecided') }} <b>{{ stats.undecided }} %</b></span>
         <span><i class="swatch is-against"></i>{{ $t('home.crowdAgainst') }} <b>{{ stats.against }} %</b></span>
       </div>
+      <div class="readout-hint">{{ $t('home.crowdHint') }}</div>
     </div>
   </div>
 </template>
@@ -68,7 +69,9 @@ const emit = defineEmits(['readout'])
 
 const ROUNDS = 10
 const ROUND_SECONDS = 6.5
-const VALENCE = [0.55, -0.45, 0.4, -0.4, 0.5, -0.3, 0.45, -0.35, 0.4, 0.3]
+// Un tira y afloja, no una victoria: el lima sube y baja entre ≈ 15 y 45 %, la tinta llega a ≈ 20 % y el
+// blanco (indecisos) sigue siendo mayoría casi todo el ensayo (simulado: ver el arco en la conversación).
+const VALENCE = [0.35, -0.45, 0.3, -0.4, 0.35, -0.3, 0.32, -0.32, 0.3, 0.25]
 
 const root = ref(null)
 const canvas = ref(null)
@@ -96,27 +99,42 @@ let resizeObs = null, interObs = null, readoutObs = null
 const reducedMotion = typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+// Lo último que se ha dicho: en pantalla no se repite la misma frase (ni dos «¡Eso mismo!» a la vez).
+const recentTexts = []
+const shownTexts = () => new Set([...bubbles.value.map(b => b.text), ...recentTexts])
+const say = (keys) => {
+  const shown = shownTexts()
+  const fresh = keys.filter(k => !shown.has(t(k)))
+  const text = t(pick(fresh.length ? fresh : keys))
+  recentTexts.push(text)
+  if (recentTexts.length > 8) recentTexts.shift()
+  return text
+}
 const bucketLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdUndecided', against: 'home.crowdAgainst' }[b])
 const setBubbleEl = (id, el) => { if (el) bubbleEls.set(id, el); else bubbleEls.delete(id) }
 const seedAgents = () => {
   // Personajes grandes y solapados (una multitud, no una retícula): el píxel crece con la pantalla.
-  P = W >= 1600 ? 6 : W >= 1100 ? 5 : 4
-  CX = 17 * P
-  RY = 19 * P
+  // Cada Bianka se lee entera (orejas, cara y complemento): unas ~45 a la vista en un escritorio de
+  // 1440 px, con un solape moderado (≈ 14 % de lado a lado y ≈ 18 % de arriba abajo).
+  P = W >= 1800 ? 8 : W >= 1500 ? 7 : W >= 1000 ? 6 : 5
+  CX = 19 * P
+  RY = 23 * P
   const cols = Math.ceil(W / CX) + 2
   const rows = Math.ceil((H + 10 * P) / RY) + 1
   agents = []
-  const keys = {}
+  const parts = {}
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      // ningún vecino idéntico: se repite el sorteo si coincide con el de la izquierda o el de la fila de arriba
+      // ningún vecino se parece: ni el mismo aspecto entero ni el mismo gorro, cuerpo o cara que el de
+      // la izquierda o los de la fila de arriba (así no hay dos conejos «lisos» seguidos)
       let look = makeLook()
-      for (let tries = 0; tries < 8; tries++) {
-        const near = [keys[`${row}:${col - 1}`], keys[`${row - 1}:${col}`], keys[`${row - 1}:${col - 1}`], keys[`${row - 1}:${col + 1}`]]
-        if (!near.includes(look.key)) break
+      for (let tries = 0; tries < 16; tries++) {
+        const near = [parts[`${row}:${col - 1}`], parts[`${row}:${col - 2}`], parts[`${row - 1}:${col}`], parts[`${row - 1}:${col - 1}`], parts[`${row - 1}:${col + 1}`]].filter(Boolean)
+        const clash = near.some(n => n.key === look.key || (look.head && n.head === look.head.id) || (look.body && n.body === look.body.id) || (look.face && n.face === look.face.id))
+        if (!clash) break
         look = makeLook()
       }
-      keys[`${row}:${col}`] = look.key
+      parts[`${row}:${col}`] = { key: look.key, head: look.head?.id, body: look.body?.id, face: look.face?.id }
       const x = (col - 1) * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-2, 2)) * P - 6 * P
       const y = row * RY - 9 * P + Math.round(rand(-1, 1)) * P
       agents.push({
@@ -229,7 +247,7 @@ const stepWaves = () => {
       if (Math.abs(cx - front) < CX * 0.6) {
         w.hit.add(i)
         const affinity = 1 + 1.3 * Math.max(0, Math.sign(w.v) * a.lean)
-        const changed = shift(a, w.v * (0.3 + 0.7 * Math.random()) * (1 - a.stub) * affinity)
+        const changed = shift(a, 0.8 * w.v * (0.3 + 0.7 * Math.random()) * (1 - a.stub) * affinity)
         if (!changed) { a.hopAt = now; a.hopAmp = 3; if (Math.random() < 0.18) react(a, w.v > 0 ? 'bang' : 'question', 0.7) }
       }
     })
@@ -322,8 +340,9 @@ const leashClear = (x0, y0, x1, y1) => {
   }
   return true
 }
-const placeFree = (a, ignoreBubbles = false) => {
-  const head = { x: a.x + 12.5 * P, y: a.y + 14 * P }
+// `from`: punto de partida del hilo (al pulsar, donde se pulsó: la cabeza puede estar medio tapada por la tarjeta)
+const placeFree = (a, ignoreBubbles = false, from = null) => {
+  const head = from || { x: a.x + 12.5 * P, y: a.y + 14 * P }
   const widths = bubbleWidths(a, bubbleW())
   for (const width of widths) {
     const height = bubbleHeight(a, width)
@@ -386,15 +405,15 @@ const startConversation = (forced = null, forcedPlace = null) => {
     for (let tries = 0; tries < 60; tries++) {
       const k = Math.floor(Math.random() * agents.length)
       if (speaking(k) || !headVisible(agents[k])) continue
-      const found = placeBubble(agents[k])
+      const found = placeBubble(agents[k]) || (W < 700 ? placeFree(agents[k]) : null)
       if (found) { i = k; place = found; break }
     }
   }
   if (i === null || speaking(i) || !place) return
   const a = agents[i]
   const bucket = bucketOf(a.o)                     // postura con la que habla: la respuesta se ajusta a ésta
-  const pool = { favor: [1, 2, 3], undecided: [4, 5, 6], against: [7, 8, 9] }[bucket]
-  addBubble(i, t(`home.crowdVoice${pick(pool)}`), 'say', 3.6, place)
+  const pool = { favor: [1, 2, 3, 10, 11, 12], undecided: [4, 5, 6, 13, 14, 15], against: [7, 8, 9, 16, 17, 18] }[bucket]
+  addBubble(i, say(pool.map(n => `home.crowdVoice${n}`)), 'say', 3.6, place)
   const myEpoch = epoch
   a.hopAt = now
   // Las vecinas giran los ojos hacia quien habla
@@ -406,7 +425,7 @@ const startConversation = (forced = null, forcedPlace = null) => {
   setTimeout(() => {
     if (myEpoch !== epoch || (!running && !forced)) return
     const opts = candidates
-      .map(n => ({ j: n.j, place: placeBubble(agents[n.j]) }))
+      .map(n => ({ j: n.j, place: placeBubble(agents[n.j]) || (W < 700 ? placeFree(agents[n.j]) : null) }))
       .filter(o => o.place)
     if (!opts.length) return
     const { j, place: replyPlace } = pick(opts)
@@ -417,13 +436,13 @@ const startConversation = (forced = null, forcedPlace = null) => {
     const after = bucketOf(b.o)
     // Lo que dice quien contesta depende de qué piensa ella y de qué acaba de decir la otra:
     // si la convencen lo reconoce; si coinciden se apoyan; si no, discrepa con su propio tono.
-    const replyKey = changed && after === bucket
-      ? `home.crowdReChanged_${after}`
+    const replyKeys = changed && after === bucket
+      ? [`home.crowdReChanged_${after}`, `home.crowdReChanged_${after}_2`]
       : after === bucket
-        ? `home.crowdReSame_${after}_${1 + Math.floor(Math.random() * 2)}`
-        : `home.crowdReDiff_${after}_${bucket}`
+        ? [1, 2, 3].map(n => `home.crowdReSame_${after}_${n}`)
+        : [`home.crowdReDiff_${after}_${bucket}`, `home.crowdReDiff_${after}_${bucket}_2`]
     if (!changed && before !== bucket) react(b, 'question', 0.9)
-    const id = addBubble(j, t(replyKey), 'reply', 3.0, replyPlace)
+    const id = addBubble(j, say(replyKeys), 'reply', 3.0, replyPlace)
     b.lookAt = i; b.lookUntil = now + 2.6
     a.lookAt = j; a.lookUntil = now + 2.6
     threads.push({ from: i, to: j, until: now + 2.8, id })
@@ -646,9 +665,9 @@ const onClick = (e) => {
   }
   // Pegada a la tarjeta, al marcador o al borde: el bocadillo va al hueco libre más cercano
   // y un hilo de puntos lo une a ella.
-  if (!place) place = placeFree(a)
+  if (!place) place = placeFree(a, false, { x, y })
   if (!place) {
-    place = placeFree(a, true)
+    place = placeFree(a, true, { x, y })
     if (place) {
       const box = { l: place.box.l, r: place.box.l + place.width, t: place.box.t, b: place.box.t + place.height }
       bubbles.value = bubbles.value.filter(bb => agents[bb.agent] && !boxesTouch(box, boxOf(bb), 14))
@@ -852,9 +871,17 @@ onUnmounted(() => {
 .readout-legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .readout-legend .swatch { width: 12px; height: 12px; }
 .readout-legend b { font-weight: 700; color: var(--kb-text); font-variant-numeric: tabular-nums; }
+.readout-hint { margin-top: 9px; padding-top: 8px; border-top: 1px dashed rgba(17, 17, 17, 0.25); font-size: 11px; letter-spacing: 0.02em; color: var(--kb-muted); }
 
 @media (max-width: 700px) {
   .crowd-readout { inset-inline-start: 16px; bottom: 16px; }
+  /* en móvil la franja de muro sobre la tarjeta es corta y cada píxel del marcador se la quita a los
+     bocadillos: sin la pista (se pulsa sin más) y con la leyenda en una sola línea */
+  .readout-hint { display: none; }
+}
+@media (max-width: 480px) {
+  .readout-legend { gap: 6px 12px; font-size: 12px; }
+  .readout-legend span { gap: 5px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .crowd-bubble { animation: none; }

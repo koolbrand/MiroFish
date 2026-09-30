@@ -117,8 +117,14 @@ export const LOOK = {
   undecided: { body: '#FFFFFF', face: '#111111', stripe: '#111111' },
   against: { body: '#2A2A2A', face: '#F2F1EF', stripe: '#F2F1EF' },
 }
-// Si un complemento cae sobre el cuerpo y es del mismo color, se cambia para que se vea.
-export const ALT = { '#CCE673': PAL.L, '#FFFFFF': PAL.g, '#111111': PAL.c, '#2A2A2A': PAL.c }
+// Si un complemento cae sobre el cuerpo y apenas contrasta con él, se cambia para que se vea:
+// sobre lima, el lima pasa a tinta; sobre blanco, el blanco pasa a gris y el lima a lima oscuro;
+// sobre tinta, la tinta pasa a crema.
+export const ALT = {
+  '#CCE673': { '#CCE673': PAL.k, '#94AA3D': PAL.k },
+  '#FFFFFF': { '#FFFFFF': PAL.g, '#CCE673': PAL.L },
+  '#2A2A2A': { '#111111': PAL.c, '#2A2A2A': PAL.c },
+}
 
 
 // ── Utilidades aleatorias ───────────────────────────────────────────────────
@@ -130,11 +136,12 @@ export const pickWeighted = (arr, rng = Math.random) => {
   return arr[0]
 }
 export const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5
-// Desde el primer fotograma ya hay opiniones (≈ 22 % a favor, 9 % en contra): el color se lee sin esperar.
+// Desde el primer fotograma ya hay opiniones (≈ 15 % a favor, 7 % en contra): el color se lee sin esperar,
+// y el lima empieza como acento, no como manto (crece con lo que ocurre ronda a ronda).
 export const initialOpinion = () => {
   const r = Math.random()
-  if (r < 0.22) return 0.45 + Math.random() * 0.35
-  if (r < 0.31) return -(0.45 + Math.random() * 0.35)
+  if (r < 0.15) return 0.45 + Math.random() * 0.35
+  if (r < 0.22) return -(0.45 + Math.random() * 0.35)
   return gauss() * 0.18
 }
 export const randomLean = () => Math.max(-1, Math.min(1, gauss() * 1.6 + 0.12))
@@ -165,12 +172,14 @@ export const fixedLook = ({ ears = 'classic', head = null, face = null, body = n
 }
 
 // ── Construcción de cada Bianka ─────────────────────────────────────────────
+// El salpicado (`spots`) añade ruido de alta frecuencia y no se lee a distancia: no entra en el sorteo.
+const BODY_POOL = COSTUMES.body.filter(b => b.id !== 'spots')
 export const makeLook = (rng = Math.random) => {
   // Cada Bianka lleva al menos un complemento (nunca un conejo liso): más variedad, ningún vecino idéntico.
   for (let tries = 0; tries < 8; tries++) {
-    const face = rng() < 0.32 ? pick(COSTUMES.face, rng) : null
-    const head = !face?.noHead && rng() < 0.62 ? pick(COSTUMES.head, rng) : null
-    const body = rng() < 0.6 ? pick(COSTUMES.body, rng) : null
+    const face = rng() < 0.34 ? pick(COSTUMES.face, rng) : null
+    const head = !face?.noHead && rng() < 0.94 ? pick(COSTUMES.head, rng) : null
+    const body = rng() < 0.62 ? pick(BODY_POOL, rng) : null
     if (!face && !head && !body && tries < 7) continue
     const ears = pickWeighted(EARS, rng)
     // El rótulo del bocadillo sale del rasgo más visible
@@ -208,7 +217,7 @@ export const spriteFor = (look, bucket) => {
         if (s[i] === '.') continue
         let color = PAL[s[i]]
         const R = r0 + OY, C = c0 + i + OX
-        if (R >= 0 && R < GH && C >= 0 && C < GW && bodyMask[R][C] && color === colors.body) color = ALT[color] || color
+        if (R >= 0 && R < GH && C >= 0 && C < GW && bodyMask[R][C]) color = ALT[colors.body]?.[color] || color
         put(r0, c0 + i, color)
       }
     }
@@ -222,10 +231,24 @@ export const spriteFor = (look, bucket) => {
       if ((grid[r - 1]?.[c]) || (grid[r + 1]?.[c]) || grid[r][c - 1] || grid[r][c + 1]) outline.push([r, c])
     }
   }
+  // halo crema de una celda alrededor del contorno: al solaparse, cada Bianka se recorta limpia
+  // sobre la de detrás (como una pegatina) en vez de fundirse con ella
+  const ink = new Set(outline.map(([r, c]) => `${r}:${c}`))
+  const halo = []
+  for (let r = 0; r < GH; r++) {
+    for (let c = 0; c < GW; c++) {
+      if (grid[r][c] || ink.has(`${r}:${c}`)) continue
+      let near = false
+      for (let dr = -1; dr <= 1 && !near; dr++) for (let dc = -1; dc <= 1; dc++) if (ink.has(`${r + dr}:${c + dc}`)) { near = true; break }
+      if (near) halo.push([r, c])
+    }
+  }
   const cv = document.createElement('canvas')
   cv.width = GW
   cv.height = GH
   const g = cv.getContext('2d')
+  g.fillStyle = PAL.c
+  for (const [r, c] of halo) g.fillRect(c, r, 1, 1)
   for (let r = 0; r < GH; r++) {
     for (let c = 0; c < GW; c++) {
       if (!grid[r][c]) continue

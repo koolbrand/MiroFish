@@ -163,8 +163,12 @@ const ariaLabel = computed(() =>
 .opinion-chart.is-in .chart-ends li { opacity: 1; }
 
 @media (max-width: 560px) {
-  .chart-body { padding-inline-end: 0; }
-  .chart-ends { position: static; width: auto; display: flex; gap: 20px; margin-top: 16px; }
+  /* el eje va justo bajo el gráfico y la leyenda debajo del eje */
+  .chart-body { display: flex; flex-direction: column; padding-inline-end: 0; }
+  .chart-plot { display: contents; }
+  .chart-svg { order: 1; }
+  .chart-axis { order: 2; }
+  .chart-ends { order: 3; position: static; width: auto; display: flex; gap: 20px; margin-top: 16px; }
   .chart-ends li { position: static; translate: none; }
   .chart-axis .minor { display: none; }
 }

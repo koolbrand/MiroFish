@@ -115,6 +115,7 @@ const GROUPS = [
 .report-note { margin-top: 14px; font-size: 0.8rem; line-height: 1.4; color: var(--kb-muted); }
 
 @media (max-width: 560px) {
+  .report-quote { align-items: flex-start; }
   .groups li { grid-template-columns: 1fr 44px; }
   .group-bar { grid-column: 1 / -1; grid-row: 2; }
   .group-num { grid-row: 1; grid-column: 2; }

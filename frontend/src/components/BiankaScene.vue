@@ -91,7 +91,7 @@ const SCENES = {
   } },
 
   // 2 · Construye el mundo: personas que van apareciendo hasta llenar la cuadrícula
-  build: { period: 7, draw(t) {
+  build: { period: 7, poster: 3.9, draw(t) {
     const cols = 4, rows = 2, cw = 26 * P * 0.7, chh = 29 * P * 0.7
     const Q = 2
     const mk = (i) => look('b' + i, { ears: ['classic', 'up', 'v', 'flop', 'short'][i % 5], head: ['cap', 'beret', null, 'graduate', 'chef', null, 'beanie', 'hardhat'][i % 8], face: [null, 'glasses', null, null, 'mustache', null, 'sunglasses', null][i % 8], body: [null, null, 'bowtie', 'scarf', null, 'tie', null, 'coffee'][i % 8] })
@@ -124,7 +124,7 @@ const SCENES = {
   } },
 
   // 4 · Lee el informe: las barras de la opinión crecen y la analista lo repasa
-  report: { period: 7, draw(t) {
+  report: { period: 7, poster: 2.4, draw(t) {
     const analyst = look('an', { ears: 'classic', head: 'graduate', face: 'glasses', body: 'pencil' })
     bianka(analyst, 'undecided', 8, H - 29 * P - 4, t, { gaze: [1, 0], talking: t > 3 && t < 4.6 })
     const bx = 112, by = 14, bw = W - bx - 12, bh = H - 30
@@ -173,7 +173,7 @@ const size = () => {
 const currentT = () => {
   const sc = SCENES[props.scene]
   if (reduced) return sc.period * 0.82           // fotograma «final», quieto
-  if (!props.active) return 0                    // antes de que llegue la Bianka: primer fotograma
+  if (!props.active) return sc.poster || 0       // antes de que llegue la Bianka: un fotograma de cartel (nunca una viñeta vacía)
   return ((performance.now() / 1000 - activeSince) % sc.period + sc.period) % sc.period
 }
 const paint = (t) => {

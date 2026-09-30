@@ -1,6 +1,6 @@
 <template>
   <div class="home">
-    <nav class="topbar">
+    <nav class="topbar" :class="{ 'is-scrolled': scrolledNav }">
       <router-link to="/" class="topbar-brand" :aria-label="$t('home.heroDescBrand')">
         <BrandLogo />
       </router-link>
@@ -80,9 +80,15 @@
                 />
                 <div class="drop-inner">
                   <span class="drop-icon" aria-hidden="true">↑</span>
-                  <span class="drop-title">{{ files.length ? $t('home.addMoreFiles') : $t('home.dragToUpload') }}</span>
-                  <span class="drop-hint">{{ $t('home.orBrowse') }}</span>
+                  <span class="drop-title">
+                    <template v-if="files.length">{{ $t('home.addMoreFiles') }}</template>
+                    <template v-else>
+                      <span class="t-mouse">{{ $t('home.dragToUpload') }}</span><span class="t-touch">{{ $t('home.dropTouchTitle') }}</span>
+                    </template>
+                  </span>
+                  <span class="drop-hint t-mouse">{{ $t('home.orBrowse') }}</span>
                   <span class="drop-formats">{{ $t('home.supportedFormats') }}</span>
+                  <span class="drop-tip">{{ $t('home.uploadTip') }}</span>
                 </div>
               </div>
               <ul v-if="files.length" class="file-chips">
@@ -282,6 +288,7 @@ const { maybeAutoStart } = useTutorial()
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
+const scrolledNav = ref(false)          // barra aligerada al bajar de la portada
 const readoutH = ref(150)              // alto del marcador de la portada (lo mide BiankaCrowd)
 const topInset = ref(88)               // barra flotante: nadie habla debajo
 const stageCard = ref(null)
@@ -337,7 +344,10 @@ const updateProgress = () => {
   const r = el.getBoundingClientRect()
   progress.value = Math.min(1, Math.max(0, (window.innerHeight * 0.8 - r.top) / 560))
 }
-const onScroll = () => { if (!scrollRaf) scrollRaf = requestAnimationFrame(updateProgress) }
+const onScroll = () => {
+  scrolledNav.value = window.scrollY > 72
+  if (!scrollRaf) scrollRaf = requestAnimationFrame(updateProgress)
+}
 
 const sizeWalker = () => {
   const cv = walkerEl.value, tr = trackEl.value
@@ -371,6 +381,7 @@ const startWalker = () => { if (!wraf && wVisible && isWide.value && !reduceMoti
 
 const layoutMode = () => {
   isWide.value = window.innerWidth > 900
+  scrolledNav.value = window.scrollY > 72
   sizeWalker()
   updateProgress()
   startWalker()
@@ -526,6 +537,14 @@ const startSimulation = () => {
   border: 2px solid var(--ink-950);
   border-radius: 999px;
   box-shadow: 4px 4px 0 var(--ink-950);
+}
+/* al bajar, la píldora deja de pesar sobre los titulares: contorno fino y sombra suave en lugar de la dura */
+.topbar { transition: height 0.25s ease, border-width 0.25s ease, box-shadow 0.25s ease, background 0.25s ease; }
+.topbar.is-scrolled {
+  height: 50px;
+  border-width: 1px;
+  background: rgba(247, 246, 243, 0.88);
+  box-shadow: 0 12px 28px -16px rgba(17, 17, 17, 0.5);
 }
 .topbar-brand {
   font-size: 1.4rem;
@@ -755,6 +774,12 @@ const startSimulation = () => {
 .dropzone:hover .drop-icon,
 .dropzone.drag-over .drop-icon { transform: translateY(-3px); }
 .drop-title { font-size: 1rem; font-weight: 600; }
+.t-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .t-mouse { display: none; }
+  .t-touch { display: inline; }
+}
+.drop-tip { margin-top: 2px; font-size: 0.8rem; color: var(--kb-muted); }
 .drop-hint { font-size: 0.88rem; color: var(--kb-muted); }
 .drop-formats {
   margin-top: 6px;
@@ -883,6 +908,7 @@ const startSimulation = () => {
   padding: clamp(96px, 12vw, 168px) var(--gutter) 0;
 }
 .section-title {
+  white-space: pre-line;   /* respeta el salto que pone la traducción (p. ej. en chino, para no partir «一个») */
   max-width: 18ch;
   margin: 12px 0 0;
   font-size: clamp(2.2rem, 5.2vw, 4.4rem);
@@ -1003,7 +1029,8 @@ const startSimulation = () => {
 .deliverables span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }
 
 .figures {
-  margin-top: clamp(96px, 12vw, 168px);
+  /* 66 px de la fila de Biankas que asoma + ≥ 120 px de aire sobre ella (≥ 96 px en móvil) */
+  margin-top: clamp(162px, calc(12vw + 20px), 240px);
   padding: clamp(56px, 8vw, 104px) var(--gutter);
   background: var(--lime-500);
   color: var(--ink-950);
@@ -1179,8 +1206,15 @@ const startSimulation = () => {
   .topbar-links { gap: 8px; }
   .nav-projects { gap: 4px; font-size: 0.95rem; }
 }
+@media (max-width: 400px) {
+  .eyebrow { align-items: flex-start; }
+  .eyebrow-dot { margin-top: 3px; flex: none; }
+}
 @media (max-width: 340px) {
   .nav-projects .arrow { display: none; }
+  .stage-card { padding: 22px 14px 20px; }
+  .eyebrow { font-size: 10px; letter-spacing: 0.04em; }
+  .stage-actions .btn { padding: 15px 12px; font-size: 0.95rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .eyebrow-dot, .stage-card, .stage-title .hl, .composer { animation: none; }
