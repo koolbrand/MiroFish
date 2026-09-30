@@ -261,6 +261,160 @@ def reset_project(project_id: str):
 
 
 # ============== 接口1：上传文件并生成本体 ==============
+#
+# La lógica va en tres helpers que usan tanto esta ruta como el modo
+# automático (api/pipeline.py), que crea el proyecto en la petición y genera
+# la ontología en segundo plano.
+
+class OntologyUploadError(Exception):
+    """Subida rechazada con respuesta pública (el proyecto, si lo hubo, ya se ha borrado)."""
+
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def read_ontology_form(form, files):
+    """
+    Lee y valida el multipart de ontology/generate.
+
+    Devuelve (simulation_requirement, project_name, additional_context, uploaded_files).
+    Lanza OntologyUploadError si falta un campo obligatorio y ValueError si un
+    texto excede los límites de sanitize_user_text.
+    """
+    simulation_requirement = form.get('simulation_requirement', '')
+    project_name = form.get('project_name', 'Unnamed Project')
+    additional_context = form.get('additional_context', '')
+
+    logger.debug(f"Nombre del proyecto: {project_name}")
+    logger.debug(f"Requisitos de simulación: {simulation_requirement[:100]}...")
+
+    if not simulation_requirement:
+        raise OntologyUploadError(t('api.requireSimulationRequirement'))
+
+    # Cap and strip control characters from anything that will reach the
+    # LLM or be persisted as project metadata.
+    simulation_requirement = sanitize_user_text(
+        simulation_requirement, field='simulation_requirement'
+    )
+    additional_context = sanitize_user_text(
+        additional_context, field='additional_context'
+    )
+    project_name = sanitize_user_text(
+        project_name, max_chars=200, field='project_name'
+    )
+
+    # 获取上传的文件
+    uploaded_files = files.getlist('files')
+    if not uploaded_files or all(not f.filename for f in uploaded_files):
+        raise OntologyUploadError(t('api.requireFileUpload'))
+
+    return simulation_requirement, project_name, additional_context, uploaded_files
+
+
+def _delete_project_quietly(project_id: str) -> None:
+    try:
+        ProjectManager.delete_project(project_id)
+    except Exception as cleanup_error:  # noqa: BLE001
+        logger.warning(f"No se pudo limpiar el proyecto {project_id}: {cleanup_error}")
+
+
+def create_project_from_upload(simulation_requirement: str, project_name: str, uploaded_files):
+    """
+    Crea el proyecto, guarda los archivos y extrae su texto.
+
+    Devuelve (project, document_texts). En disco quedan el proyecto (estado
+    CREATED), los archivos y el texto extraído; `simulation_requirement`,
+    `files` y `total_text_length` se fijan en el objeto y quien llama decide
+    cuándo guardarlo. Si la subida no vale o algo falla, borra el proyecto
+    antes de propagar la excepción (no deja proyectos huérfanos).
+    """
+    project = ProjectManager.create_project(name=project_name)
+    project.simulation_requirement = simulation_requirement
+    logger.info(f"Proyecto creado: {project.project_id}")
+
+    try:
+        # 保存文件并提取文本
+        document_texts = []
+        all_text = ""
+
+        for file in uploaded_files:
+            if not (file and file.filename and allowed_file(file.filename)):
+                continue
+
+            # Validate content matches the declared extension. A user could
+            # rename `evil.exe` to `evil.pdf` and the parsers downstream
+            # (PyMuPDF, Pillow) would then attempt to process arbitrary
+            # bytes. Reject before we ever touch disk.
+            ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
+            try:
+                validate_upload_content(file, ext)
+            except ValueError as exc:
+                logger.warning(
+                    f"Upload rechazado: {file.filename} ({exc})"
+                )
+                raise OntologyUploadError(t('api.fileContentInvalid', filename=file.filename))
+
+            # 保存文件到项目目录
+            file_info = ProjectManager.save_file_to_project(
+                project.project_id,
+                file,
+                file.filename
+            )
+            project.files.append({
+                "filename": file_info["original_filename"],
+                "size": file_info["size"]
+            })
+
+            # 提取文本
+            text = FileParser.extract_text(file_info["path"])
+            text = TextProcessor.preprocess_text(text)
+            document_texts.append(text)
+            all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
+
+        if not document_texts:
+            raise OntologyUploadError(t('api.noDocProcessed'))
+
+        # 保存提取的文本
+        project.total_text_length = len(all_text)
+        ProjectManager.save_extracted_text(project.project_id, all_text)
+        logger.info(f"Extracción de texto completada, {len(all_text)} caracteres en total")
+    except Exception:
+        _delete_project_quietly(project.project_id)
+        raise
+
+    return project, document_texts
+
+
+def generate_project_ontology(project, document_texts, additional_context=None):
+    """
+    Genera la ontología con el LLM y la guarda en el proyecto
+    (estado ONTOLOGY_GENERATED). No borra nada si falla: eso lo decide quien llama.
+    """
+    logger.info("Llamando al LLM para generar la ontología...")
+    generator = OntologyGenerator()
+    ontology = generator.generate(
+        document_texts=document_texts,
+        simulation_requirement=project.simulation_requirement,
+        additional_context=additional_context if additional_context else None
+    )
+
+    # 保存本体到项目
+    entity_count = len(ontology.get("entity_types", []))
+    edge_count = len(ontology.get("edge_types", []))
+    logger.info(f"Ontología generada: {entity_count} tipos de entidad, {edge_count} tipos de relación")
+
+    project.ontology = {
+        "entity_types": ontology.get("entity_types", []),
+        "edge_types": ontology.get("edge_types", [])
+    }
+    project.analysis_summary = ontology.get("analysis_summary", "")
+    project.status = ProjectStatus.ONTOLOGY_GENERATED
+    ProjectManager.save_project(project)
+    logger.info(f"=== Ontología generada === project_id: {project.project_id}")
+    return project
+
 
 @graph_bp.route('/ontology/generate', methods=['POST'])
 def generate_ontology():
@@ -294,123 +448,24 @@ def generate_ontology():
     try:
         logger.info("=== Iniciando la generación de la ontología ===")
 
-        # Obtener parámetros
-        simulation_requirement = request.form.get('simulation_requirement', '')
-        project_name = request.form.get('project_name', 'Unnamed Project')
-        additional_context = request.form.get('additional_context', '')
-
-        logger.debug(f"Nombre del proyecto: {project_name}")
-        logger.debug(f"Requisitos de simulación: {simulation_requirement[:100]}...")
-
-        if not simulation_requirement:
-            return jsonify({
-                "success": False,
-                "error": t('api.requireSimulationRequirement')
-            }), 400
-
-        # Cap and strip control characters from anything that will reach the
-        # LLM or be persisted as project metadata. ValueError surfaces as
-        # 400 via the global handler in __init__.py.
-        simulation_requirement = sanitize_user_text(
-            simulation_requirement, field='simulation_requirement'
-        )
-        additional_context = sanitize_user_text(
-            additional_context, field='additional_context'
-        )
-        project_name = sanitize_user_text(
-            project_name, max_chars=200, field='project_name'
-        )
-        
-        # 获取上传的文件
-        uploaded_files = request.files.getlist('files')
-        if not uploaded_files or all(not f.filename for f in uploaded_files):
-            return jsonify({
-                "success": False,
-                "error": t('api.requireFileUpload')
-            }), 400
-        
-        # 创建项目
-        project = ProjectManager.create_project(name=project_name)
-        project.simulation_requirement = simulation_requirement
-        logger.info(f"Proyecto creado: {project.project_id}")
-        
-        # 保存文件并提取文本
-        document_texts = []
-        all_text = ""
-        
-        for file in uploaded_files:
-            if not (file and file.filename and allowed_file(file.filename)):
-                continue
-
-            # Validate content matches the declared extension. A user could
-            # rename `evil.exe` to `evil.pdf` and the parsers downstream
-            # (PyMuPDF, Pillow) would then attempt to process arbitrary
-            # bytes. Reject before we ever touch disk.
-            ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
-            try:
-                validate_upload_content(file, ext)
-            except ValueError as exc:
-                ProjectManager.delete_project(project.project_id)
-                logger.warning(
-                    f"Upload rechazado: {file.filename} ({exc})"
-                )
-                return jsonify({
-                    "success": False,
-                    "error": t('api.fileContentInvalid', filename=file.filename),
-                }), 400
-
-            # 保存文件到项目目录
-            file_info = ProjectManager.save_file_to_project(
-                project.project_id,
-                file,
-                file.filename
+        # Un texto que excede los límites lanza ValueError y cae en el
+        # except genérico de abajo (500), igual que antes de separar helpers.
+        try:
+            simulation_requirement, project_name, additional_context, uploaded_files = \
+                read_ontology_form(request.form, request.files)
+            # 创建项目 + 保存文件并提取文本
+            project, document_texts = create_project_from_upload(
+                simulation_requirement, project_name, uploaded_files
             )
-            project.files.append({
-                "filename": file_info["original_filename"],
-                "size": file_info["size"]
-            })
-
-            # 提取文本
-            text = FileParser.extract_text(file_info["path"])
-            text = TextProcessor.preprocess_text(text)
-            document_texts.append(text)
-            all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
-        
-        if not document_texts:
-            ProjectManager.delete_project(project.project_id)
+        except OntologyUploadError as rejected:
             return jsonify({
                 "success": False,
-                "error": t('api.noDocProcessed')
-            }), 400
-        
-        # 保存提取的文本
-        project.total_text_length = len(all_text)
-        ProjectManager.save_extracted_text(project.project_id, all_text)
-        logger.info(f"Extracción de texto completada, {len(all_text)} caracteres en total")
+                "error": rejected.message
+            }), rejected.status_code
 
         # Generar ontología
-        logger.info("Llamando al LLM para generar la ontología...")
-        generator = OntologyGenerator()
-        ontology = generator.generate(
-            document_texts=document_texts,
-            simulation_requirement=simulation_requirement,
-            additional_context=additional_context if additional_context else None
-        )
-        
-        # 保存本体到项目
-        entity_count = len(ontology.get("entity_types", []))
-        edge_count = len(ontology.get("edge_types", []))
-        logger.info(f"Ontología generada: {entity_count} tipos de entidad, {edge_count} tipos de relación")
-        
-        project.ontology = {
-            "entity_types": ontology.get("entity_types", []),
-            "edge_types": ontology.get("edge_types", [])
-        }
-        project.analysis_summary = ontology.get("analysis_summary", "")
-        project.status = ProjectStatus.ONTOLOGY_GENERATED
-        ProjectManager.save_project(project)
-        logger.info(f"=== Ontología generada === project_id: {project.project_id}")
-        
+        generate_project_ontology(project, document_texts, additional_context)
+
         return jsonify({
             "success": True,
             "data": {

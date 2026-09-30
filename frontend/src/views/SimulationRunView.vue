@@ -11,8 +11,24 @@
           @updated="onProjectRenamed"
         />
       </div>
-      
+
+      <!-- Centro: las etapas y su estado (la navegación principal del proceso) -->
       <div class="header-center">
+        <div data-tour="run-stepper">
+          <WizardStepper
+            :currentStep="3"
+            :projectId="projectData?.project_id || null"
+            :simulationId="currentSimulationId"
+          />
+        </div>
+        <span class="step-divider"></span>
+        <span class="status-indicator" :class="statusClass">
+          <span class="dot"></span>
+          {{ statusText }}
+        </span>
+      </div>
+
+      <div class="header-right">
         <div class="view-switcher">
           <button 
             v-for="mode in ['graph', 'split', 'workbench']" 
@@ -24,27 +40,14 @@
             {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
           </button>
         </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <AppVersion />
-        <HelpButton tourId="simulationRun" />
         <div class="step-divider"></div>
-        <div data-tour="run-stepper">
-          <WizardStepper
-            :currentStep="3"
-            :projectId="projectData?.project_id || null"
-            :simulationId="currentSimulationId"
-          />
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
+        <LanguageSwitcher compact />
+        <HelpButton compact tourId="simulationRun" />
+        <AppVersion class="tech-only" />
       </div>
     </header>
+
+    <AutoPipelineBanner :projectId="projectData?.project_id || null" :step="3" />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -85,8 +88,9 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step3Simulation from '../components/Step3Simulation.vue'
 import WizardStepper from '../components/WizardStepper.vue'
+import AutoPipelineBanner from '../components/AutoPipelineBanner.vue'
 import { getProject, getGraphData } from '../api/graph'
-import { getSimulation, getSimulationConfig, stopSimulation, closeSimulationEnv, getEnvStatus } from '../api/simulation'
+import { getSimulation, getSimulationConfig } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
@@ -168,51 +172,10 @@ const toggleMaximize = (target) => {
   }
 }
 
-const handleGoBack = async () => {
-  // 在返回 Step 2 之前，先关闭正在运行的模拟
-  addLog(t('log.preparingGoBack'))
-  
-  // 停止轮询
+// Volver al paso 2 es solo mirar cómo se configuró: la simulación sigue su curso
+// (para pararla está el botón «Detener» de este paso).
+const handleGoBack = () => {
   stopGraphRefresh()
-  
-  try {
-    // 先尝试优雅关闭模拟环境
-    const envStatusRes = await getEnvStatus({ simulation_id: currentSimulationId.value })
-    
-    if (envStatusRes.success && envStatusRes.data?.env_alive) {
-      addLog(t('log.closingSimEnv'))
-      try {
-        await closeSimulationEnv({ 
-          simulation_id: currentSimulationId.value,
-          timeout: 10
-        })
-        addLog(t('log.simEnvClosed'))
-      } catch (closeErr) {
-        addLog(t('log.closeSimEnvFailed'))
-        try {
-          await stopSimulation({ simulation_id: currentSimulationId.value })
-          addLog(t('log.simForceStopSuccess'))
-        } catch (stopErr) {
-          addLog(t('log.forceStopFailed', { error: stopErr.message }))
-        }
-      }
-    } else {
-      // 环境未运行，检查是否需要停止进程
-      if (isSimulating.value) {
-        addLog(t('log.stoppingSimProcess'))
-        try {
-          await stopSimulation({ simulation_id: currentSimulationId.value })
-          addLog(t('log.simStopped'))
-        } catch (err) {
-          addLog(t('log.stopSimFailed', { error: err.message }))
-        }
-      }
-    }
-  } catch (err) {
-    addLog(t('log.checkStatusFailed', { error: err.message }))
-  }
-  
-  // 返回到 Step 2 (环境搭建)
   router.push({ name: 'Simulation', params: { simulationId: currentSimulationId.value } })
 }
 
@@ -510,6 +473,51 @@ onUnmounted(() => {
   .switch-btn { flex: 1; padding-inline: 8px; }
   .header-right { flex: 1 1 100%; justify-content: space-between; gap: 10px; }
   .header-right :deep(.app-version-badge), .step-divider { display: none; }
+}
+
+/* ── Cabecera común de las pantallas del proceso ─────────────────────────────
+   Izquierda (marca y proyecto) y derecha (vista, idioma, tutorial) a su tamaño; el centro,
+   con las etapas y su estado, se queda el resto. Antes el reparto era simétrico y la derecha
+   no cabía por debajo de ~2100 px: saltaba a otra fila dentro de 60 px y tocaba el borde. */
+.app-header {
+  height: auto;
+  min-height: 60px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "left center right";
+  column-gap: 24px;
+  row-gap: 8px;
+  padding-block: 8px;
+}
+.header-left { grid-area: left; }
+.header-center {
+  grid-area: center;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.header-right { grid-area: right; flex-wrap: nowrap; gap: 12px; }
+@media (max-width: 1320px) and (min-width: 901px) {
+  /* portátiles: dos filas pensadas (marca y herramientas arriba, etapas centradas debajo) */
+  .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "left right" "center center";
+    padding-block: 10px;
+  }
+}
+@media (max-width: 900px) {
+  /* móvil: idioma y tutorial junto a la marca; el selector de vista y las etapas, cada uno en su fila */
+  .header-right { display: contents; }
+  .header-right .view-switcher { order: 2; flex: 1 1 100%; width: 100%; }
+  .header-right .step-divider { display: none; }
+  .header-center { order: 3; flex: 1 1 100%; justify-content: space-between; }
+  .switch-btn { white-space: nowrap; }
+  /* el nombre del proyecto se recorta antes de empujar el idioma y el tutorial a otra fila */
+  .header-left { flex: 1 1 0; min-width: 0; }
+  .header-left :deep(.project-chip) { min-width: 0; margin-left: 10px; }
+  .header-left :deep(.chip-text) { min-width: 0; }
+  .header-left :deep(.chip-label) { min-width: 0; max-width: none; }
 }
 </style>
 

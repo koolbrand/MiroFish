@@ -93,7 +93,7 @@
       <div class="action-controls" data-tour="run-actions">
         <!-- Stop button — compact icon-only while simulation is running -->
         <button
-          v-if="phase === 1"
+          v-if="phase === 1 && !autoRunning"
           class="action-btn danger icon-only"
           :disabled="isStopping"
           :title="isStopping ? $t('common.processing') : $t('step3.stopSimulation')"
@@ -109,7 +109,7 @@
         <!-- Restart button — solo visible cuando la simulación ya terminó.
              Reemplaza el reinicio automático que antes ocurría al navegar a Step3. -->
         <button
-          v-if="phase === 2"
+          v-if="phase === 2 && !hasReport && !autoRunning"
           class="action-btn secondary icon-only"
           :disabled="isStarting"
           :title="$t('step3.restartSimulation', 'Restart simulation')"
@@ -123,7 +123,17 @@
           </svg>
         </button>
 
+        <!-- Con informe ya hecho se abre (no se regenera); en automático lo genera el servidor -->
         <button
+          v-if="hasReport"
+          class="action-btn primary"
+          @click="openReport"
+        >
+          {{ $t('step3.viewReportBtn') }} <span class="arrow-icon">→</span>
+        </button>
+        <span v-else-if="autoRunning" class="auto-chip">{{ $t('auto.step3Note') }}</span>
+        <button
+          v-else
           class="action-btn primary"
           :disabled="phase !== 2 || isGeneratingReport"
           @click="handleNextStep"
@@ -399,7 +409,8 @@ import {
   getRunStatus,
   getRunStatusDetail
 } from '../api/simulation'
-import { generateReport } from '../api/report'
+import { generateReport, checkReportForSimulation } from '../api/report'
+import { usePipeline } from '../composables/usePipeline'
 
 const { t } = useI18n()
 
@@ -422,6 +433,24 @@ const lastLog = computed(() => {
 })
 
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
+
+// Modo lectura: con un informe ya hecho, este paso lleva a él en vez de regenerarlo, y no se reinicia
+const existingReport = ref(null)   // { report_id, status }
+const hasReport = computed(() => !!existingReport.value?.report_id && existingReport.value.status !== 'failed')
+const { isRunning: autoRunning, state: pipelineState, refresh: refreshPipeline } = usePipeline(() => props.projectData?.project_id)
+const loadExistingReport = async () => {
+  if (!props.simulationId) return
+  try {
+    const res = await checkReportForSimulation(props.simulationId)
+    const d = res?.data
+    existingReport.value = d?.has_report ? { report_id: d.report_id, status: d.report_status } : null
+  } catch (e) {
+    existingReport.value = null
+  }
+}
+const openReport = () => {
+  if (existingReport.value?.report_id) router.push({ name: 'Report', params: { reportId: existingReport.value.report_id } })
+}
 
 const router = useRouter()
 
@@ -1009,6 +1038,16 @@ const initSimulationView = async () => {
     console.warn('No previous simulation status, starting fresh:', err)
   }
 
+  // En automático la lanza el servidor: esperar a que arranque en vez de lanzarla desde aquí
+  // (el proyecto llega un poco después que la simulación: se espera hasta 5 s para saber el modo)
+  for (let i = 0; i < 25 && !props.projectData?.project_id && !unmounted; i++) await new Promise(r => setTimeout(r, 200))
+  if (unmounted) return
+  if (props.projectData?.project_id) await refreshPipeline().catch(() => {})
+  if (autoRunning.value) {
+    if (!unmounted) waitTimer = setTimeout(initSimulationView, 3000)
+    return
+  }
+
   // Primer arranque normal — el backend rechaza si ya hay una corriendo,
   // y `doStartSimulation` ya maneja ese caso reconectando.
   doStartSimulation({ force: false })
@@ -1024,17 +1063,32 @@ const handleRestartSimulation = async () => {
   await doStartSimulation({ force: true })
 }
 
+let unmounted = false
+let waitTimer = null
+
 onMounted(() => {
   addLog(t('log.step3Init'))
+  loadExistingReport()
   initSimulationView()
 })
+// al terminar la ejecución (o si el automático ya pidió el informe) se mira si hay informe
+watch(phase, (p) => { if (p === 2) loadExistingReport() })
+watch(() => pipelineState.value?.report_id, (rid) => { if (rid) loadExistingReport() })
 
 onUnmounted(() => {
+  unmounted = true
+  clearTimeout(waitTimer)
   stopPolling()
 })
 </script>
 
 <style scoped>
+.auto-chip {
+  font-size: 12px;
+  color: var(--kb-text-2);
+  max-width: 260px;
+  line-height: 1.35;
+}
 .simulation-panel {
   height: 100%;
   display: flex;

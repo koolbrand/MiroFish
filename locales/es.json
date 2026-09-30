@@ -302,7 +302,7 @@
     "pasteAdd": "Añadir como documento",
     "pastedFileName": "texto-pegado",
     "fileRejectedPaste": "Pegar texto",
-    "readyNote": "Tarda unos 20–30 min y tú decides cuándo avanzar de una fase a la siguiente. Si cierras la pestaña, el proyecto queda en tu historial.",
+    "readyNote": "Tarda unos 20⁠–⁠30 min y tú decides cuándo avanzar de una fase a la siguiente. Si cierras la pestaña, el proyecto queda en tu historial.",
     "crowdTagUndecided": "Dudando",
     "multKicker": "La multitud",
     "multTitle": "Una multitud entera opina sobre lo tuyo.",
@@ -332,7 +332,12 @@
     "multQuoteU6": "Me convence si me dicen cuánto cuesta una reserva suelta.",
     "multQuoteA5": "4,99 € al mes por algo que ya hago gratis.",
     "multQuoteA6": "Prefiero pagar solo cuando juego.",
-    "readyNoteGuest": "Tarda unos 20–30 min y tú decides cuándo avanzar de una fase a la siguiente. Al lanzarla inicias sesión y tu material te espera."
+    "readyNoteGuest": "Tarda unos 20⁠–⁠30 min y tú decides cuándo avanzar de una fase a la siguiente. Al lanzarla inicias sesión y tu material te espera.",
+    "modeLabel": "Cómo avanzar",
+    "modeManual": "Paso a paso",
+    "modeAuto": "Automático",
+    "readyNoteAuto": "Sigue solo hasta el informe, aunque cierres la pestaña: lo encontrarás en Proyectos. Tarda unos 20⁠–⁠30 min.",
+    "readyNoteAutoGuest": "Sigue solo hasta el informe, aunque cierres la pestaña. Tarda unos 20⁠–⁠30 min. Al lanzarla inicias sesión y tu material te espera."
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -379,7 +384,8 @@
     "creating": "Creando...",
     "enterEnvSetup": "Configurar entorno",
     "createSimulationFailed": "Error al crear la simulación: {error}",
-    "createSimulationException": "Error en la creación de simulación: {error}"
+    "createSimulationException": "Error en la creación de simulación: {error}",
+    "viewEnvSetup": "Ver la configuración"
   },
   "step2": {
     "simInstanceInit": "Inicialización de instancia de simulación",
@@ -465,7 +471,9 @@
     "genderOther": "Otro",
     "yearsOld": "años",
     "initializing": "Inicializando",
-    "generating": "Generando"
+    "generating": "Generando",
+    "readOnlyNote": "Esta simulación ya se ejecutó con {rounds} rondas: aquí se consulta cómo se configuró, sin volver a lanzarla.",
+    "viewSimulation": "Ver la simulación"
   },
   "step3": {
     "startGenerateReport": "Generar informe",
@@ -513,7 +521,8 @@
     "clearFilters": "Limpiar",
     "noMatchingActions": "Ninguna acción coincide con los filtros",
     "restartSimulation": "Reiniciar simulación",
-    "restartConfirm": "¿Reiniciar la simulación? Se perderán los datos del run actual."
+    "restartConfirm": "¿Reiniciar la simulación? Se perderán los datos del run actual.",
+    "viewReportBtn": "Ver el informe"
   },
   "step4": {
     "generatingSection": "Generando {title}...",
@@ -672,7 +681,15 @@
     "statusRunning": "En curso · {current}/{total}",
     "statusStopped": "Detenida en {current}/{total}",
     "statusFailed": "Error en {current}/{total}",
-    "noDescription": "Sin pregunta guardada: ábrelo para continuar."
+    "noDescription": "Sin pregunta guardada: ábrelo para continuar.",
+    "autoBadge": "Automático · {status}",
+    "autoStatus": {
+      "running": "en marcha",
+      "completed": "terminado",
+      "failed": "con error",
+      "cancelled": "detenido",
+      "interrupted": "interrumpido"
+    }
   },
   "api": {
     "projectNotFound": "Proyecto no encontrado: {id}",
@@ -984,7 +1001,8 @@
     "jevFilterSummary": "Jev revisó las entidades: {dropped} descartadas por no opinar en redes; {kept} agentes; audiencia real {audience} %.",
     "jevFilterDropped": "Descartadas: {names}",
     "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (recomendado ≥ {minimum} %). El resultado pesará más la voz de competidores y empresas: añade al documento más detalle sobre el público.",
-    "jevAudienceExpanded": "Audiencia ampliada: +{count} personas distintas dentro de los grupos de público, para que tus clientes pesen al menos un 40 % de la simulación."
+    "jevAudienceExpanded": "Audiencia ampliada: +{count} personas distintas dentro de los grupos de público, para que tus clientes pesen al menos un 40 % de la simulación.",
+    "autoStarted": "Automático en marcha para el proyecto {id}: el servidor sigue hasta el informe."
   },
   "report": {
     "taskStarted": "Tarea de generación de informe iniciada",
@@ -1109,7 +1127,9 @@
       "startTitle": "4. Arranca el motor",
       "startBody": "Al pulsar este botón te llevamos al asistente de 5 pasos donde verás la construcción del grafo en tiempo real.",
       "projectsTitle": "5. Tus proyectos anteriores",
-      "projectsBody": "Desde aquí puedes volver a cualquier proyecto ya creado, revisar su grafo, simulaciones e informes."
+      "projectsBody": "Desde aquí puedes volver a cualquier proyecto ya creado, revisar su grafo, simulaciones e informes.",
+      "modeTitle": "Paso a paso o automático",
+      "modeBody": "Paso a paso: revisas cada etapa y decides cuándo seguir. Automático: el servidor hace las cinco etapas solo, aunque cierres la pestaña."
     },
     "main1": {
       "welcomeTitle": "Asistente de 5 pasos",
@@ -1119,7 +1139,7 @@
       "stepTitle": "Panel derecho — control del paso",
       "stepBody": "Aquí controlas la fase actual: ontología, construcción, logs del sistema. Cuando termine el Paso 1, verás el botón para avanzar al Paso 2.",
       "stepperTitle": "Indicador de progreso",
-      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Puedes hacer clic en cualquier paso que ya esté listo, hacia atrás o hacia delante.",
+      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Puedes ir a cualquier paso por el que ya hayas pasado, hacia atrás o hacia delante; los siguientes se abren al avanzar.",
       "layoutTitle": "Vistas del layout",
       "layoutBody": "Cambia entre: solo grafo, vista partida, o solo panel de trabajo. Útil cuando quieres inspeccionar en detalle una de las dos zonas."
     },
@@ -1139,7 +1159,7 @@
       "startTitle": "Lanzar simulación",
       "startBody": "Cuando termines de revisar perfiles y fijar las rondas, pulsa «Iniciar simulación dual» para pasar al Paso 3 (ejecución en vivo).",
       "stepperTitle": "Progreso global",
-      "stepperBody": "Estás en el Paso 2 de 5. Puedes saltar a los pasos anteriores para revisarlos y a los siguientes en cuanto estén listos."
+      "stepperBody": "Estás en el Paso 2 de 5. Puedes volver a los pasos anteriores para revisarlos; lo que ya se ejecutó se consulta sin volver a lanzarlo."
     },
     "run": {
       "welcomeTitle": "Paso 3 — simulación en vivo",
@@ -1264,5 +1284,27 @@
     "adjust": "Ajustar",
     "agentsShowAll": "Ver los {count} agentes",
     "agentsShowLess": "Ver menos"
+  },
+  "auto": {
+    "tag": "Automático",
+    "cancel": "Detener",
+    "resume": "Reanudar",
+    "running": "Etapa {n} de 5 · {stage}. Puedes cerrar la pestaña: sigue en el servidor y lo encontrarás en Proyectos.",
+    "failed": "Se detuvo en «{stage}»: {error}",
+    "interrupted": "Se interrumpió en «{stage}» porque el servidor se reinició.",
+    "cancelled": "Detenido en «{stage}».",
+    "cancelConfirm": "¿Detener el automático? Si la simulación está en marcha, se para.",
+    "actionFailed": "No se pudo: {error}",
+    "stage": {
+      "ontology": "Leyendo el material",
+      "graph": "Construyendo el mapa",
+      "prepare": "Creando a las personas",
+      "simulate": "Simulando",
+      "report": "Escribiendo el informe",
+      "done": "Terminado"
+    },
+    "step1Note": "El automático abrirá la configuración en cuanto el mapa esté listo.",
+    "step2Note": "El automático lanzará la simulación con 40 rondas en cuanto las personas estén listas.",
+    "step3Note": "El informe se escribirá solo al terminar."
   }
 }

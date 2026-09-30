@@ -302,7 +302,7 @@
     "pasteAdd": "添加为文档",
     "pastedFileName": "pasted-text",
     "fileRejectedPaste": "粘贴文字",
-    "readyNote": "约需 20–30 分钟，何时进入下一阶段由你决定。关闭标签页后，项目会保留在历史记录中。",
+    "readyNote": "约需 20⁠–⁠30 分钟，何时进入下一阶段由你决定。关闭标签页后，项目会保留在历史记录中。",
     "crowdTagUndecided": "犹豫中",
     "multKicker": "群体",
     "multTitle": "一大群人，都在评价你的想法。",
@@ -332,7 +332,12 @@
     "multQuoteU6": "如果告诉我单次预订要多少钱，我就会更有把握。",
     "multQuoteA5": "我现在免费就能订，何必每月花 4.99 欧元。",
     "multQuoteA6": "我更愿意只在打球时付费。",
-    "readyNoteGuest": "约需 20–30 分钟，何时进入下一阶段由你决定。启动时请登录，你的材料会保留。"
+    "readyNoteGuest": "约需 20⁠–⁠30 分钟，何时进入下一阶段由你决定。启动时请登录，你的材料会保留。",
+    "modeLabel": "推进方式",
+    "modeManual": "逐步进行",
+    "modeAuto": "自动",
+    "readyNoteAuto": "会自动运行到生成报告，即使关闭标签页也会继续：可在「项目」中找到。约需 20⁠–⁠30 分钟。",
+    "readyNoteAutoGuest": "会自动运行到生成报告，即使关闭标签页也会继续。约需 20⁠–⁠30 分钟。启动时请登录，你的材料会保留。"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -379,7 +384,8 @@
     "creating": "创建中...",
     "enterEnvSetup": "进入环境搭建",
     "createSimulationFailed": "创建模拟失败: {error}",
-    "createSimulationException": "创建模拟异常: {error}"
+    "createSimulationException": "创建模拟异常: {error}",
+    "viewEnvSetup": "查看配置"
   },
   "step2": {
     "simInstanceInit": "模拟实例初始化",
@@ -465,7 +471,9 @@
     "genderOther": "其他",
     "yearsOld": "岁",
     "initializing": "初始化",
-    "generating": "生成中"
+    "generating": "生成中",
+    "readOnlyNote": "该模拟已按 {rounds} 轮运行：此处仅查看其配置，不会重新启动。",
+    "viewSimulation": "查看模拟"
   },
   "step3": {
     "startGenerateReport": "开始生成结果报告",
@@ -513,7 +521,8 @@
     "clearFilters": "清除",
     "noMatchingActions": "没有符合筛选条件的动作",
     "restartSimulation": "重启模拟",
-    "restartConfirm": "要重启模拟吗？当前运行的数据将丢失。"
+    "restartConfirm": "要重启模拟吗？当前运行的数据将丢失。",
+    "viewReportBtn": "查看报告"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
@@ -672,7 +681,15 @@
     "statusRunning": "进行中 · {current}/{total}",
     "statusStopped": "停止于 {current}/{total}",
     "statusFailed": "失败于 {current}/{total}",
-    "noDescription": "未保存问题：打开后可继续。"
+    "noDescription": "未保存问题：打开后可继续。",
+    "autoBadge": "自动 · {status}",
+    "autoStatus": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "出错",
+      "cancelled": "已停止",
+      "interrupted": "已中断"
+    }
   },
   "api": {
     "projectNotFound": "项目不存在: {id}",
@@ -984,7 +1001,8 @@
     "jevFilterSummary": "Jev 已检查实体：排除 {dropped} 个不会发言的实体；共 {kept} 个智能体；真实受众 {audience}%。",
     "jevFilterDropped": "已排除：{names}",
     "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议 ≥ {minimum}%）。竞争对手和企业的声音会更重：请在文档中补充受众信息。",
-    "jevAudienceExpanded": "受众已扩充：在受众群体中新增 {count} 个不同的人物，使你的客户至少占模拟的 40%。"
+    "jevAudienceExpanded": "受众已扩充：在受众群体中新增 {count} 个不同的人物，使你的客户至少占模拟的 40%。",
+    "autoStarted": "项目 {id} 已启动自动模式：服务器将一直运行到生成报告。"
   },
   "report": {
     "taskStarted": "报告生成任务开始",
@@ -1109,7 +1127,9 @@
       "startTitle": "4. 启动引擎",
       "startBody": "点击此按钮进入 5 步向导，您将实时看到图谱被一步步构建出来。",
       "projectsTitle": "5. 历史项目",
-      "projectsBody": "从这里可以返回任何已创建的项目，查看其图谱、模拟与报告。"
+      "projectsBody": "从这里可以返回任何已创建的项目，查看其图谱、模拟与报告。",
+      "modeTitle": "逐步进行或自动",
+      "modeBody": "逐步进行：每个阶段由你审阅并决定何时继续。自动：服务器独立完成全部五个阶段，即使关闭标签页也会继续。"
     },
     "main1": {
       "welcomeTitle": "5 步向导",
@@ -1119,7 +1139,7 @@
       "stepTitle": "右侧面板 — 步骤控制",
       "stepBody": "在这里推进当前阶段：本体、图谱构建、系统日志。第 1 步完成后，会出现进入第 2 步的按钮。",
       "stepperTitle": "进度指示器",
-      "stepperBody": "显示您当前所在的步骤（1→5）。任何已就绪的步骤都可以点击，向前或向后均可。",
+      "stepperBody": "显示您当前所在的步骤（1→5）。可前往任何已经过的步骤，向前或向后均可；后续步骤随流程推进开放。",
       "layoutTitle": "布局切换",
       "layoutBody": "可在「仅图谱」「左右分栏」「仅工作台」之间切换。聚焦某一侧时非常方便。"
     },
@@ -1139,7 +1159,7 @@
       "startTitle": "启动模拟",
       "startBody": "确认画像并设置轮数后，点击「启动双平台模拟」，即可进入第 3 步（实时运行）。",
       "stepperTitle": "整体进度",
-      "stepperBody": "您正处于 5 步中的第 2 步。可返回查看之前的步骤，后续步骤就绪后也可直接跳转。"
+      "stepperBody": "您正处于 5 步中的第 2 步。可返回查看之前的步骤；已运行的内容仅供查看，不会重新启动。"
     },
     "run": {
       "welcomeTitle": "第 3 步 — 实时模拟",
@@ -1264,5 +1284,27 @@
     "adjust": "调整",
     "agentsShowAll": "查看全部 {count} 个智能体",
     "agentsShowLess": "收起"
+  },
+  "auto": {
+    "tag": "自动",
+    "cancel": "停止",
+    "resume": "继续",
+    "running": "第 {n} / 5 阶段 · {stage}。可以关闭标签页：服务器会继续运行，稍后可在「项目」中找到。",
+    "failed": "在「{stage}」停止：{error}",
+    "interrupted": "服务器重启，已在「{stage}」中断。",
+    "cancelled": "已在「{stage}」停止。",
+    "cancelConfirm": "停止自动模式？如果模拟正在运行，将会停止。",
+    "actionFailed": "操作失败：{error}",
+    "stage": {
+      "ontology": "读取材料",
+      "graph": "构建图谱",
+      "prepare": "生成人物",
+      "simulate": "模拟中",
+      "report": "撰写报告",
+      "done": "已完成"
+    },
+    "step1Note": "图谱就绪后，自动模式会打开环境配置。",
+    "step2Note": "人物就绪后，自动模式会以 40 轮启动模拟。",
+    "step3Note": "模拟结束后会自动撰写报告。"
   }
 }

@@ -160,9 +160,19 @@
         <div class="card-content">
           <p class="api-note">POST /api/simulation/create</p>
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
-          <button 
-            class="action-btn" 
-            :disabled="currentPhase < 2 || creatingSimulation"
+          <!-- En automático la simulación la crea el servidor; si ya existe, se abre (nunca se crea otra) -->
+          <p v-if="autoRunning && !existingSimulationId" class="auto-note">{{ $t('auto.step1Note') }}</p>
+          <button
+            v-else-if="existingSimulationId"
+            class="action-btn"
+            @click="openExistingSimulation"
+          >
+            {{ $t('step1.viewEnvSetup') }} ➝
+          </button>
+          <button
+            v-else
+            class="action-btn"
+            :disabled="currentPhase < 2 || creatingSimulation || checkingSimulations"
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
@@ -195,7 +205,8 @@ import { useTechDetails } from '../composables/useTechDetails'
 import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { createSimulation } from '../api/simulation'
+import { createSimulation, listSimulations } from '../api/simulation'
+import { usePipeline } from '../composables/usePipeline'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -221,8 +232,37 @@ const selectedOntologyItem = ref(null)
 const logContent = ref(null)
 const creatingSimulation = ref(false)
 
+// Modo lectura: si el proyecto ya tiene simulación, este paso la abre en vez de crear otra
+// (crear una segunda deja la primera huérfana y el proyecto a medias).
+const existingSimulationId = ref(null)
+const checkingSimulations = ref(false)
+const { isRunning: autoRunning, state: pipelineState } = usePipeline(() => props.projectData?.project_id)
+
+const loadExistingSimulation = async (projectId) => {
+  existingSimulationId.value = null
+  if (!projectId) return
+  checkingSimulations.value = true
+  try {
+    const res = await listSimulations(projectId)
+    const list = (res?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    if (props.projectData?.project_id === projectId) existingSimulationId.value = list[0]?.simulation_id || null
+  } catch (e) {
+    // sin lista: se deja crear (como antes)
+  } finally {
+    checkingSimulations.value = false
+  }
+}
+watch(() => props.projectData?.project_id, loadExistingSimulation, { immediate: true })
+// el automático crea la simulación: en cuanto aparece, el botón pasa a abrirla
+watch(() => pipelineState.value?.simulation_id, sid => { if (sid) existingSimulationId.value = sid })
+
+const openExistingSimulation = () => {
+  router.push({ name: 'Simulation', params: { simulationId: existingSimulationId.value } })
+}
+
 // 进入环境搭建 - 创建 simulation 并跳转
 const handleEnterEnvSetup = async () => {
+  if (existingSimulationId.value) return openExistingSimulation()
   if (!props.projectData?.project_id || !props.projectData?.graph_id) {
     console.error('Falta información del proyecto o del grafo')
     return
@@ -284,6 +324,15 @@ watch(() => props.systemLogs.length, () => {
 </script>
 
 <style scoped>
+.auto-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--kb-surface-2);
+  color: var(--kb-text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .workbench-panel {
   height: 100%;
   background-color: var(--kb-surface-2);

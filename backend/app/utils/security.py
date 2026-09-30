@@ -4,13 +4,35 @@ Security helpers for API authentication and safe error responses.
 
 import hmac
 import re
-from typing import Any
+import secrets
+from typing import Any, Mapping
 
 import httpx
 from cachetools import TTLCache
 from flask import jsonify
 
 from ..config import Config
+
+
+# Secreto interno del proceso. Lo usan los hilos del modo automático para
+# llamar a las rutas de la API con `app.test_client()` sin token de usuario.
+# Se genera al arrancar, vive solo en memoria: no sale del proceso, no se
+# loguea y no se devuelve nunca al cliente. Cada arranque genera uno nuevo.
+INTERNAL_AUTH_HEADER = "X-Simuloo-Internal"
+_INTERNAL_TOKEN = secrets.token_urlsafe(32)
+
+
+def internal_request_headers() -> dict:
+    """Cabeceras que identifican una llamada interna del propio proceso."""
+    return {INTERNAL_AUTH_HEADER: _INTERNAL_TOKEN}
+
+
+def is_internal_request(headers: Mapping[str, str]) -> bool:
+    """True si la petición lleva el secreto interno (comparación en tiempo constante)."""
+    value = headers.get(INTERNAL_AUTH_HEADER, "") if headers else ""
+    if not value:
+        return False
+    return hmac.compare_digest(value.encode(), _INTERNAL_TOKEN.encode())
 
 
 # Bounded cache for validated PocketBase Bearer tokens.

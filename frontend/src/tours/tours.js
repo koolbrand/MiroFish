@@ -41,6 +41,12 @@ export const TOURS = {
       bodyKey:  'tutorial.home.nameBody',
     },
     {
+      selector: '[data-tour="home-mode"]',
+      placement: 'top',
+      titleKey: 'tutorial.home.modeTitle',
+      bodyKey:  'tutorial.home.modeBody',
+    },
+    {
       selector: '[data-tour="home-start"]',
       placement: 'top',
       titleKey: 'tutorial.home.startTitle',
