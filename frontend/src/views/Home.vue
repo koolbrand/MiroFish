@@ -225,6 +225,16 @@
         </div>
       </section>
 
+      <!-- La multitud: cientos de ojos sobre lo tuyo — 120 personas simuladas opinando (ejemplo) y cambiando de idea ronda a ronda -->
+      <section id="multitud" class="section crowd-section">
+        <div v-reveal class="section-head">
+          <span class="kicker">{{ $t('home.multKicker') }}</span>
+          <h2 class="section-title wide">{{ $t('home.multTitle') }}</h2>
+          <p class="section-lede">{{ $t('home.multLede') }}</p>
+        </div>
+        <OpinionCrowd v-reveal />
+      </section>
+
       <!-- Qué obtienes: la prueba tangible del resultado (informe de ejemplo), sobre una banda de tinta: cambia el material -->
       <div class="band-ink">
       <section class="section results">
@@ -298,6 +308,7 @@ import BrandLogo from '../components/BrandLogo.vue'
 import HelpButton from '../components/HelpButton.vue'
 import BiankaCrowd from '../components/BiankaCrowd.vue'
 import ReportExample from '../components/ReportExample.vue'
+import OpinionCrowd from '../components/OpinionCrowd.vue'
 import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
@@ -1130,6 +1141,8 @@ const startSimulation = () => {
 }
 .title-crowd > * { margin-inline-start: -8px; }
 @media (max-width: 1100px) { .title-crowd { display: none; } }
+.section-lede { max-width: 62ch; margin: 18px 0 0; font-size: clamp(1rem, 1.3vw, 1.15rem); line-height: 1.55; color: var(--kb-text-2); text-wrap: pretty; }
+.crowd-section .section-head { margin-bottom: clamp(28px, 3.2vw, 44px); }
 .section-title.small { font-size: clamp(2rem, 3.8vw, 3.2rem); }
 
 .track { position: relative; margin-top: 96px; }

@@ -14,7 +14,7 @@ import { drawBianka, makeLook, fixedLook, seededRng } from '../lib/biankaSprite'
 
 const props = defineProps({
   seed: { type: String, default: '' },
-  // aspecto fijo (si se pasa, ignora seed): { ears, head, face, body }
+  // aspecto fijo (si se pasa, ignora seed): { ears, head, face, body } por id, o un aspecto completo de makeLook()
   look: { type: Object, default: null },
   bucket: { type: String, default: 'undecided' },
   pixel: { type: Number, default: 2 },
@@ -37,7 +37,8 @@ let raf = null, visible = false, io = null, running = false, hopAt = -10
 const phase = Math.random() * 3
 const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 // sin paleta de votación: el lienzo del avatar es justo y la paleta sobresale de la silueta
-const lk = props.look ? fixedLook(props.look) : { ...makeLook(props.seed ? seededRng(props.seed) : Math.random), pose: null }
+// `look` puede ser un aspecto ya construido (con `key`: el de una Bianka de la multitud) o las piezas por id
+const lk = props.look ? (props.look.key ? { ...props.look, pose: null } : fixedLook(props.look)) : { ...makeLook(props.seed ? seededRng(props.seed) : Math.random), pose: null }
 
 const paint = (t) => {
   const el = canvas.value
