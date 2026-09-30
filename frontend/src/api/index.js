@@ -55,15 +55,17 @@ service.interceptors.response.use(
 
     const status = error?.response?.status
 
-    // 401/403 → sesión inválida: limpiar store y enviar a /login
+    // 401/403 → sesión inválida: limpiar store y, si la pantalla es privada,
+    // enviar a /login con el regreso a donde se estaba. La portada es pública:
+    // ahí el visitante se queda donde está.
     // Import lazy del router para evitar ciclos (api → router → views → api)
     if (status === 401 || status === 403) {
       import('../router').then(({ default: router }) => {
-        const onLoginRoute = router.currentRoute.value?.path === '/login'
-        if (!onLoginRoute) {
-          pb.authStore.clear()
-          router.push('/login')
-        }
+        const route = router.currentRoute.value
+        if (route?.path === '/login') return
+        pb.authStore.clear()
+        if (route?.meta?.requiresAuth === false) return
+        router.push({ path: '/login', query: { redirect: route?.fullPath || '/' } })
       })
     }
 

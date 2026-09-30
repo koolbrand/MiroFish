@@ -252,6 +252,9 @@ export const TOURS = {
   ],
 }
 
+// Visitante sin sesión: el mismo recorrido sin el paso de «Proyectos», que aún no ve
+TOURS.homeGuest = TOURS.home.filter(step => step.selector !== '[data-tour="home-projects-link"]')
+
 export function getTour(id) {
   return TOURS[id] || null
 }

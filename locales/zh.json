@@ -9,7 +9,10 @@
     "forgotNeedsEmail": "请先在上方输入邮箱，然后再次点击。",
     "resetSent": "如果该邮箱已注册，我们已发送设置新密码的链接。",
     "resetFailed": "邮件发送失败，请稍后重试。",
-    "tagline": "先演练，再决策。"
+    "tagline": "先演练，再决策。",
+    "reasonLaunch": "请登录以启动模拟。你的材料和问题都已保留。",
+    "reasonInterview": "请登录，让访谈帮你撰写简报。你已填写的内容会保留。",
+    "backHome": "返回首页"
   },
   "common": {
     "confirm": "确认",
@@ -43,7 +46,8 @@
   },
   "nav": {
     "visitGithub": "访问我们的Github主页",
-    "projects": "项目管理"
+    "projects": "项目管理",
+    "signIn": "登录"
   },
   "projects": {
     "title": "项目管理",
@@ -137,7 +141,7 @@
     "crowdCaption": "示例模拟",
     "crowdRound": "轮次",
     "crowdFor": "支持",
-    "crowdUndecided": "犹豫",
+    "crowdUndecided": "犹豫中",
     "crowdAgainst": "反对",
     "crowdEvent1": "发布",
     "crowdEvent2": "首条评测",
@@ -269,7 +273,6 @@
     "figureUnitMinutes": "分钟",
     "dropTouchTitle": "点按选择文档或图片",
     "uploadTip": "Word 或 PowerPoint？可粘贴其文字，或先导出为 PDF。",
-    "crowdHint": "点一点 Bianka，听听 TA 怎么想。",
     "crowdVoice10": "这正是我一直在找的。",
     "crowdVoice11": "这个价格，我要了。",
     "crowdVoice12": "我要拿给团队看看。",
@@ -328,7 +331,8 @@
     "multQuoteU5": "如果我想订的场地总是没空位呢？",
     "multQuoteU6": "如果告诉我单次预订要多少钱，我就会更有把握。",
     "multQuoteA5": "我现在免费就能订，何必每月花 4.99 欧元。",
-    "multQuoteA6": "我更愿意只在打球时付费。"
+    "multQuoteA6": "我更愿意只在打球时付费。",
+    "readyNoteGuest": "约需 20–30 分钟，何时进入下一阶段由你决定。启动时请登录，你的材料会保留。"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -1115,7 +1119,7 @@
       "stepTitle": "右侧面板 — 步骤控制",
       "stepBody": "在这里推进当前阶段：本体、图谱构建、系统日志。第 1 步完成后，会出现进入第 2 步的按钮。",
       "stepperTitle": "进度指示器",
-      "stepperBody": "显示您当前所在的步骤（1→5）。已完成的步骤可以点击返回。",
+      "stepperBody": "显示您当前所在的步骤（1→5）。任何已就绪的步骤都可以点击，向前或向后均可。",
       "layoutTitle": "布局切换",
       "layoutBody": "可在「仅图谱」「左右分栏」「仅工作台」之间切换。聚焦某一侧时非常方便。"
     },
@@ -1135,7 +1139,7 @@
       "startTitle": "启动模拟",
       "startBody": "确认画像并设置轮数后，点击「启动双平台模拟」，即可进入第 3 步（实时运行）。",
       "stepperTitle": "整体进度",
-      "stepperBody": "您正处于 5 步中的第 2 步。可点击已完成的步骤返回查看。"
+      "stepperBody": "您正处于 5 步中的第 2 步。可返回查看之前的步骤，后续步骤就绪后也可直接跳转。"
     },
     "run": {
       "welcomeTitle": "第 3 步 — 实时模拟",

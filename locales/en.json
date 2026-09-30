@@ -9,7 +9,10 @@
     "forgotNeedsEmail": "Type your email above and click again.",
     "resetSent": "If that email has an account, we've sent you a link to set a new password.",
     "resetFailed": "Couldn't send the email. Please try again later.",
-    "tagline": "Rehearse first. Then decide."
+    "tagline": "Rehearse first. Then decide.",
+    "reasonLaunch": "Sign in to launch your simulation. Your material and your question are waiting.",
+    "reasonInterview": "Sign in to have the interview help you write the brief. What you typed is waiting.",
+    "backHome": "Back to home"
   },
   "common": {
     "confirm": "Confirm",
@@ -43,7 +46,8 @@
   },
   "nav": {
     "visitGithub": "View on GitHub",
-    "projects": "Projects"
+    "projects": "Projects",
+    "signIn": "Sign in"
   },
   "projects": {
     "title": "Project management",
@@ -269,7 +273,6 @@
     "figureUnitMinutes": "minutes",
     "dropTouchTitle": "Tap to choose documents or images",
     "uploadTip": "Word or PowerPoint? Paste its text or export it to PDF.",
-    "crowdHint": "Tap a Bianka to hear what they think.",
     "crowdVoice10": "Exactly what I was looking for.",
     "crowdVoice11": "At that price, I'm in.",
     "crowdVoice12": "I'm showing this to my team.",
@@ -328,7 +331,8 @@
     "multQuoteU5": "What if the court I want never shows as free?",
     "multQuoteU6": "I’d be convinced if they told me what a single booking costs.",
     "multQuoteA5": "€4.99 a month for something I already do for free.",
-    "multQuoteA6": "I’d rather pay only when I play."
+    "multQuoteA6": "I’d rather pay only when I play.",
+    "readyNoteGuest": "Takes about 20–30 min, and you decide when to move on from one stage to the next. You'll sign in when you launch it, and your material will be waiting."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -1115,7 +1119,7 @@
       "stepTitle": "Right panel — step controls",
       "stepBody": "Here you drive the current phase: ontology, graph build, system logs. Once Step 1 is done you'll see the button to move on to Step 2.",
       "stepperTitle": "Progress indicator",
-      "stepperBody": "Shows which step of the flow you're on (1→5). Completed steps are clickable, so you can jump back at any time.",
+      "stepperBody": "Shows which step of the flow you're on (1→5). Click any step that's ready, going back or ahead.",
       "layoutTitle": "Layout views",
       "layoutBody": "Toggle between: graph-only, split view, or workbench-only. Handy when you want to focus on one of the two zones."
     },
@@ -1135,7 +1139,7 @@
       "startTitle": "Launch simulation",
       "startBody": "Once you've reviewed profiles and set the number of rounds, press \"Start dual simulation\" to move on to Step 3 (live run).",
       "stepperTitle": "Overall progress",
-      "stepperBody": "You're in Step 2 of 5. Click on any completed step to jump back and review it."
+      "stepperBody": "You're in Step 2 of 5. Jump back to review earlier steps, or ahead to later ones as soon as they're ready."
     },
     "run": {
       "welcomeTitle": "Step 3 — live simulation",

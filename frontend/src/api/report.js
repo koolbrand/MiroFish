@@ -46,6 +46,15 @@ export const getConsoleLog = (reportId, fromLine = 0) => {
  * 获取报告详情
  * @param {string} reportId
  */
+/**
+ * ¿Tiene informe esta simulación y en qué estado está? (responde 200 aunque no haya informe)
+ * @param {string} simulationId
+ * @returns {Promise<{data:{has_report:boolean, report_status:string|null, report_id:string|null, interview_unlocked:boolean}}>}
+ */
+export const checkReportForSimulation = (simulationId) => {
+  return service.get(`/api/report/check/${simulationId}`)
+}
+
 export const getReport = (reportId) => {
   return service.get(`/api/report/${reportId}`)
 }

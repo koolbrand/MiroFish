@@ -104,9 +104,11 @@ import { checkBrief, interviewNext, interviewCompose } from '../api/brief'
 const props = defineProps({
   files: { type: Array, default: () => [] },
   topic: { type: String, default: '' },
-  disabled: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false },
+  // Sin sesión no se llama a la API (revisión y entrevista usan el modelo): se pide iniciar sesión
+  signedIn: { type: Boolean, default: true }
 })
-const emit = defineEmits(['add-file'])
+const emit = defineEmits(['add-file', 'need-login'])
 const { t } = useI18n()
 
 const TEXT_EXT = ['md', 'markdown', 'txt', 'pdf']
@@ -120,10 +122,10 @@ let checkSeq = 0
 
 const missingRequired = computed(() => (check.value?.available ? check.value.missing_required || [] : []))
 
-watch(() => props.files.map(f => `${f.name}:${f.size}`).join('|'), () => {
+watch(() => `${props.signedIn}|${props.files.map(f => `${f.name}:${f.size}`).join('|')}`, () => {
   clearTimeout(checkTimer)
   const textFiles = props.files.filter(isText)
-  if (!textFiles.length) {
+  if (!props.signedIn || !textFiles.length) {
     check.value = null
     return
   }
@@ -188,6 +190,7 @@ const askNext = async () => {
 }
 
 const openInterview = async () => {
+  if (!props.signedIn) return emit('need-login')
   interviewOpen.value = true
   if (transcript.value.length || currentQuestion.value || draft.value) return
   seedText = await readSeedText()

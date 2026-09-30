@@ -9,7 +9,10 @@
     "forgotNeedsEmail": "Escribe tu correo arriba y vuelve a pulsar.",
     "resetSent": "Si el correo tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva.",
     "resetFailed": "No se pudo enviar el correo. Inténtalo más tarde.",
-    "tagline": "Primero ensaya. Después decide."
+    "tagline": "Primero ensaya. Después decide.",
+    "reasonLaunch": "Inicia sesión para lanzar tu simulación. Tu material y tu pregunta te esperan.",
+    "reasonInterview": "Inicia sesión para que la entrevista te ayude a redactar el brief. Lo que has escrito te espera.",
+    "backHome": "Volver al inicio"
   },
   "common": {
     "confirm": "Confirmar",
@@ -43,7 +46,8 @@
   },
   "nav": {
     "visitGithub": "Ver en GitHub",
-    "projects": "Proyectos"
+    "projects": "Proyectos",
+    "signIn": "Iniciar sesión"
   },
   "projects": {
     "title": "Gestión de proyectos",
@@ -137,7 +141,7 @@
     "crowdCaption": "Simulación de ejemplo",
     "crowdRound": "Ronda",
     "crowdFor": "A favor",
-    "crowdUndecided": "Indecisos",
+    "crowdUndecided": "Dudando",
     "crowdAgainst": "En contra",
     "crowdEvent1": "Lanzamiento",
     "crowdEvent2": "Primera reseña",
@@ -269,7 +273,6 @@
     "figureUnitMinutes": "minutos",
     "dropTouchTitle": "Toca para elegir documentos o imágenes",
     "uploadTip": "¿Word o PowerPoint? Pega su texto o expórtalo a PDF.",
-    "crowdHint": "Pulsa una Bianka y te cuenta qué piensa.",
     "crowdVoice10": "Justo lo que estaba buscando.",
     "crowdVoice11": "Por ese precio, me lo quedo.",
     "crowdVoice12": "Se lo voy a enseñar a mi equipo.",
@@ -328,7 +331,8 @@
     "multQuoteU5": "¿Y si la pista que quiero nunca sale libre?",
     "multQuoteU6": "Me convence si me dicen cuánto cuesta una reserva suelta.",
     "multQuoteA5": "4,99 € al mes por algo que ya hago gratis.",
-    "multQuoteA6": "Prefiero pagar solo cuando juego."
+    "multQuoteA6": "Prefiero pagar solo cuando juego.",
+    "readyNoteGuest": "Tarda unos 20–30 min y tú decides cuándo avanzar de una fase a la siguiente. Al lanzarla inicias sesión y tu material te espera."
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -1115,7 +1119,7 @@
       "stepTitle": "Panel derecho — control del paso",
       "stepBody": "Aquí controlas la fase actual: ontología, construcción, logs del sistema. Cuando termine el Paso 1, verás el botón para avanzar al Paso 2.",
       "stepperTitle": "Indicador de progreso",
-      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Si un paso ya está completado puedes hacer clic para volver a él.",
+      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Puedes hacer clic en cualquier paso que ya esté listo, hacia atrás o hacia delante.",
       "layoutTitle": "Vistas del layout",
       "layoutBody": "Cambia entre: solo grafo, vista partida, o solo panel de trabajo. Útil cuando quieres inspeccionar en detalle una de las dos zonas."
     },
@@ -1135,7 +1139,7 @@
       "startTitle": "Lanzar simulación",
       "startBody": "Cuando termines de revisar perfiles y fijar las rondas, pulsa «Iniciar simulación dual» para pasar al Paso 3 (ejecución en vivo).",
       "stepperTitle": "Progreso global",
-      "stepperBody": "Estás en el Paso 2 de 5. Puedes hacer clic en pasos ya completados para volver a revisarlos."
+      "stepperBody": "Estás en el Paso 2 de 5. Puedes saltar a los pasos anteriores para revisarlos y a los siguientes en cuanto estén listos."
     },
     "run": {
       "welcomeTitle": "Paso 3 — simulación en vivo",

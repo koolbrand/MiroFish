@@ -8,6 +8,7 @@ import InteractionView from '../views/InteractionView.vue'
 import LoginView from '../views/LoginView.vue'
 import ProjectsListView from '../views/ProjectsListView.vue'
 import { pb } from '../lib/pocketbase'
+import { safeRedirect } from '../lib/authRedirect'
 
 const routes = [
   {
@@ -20,7 +21,8 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
-    meta: { requiresAuth: true }
+    // Portada pública: el inicio de sesión se pide al lanzar la simulación
+    meta: { requiresAuth: false }
   },
   {
     path: '/process/:projectId',
@@ -70,17 +72,16 @@ const router = createRouter({
   routes
 })
 
-// Navigation guard — redirige a /login si no hay sesión activa
-router.beforeEach((to, from, next) => {
+// Navigation guard — lo privado pide sesión y, tras iniciarla, vuelve a donde se iba
+router.beforeEach((to) => {
   const requiresAuth = to.meta.requiresAuth !== false
   const isAuthenticated = pb.authStore.isValid
 
   if (requiresAuth && !isAuthenticated) {
-    next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
-    next('/')
-  } else {
-    next()
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.path === '/login' && isAuthenticated) {
+    return safeRedirect(to.query.redirect)
   }
 })
 

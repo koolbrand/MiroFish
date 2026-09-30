@@ -47,7 +47,6 @@
         <span><i class="swatch is-undecided"></i>{{ $t('home.crowdUndecided') }} <b>{{ stats.undecided }} %</b></span>
         <span><i class="swatch is-against"></i>{{ $t('home.crowdAgainst') }} <b>{{ stats.against }} %</b></span>
       </div>
-      <div class="readout-hint">{{ $t('home.crowdHint') }}</div>
     </div>
   </div>
 </template>
@@ -132,8 +131,8 @@ const seedAgents = () => {
   // las orejas de la fila de abajo ya no se comen el cuerpo de la de arriba). En móvil, apretadas: cada píxel cuenta.
   // Portátiles (900–1399 px): un punto intermedio para no quedarse sin caras en pantallas bajas.
   const tier = W >= 1400 ? 2 : W >= 900 ? 1 : 0
-  CX = [17, 19, 20][tier] * P
-  RY = [21, 25, 26][tier] * P
+  CX = [17, 18, 18][tier] * P
+  RY = [21, 24, 23][tier] * P
   // La primera fila se coloca de modo que su cara quepa entera en la franja de muro que queda entre la barra y
   // la tarjeta (si no, ahí solo asomarían orejas); el resto de filas cuelga de esa; y la primera columna, con la
   // cara entera dentro del lienzo por la izquierda.
@@ -155,12 +154,12 @@ const seedAgents = () => {
     for (let col = 0; col < cols; col++) {
       // ningún vecino se parece: ni el mismo aspecto entero ni el mismo gorro, cuerpo o cara que el de
       // la izquierda o los de la fila de arriba (así no hay dos conejos «lisos» seguidos)
-      let look = makeLook()
+      let look = { ...makeLook(), pose: null }   // sin paletas de votación en la portada: menos masas de tinta alrededor del titular
       for (let tries = 0; tries < 16; tries++) {
         const near = [parts[`${row}:${col - 1}`], parts[`${row}:${col - 2}`], parts[`${row - 1}:${col}`], parts[`${row - 1}:${col - 1}`], parts[`${row - 1}:${col + 1}`]].filter(Boolean)
         const clash = near.some(n => n.key === look.key || (look.head && n.head === look.head.id) || (look.body && n.body === look.body.id) || (look.face && n.face === look.face.id))
         if (!clash) break
-        look = makeLook()
+        look = { ...makeLook(), pose: null }
       }
       parts[`${row}:${col}`] = { key: look.key, head: look.head?.id, body: look.body?.id, face: look.face?.id }
       // la retícula se rompe: desfase de hasta 2 celdas de lado a lado y 3 de arriba abajo (la primera fila no, que va alineada con la franja)
@@ -960,7 +959,7 @@ onUnmounted(() => {
   border-top: 0;
   border-radius: 0 0 18px 18px;
   box-shadow: 8px 8px 0 var(--ink-950);
-  padding: 12px clamp(20px, 4vw, 56px) 14px;
+  padding: 11px clamp(20px, 4vw, 56px) 13px;
   animation: readout-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
 }
 @keyframes readout-rise {
@@ -1011,13 +1010,11 @@ onUnmounted(() => {
 .readout-legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .readout-legend .swatch { width: 12px; height: 12px; }
 .readout-legend b { font-weight: 700; color: var(--kb-text); font-variant-numeric: tabular-nums; }
-.readout-hint { margin-top: 7px; padding-top: 6px; border-top: 1px dashed rgba(17, 17, 17, 0.25); font-size: 11px; letter-spacing: 0.02em; color: var(--kb-muted); }
 
 /* móvil: la tira ocupa el ancho, el evento baja a su fila y la pista sobra (se pulsa sin más) */
 @media (max-width: 700px) {
   .crowd-readout:not(.is-attached) { bottom: 16px; padding: 9px 14px 10px; }
   .crowd-readout.is-attached { padding: 10px 14px 12px; }
-  .readout-hint { display: none; }
   .readout-event { margin-inline-start: 0; flex-basis: 100%; }
 }
 @media (max-width: 480px) {

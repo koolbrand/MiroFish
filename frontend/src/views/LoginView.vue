@@ -11,6 +11,7 @@
 
       <!-- Form -->
       <div class="login-card">
+        <p v-if="reasonText" class="login-reason">{{ reasonText }}</p>
         <form @submit.prevent="handleLogin" class="login-form">
 
           <div class="form-group">
@@ -61,20 +62,32 @@
         </form>
       </div>
 
+      <router-link to="/" class="login-back">← {{ t('login.backHome') }}</router-link>
       <p class="login-footer">{{ t('login.protected') }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { pb } from '../lib/pocketbase'
+import { safeRedirect } from '../lib/authRedirect'
+import { getPendingUpload } from '../store/pendingUpload'
 import BrandLogo from '../components/BrandLogo.vue'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
+
+// Por qué se pide iniciar sesión (viene de la portada, que es pública)
+const reasonText = computed(() => {
+  const reason = route.query.reason
+  if (reason === 'launch' && getPendingUpload().isPending) return t('login.reasonLaunch')
+  if (reason === 'interview') return t('login.reasonInterview')
+  return ''
+})
 
 const email = ref('')
 const password = ref('')
@@ -110,7 +123,10 @@ const handleLogin = async () => {
 
   try {
     await pb.collection('users').authWithPassword(email.value, password.value)
-    router.push('/')
+    let destination = safeRedirect(route.query.redirect)
+    // Lanzar sin el material (recargaron la página) no tiene sentido: vuelve a la portada
+    if (destination === '/process/new' && !getPendingUpload().isPending) destination = '/'
+    router.push(destination)
   } catch (err) {
     console.error('Login failed', err)
     error.value = t('login.invalidCredentials')
@@ -135,6 +151,25 @@ const handleLogin = async () => {
 .forgot-link:hover:not(:disabled) {
   color: var(--kb-accent-solid);
 }
+.login-reason {
+  margin: 0 0 1.25rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.5rem;
+  background: rgba(204, 230, 115, 0.1);
+  border: 1px solid rgba(204, 230, 115, 0.25);
+  color: var(--kb-line);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+}
+.login-back {
+  align-self: center;
+  color: var(--kb-subtle);
+  font-size: 0.8rem;
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+}
+.login-back:hover { color: var(--kb-accent-solid); }
 .login-info {
   color: var(--kb-accent-solid);
   font-size: 0.8rem;

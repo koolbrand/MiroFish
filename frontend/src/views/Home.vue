@@ -7,9 +7,12 @@
       <div class="topbar-links">
         <AppVersion class="topbar-version tech-only" />
         <LanguageSwitcher />
-        <HelpButton tourId="home" />
-        <router-link to="/projects" class="nav-projects" data-tour="home-projects-link">
+        <HelpButton :tourId="isAuth ? 'home' : 'homeGuest'" />
+        <router-link v-if="isAuth" to="/projects" class="nav-projects" data-tour="home-projects-link">
           {{ $t('nav.projects') }} <span class="arrow" aria-hidden="true">→</span>
+        </router-link>
+        <router-link v-else to="/login" class="nav-projects" data-tour="home-login-link">
+          {{ $t('nav.signIn') }} <span class="arrow" aria-hidden="true">→</span>
         </router-link>
       </div>
     </nav>
@@ -121,7 +124,9 @@
                 :files="files"
                 :topic="formData.simulationRequirement"
                 :disabled="loading"
+                :signed-in="isAuth"
                 @add-file="file => addFiles([file])"
+                @need-login="goToLogin('interview')"
               />
             </div>
 
@@ -176,7 +181,7 @@
                 <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
                   {{ statusText }}
                 </p>
-                <p v-if="canSubmit" class="composer-note">{{ $t('home.readyNote') }}</p>
+                <p v-if="canSubmit" class="composer-note">{{ isAuth ? $t('home.readyNote') : $t('home.readyNoteGuest') }}</p>
               </div>
             </div>
             <button
@@ -270,7 +275,7 @@
         </ul>
       </section>
 
-      <section class="section projects">
+      <section v-if="isAuth" class="section projects">
         <HistoryDatabase />
       </section>
 
@@ -279,7 +284,7 @@
           {{ $t('home.closingTitle') }}
           <span class="hl">{{ $t('home.closingHl') }}</span>
         </h2>
-        <button type="button" class="btn btn-lime" @click="scrollToForm">
+        <button type="button" class="btn btn-lime btn-lg" @click="scrollToForm">
           {{ $t('home.heroCta') }} <span aria-hidden="true">↑</span>
         </button>
         <div class="closing-crowd" aria-hidden="true"><BiankaRow mood="favor" :pixel="4" :visible-px="104" /></div>
@@ -318,10 +323,17 @@ import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
+import { useAuth } from '../composables/useAuth'
+import { pb } from '../lib/pocketbase'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const { maybeAutoStart } = useTutorial()
+
+// La portada es pública: sin sesión se ve todo y el inicio de sesión se pide al lanzar.
+// (user cambia al iniciar o cerrar sesión; isValid también recoge el caducado)
+const { user } = useAuth()
+const isAuth = computed(() => { void user.value; return pb.authStore.isValid })
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
@@ -352,8 +364,9 @@ onMounted(async () => {
   await nextTick()
   overlap.value = window.innerWidth <= 640 ? 56 : 72
   topInset.value = window.innerWidth <= 640 ? 70 : 80
-  // Tutorial automático en la primera visita (se reabre con el botón «?»).
-  maybeAutoStart('home', getTour('home'))
+  // Tutorial automático en la primera visita de quien ya tiene sesión (se reabre con el botón «?»);
+  // a un visitante no se le tapa la portada.
+  if (isAuth.value) maybeAutoStart('home', getTour('home'))
   // Biankas de los titulares: pegadas a su última línea (hay que esperar a las tipografías y repetirlo al cambiar de ancho o de idioma)
   placeTitleCrowds()
   document.fonts?.ready?.then(placeTitleCrowds)
@@ -517,7 +530,7 @@ const fileInput = ref(null)
 // Si el análisis falló y se «vuelve al inicio», el material y la pregunta vuelven al formulario (una sola vez):
 // nadie tiene que subirlo y escribirlo de nuevo.
 const pending = getPendingUpload()
-if (pending.isPending && pending.files.length) {
+if (pending.isPending && (pending.files.length || pending.simulationRequirement)) {
   files.value = [...pending.files]
   formData.value.simulationRequirement = pending.simulationRequirement
   formData.value.projectName = pending.projectName
@@ -622,16 +635,33 @@ const scrollToForm = () => {
   document.getElementById('ensayo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-// Pasa al asistente: la subida y la llamada a la API se hacen en Process.
-const startSimulation = () => {
-  if (!canSubmit.value || loading.value) return
-  if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
-
+// Guarda lo que hay en el formulario para que sobreviva al paso por el login
+// (vive en memoria: los archivos no se pueden guardar en el navegador).
+const stashForm = () => {
   setPendingUpload(
     files.value,
     formData.value.simulationRequirement,
     (formData.value.projectName || '').trim()
   )
+}
+
+// Pide iniciar sesión y vuelve: a lanzar la simulación, o a la portada con el formulario como estaba.
+const goToLogin = (reason) => {
+  stashForm()
+  router.push({
+    path: '/login',
+    query: { redirect: reason === 'launch' ? '/process/new' : '/', reason }
+  })
+}
+
+// Pasa al asistente: la subida y la llamada a la API se hacen en Process.
+const startSimulation = () => {
+  if (!canSubmit.value || loading.value) return
+  if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
+
+  if (!isAuth.value) return goToLogin('launch')
+
+  stashForm()
   router.push({
     name: 'Process',
     params: { projectId: 'new' }
@@ -662,7 +692,7 @@ const startSimulation = () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(calc(100% - 2 * var(--gutter)), 700px);   /* una píldora de cabecera, más estrecha que la tarjeta: deja ver el muro a los lados */
+  width: min(calc(100% - 2 * var(--gutter)), 580px);   /* una píldora de cabecera, mucho más estrecha que la tarjeta y ajustada a su contenido: deja ver el muro a los lados */
   height: 58px;
   padding-inline: 22px 20px;
   background: rgba(247, 246, 243, 0.94);
@@ -716,7 +746,8 @@ const startSimulation = () => {
   justify-items: center;
   min-height: max(640px, calc(100svh + var(--overlap)));
   /* abajo se reserva el hueco del marcador (su alto real + aire), para que la tarjeta nunca lo pise */
-  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + var(--readout-h, 150px) + 40px);
+  /* y en pantallas altas (> 800 px) un poco más, para que el bloque tarjeta+marcador suba y quede muro de sobra debajo (≥ 170 px a 900 de alto) */
+  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + var(--readout-h, 150px) + 40px + max(0px, calc((100svh - 800px) * 0.7)));
   background: var(--cream-100);
   color: var(--kb-text);
 }
@@ -728,7 +759,7 @@ const startSimulation = () => {
   z-index: 2;
   box-sizing: border-box;
   width: min(760px, 100%);
-  padding: clamp(28px, 4.5vw, 52px) clamp(20px, 4vw, 56px);
+  padding: clamp(24px, 3.2vw, 38px) clamp(20px, 4vw, 56px);
   background: var(--kb-surface);
   border: 2px solid var(--ink-950);
   border-radius: 18px 18px 0 0;   /* el pie de la tarjeta es el marcador de opinión (BiankaCrowd), que cuelga de aquí */
@@ -740,7 +771,7 @@ const startSimulation = () => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 20px;
+  margin: 0 0 14px;
   font-family: var(--kb-font-mono);
   font-size: 12px;
   letter-spacing: 0.16em;
@@ -771,7 +802,7 @@ const startSimulation = () => {
 }
 .stage-lede {
   max-width: 50ch;
-  margin: 24px auto 0;
+  margin: 18px auto 0;
   font-size: clamp(1rem, 1.4vw, 1.15rem);
   line-height: 1.55;
   color: var(--kb-text-2);
@@ -783,7 +814,7 @@ const startSimulation = () => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  margin-top: 32px;
+  margin-top: 26px;
 }
 
 .btn {
@@ -802,6 +833,8 @@ const startSimulation = () => {
   color: var(--ink-950);
   border: 1px solid var(--lime-500);
 }
+.btn-lg { padding: 22px 38px; border-radius: 12px; font-size: 1.2rem; white-space: nowrap; }
+@media (max-width: 420px) { .btn-lg { padding: 18px 22px; font-size: 1.02rem; } }   /* el remate del cierre: a la altura del titular */
 .btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
 .btn-outline {
   background: var(--kb-surface);
@@ -943,8 +976,8 @@ const startSimulation = () => {
   padding: 10px 16px;
   border: 1px solid var(--ink-950);
   border-radius: 8px;
-  background: var(--ink-950);
-  color: #fff;
+  background: #fff;   /* acción secundaria: contorno; el relleno de la vista es solo el lima de «Iniciar simulación» */
+  color: var(--ink-950);
   font: 600 0.9rem/1 var(--kb-font-sans);
   cursor: pointer;
 }
@@ -1276,7 +1309,7 @@ const startSimulation = () => {
 .band-ink :deep(.report) { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 8px 8px 0 var(--lime-500); }
 .band-ink :focus-visible { outline-color: var(--lime-500); }
 /* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
-.results-report { max-width: 860px; margin: 72px auto 0; }
+.results-report { margin: 72px 0 0; }   /* el informe ocupa el ancho de la sección: arranca en la misma línea que el resto (no centrado) */
 
 .figures {
   /* el aire de la banda: 128 px a 1440 (≥ 120 px, el listón) y 64 px como mínimo en móvil; la fila de Biankas que asoma va fuera, encima */
