@@ -662,7 +662,7 @@ const startSimulation = () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(calc(100% - 2 * var(--gutter)), 700px);   /* una píldora de cabecera, más estrecha que la tarjeta: deja ver el muro a los lados */
+  width: min(calc(100% - 2 * var(--gutter)), 580px);   /* una píldora de cabecera, mucho más estrecha que la tarjeta y ajustada a su contenido: deja ver el muro a los lados */
   height: 58px;
   padding-inline: 22px 20px;
   background: rgba(247, 246, 243, 0.94);
@@ -1277,7 +1277,7 @@ const startSimulation = () => {
 .band-ink :deep(.report) { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 8px 8px 0 var(--lime-500); }
 .band-ink :focus-visible { outline-color: var(--lime-500); }
 /* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
-.results-report { max-width: 860px; margin: 72px auto 0; }
+.results-report { margin: 72px 0 0; }   /* el informe ocupa el ancho de la sección: arranca en la misma línea que el resto (no centrado) */
 
 .figures {
   /* el aire de la banda: 128 px a 1440 (≥ 120 px, el listón) y 64 px como mínimo en móvil; la fila de Biankas que asoma va fuera, encima */
