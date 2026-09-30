@@ -201,6 +201,9 @@
               <template #hl><span class="hl alt">{{ $t('home.howTitleHl') }}</span></template>
             </i18n-t>
           </h2>
+          <span class="title-crowd" aria-hidden="true">
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_A" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" />
+          </span>
         </div>
         <div ref="trackEl" class="track" :class="{ wide: isWide }">
           <div class="track-line" aria-hidden="true"><span class="track-fill"></span></div>
@@ -227,16 +230,20 @@
         <div v-reveal class="section-head">
           <span class="kicker">{{ $t('home.resultsKicker') }}</span>
           <h2 class="section-title wide">{{ $t('home.resultsTitle') }}</h2>
+          <span class="title-crowd" aria-hidden="true">
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_B" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" />
+          </span>
         </div>
-        <div class="results-grid">
-          <ul v-reveal class="deliverables">
-            <li v-for="n in 4" :key="n">
+        <ul v-reveal class="deliverables">
+          <li v-for="n in 4" :key="n" class="deliverable" :class="`d${n}`">
+            <div class="del-scene"><BiankaScene :scene="DELIVERABLE_SCENES[n - 1]" /></div>
+            <div class="del-text">
               <strong>{{ $t(`home.deliverable${n}Title`) }}</strong>
               <span>{{ $t(`home.deliverable${n}Desc`) }}</span>
-            </li>
-          </ul>
-          <ReportExample />
-        </div>
+            </div>
+          </li>
+        </ul>
+        <div class="results-report"><ReportExample /></div>
       </section>
 
       <!-- Cifras medidas, banda lima a sangre -->
@@ -349,6 +356,17 @@ const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(pr
 // Un paso está «alcanzado» cuando llega la Bianka (escritorio) o cuando entra en pantalla (móvil).
 const isReached = (i) => reduceMotion || (isWide.value ? progress.value >= i / 4 - 0.02 : seen.value[i])
 
+const DELIVERABLE_SCENES = ['verdict', 'args', 'interview', 'download']
+// Las Biankas que se cuelan en los titulares (momento editorial: el dibujo convive con la frase)
+const TITLE_CROWD_A = [
+  { look: { ears: 'up', head: 'cap', body: 'heart' }, bucket: 'favor' },
+  { look: { ears: 'classic', face: 'glasses', body: 'bowtie' }, bucket: 'undecided' },
+  { look: { ears: 'v', head: 'beret', body: 'scarf' }, bucket: 'against' },
+]
+const TITLE_CROWD_B = [
+  { look: { ears: 'classic', head: 'graduate', face: 'glasses', body: 'pencil' }, bucket: 'undecided' },
+  { look: { ears: 'up', head: 'beanie', body: 'kbrand' }, bucket: 'favor' },
+]
 const WALK_P = 2
 const walkerLook = fixedLook({ ears: 'up', head: 'cap', body: 'scarf' })
 const guideLook = { ears: 'up', face: 'glasses', body: 'bowtie' }   // la Bianka que guía en el formulario
@@ -595,7 +613,7 @@ const startSimulation = () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(calc(100% - 2 * var(--gutter)), 1144px);
+  width: min(calc(100% - 2 * var(--gutter)), 880px);   /* una píldora de cabecera, no una barra: deja ver el muro a los lados */
   height: 58px;
   padding-inline: 22px 20px;
   background: rgba(247, 246, 243, 0.94);
@@ -1062,6 +1080,18 @@ const startSimulation = () => {
   text-wrap: balance;
 }
 .section-title.wide { max-width: 26ch; }
+/* Biankas de pie a la derecha del titular, sobre la base de su última línea (el dibujo convive con la frase sin pisarla) */
+.section-head { position: relative; }
+.title-crowd {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0.1em;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.title-crowd > * { margin-inline-start: -8px; }
+@media (max-width: 1100px) { .title-crowd { display: none; } }
 .section-title.small { font-size: clamp(2rem, 3.8vw, 3.2rem); }
 
 .track { position: relative; margin-top: 96px; }
@@ -1083,6 +1113,7 @@ const startSimulation = () => {
 }
 .walker {
   position: absolute;
+  z-index: 3;            /* por encima de los nodos de los pasos: la caminante pisa la línea, no queda bajo el punto */
   inset-inline: 0;
   top: -66px;
   width: 100%;
@@ -1149,31 +1180,40 @@ const startSimulation = () => {
   text-wrap: pretty;
 }
 
-.results-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  align-items: start;
-  gap: 48px clamp(40px, 6vw, 88px);
-  margin-top: 56px;
-}
 .deliverables {
   display: grid;
-  align-self: start;
-  position: sticky;
-  top: 104px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
-  margin: 36px 0 0;
+  margin: 56px 0 0;
   padding: 0;
   list-style: none;
 }
-.deliverables li {
-  display: grid;
-  gap: 4px;
-  padding-inline-start: 18px;
-  border-inline-start: 3px solid var(--lime-500);
+.deliverable {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--kb-surface);
+  border: 2px solid var(--ink-950);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--ink-950);
+  overflow: hidden;
 }
-.deliverables strong { font-size: 1.05rem; }
-.deliverables span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }
+.del-scene {
+  display: grid;
+  place-items: center;
+  padding: 12px 0 8px;
+  border-bottom: 2px solid var(--ink-950);
+  background:
+    radial-gradient(rgba(17, 17, 17, 0.09) 1px, transparent 1.5px) 0 0 / 12px 12px,
+    var(--kb-surface);
+}
+.deliverable.d2 .del-scene { background: radial-gradient(rgba(17, 17, 17, 0.12) 1px, transparent 1.5px) 0 0 / 12px 12px, var(--lime-500); }
+.deliverable.d3 .del-scene { background: radial-gradient(rgba(17, 17, 17, 0.09) 1px, transparent 1.5px) 0 0 / 12px 12px, var(--cream-100); }
+.del-text { display: grid; gap: 6px; padding: 18px 20px 22px; }
+.del-text strong { font-size: 1.1rem; letter-spacing: -0.01em; }
+.del-text span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }
+/* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
+.results-report { max-width: 860px; margin: 72px auto 0; }
 
 .figures {
   /* 66 px de la fila de Biankas que asoma + ≥ 120 px de aire sobre ella (≥ 96 px en móvil) */
@@ -1306,8 +1346,7 @@ const startSimulation = () => {
   .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 40px; }
 }
 @media (max-width: 960px) {
-  .results-grid { grid-template-columns: minmax(0, 1fr); }
-  .deliverables { position: static; }
+  .deliverables { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 641px) and (max-height: 820px) {
   /* pantallas bajas (portátiles de 720–800 px): tarjeta compacta, todo cabe sin bajar */
@@ -1333,8 +1372,9 @@ const startSimulation = () => {
 @media (max-width: 640px) {
   .home { --overlap: 56px; }
   .topbar { top: 10px; height: 52px; padding-inline: 16px 14px; width: calc(100% - 20px); }
-  /* la tarjeta baja: todo el aire queda encima, en el muro, donde caben los bocadillos */
-  .stage { padding-top: 96px; align-items: end; }
+  /* la tarjeta baja: casi todo el aire queda encima, en el muro, donde caben los bocadillos; y un poco de muro asoma
+     debajo, entre la tarjeta y el marcador (el muro sigue por detrás de todo) */
+  .stage { padding-top: 96px; align-items: end; padding-bottom: calc(var(--overlap) + var(--readout-h, 150px) + 40px + 44px); }
   .stage-card { padding: 24px 18px 22px; }
   .eyebrow { font-size: 11px; letter-spacing: 0.08em; margin-bottom: 14px; }
   .stage-title { font-size: 2.35rem; }
@@ -1345,6 +1385,10 @@ const startSimulation = () => {
   .topbar-links { gap: 10px; }
   .launch-btn { width: 100%; justify-content: center; }
   .composer { box-shadow: 5px 5px 0 var(--ink-950); }
+}
+@media (max-width: 380px) {
+  /* 320–380 px: algo más de franja sobre la tarjeta para que quepa una fila de caras (el botón principal sigue a la vista) */
+  .stage { padding-top: 128px; }
 }
 @media (max-width: 480px) {
   .figures-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 20px; }

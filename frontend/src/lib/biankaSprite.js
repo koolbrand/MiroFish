@@ -40,6 +40,12 @@ export const OX = 2          // margen del lienzo del sprite (contorno y sombrer
 export const OY = 6
 export const GW = BW + OX * 2
 export const GH = BASE.length + OY + 2
+// Siluetas variadas: las orejas largas crecen hacia arriba y el cuerpo alto hacia abajo, así que el lienzo tiene
+// margen de sobra en ambos extremos; la cara queda siempre en las mismas celdas (OYE = origen vertical efectivo).
+export const EXTRA_TOP = 4
+export const EXTRA_BOTTOM = 4
+export const OYE = OY + EXTRA_TOP
+export const GHE = GH + EXTRA_TOP + EXTRA_BOTTOM
 export const mirrorCol = (c) => BW - 1 - c
 
 export const cellsOf = (rows, fromRow, toRow, test) => {
@@ -127,6 +133,69 @@ export const ALT = {
 }
 
 
+// ── Siluetas ────────────────────────────────────────────────────────────────
+// La Bianka es siempre el mismo conejo, pero «de todo tipo»: orejas largas, cuerpo alto o achaparrado, ancho o
+// estrecho, y la cabeza ladeada. Se aplican sobre la cuadrícula ya compuesta (con gorro, cara y complemento), así
+// que todo lo que lleva puesta se estira con ella. Nada toca las filas de la cara (14–20): sus celdas no cambian.
+export const STD_SHAPE = { id: 'e0t0w0l0', ears: 0, tall: 0, wide: 0, lean: 0 }
+export const shapeOf = ({ ears = 0, tall = 0, wide = 0, lean = 0 } = {}) => ({ id: `e${ears}t${tall}w${wide}l${lean}`, ears, tall, wide, lean })
+// Pocos tipos de cuerpo, bien distintos, para que se lean como «tipos de Bianka» y no como ruido.
+const BODY_TYPES = [
+  { w: 34, shape: STD_SHAPE },                                   // la de siempre
+  { w: 20, shape: shapeOf({ tall: 3 }) },                        // alta
+  { w: 18, shape: shapeOf({ tall: -2, wide: 2 }) },              // redondita
+  { w: 14, shape: shapeOf({ tall: 2, wide: -1 }) },              // esbelta
+  { w: 8, shape: shapeOf({ tall: -2, wide: -1 }) },              // pequeña
+  { w: 6, shape: shapeOf({ lean: 1 }) },                         // con la cabeza ladeada
+]
+const emptyRow = () => Array(GW).fill(null)
+const applyShape = (grid, shape) => {
+  let g = grid
+  // orejas largas: se repite una fila del tramo de orejas (fila 8) y todo lo de encima sube
+  if (shape.ears > 0) {
+    const R0 = 8 + OYE, e = shape.ears
+    g = g.map((row, R) => (R <= R0 - e ? (grid[R + e] || emptyRow()).slice() : R <= R0 ? grid[R0].slice() : row.slice()))
+  }
+  // cuerpo más alto (se repite la fila más ancha, la 24) o más bajo (se quitan filas de esa zona)
+  if (shape.tall > 0) {
+    const Rb = 24 + OYE, t = shape.tall, src = g
+    g = src.map((row, R) => (R <= Rb ? row.slice() : R - t > Rb ? src[R - t].slice() : src[Rb].slice()))
+  } else if (shape.tall < 0) {
+    const Rb = 24 + OYE, t = -shape.tall, src = g
+    g = src.map((row, R) => (R < Rb ? row.slice() : (src[R + t] || emptyRow()).slice()))
+  }
+  // ancho: desde el cuello hacia abajo, se repiten las dos columnas centrales (más ancho) o se quita una celda de cada borde (más estrecho)
+  if (shape.wide !== 0) {
+    const R1 = 19 + OYE, mid = OX + 12
+    g = g.map((row, R) => {
+      if (R < R1 || !row.some(Boolean)) return row.slice()
+      if (shape.wide > 0) {
+        const out = []
+        for (let c = 0; c < GW; c++) {
+          out.push(row[c])
+          if (c === mid + 1) for (let k = 0; k < shape.wide / 2; k++) out.push(row[mid], row[mid + 1])
+        }
+        return out.slice(shape.wide / 2, shape.wide / 2 + GW)
+      }
+      const first = row.findIndex(Boolean), last = row.length - 1 - [...row].reverse().findIndex(Boolean)
+      const nr = row.slice()
+      for (let k = 0; k < -shape.wide; k++) { nr[first + k] = null; nr[last - k] = null }
+      return nr
+    })
+  }
+  // cabeza ladeada: de la cuello (fila 20) para arriba todo se corre una celda (la cara se corre con ella en drawFace)
+  if (shape.lean !== 0) {
+    const Rl = 20 + OYE
+    g = g.map((row, R) => {
+      if (R > Rl) return row.slice()
+      const nr = emptyRow()
+      for (let c = 0; c < GW; c++) if (row[c] && c + shape.lean >= 0 && c + shape.lean < GW) nr[c + shape.lean] = row[c]
+      return nr
+    })
+  }
+  return g
+}
+
 // ── Utilidades aleatorias ───────────────────────────────────────────────────
 export const rand = (a, b, rng = Math.random) => a + rng() * (b - a)
 export const pick = (arr, rng = Math.random) => arr[Math.floor(rng() * arr.length)]
@@ -168,7 +237,7 @@ export const fixedLook = ({ ears = 'classic', head = null, face = null, body = n
   const e = EARS.find(x => x.id === ears) || EARS[0]
   const find = (arr, id) => (id ? arr.find(c => c.id === id) || null : null)
   const h = find(COSTUMES.head, head), f = find(COSTUMES.face, face), b = find(COSTUMES.body, body)
-  return { key: `fixed|${e.id}|${h?.id}|${f?.id}|${b?.id}`, ears: e, head: h, face: f, body: b, persona: (b || h || f)?.id || 'plain' }
+  return { key: `fixed|${e.id}|${h?.id}|${f?.id}|${b?.id}`, ears: e, head: h, face: f, body: b, persona: (b || h || f)?.id || 'plain', shape: STD_SHAPE }
 }
 
 // ── Construcción de cada Bianka ─────────────────────────────────────────────
@@ -182,9 +251,10 @@ export const makeLook = (rng = Math.random) => {
     const body = rng() < 0.62 ? pick(BODY_POOL, rng) : null
     if (!face && !head && !body && tries < 7) continue
     const ears = pickWeighted(EARS, rng)
+    const shape = pickWeighted(BODY_TYPES, rng).shape
     // El rótulo del bocadillo sale del rasgo más visible
     const persona = (body || head || face)?.id || 'plain'
-    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}`, ears, head, face, body, persona }
+    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}|${shape.id}`, ears, head, face, body, persona, shape }
   }
 }
 
@@ -193,18 +263,18 @@ export const spriteFor = (look, bucket) => {
   let spr = spriteCache.get(key)
   if (spr) return spr
   const colors = LOOK[bucket]
-  const grid = Array.from({ length: GH }, () => Array(GW).fill(null))
-  const bodyMask = Array.from({ length: GH }, () => Array(GW).fill(false))
+  let grid = Array.from({ length: GHE }, () => Array(GW).fill(null))
+  const bodyMask = Array.from({ length: GHE }, () => Array(GW).fill(false))
   const put = (r, c, color) => {
-    const R = r + OY, C = c + OX
-    if (R >= 0 && R < GH && C >= 0 && C < GW) grid[R][C] = color
+    const R = r + OYE, C = c + OX
+    if (R >= 0 && R < GHE && C >= 0 && C < GW) grid[R][C] = color
   }
   const items = [look.head, look.face, look.body].filter(Boolean)
   const hideEars = items.some(i => i.hideEars)
   const earsOver = items.some(i => i.earsOver)
   const drawEars = () => { if (!hideEars) for (const [r, c] of look.ears.cells) put(r, c, colors.body) }
   if (!earsOver) drawEars()
-  for (const [r, c] of BODY_CELLS) { put(r, c, colors.body); bodyMask[r + OY][c + OX] = true }
+  for (const [r, c] of BODY_CELLS) { put(r, c, colors.body); bodyMask[r + OYE][c + OX] = true }
   if (look.body?.pattern === 'stripes') {
     for (const [r, c] of BODY_CELLS) if (r >= 21 && r % 2 === 1) put(r, c, colors.stripe)
   } else if (look.body?.pattern === 'spots') {
@@ -216,16 +286,17 @@ export const spriteFor = (look, bucket) => {
       for (let i = 0; i < s.length; i++) {
         if (s[i] === '.') continue
         let color = PAL[s[i]]
-        const R = r0 + OY, C = c0 + i + OX
-        if (R >= 0 && R < GH && C >= 0 && C < GW && bodyMask[R][C]) color = ALT[colors.body]?.[color] || color
+        const R = r0 + OYE, C = c0 + i + OX
+        if (R >= 0 && R < GHE && C >= 0 && C < GW && bodyMask[R][C]) color = ALT[colors.body]?.[color] || color
         put(r0, c0 + i, color)
       }
     }
   }
   if (earsOver) drawEars()
+  if (look.shape && look.shape !== STD_SHAPE && look.shape.id !== STD_SHAPE.id) grid = applyShape(grid, look.shape)
   // contorno de tinta alrededor de la silueta completa
   const outline = []
-  for (let r = 0; r < GH; r++) {
+  for (let r = 0; r < GHE; r++) {
     for (let c = 0; c < GW; c++) {
       if (grid[r][c]) continue
       if ((grid[r - 1]?.[c]) || (grid[r + 1]?.[c]) || grid[r][c - 1] || grid[r][c + 1]) outline.push([r, c])
@@ -235,7 +306,7 @@ export const spriteFor = (look, bucket) => {
   // sobre la de detrás (como una pegatina) en vez de fundirse con ella
   const ink = new Set(outline.map(([r, c]) => `${r}:${c}`))
   const halo = []
-  for (let r = 0; r < GH; r++) {
+  for (let r = 0; r < GHE; r++) {
     for (let c = 0; c < GW; c++) {
       if (grid[r][c] || ink.has(`${r}:${c}`)) continue
       let near = false
@@ -245,11 +316,11 @@ export const spriteFor = (look, bucket) => {
   }
   const cv = document.createElement('canvas')
   cv.width = GW
-  cv.height = GH
+  cv.height = GHE
   const g = cv.getContext('2d')
   g.fillStyle = PAL.c
   for (const [r, c] of halo) g.fillRect(c, r, 1, 1)
-  for (let r = 0; r < GH; r++) {
+  for (let r = 0; r < GHE; r++) {
     for (let c = 0; c < GW; c++) {
       if (!grid[r][c]) continue
       g.fillStyle = grid[r][c]
@@ -271,8 +342,9 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
   const lock = items.some(i => i.lockEyes)
   const noEyes = items.find(i => i.noEyes)?.noEyes
   const colors = LOOK[bucket]
+  const lean = look.shape?.lean || 0      // la cabeza ladeada lleva la cara consigo
   const cell = (r, c) => {
-    const cc = mirror ? mirrorCol(c) : c
+    const cc = mirror ? mirrorCol(c + lean) : c + lean
     ctx.fillRect(x + cc * P, y + r * P, P, P)
   }
   let [gx, gy] = gaze
@@ -286,8 +358,10 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
     else if (blink) cell(16, ec)
     else { cell(15 + gy, ec); cell(16 + gy, ec) }
   }
-  // boca: cerrada en «T»; al hablar se abre y se cierra
+  // boca: al hablar se abre y se cierra; en reposo cuenta lo que piensa (convencida sonríe, en contra frunce, dudando la «T» de siempre)
   if (talking && Math.floor(now * 8) % 2 === 0) { cell(18, 12); cell(18, 13); cell(19, 12); cell(19, 13); cell(20, 12); cell(20, 13) }
+  else if (bucket === 'favor') { cell(18, 11); cell(18, 14); cell(19, 12); cell(19, 13) }
+  else if (bucket === 'against') { cell(18, 12); cell(18, 13); cell(19, 11); cell(19, 14) }
   else { cell(18, 12); cell(18, 13); cell(19, 12) }
 }
 
@@ -314,18 +388,18 @@ const silhouetteFor = (look, bucket) => {
 export const drawBianka = (ctx, opts) => {
   const { x, y, P, look, bucket, mirror = false, lift = false } = opts
   const spr = spriteFor(look, bucket)
-  const sx = x - OX * P, sy = y - OY * P
+  const sx = x - OX * P, sy = y - OYE * P
   const sil = lift ? silhouetteFor(look, bucket) : null
   if (mirror) {
     ctx.save()
     ctx.translate(sx + GW * P, sy)
     ctx.scale(-1, 1)
-    if (sil) ctx.drawImage(sil, -P, P, GW * P, GH * P)
-    ctx.drawImage(spr, 0, 0, GW * P, GH * P)
+    if (sil) ctx.drawImage(sil, -P, P, GW * P, GHE * P)
+    ctx.drawImage(spr, 0, 0, GW * P, GHE * P)
     ctx.restore()
   } else {
-    if (sil) ctx.drawImage(sil, sx + P, sy + P, GW * P, GH * P)
-    ctx.drawImage(spr, sx, sy, GW * P, GH * P)
+    if (sil) ctx.drawImage(sil, sx + P, sy + P, GW * P, GHE * P)
+    ctx.drawImage(spr, sx, sy, GW * P, GHE * P)
   }
   drawFace(ctx, opts)
 }
