@@ -17,6 +17,7 @@ from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
+from ..services.auto_pipeline import get_pipeline_summary
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.llm_client import LLMClient
@@ -1034,6 +1035,17 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         return None
 
 
+def _pipeline_summary(project_id: str, cache: dict) -> dict:
+    """pipeline_mode/pipeline_status del proyecto; nunca rompe el historial."""
+    if project_id not in cache:
+        try:
+            cache[project_id] = get_pipeline_summary(project_id)
+        except Exception as e:  # noqa: BLE001 — ID heredado inválido, JSON ilegible...
+            logger.warning(f"No se pudo leer el modo automático del proyecto {project_id}: {e}")
+            cache[project_id] = {"pipeline_mode": "manual", "pipeline_status": None}
+    return cache[project_id]
+
+
 @simulation_bp.route('/history', methods=['GET'])
 def get_simulation_history():
     """
@@ -1077,6 +1089,7 @@ def get_simulation_history():
         
         # 增强模拟数据，只从 Simulation 文件读取
         enriched_simulations = []
+        pipeline_cache = {}
         for sim in simulations:
             sim_dict = sim.to_dict()
             
@@ -1122,7 +1135,10 @@ def get_simulation_history():
             
             # 获取关联的 report_id（查找该 simulation 最新的 report）
             sim_dict["report_id"] = _get_report_id_for_simulation(sim.simulation_id)
-            
+
+            # Modo automático del proyecto ("auto"|"manual") y su estado (o null)
+            sim_dict.update(_pipeline_summary(sim.project_id, pipeline_cache))
+
             # 添加版本号
             sim_dict["version"] = "v1.0.2"
             

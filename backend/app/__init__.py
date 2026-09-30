@@ -18,7 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
-from .utils.security import validate_bearer_token, is_valid_storage_id
+from .utils.security import validate_bearer_token, is_valid_storage_id, is_internal_request
 
 
 def create_app(config_class=Config):
@@ -80,6 +80,13 @@ def create_app(config_class=Config):
         storage_uri='memory://',
     )
     app.extensions['limiter'] = limiter
+
+    # Las llamadas internas del modo automático (hilo del servidor contra sus
+    # propias rutas) no cuentan para el límite por IP: todas salen de
+    # 127.0.0.1 y agotarían el cupo de escrituras del resto.
+    @limiter.request_filter
+    def _exempt_internal_requests():
+        return is_internal_request(request.headers)
 
     @app.errorhandler(429)
     def handle_rate_limit(error):
@@ -143,6 +150,17 @@ def create_app(config_class=Config):
         except Exception as exc:  # noqa: BLE001 — boot must not abort on this
             logger.warning(f"[boot-recovery] Skipped orphan reconciliation: {exc}")
 
+        # Modo automático: los hilos que encadenaban las etapas murieron con
+        # el proceso. Todo pipeline en `running` pasa a `interrupted`; no se
+        # reanuda solo (cuesta dinero de LLM): lo decide el usuario.
+        try:
+            from .services.pipeline_state import mark_running_pipelines_interrupted
+            interrupted = mark_running_pipelines_interrupted()
+            if interrupted:
+                logger.info(f"[boot-recovery] {interrupted} pipeline(s) automáticos marcados como interrupted")
+        except Exception as exc:  # noqa: BLE001 — el arranque no debe caer por esto
+            logger.warning(f"[boot-recovery] No se pudieron revisar los pipelines automáticos: {exc}")
+
     # 请求日志中间件
     _SENSITIVE_KEYS = {
         'api_key', 'llm_api_key', 'password', 'token', 'secret',
@@ -173,6 +191,10 @@ def create_app(config_class=Config):
             and request.path != '/api/health'
             and request.method != 'OPTIONS'
         ):
+            return None
+
+        # Llamada interna del modo automático (secreto del proceso)
+        if is_internal_request(request.headers):
             return None
 
         auth_header = request.headers.get('Authorization', '')
@@ -223,15 +245,17 @@ def create_app(config_class=Config):
         }, 400
 
     # 注册蓝图 + rate limit por blueprint (ver api_rate_limit).
-    from .api import graph_bp, simulation_bp, report_bp, brief_bp
+    from .api import graph_bp, simulation_bp, report_bp, brief_bp, pipeline_bp
     limiter.limit(api_rate_limit)(graph_bp)
     limiter.limit(api_rate_limit)(simulation_bp)
     limiter.limit(api_rate_limit)(report_bp)
     limiter.limit(api_rate_limit)(brief_bp)
+    limiter.limit(api_rate_limit)(pipeline_bp)
     app.register_blueprint(graph_bp, url_prefix='/api/graph')
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
     app.register_blueprint(report_bp, url_prefix='/api/report')
     app.register_blueprint(brief_bp, url_prefix='/api/brief')
+    app.register_blueprint(pipeline_bp, url_prefix='/api/pipeline')
 
     # 健康检查 — público (lo usa Coolify para health probes).
     @app.route('/health')
