@@ -87,3 +87,14 @@ def test_textos_repetidos_en_la_misma_llamada():
     vectors = recsys.generate_post_vector(model, tok, ['igual'] * 5 + ['otro'], batch_size=1000)
     assert tuple(vectors.shape) == (6, 4)
     assert [n for n, _ in tok.calls] == [2]
+
+
+def test_interruptor_para_comparar_sin_el_parche(monkeypatch):
+    from oasis.social_platform import recsys
+    assert recsys_memory.apply()
+    before = recsys.generate_post_vector
+    # con el parche ya aplicado no se deshace, pero el interruptor impide aplicarlo de nuevo
+    monkeypatch.setattr(recsys_memory, '_applied', False)
+    monkeypatch.setenv('RECSYS_MEMORY_PATCH', '0')
+    assert recsys_memory.apply() is False
+    assert recsys.generate_post_vector is before

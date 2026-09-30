@@ -63,6 +63,8 @@ services:
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs
+      # caché de modelos: el recomendador (1,1 GB) se descarga una vez, no en cada despliegue
+      - mirofish_hf_cache:/root/.cache/huggingface
     # Contain OASIS (BERT + simulation) memory usage so a runaway
     # simulation can only kill MiroFish itself, never cascade into other
     # Coolify apps on the same host. If the process exceeds mem_limit
@@ -82,3 +84,4 @@ volumes:
   neo4j_data_v2:
   mirofish_uploads:
   mirofish_logs:
+  mirofish_hf_cache:

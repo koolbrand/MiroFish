@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 from app.config import Config
+from app.utils.recsys_prewarm import start_prewarm
 
 
 def main():
@@ -35,6 +36,9 @@ def main():
     
     # 创建应用
     app = create_app()
+
+    # Modelo del recomendador a disco en segundo plano (no bloquea el arranque)
+    start_prewarm()
     
     # 获取运行配置
     host = os.environ.get('FLASK_HOST', '0.0.0.0')

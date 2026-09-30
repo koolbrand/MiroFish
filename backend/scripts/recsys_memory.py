@@ -36,6 +36,9 @@ def apply() -> bool:
     global _applied
     if _applied:
         return True
+    # Interruptor para comparar con y sin el parche en las mismas condiciones
+    if os.environ.get('RECSYS_MEMORY_PATCH', '1') == '0':
+        return False
     try:
         import torch
         from oasis.social_platform import process_recsys_posts as prp
