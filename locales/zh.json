@@ -38,8 +38,8 @@
     "files": "个文件"
   },
   "meta": {
-    "title": "Simuloo - 预测万物",
-    "description": "Simuloo - 社交媒体舆论模拟系统"
+    "title": "Simuloo · 先演练，再决策",
+    "description": "上传一份文档，提出一个问题，看一群模拟的人在你做决定之前表态、争论并改变想法。"
   },
   "nav": {
     "visitGithub": "访问我们的Github主页",

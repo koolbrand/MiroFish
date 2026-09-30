@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { drawBianka, makeLook, fixedLook, seededRng } from '../lib/biankaSprite'
 
 const props = defineProps({
@@ -17,12 +17,16 @@ const props = defineProps({
   mirror: { type: Boolean, default: false },
   // opinión → lima (favor) / blanca (undecided) / tinta (against)
   talking: { type: Boolean, default: false },
+  // contenta: ojos felices y un saltito al pasar a true (p. ej. cuando el formulario está listo)
+  happy: { type: Boolean, default: false },
+  // px extra de lienzo por encima, para que quepa el salto
+  headroom: { type: Number, default: 0 },
 })
 
 const canvas = ref(null)
 const w = computed(() => 26 * props.pixel + 8)
-const h = computed(() => 29 * props.pixel + 6)
-let raf = null, visible = false, io = null, running = false
+const h = computed(() => 29 * props.pixel + 6 + props.headroom)
+let raf = null, visible = false, io = null, running = false, hopAt = -10
 const phase = Math.random() * 3
 const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const lk = props.look ? fixedLook(props.look) : makeLook(props.seed ? seededRng(props.seed) : Math.random)
@@ -37,11 +41,16 @@ const paint = (t) => {
   ctx.clearRect(0, 0, w.value, h.value)
   const P = props.pixel
   const breath = (((t + phase) / 1.6) % 1) < 0.5 ? 0 : P
-  drawBianka(ctx, { x: 4, y: 2 + breath, P, look: lk, bucket: props.bucket, mirror: props.mirror, now: t, blink: ((t + phase) % 3.8) > 3.65, talking: props.talking, gaze: [0, 0] })
+  const hopT = t - hopAt
+  const hop = hopT >= 0 && hopT < 0.34 ? Math.round(Math.sin((Math.PI * hopT) / 0.34) * 2) * P : 0
+  drawBianka(ctx, { x: 4, y: 2 + props.headroom + breath - hop, P, look: lk, bucket: props.bucket, mirror: props.mirror, now: t, blink: ((t + phase) % 3.8) > 3.65, talking: props.talking, happy: props.happy, gaze: [0, 0] })
 }
 const tick = () => { raf = null; if (!running) return; paint(performance.now() / 1000); raf = requestAnimationFrame(tick) }
 const start = () => { if (running || reduced || !visible || document.hidden) return; running = true; raf = requestAnimationFrame(tick) }
 const stop = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = null }
+
+watch(() => props.happy, (v) => { if (v && !reduced) hopAt = performance.now() / 1000 })
+watch(() => [props.happy, props.bucket], () => paint(performance.now() / 1000))
 
 onMounted(() => {
   paint(0)

@@ -17,8 +17,8 @@
     <main>
       <!-- Portada: un muro de Biankas de todo tipo que opinan, conversan y cambian
            de idea ronda a ronda; el mensaje va en una tarjeta en el centro -->
-      <header class="stage">
-        <BiankaCrowd :avoid-el="stageCard" :bottom-inset="overlap" :top-inset="topInset" />
+      <header class="stage" :style="{ '--readout-h': `${readoutH}px` }">
+        <BiankaCrowd :avoid-el="stageCard" :bottom-inset="overlap" :top-inset="topInset" @readout="readoutH = $event" />
         <div ref="stageCard" class="stage-card">
           <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>{{ $t('home.tagline') }}</p>
           <h1 class="stage-title">
@@ -150,9 +150,13 @@
           </div>
 
           <footer class="composer-foot">
-            <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
-              {{ statusText }}
-            </p>
+            <!-- una Bianka que te guía: blanca mientras falta algo, lima y contenta cuando ya se puede lanzar -->
+            <div class="composer-guide">
+              <BiankaAvatar class="guide-face" :look="guideLook" :bucket="canSubmit ? 'favor' : 'undecided'" :happy="canSubmit" :headroom="8" :pixel="3" />
+              <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
+                {{ statusText }}
+              </p>
+            </div>
             <button
               class="launch-btn"
               data-tour="home-start"
@@ -278,6 +282,7 @@ const { maybeAutoStart } = useTutorial()
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
+const readoutH = ref(150)              // alto del marcador de la portada (lo mide BiankaCrowd)
 const topInset = ref(88)               // barra flotante: nadie habla debajo
 const stageCard = ref(null)
 const questionEl = ref(null)
@@ -320,6 +325,7 @@ const isReached = (i) => reduceMotion || (isWide.value ? progress.value >= i / 4
 
 const WALK_P = 2
 const walkerLook = fixedLook({ ears: 'up', head: 'cap', body: 'scarf' })
+const guideLook = { ears: 'up', face: 'glasses', body: 'bowtie' }   // la Bianka que guía en el formulario
 let wctx = null, wW = 0, wH = 76, wdpr = 1, wraf = null, wVisible = false, pos = 0
 let scrollRaf = null, mq = null, io = null, trackIO = null
 
@@ -543,6 +549,7 @@ const startSimulation = () => {
 }
 .nav-projects .arrow { transition: transform 0.2s ease; }
 .nav-projects:hover .arrow { transform: translateX(3px); }
+.nav-projects:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
 
 /* ── Portada ────────────────────────────────────────────────────────────── */
 .stage {
@@ -553,7 +560,8 @@ const startSimulation = () => {
   align-items: center;
   justify-items: center;
   min-height: max(640px, calc(100svh + var(--overlap)));
-  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + 96px);
+  /* abajo se reserva el hueco del marcador (su alto real + aire), para que la tarjeta nunca lo pise */
+  padding: clamp(96px, 13vh, 132px) var(--gutter) calc(var(--overlap) + var(--readout-h, 150px) + 40px);
   background: var(--cream-100);
   color: var(--kb-text);
 }
@@ -571,7 +579,7 @@ const startSimulation = () => {
   border-radius: 18px;
   box-shadow: 8px 8px 0 var(--ink-950);
   text-align: center;
-  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+  animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
 }
 .eyebrow {
   display: inline-flex;
@@ -639,13 +647,14 @@ const startSimulation = () => {
   color: var(--ink-950);
   border: 1px solid var(--lime-500);
 }
-.btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translateY(-1px); }
+.btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
 .btn-outline {
   background: var(--kb-surface);
   color: var(--kb-text);
   border: 1px solid var(--kb-line-strong);
 }
-.btn-outline:hover { border-color: var(--ink-950); }
+.btn-outline:hover { border-color: var(--ink-950); background: var(--cream-100); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
+.btn:active { transform: none; box-shadow: none; }
 
 /* ── Formulario ─────────────────────────────────────────────────────────── */
 .composer-wrap {
@@ -662,7 +671,7 @@ const startSimulation = () => {
   background: var(--kb-surface);
   border-radius: 20px;
   box-shadow: 0 50px 100px -50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(17, 17, 17, 0.06);
-  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
+  animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
 }
 .composer-head { margin-bottom: 32px; }
 .kicker {
@@ -814,7 +823,7 @@ const startSimulation = () => {
   gap: 8px;
   margin-top: 12px;
 }
-.examples-label { margin-inline-end: 2px; font-size: 0.85rem; color: var(--kb-muted); }
+.examples-label { flex-basis: 100%; margin-bottom: -2px; font-size: 0.85rem; color: var(--kb-muted); }   /* la etiqueta va sola arriba: los cuatro ejemplos caben en una fila */
 .example-chip {
   padding: 8px 12px;
   border: 1px solid var(--kb-line-strong);
@@ -838,6 +847,8 @@ const startSimulation = () => {
   padding-top: 24px;
   border-top: 1px solid var(--kb-line);
 }
+.composer-guide { display: flex; align-items: center; gap: 14px; flex: 1 1 320px; min-width: 0; }
+.guide-face { flex: none; }
 .composer-status {
   max-width: 52ch;
   margin: 0;
@@ -1109,7 +1120,7 @@ const startSimulation = () => {
 /* con la tarjeta ocupando casi todo el ancho, el muro solo tiene hueco arriba y abajo */
 @media (max-width: 1240px) {
   /* y el marcador de la simulación pasa a ocupar su propia franja bajo la tarjeta */
-  .stage { padding-top: 190px; padding-bottom: calc(var(--overlap) + 176px); }
+  .stage { padding-top: 190px; }
 }
 @media (min-width: 700px) and (max-width: 1240px) {
   /* tarjeta más estrecha: deja franjas de muro a los lados con sitio para los bocadillos */
@@ -1121,6 +1132,18 @@ const startSimulation = () => {
 }
 @media (max-width: 960px) {
   .results-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 641px) and (max-height: 820px) {
+  /* pantallas bajas (portátiles de 720–800 px): tarjeta compacta, todo cabe sin bajar */
+  .stage { padding-top: clamp(88px, 12vh, 132px); }
+  .stage-card { padding: 28px clamp(20px, 4vw, 48px) 26px; }
+  .eyebrow { margin-bottom: 14px; }
+  .stage-title { font-size: clamp(2.3rem, 5.4vw, 3.9rem); }
+  .stage-lede { margin-top: 16px; font-size: 1rem; }
+  .stage-actions { margin-top: 22px; }
+}
+@media (min-width: 641px) and (max-width: 1240px) and (max-height: 820px) {
+  .stage { padding-top: 150px; }
 }
 @media (max-width: 900px) {
   .composer-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1148,6 +1171,16 @@ const startSimulation = () => {
 }
 @media (max-width: 480px) {
   .figures-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 400px) {
+  /* móviles estrechos: la píldora de navegación tiene que caber entera */
+  .topbar { padding-inline: 12px 10px; }
+  .topbar-brand { font-size: 1.25rem; }
+  .topbar-links { gap: 8px; }
+  .nav-projects { gap: 4px; font-size: 0.95rem; }
+}
+@media (max-width: 340px) {
+  .nav-projects .arrow { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .eyebrow-dot, .stage-card, .stage-title .hl, .composer { animation: none; }

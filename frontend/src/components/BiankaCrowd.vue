@@ -15,7 +15,7 @@
       :key="b.id"
       :ref="el => setBubbleEl(b.id, el)"
       class="crowd-bubble"
-      :class="[`is-${b.bucket}`, `to-${b.side}`, `kind-${b.kind}`, `dir-${b.dir}`]"
+      :class="[`is-${b.bucket}`, `to-${b.side}`, `kind-${b.kind}`, `dir-${b.dir}`, { 'is-stacked': b.stacked }]"
       :style="{ maxWidth: `${b.width}px` }"
     >
       <span class="crowd-bubble-who">
@@ -63,6 +63,8 @@ const props = defineProps({
 })
 
 const { t } = useI18n()
+// Alto real del marcador: la portada reserva ese hueco bajo la tarjeta (cambia con el idioma y el ancho).
+const emit = defineEmits(['readout'])
 
 const ROUNDS = 10
 const ROUND_SECONDS = 6.5
@@ -90,7 +92,7 @@ let bubbleSeq = 0
 let epoch = 0
 let pointer = null
 const bubbleEls = new Map()
-let resizeObs = null, interObs = null
+let resizeObs = null, interObs = null, readoutObs = null
 const reducedMotion = typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -247,6 +249,20 @@ const drift = (dt) => {
 const MIN_BW = 150
 const bubbleW = () => (W < 700 ? 180 : W < 1280 ? 200 : 230)
 const heightFor = (w) => (w >= 210 ? 76 : w >= 175 ? 88 : 104)
+// Cabecera del bocadillo: muestra de color + persona + postura, en mono de 10 px con tracking 0,1 em
+// (cada carácter ocupa 7 px; los CJK, 11). Si la postura no cabe junto al nombre pasa a una segunda
+// fila (14 px más de alto) y un ancho en el que ni el nombre cabe se descarta: ningún texto se corta.
+const monoW = (s) => [...s].reduce((n, ch) => n + (ch.codePointAt(0) > 0x2e80 ? 11 : 7), 0)
+const BUBBLE_CHROME = 26    // relleno lateral (2 × 11 px) + borde (2 × 2 px)
+const whoNeed = (a) => 14 + monoW(t(`home.biankas.${a.look.persona}`))   // muestra + hueco + nombre
+const tagNeed = () => Math.max(...['favor', 'undecided', 'against'].map(b => monoW(bucketLabel(b))))
+const headerRows = (a, w) => (whoNeed(a) + 14 + tagNeed() <= w - BUBBLE_CHROME ? 1 : 2)
+const bubbleWidths = (a, full) => {
+  const all = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
+  const fit = all.filter(w => whoNeed(a) <= w - BUBBLE_CHROME)
+  return fit.length ? fit : [full]
+}
+const bubbleHeight = (a, w) => heightFor(w) + (headerRows(a, w) === 2 ? 14 : 0)
 const otherSide = (side) => (side === 'left' ? 'right' : 'left')
 
 // Punto de la cabeza al que se ancla el bocadillo
@@ -283,13 +299,12 @@ const boxFree = (box, ignoreBubbles = false) => {
 // Prefiere el ancho completo en cualquiera de los dos lados antes de estrecharlo.
 const placeBubble = (a, dirs = ['up', 'side'], ignoreBubbles = false) => {
   const first = preferredSide(a)
-  const full = bubbleW()
-  const widths = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
+  const widths = bubbleWidths(a, bubbleW())
   for (const dir of dirs) {
     for (const width of widths) {
-      const height = heightFor(width)
+      const height = bubbleHeight(a, width)
       for (const side of [first, otherSide(first)]) {
-        if (boxFree(boxFor(a, dir, side, width, height), ignoreBubbles)) return { dir, side, width, height }
+        if (boxFree(boxFor(a, dir, side, width, height), ignoreBubbles)) return { dir, side, width, height, rows: headerRows(a, width) }
       }
     }
   }
@@ -309,10 +324,9 @@ const leashClear = (x0, y0, x1, y1) => {
 }
 const placeFree = (a, ignoreBubbles = false) => {
   const head = { x: a.x + 12.5 * P, y: a.y + 14 * P }
-  const full = bubbleW()
-  const widths = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
+  const widths = bubbleWidths(a, bubbleW())
   for (const width of widths) {
-    const height = heightFor(width)
+    const height = bubbleHeight(a, width)
     const cands = []
     for (let t = 8; t + height <= H - 8; t += 16) {
       for (let l = 8; l + width <= W - 8; l += 16) {
@@ -326,7 +340,7 @@ const placeFree = (a, ignoreBubbles = false) => {
     cands.sort((u, v) => u.d - v.d)
     for (const c of cands.slice(0, 40)) {
       if (c.d > MAX_LEASH) break
-      if (leashClear(head.x, head.y, c.qx, c.qy)) return { dir: 'free', side: 'right', width, height, box: { l: c.l, t: c.t } }
+      if (leashClear(head.x, head.y, c.qx, c.qy)) return { dir: 'free', side: 'right', width, height, rows: headerRows(a, width), box: { l: c.l, t: c.t } }
     }
   }
   return null
@@ -346,6 +360,7 @@ const addBubble = (i, text, kind, life, place) => {
     dir: place.dir,
     width: place.width,
     height: place.height,
+    stacked: place.rows === 2,
     box: place.box || null,
   })
   if (place.dir === 'free') leaders.push({ id, agent: i, box: boxOf(bubbles.value[bubbles.value.length - 1]), until: now + life })
@@ -663,6 +678,8 @@ onMounted(() => {
   resize()
   resizeObs = new ResizeObserver(() => resize())
   resizeObs.observe(root.value)
+  readoutObs = new ResizeObserver(() => emit('readout', Math.ceil(readout.value.offsetHeight)))
+  readoutObs.observe(readout.value)
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   document.fonts?.ready?.then(() => { measureAvoid(); if (!running) draw() })
   if (reducedMotion) { renderStatic(); return }
@@ -678,6 +695,7 @@ onMounted(() => {
 onUnmounted(() => {
   stop()
   resizeObs?.disconnect()
+  readoutObs?.disconnect()
   interObs?.disconnect()
   window.removeEventListener('pointermove', onPointerMove)
   document.removeEventListener('visibilitychange', onVisibility)
@@ -756,6 +774,9 @@ onUnmounted(() => {
 }
 .who-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .who-tag { flex: none; margin-inline-start: auto; padding-inline-start: 8px; color: var(--kb-text); font-weight: 700; }
+/* estrecho: la postura baja a su propia fila, alineada bajo el nombre */
+.crowd-bubble.is-stacked .crowd-bubble-who { flex-wrap: wrap; row-gap: 1px; }
+.crowd-bubble.is-stacked .who-tag { flex-basis: 100%; margin-inline-start: 0; padding-inline-start: 14px; }
 .crowd-bubble-text {
   font-family: var(--kb-font-sans);
   font-size: 13px;
