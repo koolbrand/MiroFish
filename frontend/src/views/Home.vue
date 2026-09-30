@@ -665,7 +665,7 @@ const startSimulation = () => {
   scroll-margin-top: 88px;
 }
 .composer {
-  max-width: 1160px;
+  max-width: 1144px;   /* mismo ancho que la píldora de navegación y las secciones: un solo borde izquierdo */
   margin: 0 auto;
   padding: clamp(24px, 4vw, 48px);
   background: var(--kb-surface);
