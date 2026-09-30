@@ -117,6 +117,8 @@ const say = (keys) => {
   return text
 }
 const bucketLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdUndecided', against: 'home.crowdAgainst' }[b])
+// en el bocadillo habla UNA persona: la postura va en singular/neutra («Dudando», no «Indecisos»)
+const tagLabel = (b) => t({ favor: 'home.crowdFor', undecided: 'home.crowdTagUndecided', against: 'home.crowdAgainst' }[b])
 const setBubbleEl = (id, el) => { if (el) bubbleEls.set(id, el); else bubbleEls.delete(id) }
 const seedAgents = () => {
   // Personajes grandes y solapados (una multitud, no una retícula): el píxel crece con la pantalla.
@@ -316,7 +318,7 @@ const heightFor = (w) => (w >= 210 ? 76 : w >= 175 ? 88 : 104)
 const monoW = (s) => [...s].reduce((n, ch) => n + (ch.codePointAt(0) > 0x2e80 ? 11 : 7), 0)
 const BUBBLE_CHROME = 26    // relleno lateral (2 × 11 px) + borde (2 × 2 px)
 const whoNeed = (a) => 14 + monoW(t(`home.biankas.${a.look.persona}`))   // muestra + hueco + nombre
-const tagNeed = () => Math.max(...['favor', 'undecided', 'against'].map(b => monoW(bucketLabel(b))))
+const tagNeed = () => Math.max(...['favor', 'undecided', 'against'].map(b => monoW(tagLabel(b))))
 const headerRows = (a, w) => (whoNeed(a) + 14 + tagNeed() <= w - BUBBLE_CHROME ? 1 : 2)
 const bubbleWidths = (a, full) => {
   const all = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
@@ -417,7 +419,7 @@ const addBubble = (i, text, kind, life, place) => {
   bubbles.value.push({
     id, agent: i, bucket, text, kind,
     who: t(`home.biankas.${a.look.persona}`),
-    tag: bucketLabel(bucket),
+    tag: tagLabel(bucket),
     side: place.side,
     dir: place.dir,
     width: place.width,
@@ -617,7 +619,9 @@ const draw = () => {
   }
   const talking = new Set(bubbles.value.map(b => b.agent))
   // las que quedan detrás de la tarjeta, la píldora o el marcador (sin cara a la vista) se dibujan primero: el muro sigue por detrás
-  agents.forEach((a) => { if (!a.shown && !a.covered) paint(a, false) })
+  // (en móvil, solo por encima y por debajo de la tarjeta: a los lados quedan tiras de ~16 px donde sus restos leerían como ruido)
+  const behindOk = (a) => W >= 700 || !avoid[0] || (a.x + 13 * P > avoid[0].l && a.x + 13 * P < avoid[0].r)
+  agents.forEach((a) => { if (!a.shown && !a.covered && behindOk(a)) paint(a, false) })
   agents.forEach((a, i) => { if (a.shown && !talking.has(i)) paint(a, false) })
   // quien habla sale al frente y con una sombra dura (sin cambiar su contorno): el bocadillo siempre tiene dueña
   agents.forEach((a, i) => { if (a.shown && talking.has(i)) paint(a, true) })
@@ -983,8 +987,9 @@ onUnmounted(() => {
   .readout-event { margin-inline-start: 0; flex-basis: 100%; }
 }
 @media (max-width: 480px) {
-  .readout-legend { gap: 4px 12px; font-size: 12px; }
-  .readout-legend span { gap: 5px; }
+  .readout-legend { flex-wrap: nowrap; gap: 6px; font-size: 11px; letter-spacing: 0; }
+  .readout-legend span { gap: 4px; }
+  .readout-legend .swatch { width: 10px; height: 10px; }
 }
 /* móviles muy estrechos (320–360 px): las etiquetas de la cabecera caben en una línea */
 @media (max-width: 360px) {
@@ -992,7 +997,7 @@ onUnmounted(() => {
 }
 @media (max-width: 340px) {
   .readout-head { font-size: 10px; letter-spacing: 0.02em; }
-  .readout-legend { font-size: 11px; gap: 4px 8px; }
+  .readout-legend { font-size: 10px; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .crowd-bubble { animation: none; }

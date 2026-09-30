@@ -52,6 +52,7 @@
           </button>
         </h3>
         <p v-if="project.simulation_requirement" class="sim-desc">{{ plainText(project.simulation_requirement) }}</p>
+        <p v-else class="sim-desc is-empty">{{ $t('history.noDescription') }}</p>
 
         <ol class="pipeline">
           <li v-for="stage in stagesOf(project)" :key="stage.key" :class="{ done: stage.value >= 1 }">
@@ -514,6 +515,7 @@ onActivated(() => {
 .sim-open:focus-visible { outline: none; }
 .sim-card:has(.sim-open:focus-visible) { outline: 2px solid var(--kb-accent-text); outline-offset: 2px; }
 
+.sim-desc.is-empty { color: var(--kb-muted); font-style: italic; }
 .sim-desc {
   display: -webkit-box;
   margin: 0;

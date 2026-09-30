@@ -299,7 +299,8 @@
     "pasteAdd": "Añadir como documento",
     "pastedFileName": "texto-pegado",
     "fileRejectedPaste": "Pegar texto",
-    "readyNote": "Tarda unos 20–30 min y tú decides cuándo pasar de un paso al siguiente. Si cierras la pestaña, el proyecto queda en tu historial."
+    "readyNote": "Tarda unos 20–30 min y tú decides cuándo avanzar de una fase a la siguiente. Si cierras la pestaña, el proyecto queda en tu historial.",
+    "crowdTagUndecided": "Dudando"
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -638,7 +639,8 @@
     "stepLabel": "Paso {n}",
     "statusRunning": "En curso · {current}/{total}",
     "statusStopped": "Detenida en {current}/{total}",
-    "statusFailed": "Error en {current}/{total}"
+    "statusFailed": "Error en {current}/{total}",
+    "noDescription": "Sin pregunta guardada: ábrelo para continuar."
   },
   "api": {
     "projectNotFound": "Proyecto no encontrado: {id}",

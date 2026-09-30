@@ -202,7 +202,7 @@
             </i18n-t>
           </h2>
           <span class="title-crowd" aria-hidden="true">
-            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_A" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" />
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_A" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
           </span>
         </div>
         <div ref="trackEl" class="track" :class="{ wide: isWide }">
@@ -225,13 +225,14 @@
         </div>
       </section>
 
-      <!-- Qué obtienes: la prueba tangible del resultado (informe de ejemplo) -->
+      <!-- Qué obtienes: la prueba tangible del resultado (informe de ejemplo), sobre una banda de tinta: cambia el material -->
+      <div class="band-ink">
       <section class="section results">
         <div v-reveal class="section-head">
           <span class="kicker">{{ $t('home.resultsKicker') }}</span>
           <h2 class="section-title wide">{{ $t('home.resultsTitle') }}</h2>
           <span class="title-crowd" aria-hidden="true">
-            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_B" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" />
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_B" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
           </span>
         </div>
         <ul v-reveal class="deliverables">
@@ -245,6 +246,7 @@
         </ul>
         <div class="results-report"><ReportExample /></div>
       </section>
+      </div>
 
       <!-- Cifras medidas, banda lima a sangre -->
       <section class="figures" :aria-label="$t('home.figuresLabel')">
@@ -286,7 +288,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import BriefAssistant from '../components/BriefAssistant.vue'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
@@ -306,7 +308,7 @@ import { vReveal } from '../composables/useReveal'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const { maybeAutoStart } = useTutorial()
 
@@ -341,7 +343,12 @@ onMounted(async () => {
   topInset.value = window.innerWidth <= 640 ? 70 : 80
   // Tutorial automático en la primera visita (se reabre con el botón «?»).
   maybeAutoStart('home', getTour('home'))
+  // Biankas de los titulares: pegadas a su última línea (hay que esperar a las tipografías y repetirlo al cambiar de ancho o de idioma)
+  placeTitleCrowds()
+  document.fonts?.ready?.then(placeTitleCrowds)
+  window.addEventListener('resize', schedulePlaceCrowds)
 })
+watch(locale, () => nextTick(() => schedulePlaceCrowds()))
 
 
 // ── «Cómo funciona»: una Bianka camina por la línea del proceso según bajas ─────
@@ -421,6 +428,34 @@ const walkerTick = () => {
 }
 const startWalker = () => { if (!wraf && wVisible && isWide.value && !reduceMotion) wraf = requestAnimationFrame(walkerTick) }
 
+// Las Biankas del titular se colocan pegadas al final de su última línea, de pie sobre su base, y se corren solo lo
+// justo para no pisar la línea de arriba (el final de las líneas cambia con el idioma y con el ancho).
+const placeTitleCrowds = () => {
+  for (const head of document.querySelectorAll('.section-head')) {
+    const crowd = head.querySelector('.title-crowd'), title = head.querySelector('.section-title')
+    if (!crowd || !title || getComputedStyle(crowd).display === 'none') continue
+    const hr = head.getBoundingClientRect()
+    const rng = document.createRange()
+    rng.selectNodeContents(title)
+    const lines = []
+    for (const r of [...rng.getClientRects()].filter(q => q.width > 2).sort((a, b) => a.top - b.top || a.left - b.left)) {
+      const last = lines[lines.length - 1]
+      if (last && Math.abs(r.top - last.top) < r.height * 0.5) { last.right = Math.max(last.right, r.right); last.bottom = Math.max(last.bottom, r.bottom) }
+      else lines.push({ top: r.top, bottom: r.bottom, right: r.right, h: r.height })
+    }
+    const lastLine = lines[lines.length - 1], prev = lines[lines.length - 2]
+    if (!lastLine) continue
+    let left = lastLine.right + 26
+    if (prev && lastLine.bottom - crowd.offsetHeight < prev.bottom) left = Math.max(left, prev.right + 14)
+    const feet = lastLine.bottom - lastLine.h * 0.2      // la base del texto: el contenido de la línea baja un poco más allá
+    crowd.style.left = `${Math.round(left - hr.left)}px`
+    crowd.style.insetInlineEnd = 'auto'
+    crowd.style.bottom = `${Math.round(hr.bottom - feet)}px`
+  }
+}
+let crowdTimer = null
+const schedulePlaceCrowds = () => { clearTimeout(crowdTimer); crowdTimer = setTimeout(placeTitleCrowds, 60) }
+
 const layoutMode = () => {
   isWide.value = window.innerWidth > 900
   scrolledNav.value = window.scrollY > 72
@@ -448,6 +483,8 @@ onMounted(() => {
   }
 })
 onUnmounted(() => {
+  window.removeEventListener('resize', schedulePlaceCrowds)
+  clearTimeout(crowdTimer)
   window.removeEventListener('resize', mq)
   window.removeEventListener('scroll', onScroll)
   if (wraf) cancelAnimationFrame(wraf)
@@ -613,7 +650,7 @@ const startSimulation = () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(calc(100% - 2 * var(--gutter)), 880px);   /* una píldora de cabecera, no una barra: deja ver el muro a los lados */
+  width: min(calc(100% - 2 * var(--gutter)), 700px);   /* una píldora de cabecera, más estrecha que la tarjeta: deja ver el muro a los lados */
   height: 58px;
   padding-inline: 22px 20px;
   background: rgba(247, 246, 243, 0.94);
@@ -1212,12 +1249,26 @@ const startSimulation = () => {
 .del-text { display: grid; gap: 6px; padding: 18px 20px 22px; }
 .del-text strong { font-size: 1.1rem; letter-spacing: -0.01em; }
 .del-text span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }
+/* «Qué obtienes» sobre una banda de tinta a sangre: cambia el material entre secciones. En lo oscuro el contorno de tinta
+   no se vería, así que la sombra dura pasa a ser lima (misma forma, el color que sí se ve). */
+.band-ink {
+  margin-top: clamp(72px, 9vw, 128px);
+  padding-bottom: clamp(120px, 12vw, 176px);   /* deja sitio a la fila de Biankas que asoma sobre la banda lima */
+  background: var(--ink-950);
+  color: #fff;
+}
+.band-ink .section { padding-top: clamp(72px, 8vw, 120px); }
+.band-ink .kicker { color: var(--lime-500); }
+.band-ink .section-title { color: #fff; }
+.band-ink .deliverable { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 4px 4px 0 var(--lime-500); }   /* las tarjetas son claras: el texto, de tinta */
+.band-ink :deep(.report) { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 8px 8px 0 var(--lime-500); }
+.band-ink :focus-visible { outline-color: var(--lime-500); }
 /* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
 .results-report { max-width: 860px; margin: 72px auto 0; }
 
 .figures {
   /* 66 px de la fila de Biankas que asoma + ≥ 120 px de aire sobre ella (≥ 96 px en móvil) */
-  margin-top: clamp(162px, calc(12vw + 20px), 240px);
+  margin-top: 0;
   padding: clamp(56px, 8vw, 104px) var(--gutter);
   background: var(--lime-500);
   color: var(--ink-950);
@@ -1385,6 +1436,9 @@ const startSimulation = () => {
   .topbar-links { gap: 10px; }
   .launch-btn { width: 100%; justify-content: center; }
   .composer { box-shadow: 5px 5px 0 var(--ink-950); }
+}
+@media (max-width: 640px) {
+  .deliverables { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 380px) {
   /* 320–380 px: algo más de franja sobre la tarjeta para que quepa una fila de caras (el botón principal sigue a la vista) */

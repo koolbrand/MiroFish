@@ -21,6 +21,8 @@ const props = defineProps({
   happy: { type: Boolean, default: false },
   // px extra de lienzo por encima, para que quepa el salto
   headroom: { type: Number, default: 0 },
+  // hacia dónde mira, en celdas: [-1, 0] a la izquierda (las del titular miran su texto)
+  gaze: { type: Array, default: () => [0, 0] },
 })
 
 const canvas = ref(null)
@@ -43,7 +45,7 @@ const paint = (t) => {
   const breath = (((t + phase) / 1.6) % 1) < 0.5 ? 0 : P
   const hopT = t - hopAt
   const hop = hopT >= 0 && hopT < 0.34 ? Math.round(Math.sin((Math.PI * hopT) / 0.34) * 2) * P : 0
-  drawBianka(ctx, { x: 4, y: 2 + props.headroom + breath - hop, P, look: lk, bucket: props.bucket, mirror: props.mirror, now: t, blink: ((t + phase) % 3.8) > 3.65, talking: props.talking, happy: props.happy, gaze: [0, 0] })
+  drawBianka(ctx, { x: 4, y: 2 + props.headroom + breath - hop, P, look: lk, bucket: props.bucket, mirror: props.mirror, now: t, blink: ((t + phase) % 3.8) > 3.65, talking: props.talking, happy: props.happy, gaze: props.gaze })
 }
 const tick = () => { raf = null; if (!running) return; paint(performance.now() / 1000); raf = requestAnimationFrame(tick) }
 const start = () => { if (running || reduced || !visible || document.hidden) return; running = true; raf = requestAnimationFrame(tick) }

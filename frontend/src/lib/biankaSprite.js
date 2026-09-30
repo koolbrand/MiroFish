@@ -133,6 +133,14 @@ export const ALT = {
 }
 
 
+// ── Ojos: la Bianka de siempre tiene dos puntos; «de todo tipo» también en la mirada ──────────────────────
+export const EYES = [
+  { id: 'dot', w: 56 },     // dos puntos (la de la firma)
+  { id: 'wide', w: 16 },    // ojos grandes, de 2×2 celdas
+  { id: 'tall', w: 16 },    // ojos largos, de 1×3
+  { id: 'sleepy', w: 12 },  // medio cerrados: una raya
+]
+
 // ── Siluetas ────────────────────────────────────────────────────────────────
 // La Bianka es siempre el mismo conejo, pero «de todo tipo»: orejas largas, cuerpo alto o achaparrado, ancho o
 // estrecho, y la cabeza ladeada. Se aplican sobre la cuadrícula ya compuesta (con gorro, cara y complemento), así
@@ -251,10 +259,12 @@ export const makeLook = (rng = Math.random) => {
     const body = rng() < 0.62 ? pick(BODY_POOL, rng) : null
     if (!face && !head && !body && tries < 7) continue
     const ears = pickWeighted(EARS, rng)
+    // con gafas, monóculo o parche los ojos no se tocan (se dibujarían fuera de la montura)
+    const eyes = face?.lockEyes || face?.noEyes ? EYES[0] : pickWeighted(EYES, rng)
     const shape = pickWeighted(BODY_TYPES, rng).shape
     // El rótulo del bocadillo sale del rasgo más visible
     const persona = (body || head || face)?.id || 'plain'
-    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}|${shape.id}`, ears, head, face, body, persona, shape }
+    return { key: `${ears.id}|${head?.id}|${face?.id}|${body?.id}|${shape.id}|${eyes.id}`, ears, head, face, body, persona, shape, eyes }
   }
 }
 
@@ -356,7 +366,15 @@ export const drawFace = (ctx, { x, y, P, look, bucket, mirror = false, gaze = [0
     const ec = c + gx
     if (happy) { cell(15, ec - 1); cell(14, ec); cell(15, ec + 1) }
     else if (blink) cell(16, ec)
-    else { cell(15 + gy, ec); cell(16 + gy, ec) }
+    else {
+      const out = c === 10 ? -1 : 1          // hacia el lado de fuera de la cara
+      switch (look.eyes?.id) {
+        case 'wide': cell(15 + gy, ec); cell(16 + gy, ec); cell(15 + gy, ec + out); cell(16 + gy, ec + out); break
+        case 'tall': cell(14 + gy, ec); cell(15 + gy, ec); cell(16 + gy, ec); break
+        case 'sleepy': cell(16 + gy, ec); cell(16 + gy, ec + out); break
+        default: cell(15 + gy, ec); cell(16 + gy, ec)
+      }
+    }
   }
   // boca: al hablar se abre y se cierra; en reposo cuenta lo que piensa (convencida sonríe, en contra frunce, dudando la «T» de siempre)
   if (talking && Math.floor(now * 8) % 2 === 0) { cell(18, 12); cell(18, 13); cell(19, 12); cell(19, 13); cell(20, 12); cell(20, 13) }

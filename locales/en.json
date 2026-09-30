@@ -299,7 +299,8 @@
     "pasteAdd": "Add as a document",
     "pastedFileName": "pasted-text",
     "fileRejectedPaste": "Paste text",
-    "readyNote": "Takes about 20–30 min, and you decide when to move from one step to the next. If you close the tab, the project stays in your history."
+    "readyNote": "Takes about 20–30 min, and you decide when to move on from one stage to the next. If you close the tab, the project stays in your history.",
+    "crowdTagUndecided": "Undecided"
   },
   "main": {
     "layoutGraph": "Graph",
@@ -638,7 +639,8 @@
     "stepLabel": "Step {n}",
     "statusRunning": "Running · {current}/{total}",
     "statusStopped": "Stopped at {current}/{total}",
-    "statusFailed": "Failed at {current}/{total}"
+    "statusFailed": "Failed at {current}/{total}",
+    "noDescription": "No question saved: open it to continue."
   },
   "api": {
     "projectNotFound": "Project not found: {id}",

@@ -299,7 +299,8 @@
     "pasteAdd": "添加为文档",
     "pastedFileName": "pasted-text",
     "fileRejectedPaste": "粘贴文字",
-    "readyNote": "约需 20–30 分钟，何时进入下一步由你决定。关闭标签页后，项目会保留在历史记录中。"
+    "readyNote": "约需 20–30 分钟，何时进入下一阶段由你决定。关闭标签页后，项目会保留在历史记录中。",
+    "crowdTagUndecided": "犹豫中"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -638,7 +639,8 @@
     "stepLabel": "第 {n} 步",
     "statusRunning": "进行中 · {current}/{total}",
     "statusStopped": "停止于 {current}/{total}",
-    "statusFailed": "失败于 {current}/{total}"
+    "statusFailed": "失败于 {current}/{total}",
+    "noDescription": "未保存问题：打开后可继续。"
   },
   "api": {
     "projectNotFound": "项目不存在: {id}",
