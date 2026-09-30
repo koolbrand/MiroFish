@@ -161,8 +161,9 @@ const seedAgents = () => {
         look = makeLook()
       }
       parts[`${row}:${col}`] = { key: look.key, head: look.head?.id, body: look.body?.id, face: look.face?.id }
-      const x = xFirst + col * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-1, 1)) * P
-      const y = yFirst + row * RY + (row ? Math.round(rand(-1, 1)) * P : 0)
+      // la retícula se rompe: desfase de hasta 2 celdas de lado a lado y 3 de arriba abajo (la primera fila no, que va alineada con la franja)
+      const x = xFirst + col * CX + (row % 2 ? CX / 2 : 0) + Math.round(rand(-2, 2)) * P
+      const y = yFirst + row * RY + (row ? Math.round(rand(-3, 3)) * P : 0)
       agents.push({
         x, y, row, col,
         look,

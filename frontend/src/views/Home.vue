@@ -202,7 +202,7 @@
             </i18n-t>
           </h2>
           <span class="title-crowd" aria-hidden="true">
-            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_A" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_A" :key="i" :look="c.look" :bucket="c.bucket" :pixel="2" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
           </span>
         </div>
         <div ref="trackEl" class="track" :class="{ wide: isWide }">
@@ -232,7 +232,7 @@
           <span class="kicker">{{ $t('home.resultsKicker') }}</span>
           <h2 class="section-title wide">{{ $t('home.resultsTitle') }}</h2>
           <span class="title-crowd" aria-hidden="true">
-            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_B" :key="i" :look="c.look" :bucket="c.bucket" :pixel="3" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
+            <BiankaAvatar v-for="(c, i) in TITLE_CROWD_B" :key="i" :look="c.look" :bucket="c.bucket" :pixel="2" :mirror="i % 2 === 1" :gaze="i % 2 === 1 ? [1, 0] : [-1, 0]" />
           </span>
         </div>
         <ul v-reveal class="deliverables">
@@ -446,8 +446,9 @@ const placeTitleCrowds = () => {
     const lastLine = lines[lines.length - 1], prev = lines[lines.length - 2]
     if (!lastLine) continue
     let left = lastLine.right + 26
-    if (prev && lastLine.bottom - crowd.offsetHeight < prev.bottom) left = Math.max(left, prev.right + 26)
     const feet = lastLine.bottom - lastLine.h * 0.2      // la base del texto: el contenido de la línea baja un poco más allá
+    // si la cabeza de las Biankas llega a la base de los glifos de la línea de arriba (con un poco de aire), se apartan de su final
+    if (prev && feet - crowd.offsetHeight < prev.bottom - prev.h * 0.15 + 2) left = Math.max(left, prev.right + 26)
     crowd.style.left = `${Math.round(left - hr.left)}px`
     crowd.style.insetInlineEnd = 'auto'
     crowd.style.bottom = `${Math.round(hr.bottom - feet)}px`
