@@ -1,7 +1,7 @@
 <template>
   <button
     class="help-btn"
-    :class="{ dark: dark }"
+    :class="{ dark: dark, compact: compact }"
     @click="onClick"
     :title="$t('tutorial.openTooltip')"
     :aria-label="$t('tutorial.openTooltip')"
@@ -20,6 +20,8 @@ const props = defineProps({
   // Resolve a different tour id dynamically (e.g. based on current wizard step)
   resolve: { type: Function, default: null },
   dark: { type: Boolean, default: false },
+  // solo el «?» (el nombre queda en el título y en la etiqueta accesible)
+  compact: { type: Boolean, default: false },
 })
 
 const { start, clearSeen } = useTutorial()
@@ -80,6 +82,7 @@ const onClick = () => {
   line-height: 1;
 }
 
+.help-btn.compact .help-label { display: none; }
 .help-label {
   font-size: 0.65rem;
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="language-switcher" ref="switcherRef">
+  <div class="language-switcher" :class="{ 'is-compact': compact }" ref="switcherRef">
     <button class="switcher-trigger" :aria-label="currentLabel" :aria-expanded="open" @click="toggleDropdown">
       <span class="lbl-long">{{ currentLabel }}</span><span class="lbl-short" aria-hidden="true">{{ shortLabel }}</span>
       <span class="caret" aria-hidden="true">{{ open ? '▲' : '▼' }}</span>
@@ -23,6 +23,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { availableLocales } from '@/i18n/index.js'
 
+defineProps({
+  // solo el código del idioma (ES ▾): para cabeceras con poco sitio
+  compact: { type: Boolean, default: false }
+})
 const { locale } = useI18n()
 const open = ref(false)
 const switcherRef = ref(null)
@@ -93,6 +97,8 @@ onUnmounted(() => {
   font-size: 0.6rem;
 }
 .lbl-short { display: none; }
+.is-compact .lbl-long { display: none; }
+.is-compact .lbl-short { display: inline; }
 @media (max-width: 400px) {
   .lbl-long { display: none; }
   .lbl-short { display: inline; }

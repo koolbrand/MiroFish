@@ -11,8 +11,24 @@
           @updated="onProjectRenamed"
         />
       </div>
-      
+
+      <!-- Centro: las etapas y su estado (la navegación principal del proceso) -->
       <div class="header-center">
+        <div data-tour="sim-stepper">
+          <WizardStepper
+            :currentStep="2"
+            :projectId="projectData?.project_id || null"
+            :simulationId="currentSimulationId"
+          />
+        </div>
+        <span class="step-divider"></span>
+        <span class="status-indicator" :class="statusClass">
+          <span class="dot"></span>
+          {{ statusText }}
+        </span>
+      </div>
+
+      <div class="header-right">
         <div class="view-switcher" data-tour="sim-view-switcher">
           <button
             v-for="mode in ['graph', 'split', 'workbench']"
@@ -24,27 +40,14 @@
             {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
           </button>
         </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <AppVersion />
-        <HelpButton tourId="simulation" />
         <div class="step-divider"></div>
-        <div data-tour="sim-stepper">
-          <WizardStepper
-            :currentStep="2"
-            :projectId="projectData?.project_id || null"
-            :simulationId="currentSimulationId"
-          />
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
+        <LanguageSwitcher compact />
+        <HelpButton compact tourId="simulation" />
+        <AppVersion class="tech-only" />
       </div>
     </header>
+
+    <AutoPipelineBanner :projectId="projectData?.project_id || null" :step="2" />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -82,8 +85,9 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import WizardStepper from '../components/WizardStepper.vue'
+import AutoPipelineBanner from '../components/AutoPipelineBanner.vue'
 import { getProject, getGraphData } from '../api/graph'
-import { getSimulation, stopSimulation, getEnvStatus, closeSimulationEnv } from '../api/simulation'
+import { getSimulation } from '../api/simulation'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import HelpButton from '../components/HelpButton.vue'
@@ -196,69 +200,6 @@ const handleNextStep = (params = {}) => {
 
 // --- Data Logic ---
 
-/**
- * 检查并关闭正在运行的模拟
- * 当用户从 Step 3 返回到 Step 2 时，默认用户要退出模拟
- */
-const checkAndStopRunningSimulation = async () => {
-  if (!currentSimulationId.value) return
-  
-  try {
-    // 先检查模拟环境是否存活
-    const envStatusRes = await getEnvStatus({ simulation_id: currentSimulationId.value })
-    
-    if (envStatusRes.success && envStatusRes.data?.env_alive) {
-      addLog(t('log.detectedSimEnvRunning'))
-      
-      // 尝试优雅关闭模拟环境
-      try {
-        const closeRes = await closeSimulationEnv({ 
-          simulation_id: currentSimulationId.value,
-          timeout: 10  // 10秒超时
-        })
-        
-        if (closeRes.success) {
-          addLog(t('log.simEnvClosed'))
-        } else {
-          addLog(t('log.closeSimEnvFailedWithError', { error: closeRes.error || t('common.unknownError') }))
-          // 如果优雅关闭失败，尝试强制停止
-          await forceStopSimulation()
-        }
-      } catch (closeErr) {
-        addLog(t('log.closeSimEnvException', { error: closeErr.message }))
-        // 如果优雅关闭异常，尝试强制停止
-        await forceStopSimulation()
-      }
-    } else {
-      // 环境未运行，但可能进程还在，检查模拟状态
-      const simRes = await getSimulation(currentSimulationId.value)
-      if (simRes.success && simRes.data?.status === 'running') {
-        addLog(t('log.detectedSimRunning'))
-        await forceStopSimulation()
-      }
-    }
-  } catch (err) {
-    // 检查环境状态失败不影响后续流程
-    console.warn('Error al verificar el estado de la simulación:', err)
-  }
-}
-
-/**
- * 强制停止模拟
- */
-const forceStopSimulation = async () => {
-  try {
-    const stopRes = await stopSimulation({ simulation_id: currentSimulationId.value })
-    if (stopRes.success) {
-      addLog(t('log.simForceStopSuccess'))
-    } else {
-      addLog(t('log.forceStopSimFailed', { error: stopRes.error || t('common.unknownError') }))
-    }
-  } catch (err) {
-    addLog(t('log.forceStopSimException', { error: err.message }))
-  }
-}
-
 const loadSimulationData = async () => {
   try {
     addLog(t('log.loadingSimData', { id: currentSimulationId.value }))
@@ -322,9 +263,7 @@ const onProjectRenamed = (updated) => {
 onMounted(async () => {
   addLog(t('log.simViewInit'))
 
-  // 检查并关闭正在运行的模拟（用户从 Step 3 返回时）
-  await checkAndStopRunningSimulation()
-
+  // Abrir este paso es solo mirar: antes detenía la simulación en marcha al volver del paso 3
   // 加载模拟数据
   loadSimulationData()
 
@@ -497,6 +436,51 @@ onMounted(async () => {
   .switch-btn { flex: 1; padding-inline: 8px; }
   .header-right { flex: 1 1 100%; justify-content: space-between; gap: 10px; }
   .header-right :deep(.app-version-badge), .step-divider { display: none; }
+}
+
+/* ── Cabecera común de las pantallas del proceso ─────────────────────────────
+   Izquierda (marca y proyecto) y derecha (vista, idioma, tutorial) a su tamaño; el centro,
+   con las etapas y su estado, se queda el resto. Antes el reparto era simétrico y la derecha
+   no cabía por debajo de ~2100 px: saltaba a otra fila dentro de 60 px y tocaba el borde. */
+.app-header {
+  height: auto;
+  min-height: 60px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "left center right";
+  column-gap: 24px;
+  row-gap: 8px;
+  padding-block: 8px;
+}
+.header-left { grid-area: left; }
+.header-center {
+  grid-area: center;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.header-right { grid-area: right; flex-wrap: nowrap; gap: 12px; }
+@media (max-width: 1320px) and (min-width: 901px) {
+  /* portátiles: dos filas pensadas (marca y herramientas arriba, etapas centradas debajo) */
+  .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "left right" "center center";
+    padding-block: 10px;
+  }
+}
+@media (max-width: 900px) {
+  /* móvil: idioma y tutorial junto a la marca; el selector de vista y las etapas, cada uno en su fila */
+  .header-right { display: contents; }
+  .header-right .view-switcher { order: 2; flex: 1 1 100%; width: 100%; }
+  .header-right .step-divider { display: none; }
+  .header-center { order: 3; flex: 1 1 100%; justify-content: space-between; }
+  .switch-btn { white-space: nowrap; }
+  /* el nombre del proyecto se recorta antes de empujar el idioma y el tutorial a otra fila */
+  .header-left { flex: 1 1 0; min-width: 0; }
+  .header-left :deep(.project-chip) { min-width: 0; margin-left: 10px; }
+  .header-left :deep(.chip-text) { min-width: 0; }
+  .header-left :deep(.chip-label) { min-width: 0; max-width: none; }
 }
 </style>
 

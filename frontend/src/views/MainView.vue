@@ -12,7 +12,22 @@
         />
       </div>
 
+      <!-- Centro: las etapas y su estado (la navegación principal del proceso) -->
       <div class="header-center">
+        <div data-tour="main-stepper">
+          <WizardStepper
+            :currentStep="currentStep"
+            :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null"
+          />
+        </div>
+        <span class="step-divider"></span>
+        <span class="status-indicator" :class="statusClass">
+          <span class="dot"></span>
+          {{ statusText }}
+        </span>
+      </div>
+
+      <div class="header-right">
         <div class="view-switcher" data-tour="main-view-switcher">
           <button
             v-for="mode in ['graph', 'split', 'workbench']"
@@ -24,26 +39,14 @@
             {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
           </button>
         </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <AppVersion />
-        <HelpButton tourId="mainStep1" :resolve="resolveMainTour" />
         <div class="step-divider"></div>
-        <div data-tour="main-stepper">
-          <WizardStepper
-            :currentStep="currentStep"
-            :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null"
-          />
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
+        <LanguageSwitcher compact />
+        <HelpButton compact tourId="mainStep1" :resolve="resolveMainTour" />
+        <AppVersion class="tech-only" />
       </div>
     </header>
+
+    <AutoPipelineBanner :projectId="currentProjectId && currentProjectId !== 'new' ? currentProjectId : null" :step="1" />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -110,7 +113,10 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import WizardStepper from '../components/WizardStepper.vue'
+import AutoPipelineBanner from '../components/AutoPipelineBanner.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
+import { startAutoPipeline } from '../api/pipeline'
+import { usePipeline } from '../composables/usePipeline'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
@@ -142,6 +148,7 @@ const stepNames = computed(() => tm('main.stepNames'))
 
 // Data State
 const currentProjectId = ref(route.params.projectId)
+const { isRunning: autoRunning, refresh: refreshPipeline } = usePipeline(() => (currentProjectId.value && currentProjectId.value !== 'new' ? currentProjectId.value : null))
 const loading = ref(false)
 const graphLoading = ref(false)
 const error = ref('')
@@ -268,6 +275,18 @@ const handleNewProject = async () => {
       formData.append('project_name', pending.projectName.trim())
     }
 
+    // Automático: el servidor lee el material y sigue solo hasta el informe; esta pantalla solo observa
+    if (pending.mode === 'auto') {
+      const autoRes = await startAutoPipeline(formData)
+      clearPendingUpload()
+      currentProjectId.value = autoRes.data.project_id
+      router.replace({ name: 'Process', params: { projectId: autoRes.data.project_id } })
+      addLog(t('log.autoStarted', { id: autoRes.data.project_id }))
+      await refreshPipeline()
+      await loadProject()
+      return
+    }
+
     const res = await generateOntology(formData)
     if (res.success) {
       clearPendingUpload()
@@ -304,7 +323,10 @@ const loadProject = async () => {
       updatePhaseByStatus(res.data.status)
       addLog(t('log.projectLoadedStatus', { status: res.data.status }))
       
-      if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
+      // En automático el grafo lo lanza el servidor: aquí solo se espera a que empiece
+      if (['created', 'ontology_generated'].includes(res.data.status) && !res.data.graph_id && await autoInCharge()) {
+        watchAutoProject()
+      } else if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
       } else if (res.data.status === 'graph_building') {
         // If graph already has data (e.g. server restart left status stale),
@@ -348,6 +370,43 @@ const loadProject = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// ¿Lleva este proyecto el automático del servidor? (entonces la pantalla no lanza etapas)
+const autoInCharge = async () => {
+  await refreshPipeline().catch(() => {})
+  return autoRunning.value
+}
+
+// Mientras el servidor lee el material y arranca el grafo: consultar el proyecto hasta que haya grafo en marcha
+let autoWatchTimer = null
+const watchAutoProject = () => {
+  clearTimeout(autoWatchTimer)
+  if (!ontologyProgress.value) ontologyProgress.value = { message: t('log.ontologyStart') }
+  autoWatchTimer = setTimeout(async () => {
+    try {
+      const res = await getProject(currentProjectId.value)
+      if (!res.success) return watchAutoProject()
+      projectData.value = res.data
+      updatePhaseByStatus(res.data.status)
+      if (res.data.status === 'graph_building') {
+        ontologyProgress.value = null
+        currentPhase.value = 1
+        if (res.data.graph_build_task_id) startPollingTask(res.data.graph_build_task_id)
+        startGraphPolling()
+      } else if (res.data.status === 'graph_completed' && res.data.graph_id) {
+        ontologyProgress.value = null
+        currentPhase.value = 2
+        await loadGraph(res.data.graph_id)
+      } else if (res.data.status !== 'failed' && autoRunning.value) {
+        watchAutoProject()
+      } else {
+        ontologyProgress.value = null
+      }
+    } catch (e) {
+      watchAutoProject()
+    }
+  }, 3000)
 }
 
 const updatePhaseByStatus = (status) => {
@@ -503,6 +562,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearTimeout(autoWatchTimer)
   stopPolling()
   stopGraphPolling()
 })
@@ -727,5 +787,50 @@ watch(currentStep, (step, prev) => {
 }
 @media (max-width: 480px) {
   .failure { flex-direction: column; }
+}
+
+/* ── Cabecera común de las pantallas del proceso ─────────────────────────────
+   Izquierda (marca y proyecto) y derecha (vista, idioma, tutorial) a su tamaño; el centro,
+   con las etapas y su estado, se queda el resto. Antes el reparto era simétrico y la derecha
+   no cabía por debajo de ~2100 px: saltaba a otra fila dentro de 60 px y tocaba el borde. */
+.app-header {
+  height: auto;
+  min-height: 60px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "left center right";
+  column-gap: 24px;
+  row-gap: 8px;
+  padding-block: 8px;
+}
+.header-left { grid-area: left; }
+.header-center {
+  grid-area: center;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.header-right { grid-area: right; flex-wrap: nowrap; gap: 12px; }
+@media (max-width: 1320px) and (min-width: 901px) {
+  /* portátiles: dos filas pensadas (marca y herramientas arriba, etapas centradas debajo) */
+  .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "left right" "center center";
+    padding-block: 10px;
+  }
+}
+@media (max-width: 900px) {
+  /* móvil: idioma y tutorial junto a la marca; el selector de vista y las etapas, cada uno en su fila */
+  .header-right { display: contents; }
+  .header-right .view-switcher { order: 2; flex: 1 1 100%; width: 100%; }
+  .header-right .step-divider { display: none; }
+  .header-center { order: 3; flex: 1 1 100%; justify-content: space-between; }
+  .switch-btn { white-space: nowrap; }
+  /* el nombre del proyecto se recorta antes de empujar el idioma y el tutorial a otra fila */
+  .header-left { flex: 1 1 0; min-width: 0; }
+  .header-left :deep(.project-chip) { min-width: 0; margin-left: 10px; }
+  .header-left :deep(.chip-text) { min-width: 0; }
+  .header-left :deep(.chip-label) { min-width: 0; max-width: none; }
 }
 </style>
