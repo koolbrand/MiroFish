@@ -108,8 +108,11 @@ function idForStep(step) {
 }
 
 // ¿Existe ya ese paso? (el actual siempre; los demás, si hay con qué abrirlos)
+// Hacia delante solo con el proyecto terminado (informe completo): en curso se avanza paso a paso,
+// porque abrir el paso 3 de una simulación preparada y sin ejecutar la lanza.
 function isAvailable(step) {
   if (step === props.currentStep) return true
+  if (step > props.currentStep && reportStatus.value !== 'completed') return false
   if (!idForStep(step)) return false
   if (step === 3) return PREPARED.includes(simStatus.value)            // entorno preparado
   if (step === 5) return reportStatus.value === 'completed'            // informe terminado (la conversación lo necesita)

@@ -1119,7 +1119,7 @@
       "stepTitle": "Right panel — step controls",
       "stepBody": "Here you drive the current phase: ontology, graph build, system logs. Once Step 1 is done you'll see the button to move on to Step 2.",
       "stepperTitle": "Progress indicator",
-      "stepperBody": "Shows which step of the flow you're on (1→5). Click any step that's ready, going back or ahead.",
+      "stepperBody": "Shows which step of the flow you're on (1→5). You can go back to finished steps; once the project is done, you can also jump ahead.",
       "layoutTitle": "Layout views",
       "layoutBody": "Toggle between: graph-only, split view, or workbench-only. Handy when you want to focus on one of the two zones."
     },
@@ -1139,7 +1139,7 @@
       "startTitle": "Launch simulation",
       "startBody": "Once you've reviewed profiles and set the number of rounds, press \"Start dual simulation\" to move on to Step 3 (live run).",
       "stepperTitle": "Overall progress",
-      "stepperBody": "You're in Step 2 of 5. Jump back to review earlier steps, or ahead to later ones as soon as they're ready."
+      "stepperBody": "You're in Step 2 of 5. Go back to review earlier steps; the next ones open as you move forward."
     },
     "run": {
       "welcomeTitle": "Step 3 — live simulation",

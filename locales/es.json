@@ -1119,7 +1119,7 @@
       "stepTitle": "Panel derecho — control del paso",
       "stepBody": "Aquí controlas la fase actual: ontología, construcción, logs del sistema. Cuando termine el Paso 1, verás el botón para avanzar al Paso 2.",
       "stepperTitle": "Indicador de progreso",
-      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Puedes hacer clic en cualquier paso que ya esté listo, hacia atrás o hacia delante.",
+      "stepperBody": "Te muestra en qué paso del flujo estás (1→5). Puedes volver a los pasos ya hechos; cuando el proyecto termina, también saltar hacia delante.",
       "layoutTitle": "Vistas del layout",
       "layoutBody": "Cambia entre: solo grafo, vista partida, o solo panel de trabajo. Útil cuando quieres inspeccionar en detalle una de las dos zonas."
     },
@@ -1139,7 +1139,7 @@
       "startTitle": "Lanzar simulación",
       "startBody": "Cuando termines de revisar perfiles y fijar las rondas, pulsa «Iniciar simulación dual» para pasar al Paso 3 (ejecución en vivo).",
       "stepperTitle": "Progreso global",
-      "stepperBody": "Estás en el Paso 2 de 5. Puedes saltar a los pasos anteriores para revisarlos y a los siguientes en cuanto estén listos."
+      "stepperBody": "Estás en el Paso 2 de 5. Puedes volver a los pasos anteriores para revisarlos; los siguientes se abren al avanzar."
     },
     "run": {
       "welcomeTitle": "Paso 3 — simulación en vivo",
