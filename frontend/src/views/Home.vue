@@ -250,6 +250,7 @@
           <h2 class="section-title wide">{{ $t('home.multTitle') }}</h2>
           <p class="section-lede">{{ $t('home.multLede') }}</p>
         </div>
+        <ExampleTabs class="crowd-tabs" />
         <OpinionCrowd v-reveal />
       </section>
 
@@ -272,7 +273,10 @@
             </div>
           </li>
         </ul>
-        <div class="results-report"><ReportExample /></div>
+        <div class="results-report">
+          <ExampleTabs class="report-tabs" on-ink />
+          <ReportExample />
+        </div>
       </section>
       </div>
 
@@ -327,6 +331,7 @@ import HelpButton from '../components/HelpButton.vue'
 import BiankaCrowd from '../components/BiankaCrowd.vue'
 import ReportExample from '../components/ReportExample.vue'
 import OpinionCrowd from '../components/OpinionCrowd.vue'
+import ExampleTabs from '../components/ExampleTabs.vue'
 import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
@@ -1354,6 +1359,8 @@ const startSimulation = () => {
 .band-ink :deep(.report) { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 8px 8px 0 var(--lime-500); }
 .band-ink :focus-visible { outline-color: var(--lime-500); }
 /* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
+.crowd-tabs { margin-bottom: 22px; }
+.report-tabs { margin-bottom: 26px; }
 .results-report { margin: 72px 0 0; }   /* el informe ocupa el ancho de la sección: arranca en la misma línea que el resto (no centrado) */
 
 .figures {
