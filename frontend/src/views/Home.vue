@@ -731,7 +731,7 @@ const startSimulation = () => {
   padding: clamp(28px, 4.5vw, 52px) clamp(20px, 4vw, 56px);
   background: var(--kb-surface);
   border: 2px solid var(--ink-950);
-  border-radius: 18px;
+  border-radius: 18px 18px 0 0;   /* el pie de la tarjeta es el marcador de opinión (BiankaCrowd), que cuelga de aquí */
   box-shadow: 8px 8px 0 var(--ink-950);
   text-align: center;
   animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
@@ -1259,7 +1259,6 @@ const startSimulation = () => {
     var(--kb-surface);
 }
 .deliverable.d2 .del-scene { background: radial-gradient(rgba(17, 17, 17, 0.12) 1px, transparent 1.5px) 0 0 / 12px 12px, var(--lime-500); }
-.deliverable.d3 .del-scene { background: radial-gradient(rgba(17, 17, 17, 0.09) 1px, transparent 1.5px) 0 0 / 12px 12px, var(--cream-100); }
 .del-text { display: grid; gap: 6px; padding: 18px 20px 22px; }
 .del-text strong { font-size: 1.1rem; letter-spacing: -0.01em; }
 .del-text span { font-size: 0.95rem; line-height: 1.5; color: var(--kb-text-2); text-wrap: pretty; }

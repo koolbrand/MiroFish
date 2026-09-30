@@ -39,7 +39,10 @@
           <li v-for="m in feed" :key="m.id" class="oc-msg" :class="`is-${m.bucket}`">
             <BiankaAvatar :look="m.look" :bucket="m.bucket" :pixel="2" />
             <div class="oc-msg-text">
-              <span class="oc-who"><i class="swatch" :class="`is-${m.bucket}`"></i>{{ m.who }} · {{ m.tag }}</span>
+              <span class="oc-who">
+                <template v-if="m.from"><i class="swatch" :class="`is-${m.from}`"></i><span aria-hidden="true">→</span></template>
+                <i class="swatch" :class="`is-${m.bucket}`"></i>{{ m.who }} · {{ m.tag }}
+              </span>
               <p>{{ m.text }}</p>
             </div>
           </li>
@@ -63,7 +66,9 @@ const N = 120                 // el tope del rango publicado («20–120 persona
 const ROUNDS = 10
 const ROUND_SECS = 2.6
 const HOLD_SECS = 5
-const FINAL = { favor: 46, undecided: 40, against: 34 }   // cómo acaba el ejemplo: interesa, pero el precio genera dudas
+// Cómo acaba el ejemplo: el MISMO final que el gráfico del informe de ejemplo (OpinionChart: 38 % a favor, 41 % dudando, 21 % en contra)
+// — interesa, pero el precio genera dudas —, de modo que las dos piezas de la página cuentan la misma historia.
+const FINAL = { favor: 46, undecided: 49, against: 25 }
 const QUOTES = {
   favor: ['home.multQuoteF1', 'home.multQuoteF2', 'home.multQuoteF3', 'home.multQuoteF4'],
   undecided: ['home.multQuoteU1', 'home.multQuoteU2', 'home.multQuoteU3', 'home.multQuoteU4'],
@@ -81,7 +86,7 @@ const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers
 let ctx = null, W = 0, H = 0, dpr = 1, P = 2
 let agents = []
 let tNow = 0, last = 0, raf = null, running = false, visible = false
-let speakClock = 0.6, msgSeq = 0
+let speakClock = 1.2, msgSeq = 0
 const recent = []
 let io = null, ro = null
 
@@ -168,14 +173,20 @@ const drawOne = (a, r, speaking) => {
 // ── Lo que van diciendo ────────────────────────────────────────────────────────────────────────────────
 const say = (a, r) => {
   const bucket = bucketAt(a, r)
-  const pool = QUOTES[bucket].filter(k => !recent.includes(k))
-  const key = pickOf(pool.length ? pool : QUOTES[bucket])
+  // si acaba de cambiar de idea, se ve: de qué opinión venía y que lo dice
+  const from = a.flipAt === r && a.start !== a.final ? a.start : null
+  // nunca la misma frase dos veces a la vez en pantalla; y, si se puede, tampoco una de las últimas
+  const visibleNow = new Set(feed.value.map(m => m.key))
+  const fresh = QUOTES[bucket].filter(k => !visibleNow.has(k))
+  const pool = fresh.filter(k => !recent.includes(k))
+  const key = pickOf(pool.length ? pool : fresh.length ? fresh : QUOTES[bucket])
   recent.push(key); if (recent.length > 6) recent.shift()
   a.spokeIn = r
   a.speakUntil = tNow + 1.7
   a.hopAt = tNow
-  feed.value = [{ id: ++msgSeq, look: a.look, bucket, who: t(`home.biankas.${a.look.persona}`), tag: t(TAG[bucket]), text: t(key) }, ...feed.value].slice(0, 4)
+  feed.value = [{ id: ++msgSeq, key, look: a.look, bucket, from, who: t(`home.biankas.${a.look.persona}`), tag: from ? t('home.multChanged') : t(TAG[bucket]), text: t(key) }, ...feed.value].slice(0, 4)
 }
+const primeFeed = () => { const a = pickOf(agents); say(a, round.value); say(pickOf(agents.filter(x => x !== a)), round.value) }
 const speakNext = () => {
   const r = round.value
   // primero quien acaba de cambiar de idea en esta ronda (y lo cuenta); si no, cualquiera
@@ -196,7 +207,7 @@ const tick = (ts) => {
   const dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts
   tNow += dt
   const span = ROUNDS * ROUND_SECS + HOLD_SECS
-  if (tNow >= span) { tNow = 0; feed.value = []; recent.length = 0; for (const a of agents) a.spokeIn = 0; setRound(1); speakClock = 0.8 }
+  if (tNow >= span) { tNow = 0; feed.value = []; recent.length = 0; for (const a of agents) a.spokeIn = 0; setRound(1); primeFeed(); speakClock = 1.2 }
   const r = Math.min(ROUNDS, Math.floor(tNow / ROUND_SECS) + 1)
   if (r !== round.value) setRound(r)
   speakClock -= dt
@@ -237,7 +248,7 @@ const prewarm = () => {
 onMounted(() => {
   seed()
   prewarm()
-  if (reduced) settle(); else { round.value = 1; recount() }
+  if (reduced) settle(); else { round.value = 1; recount(); primeFeed() }
   layout()
   ro = new ResizeObserver(() => layout()); ro.observe(canvas.value.parentElement)
   io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; visible ? start() : stop() }, { threshold: 0.2 })
@@ -276,7 +287,7 @@ onUnmounted(() => { stop(); ro?.disconnect(); io?.disconnect(); document.removeE
 .oc-brief-text { font-size: clamp(1.05rem, 1.6vw, 1.3rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; text-wrap: balance; }
 .oc-count { display: flex; align-items: baseline; gap: 10px; }
 .oc-count-num { font-size: clamp(2.6rem, 4.4vw, 3.8rem); font-weight: 800; line-height: 0.9; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.oc-count-unit { font-family: var(--kb-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-text-2); max-width: 11ch; line-height: 1.3; }
+.oc-count-unit { font-family: var(--kb-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-text-2); max-width: 24ch; line-height: 1.35; text-wrap: balance; word-break: keep-all; }
 .oc-round { display: grid; gap: 4px; justify-items: end; text-align: end; min-width: 0; }
 .oc-event { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--kb-text); }
 .oc-event .oc-label { font-weight: 400; margin-inline-end: 6px; }
@@ -318,10 +329,9 @@ onUnmounted(() => { stop(); ro?.disconnect(); io?.disconnect(); document.removeE
 
 /* entra de arriba con el ritmo del píxel (escalonado); el resto baja un hueco */
 .oc-msg-enter-active { transition: opacity 0.35s steps(4, end), transform 0.35s steps(4, end); }
-.oc-msg-leave-active { transition: opacity 0.25s steps(3, end); position: absolute; inset-inline: 0; }
+.oc-msg-leave-active { display: none; }   /* la que sale desaparece sin más: nada gris que se pise con la que entra */
 .oc-msg-move { transition: transform 0.35s steps(4, end); }
 .oc-msg-enter-from { opacity: 0; transform: translateY(-14px); }
-.oc-msg-leave-to { opacity: 0; }
 
 @media (max-width: 900px) {
   .oc-head { grid-template-columns: minmax(0, 1fr) auto; }
@@ -329,11 +339,16 @@ onUnmounted(() => { stop(); ro?.disconnect(); io?.disconnect(); document.removeE
   .oc-body { grid-template-columns: minmax(0, 1fr); }
   .oc-msg:nth-child(n + 4) { display: none; }
 }
+@media (max-width: 560px) {
+  /* móvil: cada cosa en su fila (propuesta, cifra, ronda) para que ningún rótulo se parta en tres líneas */
+  .oc-head { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .oc-round { grid-column: auto; }
+}
 @media (max-width: 480px) {
   .oc-legend { gap: 4px 14px; font-size: 12px; }
   .oc-msg p { font-size: 0.92rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .oc-bar .seg, .oc-msg-enter-active, .oc-msg-leave-active, .oc-msg-move { transition: none; }
+  .oc-bar .seg, .oc-msg-enter-active, .oc-msg-move { transition: none; }
 }
 </style>

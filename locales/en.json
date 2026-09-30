@@ -321,7 +321,8 @@
     "multQuoteA1": "Yet another subscription. I already have too many.",
     "multQuoteA2": "I call the club and it’s free.",
     "multQuoteA3": "For one Sunday game a month, it’s not worth it.",
-    "multQuoteA4": "I don’t trust leaving my card on a new app."
+    "multQuoteA4": "I don’t trust leaving my card on a new app.",
+    "multChanged": "Changes their mind"
   },
   "main": {
     "layoutGraph": "Graph",

@@ -142,7 +142,7 @@ export const EYES = [
 ]
 
 // ── Paletas de votación: lo que piensa, en alto ──────────────────────────────────────────────────────────
-// Una de cada tres Biankas levanta una paleta junto a la cabeza (sobresale de la silueta): ✓ a favor, ? dudando,
+// Una de cada cuatro Biankas levanta una paleta junto a la cabeza (sobresale de la silueta): ✓ a favor, ? dudando,
 // ✗ en contra. Cuando cambia de opinión, cambia el símbolo (el sprite se cachea por aspecto y opinión). Cae en el hueco
 // entre vecinas, por encima del hombro y fuera de la cara. Coordenadas de BASE; tablero de tinta (se ve sobre un muro de conejos blancos), 'b' = color del cuerpo.
 const PADDLE_BOARD = [[3, 21, 'kkkkkkk'], [4, 21, 'kkkkkkk'], [5, 21, 'kkkkkkk'], [6, 21, 'kkkkkkk'], [7, 21, 'kkkkkkk'], [8, 21, 'kkkkkkk'], [9, 21, 'kkkkkkk'], [10, 21, 'kkkkkkk']]
@@ -153,7 +153,7 @@ const PADDLE_SYMBOL = {
   against: [[4, 22], [4, 26], [5, 23], [5, 25], [6, 24], [7, 23], [7, 25], [8, 22], [8, 26]],                // ✗
 }
 // qué Biankas llevan paleta según el gesto que les tocó (0–4) y lo que piensan
-export const PADDLE_POSES = { favor: [1, 0, 1, 0, 1], undecided: [1, 0, 0, 1, 0], against: [1, 0, 1, 0, 1] }
+export const PADDLE_POSES = { favor: [1, 0, 0, 0, 1], undecided: [1, 0, 0, 0, 0], against: [1, 0, 0, 1, 0] }
 export const POSE_COUNT = 5
 
 // ── Siluetas ────────────────────────────────────────────────────────────────

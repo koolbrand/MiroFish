@@ -321,7 +321,8 @@
     "multQuoteA1": "又一个订阅，我已经订太多了。",
     "multQuoteA2": "我打电话给俱乐部，订场是免费的。",
     "multQuoteA3": "一个月只打一个周日，不划算。",
-    "multQuoteA4": "我不放心把银行卡放在一个新应用里。"
+    "multQuoteA4": "我不放心把银行卡放在一个新应用里。",
+    "multChanged": "改变看法"
   },
   "main": {
     "layoutGraph": "图谱",

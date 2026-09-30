@@ -321,7 +321,8 @@
     "multQuoteA1": "Otra suscripción más: ya tengo demasiadas.",
     "multQuoteA2": "Llamo al club y me sale gratis.",
     "multQuoteA3": "Para jugar un domingo al mes no me compensa.",
-    "multQuoteA4": "No me fío de dejar la tarjeta en una app nueva."
+    "multQuoteA4": "No me fío de dejar la tarjeta en una app nueva.",
+    "multChanged": "Cambia de idea"
   },
   "main": {
     "layoutGraph": "Grafo",

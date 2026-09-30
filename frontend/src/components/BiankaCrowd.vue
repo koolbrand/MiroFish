@@ -30,7 +30,8 @@
       </div>
     </div>
 
-    <div ref="readout" class="crowd-readout" :style="{ bottom: `${bottomInset + 24}px` }">
+    <!-- El marcador cuelga de la tarjeta como su pie (mismo ancho, marco y sombra): una sola pieza enmarcada, no dos -->
+    <div ref="readout" class="crowd-readout" :class="{ 'is-attached': !!readoutPos }" :style="readoutPos ? { top: `${readoutPos.top}px`, left: `${readoutPos.left}px`, width: `${readoutPos.width}px` } : { bottom: `${bottomInset + 24}px` }">
       <div class="readout-head">
         <span class="readout-cap">{{ $t('home.crowdCaption') }}</span>
         <span class="readout-round">{{ $t('home.crowdRound') }} {{ String(round).padStart(2, '0') }}/{{ ROUNDS }}</span>
@@ -85,6 +86,7 @@ const eventLabel = ref('')
 const stats = reactive({ favor: 0, undecided: 100, against: 0 })
 const bubbles = ref([])
 const hovering = ref(false)
+const readoutPos = ref(null)   // dónde cuelga el marcador: justo bajo la tarjeta (px dentro del muro)
 const pxCss = ref('5px')   // una celda de la retícula, en px de pantalla (la usa el CSS de los bocadillos)
 
 let ctx = null
@@ -218,7 +220,15 @@ const measureAvoid = () => {
   }
   if (props.bottomInset) avoid.push({ l: 0, t: H - props.bottomInset, r: W, b: H })
   if (props.topInset) avoid.push({ l: 0, t: 0, r: W, b: props.topInset })
-  if (readout.value) avoid.push(rel(readout.value.getBoundingClientRect()))
+  if (readout.value) {
+    // el marcador va pegado bajo la tarjeta, con su ancho; su caja se calcula de la de la tarjeta (sin transformaciones)
+    const c0 = avoid[0]
+    if (props.avoidEl && c0) {
+      const pos = { top: c0.b, left: c0.l, width: c0.r - c0.l }
+      if (!readoutPos.value || readoutPos.value.top !== pos.top || readoutPos.value.left !== pos.left || readoutPos.value.width !== pos.width) readoutPos.value = pos
+      avoid.push({ l: c0.l, t: c0.b, r: c0.r, b: c0.b + readout.value.offsetHeight })
+    } else avoid.push(rel(readout.value.getBoundingClientRect()))
+  }
   for (const a of agents) a.shown = faceShown(a)
   // Las que quedan enteras detrás de la tarjeta o del marcador (opacos) o fuera del lienzo no se dibujan: no se ven
   // y, con todo el muro por detrás de la interfaz, son casi la mitad (dibujarlas solo gastaba CPU).
@@ -941,6 +951,21 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   pointer-events: none;
 }
+.crowd-readout.is-attached {
+  bottom: auto;
+  inset-inline: auto;
+  margin-inline: 0;
+  box-sizing: border-box;
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
+  box-shadow: 8px 8px 0 var(--ink-950);
+  padding: 12px clamp(20px, 4vw, 56px) 14px;
+  animation: readout-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+@keyframes readout-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
 .readout-head {
   display: flex;
   flex-wrap: wrap;
@@ -989,7 +1014,8 @@ onUnmounted(() => {
 
 /* móvil: la tira ocupa el ancho, el evento baja a su fila y la pista sobra (se pulsa sin más) */
 @media (max-width: 700px) {
-  .crowd-readout { bottom: 16px; padding: 9px 14px 10px; }
+  .crowd-readout:not(.is-attached) { bottom: 16px; padding: 9px 14px 10px; }
+  .crowd-readout.is-attached { padding: 10px 14px 12px; }
   .readout-hint { display: none; }
   .readout-event { margin-inline-start: 0; flex-basis: 100%; }
 }
@@ -1007,12 +1033,13 @@ onUnmounted(() => {
   .readout-legend b { grid-column: 2; }
 }
 @media (max-width: 340px) {
-  .crowd-readout { padding-inline: 10px; }
+  .crowd-readout.is-attached { padding-inline: 12px; }
   .readout-head { font-size: 10px; letter-spacing: 0.02em; }
   .readout-legend { font-size: 10px; gap: 0 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .crowd-bubble { animation: none; }
+  .crowd-readout.is-attached { animation: none; }
   .readout-bar .seg { transition: none; }
 }
 </style>
