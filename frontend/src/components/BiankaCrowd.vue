@@ -192,6 +192,7 @@ let agents = []
 let avoid = []
 let waves = []
 let threads = []
+let leaders = []   // hilos de un bocadillo lejano hasta su Bianka
 let raf = null, running = false, visible = true, last = 0, now = 0
 let roundClock = 0, talkClock = 0, statsClock = 0, measureClock = 0, resetClock = -1
 let bubbleSeq = 0
@@ -336,6 +337,7 @@ const measureAvoid = () => {
 }
 
 const hitsAvoid = (box, pad) => avoid.some(q => box.l < q.r + pad && box.r > q.l - pad && box.t < q.b + pad && box.b > q.t - pad)
+const coveredAt = (x, y) => hitsAvoid({ l: x, r: x, t: y, b: y }, 0)
 const headVisible = (a) => {
   const h = { l: a.x + 6 * P, r: a.x + 20 * P, t: a.y + 12 * P, b: a.y + 20 * P }
   return h.r > 0 && h.l < W && h.t > 0 && h.b < H && !hitsAvoid(h, 0)
@@ -354,7 +356,7 @@ const resize = () => {
   ctx = canvas.value.getContext('2d')
   const reseed = !agents.length || Math.abs(w - W) > 40 || Math.abs(h - H) > 80
   W = w; H = h
-  if (reseed) { epoch++; seedAgents(); bubbles.value = []; threads = [] }
+  if (reseed) { epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = [] }
   measureAvoid()
   updateStats()
   if (!running) draw()
@@ -434,7 +436,9 @@ const boxFor = (a, dir, side, w, h) => {
     ? { l, r: l + w, t: y + 12, b: y + 12 + h }
     : { l, r: l + w, t: y - 12 - h, b: y - 12 }
 }
-const boxOf = (bb) => boxFor(agents[bb.agent], bb.dir, bb.side, bb.width, bb.height)
+const boxOf = (bb) => (bb.dir === 'free'
+  ? { l: bb.box.l, r: bb.box.l + bb.width, t: bb.box.t, b: bb.box.t + bb.height }
+  : boxFor(agents[bb.agent], bb.dir, bb.side, bb.width, bb.height))
 const boxesTouch = (p, q, gap) => p.l < q.r + gap && p.r > q.l - gap && p.t < q.b + gap && p.b > q.t - gap
 
 // ignoreBubbles: solo cuentan los bordes, la tarjeta y el marcador
@@ -462,6 +466,42 @@ const placeBubble = (a, dirs = ['up', 'side'], ignoreBubbles = false) => {
   return null
 }
 
+// Último recurso (al pulsar una Bianka pegada a la tarjeta o al borde): el bocadillo
+// va al hueco libre más cercano y un hilo de puntos lo une a la Bianka.
+const MAX_LEASH = 420
+const leashClear = (x0, y0, x1, y1) => {
+  const n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 14))
+  for (let i = 1; i < n; i++) {
+    const u = i / n
+    if (coveredAt(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u)) return false
+  }
+  return true
+}
+const placeFree = (a, ignoreBubbles = false) => {
+  const head = { x: a.x + 12.5 * P, y: a.y + 14 * P }
+  const full = bubbleW()
+  const widths = [full, 170, MIN_BW].filter((w, i, arr) => w <= full && arr.indexOf(w) === i)
+  for (const width of widths) {
+    const height = heightFor(width)
+    const cands = []
+    for (let t = 8; t + height <= H - 8; t += 16) {
+      for (let l = 8; l + width <= W - 8; l += 16) {
+        const box = { l, r: l + width, t, b: t + height }
+        if (!boxFree(box, ignoreBubbles)) continue
+        const qx = Math.min(Math.max(head.x, box.l), box.r)
+        const qy = Math.min(Math.max(head.y, box.t), box.b)
+        cands.push({ l, t, d: Math.hypot(qx - head.x, qy - head.y), qx, qy })
+      }
+    }
+    cands.sort((u, v) => u.d - v.d)
+    for (const c of cands.slice(0, 40)) {
+      if (c.d > MAX_LEASH) break
+      if (leashClear(head.x, head.y, c.qx, c.qy)) return { dir: 'free', side: 'right', width, height, box: { l: c.l, t: c.t } }
+    }
+  }
+  return null
+}
+
 const speaking = (i) => bubbles.value.some(b => b.agent === i)
 
 const addBubble = (i, text, kind, life, place) => {
@@ -475,7 +515,9 @@ const addBubble = (i, text, kind, life, place) => {
     dir: place.dir,
     width: place.width,
     height: place.height,
+    box: place.box || null,
   })
+  if (place.dir === 'free') leaders.push({ id, agent: i, box: boxOf(bubbles.value[bubbles.value.length - 1]), until: now + life })
   a.talkUntil = now + Math.min(life - 0.6, 2.2)
   setTimeout(() => { bubbles.value = bubbles.value.filter(b => b.id !== id) }, life * 1000)
   return id
@@ -624,6 +666,24 @@ const drawThreads = () => {
   }
 }
 
+const drawLeaders = () => {
+  leaders = leaders.filter(ld => now < ld.until && agents[ld.agent] && bubbles.value.some(b => b.id === ld.id))
+  for (const ld of leaders) {
+    const a = agents[ld.agent]
+    const px = a.x + 12.5 * P, py = a.y + offsetOf(a) + 14 * P
+    const qx = Math.min(Math.max(px, ld.box.l), ld.box.r), qy = Math.min(Math.max(py, ld.box.t), ld.box.b)
+    const steps = Math.max(3, Math.round(Math.hypot(qx - px, qy - py) / (P * 3)))
+    // primero un halo blanco y encima el punto de tinta: se lee sobre cualquier color del muro
+    for (const [color, size, grow] of [[PAL.w, P * 2, P / 2], [PAL.k, P, 0]]) {
+      ctx.fillStyle = color
+      for (let s = 0; s <= steps; s++) {
+        const u = s / steps
+        ctx.fillRect(Math.round((px + (qx - px) * u) / P) * P - grow, Math.round((py + (qy - py) * u) / P) * P - grow, size, size)
+      }
+    }
+  }
+}
+
 const offsetOf = (a) => {
   const bob = ((now / a.bobPeriod + a.bobPhase) % 1) < 0.5 ? 0 : P
   const hopT = now - a.hopAt
@@ -653,13 +713,18 @@ const draw = () => {
     drawFace(a, dy)
   }
   drawThreads()
+  drawLeaders()
   for (const a of agents) if (a.glyph && now < a.glyphUntil) drawGlyph(a, offsetOf(a))
   for (const bub of bubbles.value) {
     const el = bubbleEls.get(bub.id)
     const a = agents[bub.agent]
     if (!el || !a) continue
-    const { x, y } = anchorOf(a, bub.dir, bub.side)
-    el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y + offsetOf(a))}px)`
+    if (bub.dir === 'free') {
+      el.style.transform = `translate(${Math.round(bub.box.l)}px, ${Math.round(bub.box.t)}px)`
+    } else {
+      const { x, y } = anchorOf(a, bub.dir, bub.side)
+      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y + offsetOf(a))}px)`
+    }
     el.style.visibility = hitsAvoid(boxOf(bub), 0) ? 'hidden' : ''
   }
 }
@@ -727,7 +792,6 @@ const agentAt = (x, y) => {
 }
 // Bajo el marcador (que deja pasar los eventos) o la franja que tapa el formulario
 // hay Biankas que no se ven: ahí ni cambia el cursor ni responde el clic.
-const coveredAt = (x, y) => hitsAvoid({ l: x, r: x, t: y, b: y }, 0)
 const onPointerMove = (e) => {
   if (!root.value) return
   const c = root.value.getBoundingClientRect()
@@ -753,7 +817,16 @@ const onClick = (e) => {
       bubbles.value = bubbles.value.filter(bb => agents[bb.agent] && !boxesTouch(box, boxOf(bb), 14))
     }
   }
-  // Sin sitio ni retirando bocadillos (pegada a la tarjeta, al marcador o al borde): solo reacciona.
+  // Pegada a la tarjeta, al marcador o al borde: el bocadillo va al hueco libre más cercano
+  // y un hilo de puntos lo une a ella.
+  if (!place) place = placeFree(a)
+  if (!place) {
+    place = placeFree(a, true)
+    if (place) {
+      const box = { l: place.box.l, r: place.box.l + place.width, t: place.box.t, b: place.box.t + place.height }
+      bubbles.value = bubbles.value.filter(bb => agents[bb.agent] && !boxesTouch(box, boxOf(bb), 14))
+    }
+  }
   if (place) startConversation(k, place)
   else react(a, 'bang', 0.8)
 }
@@ -830,6 +903,9 @@ onUnmounted(() => {
 .crowd-bubble.to-left { translate: calc(-100% + 18px) calc(-100% - 12px); }
 .crowd-bubble.dir-down { translate: -18px 12px; }
 .crowd-bubble.dir-down.to-left { translate: calc(-100% + 18px) 12px; }
+.crowd-bubble.dir-free { translate: 0 0; }
+.crowd-bubble.dir-free::before,
+.crowd-bubble.dir-free::after { display: none; }
 .crowd-bubble.dir-side { translate: 12px -50%; }
 .crowd-bubble.dir-side.to-left { translate: calc(-100% - 12px) -50%; }
 /* pico escalonado, en píxeles */
