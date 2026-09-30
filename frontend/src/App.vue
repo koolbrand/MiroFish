@@ -4,9 +4,18 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { refreshAuth } from './composables/useAuth'
 import TourOverlay from './components/TourOverlay.vue'
+
+// El título y la descripción de la pestaña siguen al idioma elegido
+// (index.html trae los de español para quien no ejecuta JavaScript).
+const { t, locale } = useI18n()
+watch(locale, () => {
+  document.title = t('meta.title')
+  document.querySelector('meta[name="description"]')?.setAttribute('content', t('meta.description'))
+}, { immediate: true })
 
 // Cuando la pestaña vuelve a ser visible tras una suspensión del
 // equipo (tapa del portátil cerrada, monitor apagado, o simplemente

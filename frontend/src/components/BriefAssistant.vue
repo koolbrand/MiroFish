@@ -17,7 +17,7 @@
     </div>
 
     <!-- Revisión del brief con Jev -->
-    <div v-if="checking || check" class="brief-check">
+    <div v-if="checking || (check && check.available)" class="brief-check">
       <div class="brief-check-head">
         <span class="brief-check-title">{{ $t('brief.checkTitle') }}</span>
         <span v-if="checking" class="brief-muted">{{ $t('brief.checking') }}</span>
@@ -252,7 +252,7 @@ const closeInterview = () => { interviewOpen.value = false }
   background: none; border: none; padding: 0; cursor: pointer; color: var(--kb-text);
   font: inherit; text-decoration: underline; text-underline-offset: 3px;
 }
-.brief-link:hover:not(:disabled) { color: var(--kb-accent-text); }
+.brief-link:hover:not(:disabled) { color: var(--kb-accent-text); background: rgba(204, 230, 115, 0.4); text-decoration-thickness: 2px; }
 .brief-link:disabled { opacity: 0.4; cursor: not-allowed; }
 .brief-check { margin-top: 12px; border: 1px solid var(--kb-line); padding: 12px 14px; }
 .brief-check-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -288,12 +288,14 @@ const closeInterview = () => { interviewOpen.value = false }
 .brief-turn .q.current { color: var(--kb-accent-text); }
 .brief-turn .a { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--kb-line); color: var(--kb-text-2); white-space: pre-wrap; }
 .brief-answer textarea, .brief-draft textarea {
-  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-line); border-radius: 10px; resize: vertical;
+  width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--kb-control-line); border-radius: 10px; resize: vertical;
 }
 .brief-answer-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .brief-btn {
   font: inherit; font-weight: 600; padding: 9px 14px; border: 1px solid var(--kb-text); border-radius: 8px; background: var(--kb-text); color: #fff; cursor: pointer;
 }
+.brief-btn:hover:not(:disabled) { background: var(--lime-500); color: var(--ink-950); border-color: var(--ink-950); }
 .brief-btn.ghost { background: #fff; color: var(--kb-text); }
+.brief-btn.ghost:hover:not(:disabled) { background: var(--lime-50); }
 .brief-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

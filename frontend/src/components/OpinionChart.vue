@@ -1,8 +1,8 @@
 <template>
   <!-- Gráfico de ejemplo: reparto de la opinión ronda a ronda (100 % apilado).
        Se dibuja de izquierda a derecha al entrar en pantalla. -->
-  <figure v-reveal class="opinion-chart">
-    <figcaption class="chart-caption">
+  <figure v-reveal class="opinion-chart" :class="{ flat }">
+    <figcaption v-if="!flat" class="chart-caption">
       <span class="chart-kicker">{{ $t('home.chartKicker') }}</span>
       <span class="chart-title">{{ $t('home.chartTitle') }}</span>
     </figcaption>
@@ -34,6 +34,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { vReveal } from '../composables/useReveal'
+
+// flat: sin tarjeta ni título propios (va dentro de otro artefacto, p. ej. el informe de ejemplo)
+defineProps({ flat: { type: Boolean, default: false } })
 
 const { t } = useI18n()
 
@@ -70,6 +73,9 @@ const ariaLabel = computed(() =>
 </script>
 
 <style scoped>
+.opinion-chart.flat { border: 0; border-radius: 0; padding: 0; background: transparent; }
+.opinion-chart.flat .chart-body { padding-inline-end: 96px; }
+.opinion-chart.flat .chart-svg { height: clamp(120px, 15vw, 160px); }
 .opinion-chart {
   margin: 0;
   background: var(--kb-surface);
@@ -96,7 +102,7 @@ const ariaLabel = computed(() =>
   border-radius: 8px;
   /* revelado de izquierda a derecha */
   clip-path: inset(0 100% 0 0);
-  transition: clip-path 1.8s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: clip-path 1.2s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .area.is-favor { fill: var(--lime-500); }
 .area.is-undecided { fill: var(--gray-100); }
@@ -108,7 +114,7 @@ const ariaLabel = computed(() =>
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  transition: stroke-dashoffset 1.8s cubic-bezier(0.65, 0, 0.35, 1);
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .edge.is-favor { stroke: var(--lime-800); }
 .edge.is-against { stroke: var(--kb-text); stroke-width: 1.5; }
@@ -129,7 +135,7 @@ const ariaLabel = computed(() =>
   line-height: 1.2;
   color: var(--kb-muted);
   opacity: 0;
-  transition: opacity 0.5s ease 1.6s;
+  transition: opacity 0.5s ease 1.0s;
   white-space: nowrap;
 }
 .chart-ends b {
@@ -157,8 +163,12 @@ const ariaLabel = computed(() =>
 .opinion-chart.is-in .chart-ends li { opacity: 1; }
 
 @media (max-width: 560px) {
-  .chart-body { padding-inline-end: 0; }
-  .chart-ends { position: static; width: auto; display: flex; gap: 20px; margin-top: 16px; }
+  /* el eje va justo bajo el gráfico y la leyenda debajo del eje */
+  .chart-body, .opinion-chart.flat .chart-body { display: flex; flex-direction: column; padding-inline-end: 0; }
+  .chart-plot { display: contents; }
+  .chart-svg { order: 1; }
+  .chart-axis { order: 2; }
+  .chart-ends { order: 3; position: static; width: auto; display: flex; gap: 20px; margin-top: 16px; }
   .chart-ends li { position: static; translate: none; }
   .chart-axis .minor { display: none; }
 }

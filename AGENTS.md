@@ -172,6 +172,21 @@ docker run -d \
 | `backend/pyproject.toml` | Python dependencies |
 | `frontend/package.json` | Node.js dependencies |
 | `coolify.json` | Coolify integration config |
+| `frontend/src/views/Home.vue` | Portada: muro de Biankas, formulario en 3 pasos, «cómo funciona», informe de ejemplo, cifras, historial y cierre |
+| `frontend/src/components/BiankaCrowd.vue` | Muro de Biankas (canvas): color = opinión, conversan en bocadillos, marcador de 10 rondas |
+| `frontend/src/lib/biankaSprite.js` | Motor de sprites de la Bianka (conejo en pixel art), compartido por el muro, las escenas y los avatares |
+| `frontend/src/components/Bianka{Scene,Row,Avatar}.vue`, `ReportExample.vue` | Escenas de «cómo funciona», filas que asoman, avatar con semilla y el informe de ejemplo |
+| `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
+| `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
+
+### Al tocar la portada
+
+- Comprobar a **320, 360, 390, 768, 1000, 1366×768, 1440×900 y 1920** px, en es/en/zh y con «reducir movimiento»: sin scroll horizontal, la tarjeta nunca pisa el marcador (los portátiles de 720–800 px de alto son el caso que falla) y ningún bocadillo corta texto.
+- Las pruebas sin interfaz funcionan con una sesión de PocketBase **falsa solo en el navegador** (`localStorage.pocketbase_auth`); en producción, además, `API_AUTH_TOKEN` temporal y borrarlo al acabar.
+- Los gráficos van animados (petición expresa) y nada de interfaz debe superar 700 ms.
+- Los campos, chips y botones de contorno usan `--kb-control-line` (#858585, ≥ 3:1 sobre blanco y crema, WCAG 1.4.11); `--kb-line` y `--kb-line-strong` son para divisores, no para controles.
+- Lo que hay tras pulsar «Iniciar simulación» también cuenta: `MainView.vue` muestra un aviso claro con «Reintentar» y «Volver al inicio» si falla el análisis o la construcción del mapa (antes quedaba un «generando…» eterno), y las cinco pantallas del proceso abren en «Mesa de trabajo» y reparten el encabezado en filas por debajo de 900 px.
+- La nota de duración del formulario («20–30 min») y las cifras de la portada salen de ejecuciones medidas (18, 26 y 35 min; 19, 23 y 113 personas): si cambia el motor, se vuelven a medir.
 
 ## 🔗 Useful Resources
 
@@ -182,13 +197,12 @@ docker run -d \
 
 ## 📌 Current Status
 
-✅ Project cloned locally
-✅ .env configured
-✅ Docker optimized for production
-✅ Coolify deployment guide created
-⏳ Ready for deployment
+✅ En producción: https://simuloo.koolgrowth.com (Coolify, app `cim0v35ajeisb61vhm4bnn4o`)
+✅ Flujo completo validado de extremo a extremo (brief → grafo → simulación → informe → chat)
+✅ Portada con identidad Koolbrand (muro de Biankas) y memoria del recomendador acotada
+⏳ Pendiente de decisión (Adrián): una simulación larga (72 rondas) en producción y relanzar la de un cliente que murió por memoria
 
 ---
 
-**Last Updated**: 2026-04-16
+**Last Updated**: 2026-09-30
 **Maintained by**: Adrian (adrian@koolbrand.com)

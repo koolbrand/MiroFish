@@ -1,8 +1,8 @@
 <template>
   <div class="language-switcher" ref="switcherRef">
-    <button class="switcher-trigger" @click="toggleDropdown">
-      {{ currentLabel }}
-      <span class="caret">{{ open ? '▲' : '▼' }}</span>
+    <button class="switcher-trigger" :aria-label="currentLabel" :aria-expanded="open" @click="toggleDropdown">
+      <span class="lbl-long">{{ currentLabel }}</span><span class="lbl-short" aria-hidden="true">{{ shortLabel }}</span>
+      <span class="caret" aria-hidden="true">{{ open ? '▲' : '▼' }}</span>
     </button>
     <ul v-if="open" class="switcher-dropdown">
       <li
@@ -31,6 +31,9 @@ const currentLabel = computed(() => {
   const found = availableLocales.find(l => l.key === locale.value)
   return found ? found.label : locale.value
 })
+
+// En pantallas muy estrechas, el idioma se muestra con su código (ES · EN · 中文)
+const shortLabel = computed(() => (currentLabel.value.length <= 3 ? currentLabel.value : locale.value.toUpperCase()))
 
 const toggleDropdown = () => {
   open.value = !open.value
@@ -70,7 +73,7 @@ onUnmounted(() => {
 .switcher-trigger {
   background: transparent;
   color: var(--kb-text-2);
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
   padding: 4px 12px;
   font-family: var(--kb-font-mono);
   font-size: 0.8rem;
@@ -82,11 +85,18 @@ onUnmounted(() => {
 }
 
 .switcher-trigger:hover {
-  border-color: var(--kb-subtle);
+  border-color: var(--kb-text);
+  background: var(--kb-soft);
 }
 
 .caret {
   font-size: 0.6rem;
+}
+.lbl-short { display: none; }
+@media (max-width: 400px) {
+  .lbl-long { display: none; }
+  .lbl-short { display: inline; }
+  .switcher-trigger { padding: 4px 8px; gap: 4px; }
 }
 
 .switcher-dropdown {

@@ -765,4 +765,24 @@ onMounted(refresh)
   }
   .col-info { display: none; }
 }
+/* Móvil: cada proyecto pasa a ser una tarjeta (nombre y estado arriba, id y fecha debajo, acciones al pie) */
+@media (max-width: 720px) {
+  .table-head { display: none; }
+  .table-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name   status"
+      "check id     date"
+      "actions actions actions";
+    gap: 6px 12px;
+    padding: 14px 14px 12px;
+  }
+  .col-check { grid-area: check; align-self: start; padding-top: 2px; }
+  .col-name { grid-area: name; }
+  .col-status { grid-area: status; justify-self: end; }
+  .col-id { grid-area: id; }
+  .col-date { grid-area: date; justify-self: end; }
+  .col-actions { grid-area: actions; justify-content: flex-start; flex-wrap: wrap; margin-top: 6px; }
+  .row-btn { padding: 8px 14px; }
+}
 </style>

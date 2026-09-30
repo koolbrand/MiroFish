@@ -2702,6 +2702,13 @@ watch(() => props.simulationId, (newId) => {
   border-top: 1px solid var(--kb-line);
   margin: 24px 0;
 }
+
+/* Pantallas estrechas: informe arriba y conversación debajo, en una sola columna que se desplaza */
+@media (max-width: 900px) {
+  .main-split-layout { flex-direction: column; overflow-y: auto; }
+  .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 22px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
+  .right-panel { flex: none; height: 82vh; min-height: 460px; }
+}
 </style>
 
 <style>
