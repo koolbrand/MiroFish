@@ -92,6 +92,8 @@ const pxCss = ref('5px')   // una celda de la retícula, en px de pantalla (la u
 let ctx = null
 let W = 0, H = 0, dpr = 1, P = 4, CX = 68, RY = 76
 let agents = []
+let backdrop = []      // segunda capa, detrás y más clara: tapa los huecos entre las de delante y da profundidad (decorativa: no habla, no cuenta, no se pulsa)
+let backCanvas = null  // esa capa, ya dibujada (una vez por siembra: por fotograma cuesta un solo drawImage)
 let avoid = []
 let waves = []
 let threads = []
@@ -195,6 +197,19 @@ const seedAgents = () => {
       })
     }
   }
+  // Capa trasera: entre las de delante (media casilla de lado y de alto), para que no asome el fondo entre cuerpos
+  backdrop = []
+  for (let row = -1; row < rows; row++) {
+    for (let col = -1; col < cols; col++) {
+      const look = { ...makeLook(), pose: null }
+      const r = Math.random()
+      backdrop.push({
+        x: xFirst + col * CX + (row % 2 ? 0 : CX / 2) + Math.round(rand(-2, 2)) * P,
+        y: yFirst + row * RY + RY / 2 + Math.round(rand(-2, 2)) * P,
+        look, mirror: Math.random() < 0.5, bucket: r < 0.08 ? 'favor' : 'undecided',   // el fondo es casi todo blanco: color solo en primer plano
+      })
+    }
+  }
   // Entrada: una ola desde el centro (< 1 s). Con «reducir movimiento» aparecen ya colocadas.
   const maxD = Math.hypot(W / 2, H / 2) || 1
   for (const a of agents) {
@@ -267,6 +282,7 @@ const resize = () => {
   W = w; H = h
   if (reseed) { measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = []; if (reducedMotion) settleOpinions() }
   measureAvoid()
+  buildBackdrop()
   updateStats()
   if (!running) draw()
 }
@@ -619,11 +635,33 @@ const twitchLook = (a) => {
   return v
 }
 
+// La capa trasera se pinta una vez en un lienzo aparte y se aclara hacia el crema (perspectiva atmosférica): así las de delante siguen
+// siendo las protagonistas y el fondo no asoma entre ellas.
+const buildBackdrop = () => {
+  if (!W || !H) return
+  if (!backCanvas) backCanvas = document.createElement('canvas')
+  backCanvas.width = Math.round(W * dpr); backCanvas.height = Math.round(H * dpr)
+  const g = backCanvas.getContext('2d')
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.imageSmoothingEnabled = false
+  const c0 = avoid[0]
+  for (const b of backdrop) {
+    // en móvil, a los lados de la tarjeta solo quedan tiras de ~16 px donde sus restos leerían como ruido
+    if (W < 700 && c0 && b.y + 16 * P > c0.t && b.y + 16 * P < c0.b) continue
+    drawBianka(g, { x: b.x, y: b.y, P, look: b.look, bucket: b.bucket, mirror: b.mirror, now: 0, gaze: [0, 0], blink: false, happy: false, talking: false })
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0)
+  g.globalCompositeOperation = 'source-atop'
+  g.fillStyle = 'rgba(242, 241, 239, 0.72)'
+  g.fillRect(0, 0, backCanvas.width, backCanvas.height)
+  g.globalCompositeOperation = 'source-over'
+}
+
 const draw = () => {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.imageSmoothingEnabled = false
   ctx.clearRect(0, 0, W, H)
+  if (backCanvas) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(backCanvas, 0, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0) }
   const paint = (a, lifted) => {
     const k = Math.min(1, (now - a.born) / 0.3)
     if (k <= 0) return
@@ -796,7 +834,7 @@ watch(() => props.avoidEl, (el) => {
   if (!el || !agents.length || seededFor === el) return
   measureAvoid(); epoch++; seedAgents(); bubbles.value = []; threads = []; leaders = []
   if (reducedMotion) settleOpinions()
-  measureAvoid(); updateStats(); if (!running) draw()
+  measureAvoid(); buildBackdrop(); updateStats(); if (!running) draw()
 })
 
 onMounted(() => {

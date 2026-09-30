@@ -279,7 +279,7 @@
           {{ $t('home.closingTitle') }}
           <span class="hl">{{ $t('home.closingHl') }}</span>
         </h2>
-        <button type="button" class="btn btn-lime" @click="scrollToForm">
+        <button type="button" class="btn btn-lime btn-lg" @click="scrollToForm">
           {{ $t('home.heroCta') }} <span aria-hidden="true">↑</span>
         </button>
         <div class="closing-crowd" aria-hidden="true"><BiankaRow mood="favor" :pixel="4" :visible-px="104" /></div>
@@ -802,6 +802,7 @@ const startSimulation = () => {
   color: var(--ink-950);
   border: 1px solid var(--lime-500);
 }
+.btn-lg { padding: 22px 38px; border-radius: 12px; font-size: 1.2rem; }   /* el remate del cierre: a la altura del titular */
 .btn-lime:hover { background: var(--lime-600); border-color: var(--lime-600); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-950); }
 .btn-outline {
   background: var(--kb-surface);
@@ -943,8 +944,8 @@ const startSimulation = () => {
   padding: 10px 16px;
   border: 1px solid var(--ink-950);
   border-radius: 8px;
-  background: var(--ink-950);
-  color: #fff;
+  background: #fff;   /* acción secundaria: contorno; el relleno de la vista es solo el lima de «Iniciar simulación» */
+  color: var(--ink-950);
   font: 600 0.9rem/1 var(--kb-font-sans);
   cursor: pointer;
 }
