@@ -15,6 +15,7 @@
         :class="{
           current: i + 1 === currentStep,
           done: i + 1 < currentStep,
+          ahead: i + 1 > currentStep && !isLocked(i + 1),
           locked: isLocked(i + 1),
         }"
         :disabled="isLocked(i + 1) || i + 1 === currentStep"
@@ -33,9 +34,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { getSimulation, listSimulations } from '../api/simulation'
+import { checkReportForSimulation } from '../api/report'
 
 const props = defineProps({
   currentStep: {
@@ -55,18 +58,66 @@ const { t, tm } = useI18n()
 
 const stepNames = computed(() => tm('main.stepNames'))
 
+// Cada vista solo conoce los identificadores de «su» paso (la del paso 2 no sabe si ya hay informe), así que el
+// indicador completa lo que falta preguntando al servidor hasta dónde ha llegado este proyecto. Así se puede ir
+// a cualquier paso que ya exista —también hacia delante—, no solo volver atrás.
+const ids = reactive({ project: props.projectId, simulation: props.simulationId, report: props.reportId })
+const simStatus = ref(null)          // estado de la simulación (created · preparing · ready · running · …)
+const reportStatus = ref(null)       // estado del informe (generating · completed · …) o null si no hay
+let resolveSeq = 0
+
+const PREPARED = ['ready', 'running', 'paused', 'stopped', 'completed', 'failed']
+
+async function resolveProgress() {
+  const seq = ++resolveSeq
+  ids.project = props.projectId || ids.project
+  ids.simulation = props.simulationId || null
+  ids.report = props.reportId || null
+  try {
+    // desde el paso 1 solo se conoce el proyecto: la simulación más reciente de ese proyecto
+    if (!ids.simulation && ids.project) {
+      const r = await listSimulations(ids.project)
+      const list = (r?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+      if (seq !== resolveSeq) return
+      ids.simulation = list[0]?.simulation_id || null
+    }
+    if (ids.simulation) {
+      const [sim, rep] = await Promise.all([
+        getSimulation(ids.simulation).catch(() => null),
+        checkReportForSimulation(ids.simulation).catch(() => null),
+      ])
+      if (seq !== resolveSeq) return
+      simStatus.value = sim?.data?.status || null
+      ids.project = ids.project || sim?.data?.project_id || null
+      ids.report = props.reportId || rep?.data?.report_id || null
+      reportStatus.value = rep?.data?.has_report ? (rep.data.report_status || null) : null
+    }
+  } catch (e) {
+    // sin red o sin permisos: el indicador se queda con lo que le pasó la vista (volver atrás sigue funcionando)
+  }
+}
+
+onMounted(resolveProgress)
+watch(() => [props.projectId, props.simulationId, props.reportId, props.currentStep], resolveProgress)
+
 function idForStep(step) {
-  if (step === 1) return props.projectId
-  if (step === 2 || step === 3) return props.simulationId
-  if (step === 4 || step === 5) return props.reportId
+  if (step === 1) return ids.project
+  if (step === 2 || step === 3) return ids.simulation
+  if (step === 4 || step === 5) return ids.report
   return null
 }
 
+// ¿Existe ya ese paso? (el actual siempre; los demás, si hay con qué abrirlos)
+function isAvailable(step) {
+  if (step === props.currentStep) return true
+  if (!idForStep(step)) return false
+  if (step === 3) return PREPARED.includes(simStatus.value)            // entorno preparado
+  if (step === 5) return reportStatus.value === 'completed'            // informe terminado (la conversación lo necesita)
+  return true
+}
+
 function isLocked(step) {
-  // Pasos futuros siempre están bloqueados
-  if (step > props.currentStep) return true
-  // Para pasos ≤ currentStep necesitamos el ID correspondiente
-  return !idForStep(step)
+  return !isAvailable(step)
 }
 
 function chipTitle(step, name) {
@@ -84,15 +135,15 @@ function goTo(step) {
   emit('before-navigate', step)
 
   if (step === 1) {
-    router.push({ name: 'Process', params: { projectId: props.projectId } })
+    router.push({ name: 'Process', params: { projectId: ids.project } })
   } else if (step === 2) {
-    router.push({ name: 'Simulation', params: { simulationId: props.simulationId } })
+    router.push({ name: 'Simulation', params: { simulationId: ids.simulation } })
   } else if (step === 3) {
-    router.push({ name: 'SimulationRun', params: { simulationId: props.simulationId } })
+    router.push({ name: 'SimulationRun', params: { simulationId: ids.simulation } })
   } else if (step === 4) {
-    router.push({ name: 'Report', params: { reportId: props.reportId } })
+    router.push({ name: 'Report', params: { reportId: ids.report } })
   } else if (step === 5) {
-    router.push({ name: 'Interaction', params: { reportId: props.reportId } })
+    router.push({ name: 'Interaction', params: { reportId: ids.report } })
   }
 }
 </script>
@@ -185,6 +236,8 @@ function goTo(step) {
   border-color: var(--kb-accent-line);
 }
 
+.stepper-chip.ahead { color: var(--kb-text); }
+.stepper-chip.ahead .chip-num { border-color: var(--kb-text); }
 .stepper-chip.locked .chip-num {
   border-color: var(--kb-line);
   color: var(--kb-line-strong);
