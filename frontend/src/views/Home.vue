@@ -7,9 +7,12 @@
       <div class="topbar-links">
         <AppVersion class="topbar-version tech-only" />
         <LanguageSwitcher />
-        <HelpButton tourId="home" />
-        <router-link to="/projects" class="nav-projects" data-tour="home-projects-link">
+        <HelpButton :tourId="isAuth ? 'home' : 'homeGuest'" />
+        <router-link v-if="isAuth" to="/projects" class="nav-projects" data-tour="home-projects-link">
           {{ $t('nav.projects') }} <span class="arrow" aria-hidden="true">→</span>
+        </router-link>
+        <router-link v-else to="/login" class="nav-projects" data-tour="home-login-link">
+          {{ $t('nav.signIn') }} <span class="arrow" aria-hidden="true">→</span>
         </router-link>
       </div>
     </nav>
@@ -121,7 +124,9 @@
                 :files="files"
                 :topic="formData.simulationRequirement"
                 :disabled="loading"
+                :signed-in="isAuth"
                 @add-file="file => addFiles([file])"
+                @need-login="goToLogin('interview')"
               />
             </div>
 
@@ -176,7 +181,7 @@
                 <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
                   {{ statusText }}
                 </p>
-                <p v-if="canSubmit" class="composer-note">{{ $t('home.readyNote') }}</p>
+                <p v-if="canSubmit" class="composer-note">{{ isAuth ? $t('home.readyNote') : $t('home.readyNoteGuest') }}</p>
               </div>
             </div>
             <button
@@ -270,7 +275,7 @@
         </ul>
       </section>
 
-      <section class="section projects">
+      <section v-if="isAuth" class="section projects">
         <HistoryDatabase />
       </section>
 
@@ -318,10 +323,17 @@ import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
 import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
+import { useAuth } from '../composables/useAuth'
+import { pb } from '../lib/pocketbase'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const { maybeAutoStart } = useTutorial()
+
+// La portada es pública: sin sesión se ve todo y el inicio de sesión se pide al lanzar.
+// (user cambia al iniciar o cerrar sesión; isValid también recoge el caducado)
+const { user } = useAuth()
+const isAuth = computed(() => { void user.value; return pb.authStore.isValid })
 
 // Alto con el que la tarjeta del formulario monta sobre la portada (px).
 const overlap = ref(72)
@@ -352,8 +364,9 @@ onMounted(async () => {
   await nextTick()
   overlap.value = window.innerWidth <= 640 ? 56 : 72
   topInset.value = window.innerWidth <= 640 ? 70 : 80
-  // Tutorial automático en la primera visita (se reabre con el botón «?»).
-  maybeAutoStart('home', getTour('home'))
+  // Tutorial automático en la primera visita de quien ya tiene sesión (se reabre con el botón «?»);
+  // a un visitante no se le tapa la portada.
+  if (isAuth.value) maybeAutoStart('home', getTour('home'))
   // Biankas de los titulares: pegadas a su última línea (hay que esperar a las tipografías y repetirlo al cambiar de ancho o de idioma)
   placeTitleCrowds()
   document.fonts?.ready?.then(placeTitleCrowds)
@@ -517,7 +530,7 @@ const fileInput = ref(null)
 // Si el análisis falló y se «vuelve al inicio», el material y la pregunta vuelven al formulario (una sola vez):
 // nadie tiene que subirlo y escribirlo de nuevo.
 const pending = getPendingUpload()
-if (pending.isPending && pending.files.length) {
+if (pending.isPending && (pending.files.length || pending.simulationRequirement)) {
   files.value = [...pending.files]
   formData.value.simulationRequirement = pending.simulationRequirement
   formData.value.projectName = pending.projectName
@@ -622,16 +635,33 @@ const scrollToForm = () => {
   document.getElementById('ensayo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-// Pasa al asistente: la subida y la llamada a la API se hacen en Process.
-const startSimulation = () => {
-  if (!canSubmit.value || loading.value) return
-  if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
-
+// Guarda lo que hay en el formulario para que sobreviva al paso por el login
+// (vive en memoria: los archivos no se pueden guardar en el navegador).
+const stashForm = () => {
   setPendingUpload(
     files.value,
     formData.value.simulationRequirement,
     (formData.value.projectName || '').trim()
   )
+}
+
+// Pide iniciar sesión y vuelve: a lanzar la simulación, o a la portada con el formulario como estaba.
+const goToLogin = (reason) => {
+  stashForm()
+  router.push({
+    path: '/login',
+    query: { redirect: reason === 'launch' ? '/process/new' : '/', reason }
+  })
+}
+
+// Pasa al asistente: la subida y la llamada a la API se hacen en Process.
+const startSimulation = () => {
+  if (!canSubmit.value || loading.value) return
+  if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
+
+  if (!isAuth.value) return goToLogin('launch')
+
+  stashForm()
   router.push({
     name: 'Process',
     params: { projectId: 'new' }
