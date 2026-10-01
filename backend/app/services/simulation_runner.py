@@ -22,6 +22,7 @@ from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale, t
 from ..utils.security import validate_platform, validate_storage_id
+from ..utils.fs import atomic_write_json
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
@@ -302,13 +303,18 @@ class SimulationRunner:
         """保存运行状态到文件"""
         validate_storage_id(state.simulation_id, "sim_")
         sim_dir = os.path.join(cls.RUN_STATE_DIR, state.simulation_id)
-        os.makedirs(sim_dir, exist_ok=True)
         state_file = os.path.join(sim_dir, "run_state.json")
         
         data = state.to_detail_dict()
         
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # Atómico (se reescribe cada 2 s durante horas y lo leen las pantallas) y sin crear la carpeta: el
+        # monitor de una simulación borrada no debe resucitarla. Sin fsync: es estado que se vuelve a calcular.
+        try:
+            atomic_write_json(state_file, data, create_dir=False, fsync=False)
+        except FileNotFoundError:
+            cls._run_states.pop(state.simulation_id, None)
+            logger.info(f"La simulación {state.simulation_id} ya no existe: no se guarda su estado de ejecución")
+            return
         
         cls._run_states[state.simulation_id] = state
     

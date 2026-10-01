@@ -1074,6 +1074,8 @@
     "maxRoundsOutOfRange": "max_rounds must be between {min} and {max}",
     "ownerAdminOnly": "Only the administrator can change a project owner",
     "ownerInvalid": "owner_id must be a user id (letters and digits, 8 to 32 characters) or null",
+    "projectCascadeFailed": "Could not clean up everything that depends on project {id}; nothing was deleted. Try again.",
+    "chunkParamsInvalid": "chunk_size must be an integer between 100 and 5000 and chunk_overlap between 0 and half of chunk_size",
     "invalidPlatform": "Invalid platform type: {platform}. Options: twitter/reddit/parallel",
     "simRunningForceHint": "Simulation is running. Stop it first via /stop, or use force=true to restart.",
     "simNotReady": "Simulation not ready. Current status: {status}. Please call /prepare first.",

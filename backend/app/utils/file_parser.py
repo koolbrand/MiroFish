@@ -272,6 +272,11 @@ def split_text_into_chunks(
     Returns:
         文本块列表
     """
+    # Parámetros sanos pase lo que pase: con overlap >= chunk_size (o chunk_size <= 0) el bucle de abajo no
+    # avanzaba nunca y una petición colgaba el servidor entero.
+    chunk_size = max(50, int(chunk_size))
+    overlap = max(0, min(int(overlap), chunk_size // 2))
+
     if len(text) <= chunk_size:
         return [text] if text.strip() else []
     
@@ -294,8 +299,8 @@ def split_text_into_chunks(
         if chunk:
             chunks.append(chunk)
         
-        # 下一个块从重叠位置开始
-        start = end - overlap if end < len(text) else len(text)
+        # 下一个块从重叠位置开始 (siempre avanza al menos la mitad de lo que se acaba de cortar)
+        start = max(end - overlap, start + max(1, (end - start) // 2)) if end < len(text) else len(text)
     
     return chunks
 

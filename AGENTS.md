@@ -201,6 +201,19 @@ docker run -d \
 - **Pendiente (paso 2)**: organización + «compartir» y rol admin para usuarios. El esquema ya lo admite: añadir `org_id`/`visibility` al proyecto y ampliar `can_see`.
 - Tests: `tests/test_access.py` (dos usuarios cruzados y el cambio de dueño; desactivando el control fallan 12 de 23).
 
+### Al tocar el estado en disco (`utils/fs.py`, `models/project.py`, `ReportManager`, `SimulationManager`)
+
+Auditoría del 1-oct-2026 (cinco revisores en paralelo; cada hallazgo se reprodujo antes de arreglarlo). Reglas que salieron:
+
+- **Todo JSON de estado se escribe con `atomic_write_json`/`atomic_write_text`** (temporal en la misma carpeta + `os.replace`), nunca con `open(path, 'w')`: truncar al abrir deja a un lector concurrente con un JSON vacío o a medias y un corte lo deja roto para siempre. Con `create_dir=False` (lo que usan `save_project`, `_save_simulation_state`, `_save_run_state`, `ReportManager`) un hilo que sigue vivo **no resucita** la carpeta de algo que se acaba de borrar.
+- **Todo JSON de estado se lee con `read_json_or_none`**: ilegible = «no existe» + una línea en el log, y un listado salta ese elemento en vez de dar 500 a todos los usuarios. La excepción es el control de acceso (`utils/access.py`): un archivo que **existe pero no se lee** cuenta como «existe, sin dueño» (solo admin), nunca como «no existe» (eso dejaba pasar a cualquiera).
+- **Un hilo largo no guarda el objeto que leyó al empezar**: usa `ProjectManager.update_project(id, mutator)`, que relee la copia más reciente bajo el candado del proyecto y toca solo sus campos. Antes la construcción del grafo restauraba en silencio el nombre y el dueño viejos al terminar.
+- **Borrar es completo o no es**: `DELETE /project` aborta con 500 si falla la cascada (antes seguía y dejaba huérfanos) y borra el grafo de Neo4j (también `reset` y la reconstrucción forzada). `ReportManager._deleted_ids` evita que el hilo que escribía un informe borrado lo recree.
+- **Arranque** (`app/__init__.py`): proyectos en `graph_building` → `failed`; informes sin terminar → `failed`; **simulaciones en marcha → `failed`** (`services/boot_recovery.py`; conserva contadores y `actions.jsonl`); pipelines `running` → `interrupted`. Cada paso va en su propio `try`.
+- `ReportConsoleLogger` filtra por hilo: los loggers son globales y sin el filtro el `console_log.txt` de cada informe recogía las consultas de los demás usuarios.
+- `ReportManager.get_report_by_simulation` devuelve el informe que se está escribiendo, si no el último terminado, si no el último fallido (cada «generar» crea uno nuevo; devolver «el primero del listado» enseñaba uno fallido viejo).
+- `/api/graph/build` valida `chunk_size` (100–5000) y `chunk_overlap` (0–mitad); `split_text_into_chunks` siempre avanza. Los vectores `*_embedding` no salen del adaptador de Neo4j (pesaban 17 KB por nodo y por relación, en la pantalla y en cada prompt de perfil).
+
 ### Al tocar el grafo (`graphRender.js`)
 
 - **Orden de capas**: aristas → nodos → capa viva (`_flow`, `_bloom`, `_sweepFx`, `_pulses`, `_flashFx`) → etiquetas → anillos de selección. Lo que se mueva siempre va en la capa viva (dos `drawImage` + trazos baratos); nada animado dentro de las capas en caché, que se repintan enteras.

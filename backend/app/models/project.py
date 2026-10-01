@@ -5,14 +5,19 @@
 
 import os
 import json
+import threading
 import uuid
 import shutil
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Callable, Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 from ..config import Config
 from ..utils.security import validate_storage_id, is_valid_storage_id
+from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
+from ..utils.logger import get_logger
+
+logger = get_logger('mirofish.project')
 
 
 class ProjectStatus(str, Enum):
@@ -186,14 +191,41 @@ class ProjectManager:
         
         return project
     
+    # Un candado por proyecto: leer-modificar-escribir sin él pierde cambios cuando dos hilos tocan el mismo
+    # proyecto (un hilo largo guardaba su copia vieja encima de un cambio de nombre o de dueño hecho entretanto)
+    _locks: Dict[str, threading.RLock] = {}
+    _locks_guard = threading.Lock()
+
+    @classmethod
+    def lock_for(cls, project_id: str) -> threading.RLock:
+        validate_storage_id(project_id, "proj_")
+        with cls._locks_guard:
+            lock = cls._locks.get(project_id)
+            if lock is None:
+                lock = cls._locks[project_id] = threading.RLock()
+            return lock
+
     @classmethod
     def save_project(cls, project: Project) -> None:
-        """保存项目元数据"""
-        project.updated_at = datetime.now().isoformat()
-        meta_path = cls._get_project_meta_path(project.project_id)
-        
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            json.dump(project.to_dict(), f, ensure_ascii=False, indent=2)
+        """Guarda los metadatos de forma atómica. Falla (FileNotFoundError) si el proyecto ya no existe:
+        un hilo que sigue vivo no debe resucitar un proyecto borrado."""
+        with cls.lock_for(project.project_id):
+            project.updated_at = datetime.now().isoformat()
+            atomic_write_json(cls._get_project_meta_path(project.project_id), project.to_dict(), create_dir=False)
+
+    @classmethod
+    def update_project(cls, project_id: str, mutator: Callable[[Project], None]) -> Optional[Project]:
+        """
+        Cambia SOLO lo que toca `mutator` sobre la copia más reciente del disco. Los hilos largos usan esto en
+        vez de guardar el objeto que leyeron al empezar. None si el proyecto no existe (o está ilegible).
+        """
+        with cls.lock_for(project_id):
+            project = cls.get_project(project_id)
+            if project is None:
+                return None
+            mutator(project)
+            cls.save_project(project)
+            return project
     
     @classmethod
     def get_project(cls, project_id: str) -> Optional[Project]:
@@ -207,14 +239,14 @@ class ProjectManager:
             Project对象，如果不存在返回None
         """
         meta_path = cls._get_project_meta_path(project_id)
-        
-        if not os.path.exists(meta_path):
+        data = read_json_or_none(meta_path, what=f"el proyecto {project_id}")
+        if not isinstance(data, dict):
+            return None          # no existe, se borró mientras se leía, o el archivo está ilegible (queda en el log)
+        try:
+            return Project.from_dict(data)
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.warning(f"[estado] El proyecto {project_id} tiene un formato que no se entiende: {exc}")
             return None
-        
-        with open(meta_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        return Project.from_dict(data)
     
     @classmethod
     def list_projects(cls, limit: int = 50) -> List[Project]:
@@ -259,6 +291,8 @@ class ProjectManager:
             return False
         
         shutil.rmtree(project_dir)
+        with cls._locks_guard:
+            cls._locks.pop(project_id, None)
         return True
     
     @classmethod
@@ -298,9 +332,7 @@ class ProjectManager:
     @classmethod
     def save_extracted_text(cls, project_id: str, text: str) -> None:
         """保存提取的文本"""
-        text_path = cls._get_project_text_path(project_id)
-        with open(text_path, 'w', encoding='utf-8') as f:
-            f.write(text)
+        atomic_write_text(cls._get_project_text_path(project_id), text, create_dir=False)
     
     @classmethod
     def get_extracted_text(cls, project_id: str) -> Optional[str]:
@@ -328,8 +360,7 @@ class ProjectManager:
             raise FileNotFoundError(f"El proyecto {project_id} ya no existe")
         os.makedirs(files_dir, exist_ok=True)
         path = cls._get_research_document_path(project_id)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(markdown)
+        atomic_write_text(path, markdown)
         return {"path": path, "size": os.path.getsize(path)}
 
     @classmethod

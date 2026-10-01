@@ -1479,7 +1479,7 @@ def download_simulation_config(simulation_id: str):
     """下载模拟配置文件"""
     try:
         manager = SimulationManager()
-        sim_dir = manager._get_simulation_dir(simulation_id)
+        sim_dir = manager._get_simulation_dir(simulation_id, create=False)     # un GET no crea carpetas
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
         if not os.path.exists(config_path):
