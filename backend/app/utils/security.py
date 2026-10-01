@@ -188,6 +188,9 @@ _BINARY_MAGIC_SIGNATURES = {
     "jpeg": [b"\xff\xd8\xff"],
     "gif": [b"GIF87a", b"GIF89a"],
     "webp": [b"RIFF"],  # WEBP has RIFF....WEBP; full check below.
+    # .docx = zip. Un .doc antiguo o un .docx con contraseña empieza por la firma OLE: se deja pasar para que el lector
+    # (utils/docx_io.py) diga «guárdalo como .docx», en vez de un «el contenido no coincide» que no ayuda.
+    "docx": [b"PK\x03\x04", b"\xd0\xcf\x11\xe0"],
 }
 _TEXT_EXTENSIONS = {"md", "markdown", "txt"}
 

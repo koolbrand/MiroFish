@@ -70,7 +70,7 @@ _IMAGE_FORMATS = ['PNG', 'JPEG', 'WEBP', 'GIF']
 class FileParser:
     """文件解析器"""
 
-    SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt',
+    SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.md', '.markdown', '.txt',
                              '.png', '.jpg', '.jpeg', '.webp', '.gif'}
     IMAGE_EXTENSIONS     = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 
@@ -103,9 +103,20 @@ class FileParser:
             return cls._extract_from_md(file_path)
         elif suffix == '.txt':
             return cls._extract_from_txt(file_path)
+        elif suffix == '.docx':
+            return cls._extract_from_docx(file_path)
 
         raise ValueError(t('api.fileUnsupported', ext=suffix))
     
+    @staticmethod
+    def _extract_from_docx(file_path: str) -> str:
+        """Texto de un documento de Word. Los fallos salen como ValueError con un mensaje que la persona entiende."""
+        from .docx_io import DocxError, extract_docx_text
+        try:
+            return extract_docx_text(file_path)
+        except DocxError as exc:
+            raise ValueError(t(f'api.{exc.code}'))
+
     @staticmethod
     def _extract_from_image(file_path: str) -> str:
         """

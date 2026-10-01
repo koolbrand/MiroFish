@@ -267,7 +267,7 @@ class Config:
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
     # Por debajo de este espacio libre en el disco de datos `/health/ready` avisa (un disco lleno corta guardados a medias)
     MIN_FREE_DISK_MB = env_int('MIN_FREE_DISK_MB', 200, minimum=0)
-    ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown', 'png', 'jpg', 'jpeg', 'webp', 'gif'}
+    ALLOWED_EXTENSIONS = {'pdf', 'docx', 'md', 'txt', 'markdown', 'png', 'jpg', 'jpeg', 'webp', 'gif'}
     IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
     
     # 文本处理配置

@@ -10,7 +10,7 @@
         <button type="button" class="brief-btn ghost" :disabled="disabled" @click.stop="openInterview">
           {{ $t('brief.startInterview') }} →
         </button>
-        <a class="brief-link" href="/plantilla-brief-simuloo.md" download="plantilla-brief-simuloo.md" @click.stop>
+        <a class="brief-link" href="/plantilla-brief-simuloo.docx" download="plantilla-brief-simuloo.docx" @click.stop>
           ↓ {{ $t('brief.downloadTemplate') }}
         </a>
       </div>
@@ -93,8 +93,10 @@
           <textarea v-model="draft" rows="14"></textarea>
           <div class="brief-answer-actions">
             <button type="button" class="brief-btn" @click="useDraft">{{ $t('brief.useDraft') }}</button>
-            <button type="button" class="brief-btn ghost" @click="downloadDraft">↓ {{ $t('brief.downloadDraft') }}</button>
+            <button type="button" class="brief-btn ghost" :disabled="downloading" @click="downloadDraft('docx')">↓ {{ $t('brief.downloadDraft') }}</button>
+            <button type="button" class="brief-btn ghost" :disabled="downloading" @click="downloadDraft('pdf')">↓ {{ $t('brief.downloadDraftPdf') }}</button>
           </div>
+          <p v-if="downloadError" class="brief-warning" role="alert">{{ downloadError }}</p>
         </div>
 
         <p v-if="errorMsg" class="brief-warning" role="alert">{{ errorMsg }}</p>
@@ -110,7 +112,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { checkBrief, interviewNext, interviewCompose } from '../api/brief'
+import { checkBrief, interviewNext, interviewCompose, downloadBriefDraft } from '../api/brief'
 
 const props = defineProps({
   files: { type: Array, default: () => [] },
@@ -122,7 +124,7 @@ const props = defineProps({
 const emit = defineEmits(['add-file', 'need-login'])
 const { t } = useI18n()
 
-const TEXT_EXT = ['md', 'markdown', 'txt', 'pdf']
+const TEXT_EXT = ['md', 'markdown', 'txt', 'pdf', 'docx']
 const isText = (f) => TEXT_EXT.includes(f.name.split('.').pop().toLowerCase())
 
 // ── Revisión automática al cambiar los archivos ──
@@ -253,20 +255,28 @@ const compose = async () => {
   }
 }
 
-const briefFile = () => new File([draft.value], 'brief-simuloo.md', { type: 'text/markdown' })
+// El borrador se añade al material como texto plano (.txt): un «.md» no le dice nada a quien no es técnico
+const briefFile = () => new File([draft.value], 'brief-simuloo.txt', { type: 'text/plain' })
 
 const useDraft = () => {
   emit('add-file', briefFile())
   interviewOpen.value = false
 }
 
-const downloadDraft = () => {
-  const url = URL.createObjectURL(briefFile())
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'brief-simuloo.md'
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+const downloading = ref(false)
+const downloadError = ref('')
+// El borrador se maqueta en el servidor como Word (editable) o PDF; el texto del cuadro es el que se descarga
+const downloadDraft = async (format) => {
+  if (downloading.value || !draft.value.trim()) return
+  downloading.value = true
+  downloadError.value = ''
+  try {
+    await downloadBriefDraft(draft.value, format)
+  } catch (e) {
+    downloadError.value = t('brief.downloadFailed')
+  } finally {
+    downloading.value = false
+  }
 }
 
 const closeInterview = () => { interviewOpen.value = false }

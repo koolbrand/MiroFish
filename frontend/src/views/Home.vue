@@ -78,7 +78,7 @@
                   ref="fileInput"
                   type="file"
                   multiple
-                  accept=".pdf,.md,.txt,.png,.jpg,.jpeg,.webp,.gif"
+                  accept=".pdf,.docx,.md,.txt,.png,.jpg,.jpeg,.webp,.gif"
                   @change="handleFileSelect"
                   style="display: none"
                   :disabled="loading"
@@ -675,7 +675,7 @@ const addPasted = () => {
   const text = pasteText.value.trim()
   if (!text) return
   pastedCount += 1
-  files.value.push(new File([text], `${t('home.pastedFileName')}${pastedCount > 1 ? `-${pastedCount}` : ''}.md`, { type: 'text/markdown' }))
+  files.value.push(new File([text], `${t('home.pastedFileName')}${pastedCount > 1 ? `-${pastedCount}` : ''}.txt`, { type: 'text/plain' }))
   pasteText.value = ''
   pasteOpen.value = false
 }
@@ -685,7 +685,7 @@ const rejectedText = computed(() => (rejected.value.length === 1
   ? t('home.fileRejectedOne', { name: rejected.value[0] })
   : t('home.fileRejectedMany', { n: rejected.value.length })))
 const addFiles = (newFiles) => {
-  const readable = ['pdf', 'md', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif']
+  const readable = ['pdf', 'docx', 'md', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif']
   const validFiles = [], unreadable = []
   for (const file of newFiles) (readable.includes(file.name.split('.').pop().toLowerCase()) ? validFiles : unreadable).push(file)
   files.value.push(...validFiles)

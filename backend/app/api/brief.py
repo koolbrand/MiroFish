@@ -5,17 +5,19 @@ Brief de la simulación: revisión con Jev y entrevista guiada.
 import os
 import tempfile
 
-from flask import jsonify, request
+from flask import Response, jsonify, request
 
 from . import brief_bp
 from ..services import brief_service
+from ..utils.docx_io import build_docx
 from ..utils.file_parser import FileParser
+from ..utils.locale import get_locale, t
 from ..utils.logger import get_logger
 from ..utils.security import error_response
 
 logger = get_logger('mirofish.api.brief')
 
-TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.pdf'}
+TEXT_EXTENSIONS = {'.md', '.markdown', '.txt', '.pdf', '.docx'}
 MAX_TRANSCRIPT_TURNS = 20
 MAX_ANSWER_CHARS = 4000
 
@@ -97,3 +99,45 @@ def interview_compose():
     except Exception as e:  # noqa: BLE001
         logger.error(f"Fallo al redactar el brief: {e}")
         return error_response("No se pudo redactar el brief", 500)
+
+
+# ---------- Descargar el borrador del brief como documento ----------
+
+DRAFT_MAX_CHARS = 40_000
+DRAFT_FORMATS = {
+    'docx': ('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'brief-simuloo.docx'),
+    'pdf': ('application/pdf', 'brief-simuloo.pdf'),
+}
+
+
+@brief_bp.route('/draft-file', methods=['POST'])
+def draft_file():
+    """
+    El borrador que sale de la entrevista, como Word (editable) o PDF. Sin modelo ni coste: solo maqueta el texto.
+    Cuerpo: {"markdown": "# Brief…", "format": "docx" | "pdf"}.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('markdown'), str) or not data['markdown'].strip():
+        return jsonify({"success": False, "error": t('api.briefDraftInvalid')}), 400
+    fmt = data.get('format') or 'docx'
+    if fmt not in DRAFT_FORMATS:
+        return jsonify({"success": False, "error": t('api.briefDraftInvalid')}), 400
+    markdown = data['markdown']
+    if len(markdown) > DRAFT_MAX_CHARS:
+        return jsonify({"success": False, "error": t('api.briefDraftTooLong', max=f"{DRAFT_MAX_CHARS:,}".replace(",", "."))}), 413
+
+    mimetype, filename = DRAFT_FORMATS[fmt]
+    try:
+        if fmt == 'docx':
+            payload = build_docx(markdown)
+        else:
+            from ..services.report_pdf import render_brief_pdf
+            payload = render_brief_pdf(markdown_text=markdown, locale=get_locale())
+    except Exception as exc:  # noqa: BLE001 — maquetar nunca debe tumbar la entrevista
+        logger.error(f"No se pudo maquetar el borrador del brief ({fmt}): {type(exc).__name__}: {exc}")
+        return jsonify({"success": False, "error": t('api.briefDraftFailed')}), 500
+    return Response(payload, mimetype=mimetype, headers={
+        'Content-Disposition': f'attachment; filename="{filename}"',
+        'Content-Length': str(len(payload)),
+        'Cache-Control': 'no-store',
+    })
