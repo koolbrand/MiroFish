@@ -275,6 +275,8 @@ const handleNewProject = async () => {
       formData.append('project_name', pending.projectName.trim())
     }
 
+    if (pending.webResearch) formData.append('web_research', 'true')
+
     // Automático: el servidor lee el material y sigue solo hasta el informe; esta pantalla solo observa
     if (pending.mode === 'auto') {
       const autoRes = await startAutoPipeline(formData)
@@ -287,7 +289,7 @@ const handleNewProject = async () => {
       return
     }
 
-    const res = await generateOntology(formData)
+    const res = await generateOntology(formData, pending.webResearch ? { timeout: 600000 } : {})
     if (res.success) {
       clearPendingUpload()
       currentProjectId.value = res.data.project_id

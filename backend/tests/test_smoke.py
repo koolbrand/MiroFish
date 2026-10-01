@@ -192,3 +192,15 @@ def test_report_generate_reuses_running_task(client):
     assert active["metadata"]["report_id"] == "report_abc123def456"
     tm.update_task(task_id, status=TaskStatus.FAILED)
     assert report_api._find_active_report_task("sim_dbl123") is None
+
+
+def test_graph_tasks_list_returns_json(client):
+    # Regresión: la ruta llamaba a .to_dict() sobre diccionarios y daba 500
+    from app.models.task import TaskManager
+    TaskManager().create_task("tarea de prueba")
+    r = client.get("/api/graph/tasks", headers=auth())
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["success"] is True
+    assert body["count"] == len(body["data"]) >= 1
+    assert all(isinstance(t, dict) for t in body["data"])

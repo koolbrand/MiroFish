@@ -517,3 +517,23 @@ def test_repeated_research_replaces_the_previous_one(storage, provider):
     assert [f["filename"] for f in project.files] == ["brief.md"]
     assert TITLE not in ProjectManager.get_extracted_text(project_id)
     assert ProjectManager.get_research_document(project_id) is None
+
+
+def test_drop_uncited_bullets_keeps_unconfirmed_section():
+    from app.services.web_research import _drop_uncited
+    body = (
+        "## Implicados\n"
+        "- Aena y el Gobierno lo defienden [1, 2].\n"
+        "- Una plataforma vecinal prepara movilizaciones.\n"
+        "## Datos sin respaldo\n"
+        "- Cifra que nadie cita.\n"
+        "## Lo que no se puede confirmar\n"
+        "- No hay encuestas publicadas.\n"
+    )
+    out, dropped = _drop_uncited(body)
+    assert dropped == 2
+    assert "Aena y el Gobierno" in out
+    assert "plataforma vecinal" not in out
+    assert "Cifra que nadie cita" not in out
+    assert "## Datos sin respaldo" not in out          # se quedó sin contenido
+    assert "No hay encuestas publicadas" in out        # la sección de lo no confirmado no lleva citas

@@ -952,11 +952,12 @@ def list_tasks():
     """
     列出所有任务
     """
+    # list_tasks() ya devuelve diccionarios (antes se llamaba a .to_dict() otra vez y la ruta daba 500)
     tasks = TaskManager().list_tasks()
     
     return jsonify({
         "success": True,
-        "data": [t.to_dict() for t in tasks],
+        "data": tasks,
         "count": len(tasks)
     })
 
