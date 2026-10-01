@@ -1,246 +1,390 @@
 <template>
-  <div class="graph-panel">
-    <div class="panel-header">
-      <span class="panel-title">{{ $t('graph.panelTitle') }}</span>
-      <!-- 顶部工具栏 (Internal Top Right) -->
+  <div class="graph-panel" ref="panelEl">
+    <!-- Cabecera clara (como el resto de la app): título, estado y herramientas -->
+    <header class="gp-head">
+      <div class="gp-heading">
+        <h2 class="panel-title">{{ $t('graph.panelTitle') }}</h2>
+        <div class="gp-status">
+          <!-- construyendo / simulando: la memoria del mundo se está escribiendo -->
+          <template v-if="isLive">
+            <span class="live-chip"><span class="live-dot" aria-hidden="true"></span>{{ $t('graph.live') }}</span>
+            <span class="gp-status-text" role="status">{{ isSimulating ? $t('graph.graphMemoryRealtime') : $t('graph.realtimeUpdating') }}</span>
+          </template>
+          <!-- fin de simulación: aviso descartable -->
+          <template v-else-if="showSimulationFinishedHint">
+            <span class="gp-status-text finished-hint" role="status">
+              <svg class="hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              {{ $t('graph.pendingContentHint') }}
+            </span>
+            <button class="hint-close-btn" type="button" @click="dismissFinishedHint" :title="$t('graph.closeHint')" :aria-label="$t('graph.closeHint')">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </template>
+          <span v-else-if="hasGraph" class="gp-stats">{{ entitiesText }} · {{ relationsText }}</span>
+        </div>
+      </div>
       <div class="header-tools">
-        <button class="tool-btn" @click="$emit('refresh')" :disabled="loading" :title="$t('graph.refreshGraph')">
-          <span class="icon-refresh" :class="{ 'spinning': loading }">↻</span>
+        <button class="tool-btn" type="button" @click="$emit('refresh')" :disabled="loading" :title="$t('graph.refreshGraph')" :aria-label="$t('graph.refreshGraph')">
+          <svg class="icon-refresh" :class="{ spinning: loading }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" /><polyline points="21 3 21 9 15 9" />
+          </svg>
           <span class="btn-text">{{ $t('ui.refresh') }}</span>
         </button>
-        <button class="tool-btn" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')">
-          <span class="icon-maximize">⛶</span>
+        <button class="tool-btn icon-only" type="button" @click="$emit('toggle-maximize')" :title="$t('graph.toggleMaximize')" :aria-label="$t('graph.toggleMaximize')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+          </svg>
         </button>
       </div>
-    </div>
-    
-    <div class="graph-container" ref="graphContainer">
-      <!-- 图谱可视化 -->
-      <div v-if="graphData" class="graph-view">
-        <svg ref="graphSvg" class="graph-svg"></svg>
-        
-        <!-- 构建中/模拟中提示 -->
-        <div v-if="currentPhase === 1 || isSimulating" class="graph-building-hint">
-          <div class="memory-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="memory-icon">
-              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-4.04z" />
-              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-4.04z" />
+    </header>
+
+    <!-- Escenario oscuro a sangre: el grafo -->
+    <div class="gp-stage" ref="stageEl" :class="{ 'is-live': isLive }">
+      <canvas
+        ref="canvasEl"
+        v-show="hasGraph"
+        class="gp-canvas"
+        tabindex="0"
+        role="img"
+        :aria-label="canvasLabel"
+        :aria-describedby="`${uid}-help`"
+        @keydown="onCanvasKey"
+      ></canvas>
+      <p :id="`${uid}-help`" class="sr-only">{{ $t('graph.canvasHelp') }}</p>
+
+      <template v-if="hasGraph">
+        <!-- Arriba: búsqueda e interruptor de etiquetas de relación -->
+        <div class="gp-top" ref="topEl">
+          <div class="gp-search">
+            <svg class="gp-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
+            <input
+              ref="searchEl"
+              v-model="query"
+              class="gp-search-input"
+              type="search"
+              role="combobox"
+              autocomplete="off"
+              spellcheck="false"
+              aria-autocomplete="list"
+              :aria-expanded="searchOpen ? 'true' : 'false'"
+              :aria-controls="`${uid}-results`"
+              :aria-activedescendant="activeIdx >= 0 && searchOpen && results[activeIdx] ? `${uid}-opt-${activeIdx}` : undefined"
+              :aria-label="$t('graph.searchLabel')"
+              :placeholder="$t('graph.searchPlaceholder')"
+              @focus="searchOpen = true"
+              @blur="searchOpen = false; activeIdx = -1"
+              @input="searchOpen = true; activeIdx = -1"
+              @keydown="onSearchKey"
+            />
+            <div v-show="searchOpen" class="gp-results">
+              <p class="gp-results-head" aria-hidden="true">{{ query.trim() ? $t('graph.searchResults', matchedIds.size) : $t('graph.mainEntities') }}</p>
+              <ul :id="`${uid}-results`" role="listbox" :aria-label="$t('graph.searchLabel')">
+                <li
+                  v-for="(n, i) in results"
+                  :key="n.id"
+                  :id="`${uid}-opt-${i}`"
+                  role="option"
+                  :aria-selected="i === activeIdx ? 'true' : 'false'"
+                  class="gp-option"
+                  :class="{ active: i === activeIdx }"
+                  @mousedown.prevent="pickNode(n.id)"
+                  @mouseenter="activeIdx = i"
+                >
+                  <GraphTypeSwatch :type-style="n.style" />
+                  <span class="opt-name">{{ n.name }}</span>
+                  <span class="opt-type">{{ n.type }}</span>
+                </li>
+              </ul>
+              <p v-if="query.trim() && !results.length" class="gp-results-empty">{{ $t('graph.searchNoResults', { q: query.trim() }) }}</p>
+            </div>
           </div>
-          {{ isSimulating ? $t('graph.graphMemoryRealtime') : $t('graph.realtimeUpdating') }}
+          <label class="edge-labels-toggle" :title="$t('graph.showEdgeLabels')">
+            <input v-model="showEdgeLabels" type="checkbox" role="switch" class="toggle-input" />
+            <span class="slider" aria-hidden="true"></span>
+            <span class="toggle-label">{{ $t('graph.showEdgeLabels') }}</span>
+          </label>
         </div>
-        
-        <!-- 模拟结束后的提示 -->
-        <div v-if="showSimulationFinishedHint" class="graph-building-hint finished-hint">
-          <div class="hint-icon-wrapper">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hint-icon">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </div>
-          <span class="hint-text">{{ $t('graph.pendingContentHint') }}</span>
-          <button class="hint-close-btn" @click="dismissFinishedHint" :title="$t('graph.closeHint')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        
-        <!-- 节点/边详情面板 -->
-        <div v-if="selectedItem" class="detail-panel">
+
+        <!-- Detalle del nodo o de la relación seleccionada -->
+        <aside
+          v-if="selectedItem"
+          ref="detailEl"
+          class="detail-panel"
+          tabindex="-1"
+          :aria-labelledby="`${uid}-detail-title`"
+          @keydown.esc.stop="closeDetailPanel(true)"
+        >
           <div class="detail-panel-header">
-            <span class="detail-title">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
-            <span v-if="selectedItem.type === 'node'" class="detail-type-badge" :style="{ background: selectedItem.color, color: '#fff' }">
-              {{ selectedItem.entityType }}
-            </span>
-            <button class="detail-close" @click="closeDetailPanel">×</button>
+            <div class="detail-head-text">
+              <span class="detail-eyebrow">{{ selectedItem.type === 'node' ? $t('graph.nodeDetails') : $t('graph.relationship') }}</span>
+              <h3 :id="`${uid}-detail-title`" class="detail-title">
+                <template v-if="selectedItem.type === 'node'">{{ selectedItem.data.name }}</template>
+                <template v-else-if="selectedItem.data.isSelfLoopGroup">{{ selectedItem.data.source_name }}</template>
+                <template v-else>{{ humanizeRelation(selectedItem.data.name || 'RELATED_TO') }}</template>
+              </h3>
+            </div>
+            <button class="detail-close" type="button" @click="closeDetailPanel(true)" :aria-label="$t('graph.closeDetails')" :title="$t('graph.close')">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
-          
-          <!-- 节点详情 -->
+
+          <!-- Nodo -->
           <div v-if="selectedItem.type === 'node'" class="detail-content">
-            <div class="detail-row">
-              <span class="detail-label">Name:</span>
-              <span class="detail-value">{{ selectedItem.data.name }}</span>
+            <div class="detail-type">
+              <GraphTypeSwatch v-if="selectedNode" :type-style="selectedNode.style" />
+              <span class="detail-type-badge">{{ selectedItem.entityType }}</span>
+              <span class="detail-degree">{{ $t('graph.relationsCount', selectedNode ? selectedNode.degree + selectedNode.selfLoops : 0) }}</span>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">UUID:</span>
-              <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
-            </div>
-            <div class="detail-row" v-if="selectedItem.data.created_at">
-              <span class="detail-label">Created:</span>
-              <span class="detail-value">{{ formatDateTime(selectedItem.data.created_at) }}</span>
-            </div>
-            
-            <!-- Properties -->
-            <div class="detail-section" v-if="selectedItem.data.attributes && Object.keys(selectedItem.data.attributes).length > 0">
-              <div class="section-title">Properties:</div>
-              <div class="properties-list">
-                <div v-for="(value, key) in selectedItem.data.attributes" :key="key" class="property-item">
-                  <span class="property-key">{{ key }}:</span>
-                  <span class="property-value">{{ value || 'None' }}</span>
-                </div>
+            <dl class="detail-rows">
+              <div class="detail-row">
+                <dt class="detail-label">{{ $t('graph.name') }}</dt>
+                <dd class="detail-value">{{ selectedItem.data.name }}</dd>
               </div>
-            </div>
-            
-            <!-- Summary -->
+              <div class="detail-row">
+                <dt class="detail-label">{{ $t('graph.uuid') }}</dt>
+                <dd class="detail-value uuid-text">{{ selectedItem.data.uuid }}</dd>
+              </div>
+              <div class="detail-row" v-if="nodeCreated">
+                <dt class="detail-label">{{ $t('graph.created') }}</dt>
+                <dd class="detail-value">{{ formatDateTime(nodeCreated) }}</dd>
+              </div>
+            </dl>
+
             <div class="detail-section" v-if="selectedItem.data.summary">
-              <div class="section-title">Summary:</div>
-              <div class="summary-text">{{ selectedItem.data.summary }}</div>
+              <h4 class="section-title">{{ $t('graph.summary') }}</h4>
+              <p class="summary-text">{{ selectedItem.data.summary }}</p>
             </div>
-            
-            <!-- Labels -->
+
+            <div class="detail-section" v-if="nodeConnections.length">
+              <h4 class="section-title">{{ $t('graph.connections') }}</h4>
+              <ul class="conn-list">
+                <li v-for="c in nodeConnections" :key="c.key">
+                  <button type="button" class="conn-item" @click="c.self ? pickEdge(c.edgeId) : pickNode(c.otherId)">
+                    <span class="conn-arrow" aria-hidden="true">{{ c.self ? '↻' : c.out ? '→' : '←' }}</span>
+                    <span class="conn-rel">{{ c.rel }}</span>
+                    <span class="conn-name">{{ c.name }}</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div class="detail-section" v-if="nodeProps.length">
+              <h4 class="section-title">{{ $t('graph.properties') }}</h4>
+              <dl class="properties-list">
+                <div v-for="p in nodeProps" :key="p.key" class="property-item">
+                  <dt class="property-key">{{ p.label }}</dt>
+                  <dd class="property-value">{{ p.value }}</dd>
+                </div>
+              </dl>
+            </div>
+
             <div class="detail-section" v-if="selectedItem.data.labels && selectedItem.data.labels.length > 0">
-              <div class="section-title">Labels:</div>
+              <h4 class="section-title">{{ $t('graph.labels') }}</h4>
               <div class="labels-list">
-                <span v-for="label in selectedItem.data.labels" :key="label" class="label-tag">
-                  {{ label }}
-                </span>
+                <span v-for="label in selectedItem.data.labels" :key="label" class="label-tag">{{ label }}</span>
               </div>
             </div>
           </div>
-          
-          <!-- 边详情 -->
+
+          <!-- Relación -->
           <div v-else class="detail-content">
-            <!-- 自环组详情 -->
+            <!-- grupo de autobucles -->
             <template v-if="selectedItem.data.isSelfLoopGroup">
               <div class="edge-relation-header self-loop-header">
-                {{ selectedItem.data.source_name }} - {{ $t('ui.selfRelations') }}
-                <span class="self-loop-count">{{ selectedItem.data.selfLoopCount }} items</span>
+                <span>{{ selectedItem.data.source_name }} — {{ $t('ui.selfRelations') }}</span>
+                <span class="self-loop-count">{{ $t('graph.itemsCount', selectedItem.data.selfLoopCount) }}</span>
               </div>
-              
-              <div class="self-loop-list">
-                <div 
-                  v-for="(loop, idx) in selectedItem.data.selfLoopEdges" 
-                  :key="loop.uuid || idx" 
+              <ul class="self-loop-list">
+                <li
+                  v-for="(loop, idx) in selectedItem.data.selfLoopEdges"
+                  :key="loop.uuid || idx"
                   class="self-loop-item"
                   :class="{ expanded: expandedSelfLoops.has(loop.uuid || idx) }"
                 >
-                  <div 
+                  <button
+                    type="button"
                     class="self-loop-item-header"
+                    :aria-expanded="expandedSelfLoops.has(loop.uuid || idx) ? 'true' : 'false'"
                     @click="toggleSelfLoop(loop.uuid || idx)"
                   >
                     <span class="self-loop-index">#{{ idx + 1 }}</span>
-                    <span class="self-loop-name">{{ loop.name || loop.fact_type || 'RELATED' }}</span>
-                    <span class="self-loop-toggle">{{ expandedSelfLoops.has(loop.uuid || idx) ? '−' : '+' }}</span>
-                  </div>
-                  
+                    <span class="self-loop-name">{{ humanizeRelation(loop.name || loop.fact_type || 'RELATED') }}</span>
+                    <span class="self-loop-toggle" aria-hidden="true">{{ expandedSelfLoops.has(loop.uuid || idx) ? '−' : '+' }}</span>
+                  </button>
                   <div class="self-loop-item-content" v-show="expandedSelfLoops.has(loop.uuid || idx)">
-                    <div class="detail-row" v-if="loop.uuid">
-                      <span class="detail-label">UUID:</span>
-                      <span class="detail-value uuid-text">{{ loop.uuid }}</span>
-                    </div>
-                    <div class="detail-row" v-if="loop.fact">
-                      <span class="detail-label">Fact:</span>
-                      <span class="detail-value fact-text">{{ loop.fact }}</span>
-                    </div>
-                    <div class="detail-row" v-if="loop.fact_type">
-                      <span class="detail-label">Type:</span>
-                      <span class="detail-value">{{ loop.fact_type }}</span>
-                    </div>
-                    <div class="detail-row" v-if="loop.created_at">
-                      <span class="detail-label">Created:</span>
-                      <span class="detail-value">{{ formatDateTime(loop.created_at) }}</span>
-                    </div>
-                    <div v-if="loop.episodes && loop.episodes.length > 0" class="self-loop-episodes">
-                      <span class="detail-label">Episodes:</span>
+                    <dl class="detail-rows">
+                      <div class="detail-row" v-if="loop.uuid">
+                        <dt class="detail-label">{{ $t('graph.uuid') }}</dt>
+                        <dd class="detail-value uuid-text">{{ loop.uuid }}</dd>
+                      </div>
+                      <div class="detail-row" v-if="loop.fact">
+                        <dt class="detail-label">{{ $t('graph.fact') }}</dt>
+                        <dd class="detail-value fact-text">{{ loop.fact }}</dd>
+                      </div>
+                      <div class="detail-row" v-if="loop.fact_type">
+                        <dt class="detail-label">{{ $t('graph.type') }}</dt>
+                        <dd class="detail-value">{{ loop.fact_type }}</dd>
+                      </div>
+                      <div class="detail-row" v-if="loop.created_at">
+                        <dt class="detail-label">{{ $t('graph.created') }}</dt>
+                        <dd class="detail-value">{{ formatDateTime(loop.created_at) }}</dd>
+                      </div>
+                    </dl>
+                    <div v-if="episodesOf(loop).length" class="self-loop-episodes">
+                      <span class="detail-label">{{ $t('graph.episodes') }}</span>
                       <div class="episodes-list compact">
-                        <span v-for="ep in loop.episodes" :key="ep" class="episode-tag small">{{ ep }}</span>
+                        <span v-for="ep in episodesOf(loop)" :key="ep" class="episode-tag small">{{ ep }}</span>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </li>
+              </ul>
             </template>
-            
-            <!-- 普通边详情 -->
+
+            <!-- arista normal -->
             <template v-else>
               <div class="edge-relation-header">
-                {{ selectedItem.data.source_name }} → {{ selectedItem.data.name || 'RELATED_TO' }} → {{ selectedItem.data.target_name }}
+                <button type="button" class="edge-end" @click="pickNode(selectedItem.data.source_node_uuid)">{{ selectedItem.data.source_name }}</button>
+                <span class="edge-mid"><span aria-hidden="true">→</span> {{ humanizeRelation(selectedItem.data.name || 'RELATED_TO') }} <span aria-hidden="true">→</span></span>
+                <button type="button" class="edge-end" @click="pickNode(selectedItem.data.target_node_uuid)">{{ selectedItem.data.target_name }}</button>
               </div>
-              
-              <div class="detail-row">
-                <span class="detail-label">UUID:</span>
-                <span class="detail-value uuid-text">{{ selectedItem.data.uuid }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Label:</span>
-                <span class="detail-value">{{ selectedItem.data.name || 'RELATED_TO' }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Type:</span>
-                <span class="detail-value">{{ selectedItem.data.fact_type || 'Unknown' }}</span>
-              </div>
-              <div class="detail-row" v-if="selectedItem.data.fact">
-                <span class="detail-label">Fact:</span>
-                <span class="detail-value fact-text">{{ selectedItem.data.fact }}</span>
-              </div>
-              
-              <!-- Episodes -->
-              <div class="detail-section" v-if="selectedItem.data.episodes && selectedItem.data.episodes.length > 0">
-                <div class="section-title">Episodes:</div>
-                <div class="episodes-list">
-                  <span v-for="ep in selectedItem.data.episodes" :key="ep" class="episode-tag">
-                    {{ ep }}
-                  </span>
+              <dl class="detail-rows">
+                <div class="detail-row" v-if="selectedItem.data.fact">
+                  <dt class="detail-label">{{ $t('graph.fact') }}</dt>
+                  <dd class="detail-value fact-text">{{ selectedItem.data.fact }}</dd>
                 </div>
-              </div>
-              
-              <div class="detail-row" v-if="selectedItem.data.created_at">
-                <span class="detail-label">Created:</span>
-                <span class="detail-value">{{ formatDateTime(selectedItem.data.created_at) }}</span>
-              </div>
-              <div class="detail-row" v-if="selectedItem.data.valid_at">
-                <span class="detail-label">Valid From:</span>
-                <span class="detail-value">{{ formatDateTime(selectedItem.data.valid_at) }}</span>
+                <div class="detail-row">
+                  <dt class="detail-label">{{ $t('graph.label') }}</dt>
+                  <dd class="detail-value mono">{{ selectedItem.data.name || 'RELATED_TO' }}</dd>
+                </div>
+                <div class="detail-row">
+                  <dt class="detail-label">{{ $t('graph.type') }}</dt>
+                  <dd class="detail-value mono">{{ selectedItem.data.fact_type || $t('graph.unknown') }}</dd>
+                </div>
+                <div class="detail-row">
+                  <dt class="detail-label">{{ $t('graph.uuid') }}</dt>
+                  <dd class="detail-value uuid-text">{{ selectedItem.data.uuid }}</dd>
+                </div>
+                <div class="detail-row" v-if="selectedItem.data.created_at">
+                  <dt class="detail-label">{{ $t('graph.created') }}</dt>
+                  <dd class="detail-value">{{ formatDateTime(selectedItem.data.created_at) }}</dd>
+                </div>
+                <div class="detail-row" v-if="edgeValidAt">
+                  <dt class="detail-label">{{ $t('graph.validFrom') }}</dt>
+                  <dd class="detail-value">{{ formatDateTime(edgeValidAt) }}</dd>
+                </div>
+              </dl>
+              <div class="detail-section" v-if="episodesOf(selectedItem.data).length">
+                <h4 class="section-title">{{ $t('graph.episodes') }}</h4>
+                <div class="episodes-list">
+                  <span v-for="ep in episodesOf(selectedItem.data)" :key="ep" class="episode-tag">{{ ep }}</span>
+                </div>
               </div>
             </template>
           </div>
-        </div>
-      </div>
-      
-      <!-- 加载状态 -->
-      <div v-else-if="loading" class="graph-state">
-        <div class="loading-spinner"></div>
-        <p>{{ $t('graph.graphDataLoading') }}</p>
-      </div>
-      
-      <!-- 等待/空状态 -->
-      <div v-else class="graph-state">
-        <div class="empty-icon">❖</div>
-        <p class="empty-text">{{ $t('graph.waitingOntology') }}</p>
-      </div>
-    </div>
+        </aside>
 
-    <!-- 底部图例 (Bottom Left) -->
-    <div v-if="graphData && entityTypes.length" class="graph-legend">
-      <span class="legend-title">Entity Types</span>
-      <div class="legend-items">
-        <div class="legend-item" v-for="type in entityTypes" :key="type.name">
-          <span class="legend-dot" :style="{ background: type.color }"></span>
-          <span class="legend-label">{{ type.name }}</span>
+        <!-- Abajo: leyenda (forma + tono) y zoom -->
+        <div class="gp-bottom" ref="bottomEl">
+          <div v-if="legendTypes.length" class="graph-legend" :class="{ open: legendOpen }">
+            <button type="button" class="legend-title" :aria-expanded="legendOpen ? 'true' : 'false'" :aria-controls="`${uid}-legend`" @click="legendOpen = !legendOpen">
+              {{ $t('graph.entityTypes') }}
+              <span class="legend-total">{{ legendTypes.length }}</span>
+              <svg class="legend-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15" /></svg>
+            </button>
+            <ul v-show="legendOpen" :id="`${uid}-legend`" class="legend-items">
+              <li v-for="ty in legendTypes" :key="ty.key">
+                <button
+                  type="button"
+                  class="legend-item"
+                  :aria-pressed="pinnedType === ty.key ? 'true' : 'false'"
+                  :title="ty.title"
+                  @mouseenter="previewType = ty.key"
+                  @mouseleave="previewType = null"
+                  @focus="previewType = ty.key"
+                  @blur="previewType = null"
+                  @click="pinnedType = pinnedType === ty.key ? null : ty.key"
+                >
+                  <GraphTypeSwatch :type-style="ty.style" />
+                  <span class="legend-label">{{ ty.label }}</span>
+                  <span class="legend-num">{{ ty.count }}</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="gp-zoom" role="group">
+            <button type="button" @click="zoomIn" :aria-label="$t('graph.zoomIn')" :title="$t('graph.zoomIn')">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+            <button type="button" @click="zoomOut" :aria-label="$t('graph.zoomOut')" :title="$t('graph.zoomOut')">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+            <button type="button" @click="fitView" :aria-label="$t('graph.fit')" :title="$t('graph.fit')">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" /><circle cx="12" cy="12" r="2.5" />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        <!-- Para lectores de pantalla (y teclado): las entidades principales. Visible solo cuando recibe el foco. -->
+        <nav class="gp-sr-list" :aria-label="$t('graph.mainEntities')">
+          <h3 class="gp-sr-title">{{ $t('graph.mainEntities') }}</h3>
+          <ul>
+            <li v-for="n in mainEntities" :key="n.id">
+              <button type="button" @click="pickNode(n.id)">
+                {{ $t('graph.entityOption', { name: n.name, type: n.type, relations: $t('graph.relationsCount', n.degree + n.selfLoops) }) }}
+              </button>
+            </li>
+          </ul>
+          <p v-if="moreEntities > 0" class="gp-sr-more">{{ $t('graph.mainEntitiesMore', { n: moreEntities }) }}</p>
+        </nav>
+      </template>
+
+      <!-- Cargando -->
+      <div v-else-if="loading" class="graph-state" role="status">
+        <div class="state-art" aria-hidden="true">
+          <span class="orbit orbit-a"><i></i></span>
+          <span class="orbit orbit-b"><i></i></span>
+          <BiankaAvatar :look="{ ears: 'up', head: 'hardhat' }" bucket="undecided" :pixel="4" talking />
+        </div>
+        <p class="state-title">{{ $t('graph.graphDataLoading') }}</p>
+        <p class="state-hint">{{ $t('graph.loadingHint') }}</p>
       </div>
-    </div>
-    
-    <!-- 显示边标签开关 -->
-    <div v-if="graphData" class="edge-labels-toggle">
-      <label class="toggle-switch">
-        <input type="checkbox" v-model="showEdgeLabels" />
-        <span class="slider"></span>
-      </label>
-      <span class="toggle-label">{{ $t('graph.showEdgeLabels') }}</span>
+
+      <!-- Esperando la ontología -->
+      <div v-else class="graph-state">
+        <div class="state-art" aria-hidden="true">
+          <svg class="ghost" viewBox="0 0 240 150">
+            <path d="M40 40 L92 70 L150 34 L204 62 M92 70 L120 116 L186 110 M150 34 L186 110" />
+            <circle cx="40" cy="40" r="5" /><circle cx="150" cy="34" r="6" /><circle cx="204" cy="62" r="4" />
+            <circle cx="120" cy="116" r="5" /><circle cx="186" cy="110" r="4" /><circle class="ghost-hub" cx="92" cy="70" r="7" />
+          </svg>
+          <BiankaAvatar :look="{ ears: 'classic', face: 'glasses' }" bucket="undecided" :pixel="4" />
+        </div>
+        <p class="state-title">{{ $t('graph.waitingOntology') }}</p>
+        <p class="state-hint">{{ $t('graph.emptyHint') }}</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
-import * as d3 from 'd3'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import BiankaAvatar from './BiankaAvatar.vue'
+import GraphTypeSwatch from './GraphTypeSwatch.vue'
+import { GraphRenderer, buildGraphModel, humanizeRelation, OTHER_KEY } from '../lib/graphRender'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const props = defineProps({
   graphData: Object,
@@ -251,1198 +395,941 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh', 'toggle-maximize'])
 
-const graphContainer = ref(null)
-const graphSvg = ref(null)
+const uid = `gp-${Math.random().toString(36).slice(2, 8)}`
+const panelEl = ref(null)
+const stageEl = ref(null)
+const canvasEl = ref(null)
+const topEl = ref(null)
+const bottomEl = ref(null)
+const detailEl = ref(null)
+const searchEl = ref(null)
+
 const selectedItem = ref(null)
 const showEdgeLabels = ref(true) // 默认显示边标签
-
-// Edge-label display formatter.
-// Backends produce SCREAMING_SNAKE_CASE predicates like
-// "GENERATED_PROFESSIONAL_BRAND_KIT_FOR" which overflow the canvas and
-// collide with neighbouring labels. Convert to a short, human-readable
-// form: strip underscores, lowercase words (keep first char uppercase),
-// then clamp to a max of ~18 chars with an ellipsis so long predicates
-// stay compact. The full label is still visible in the details panel.
-const MAX_EDGE_LABEL_CHARS = 18
-const formatEdgeLabel = (raw) => {
-  if (!raw) return ''
-  const humanized = String(raw)
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/^(.)/, c => c.toUpperCase())
-    .trim()
-  if (humanized.length <= MAX_EDGE_LABEL_CHARS) return humanized
-  return humanized.slice(0, MAX_EDGE_LABEL_CHARS - 1).trimEnd() + '…'
-}
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
-const wasSimulating = ref(false) // 追踪之前是否在模拟中
+const wasSimulating = ref(false)
 
-// 关闭模拟结束提示
-const dismissFinishedHint = () => {
-  showSimulationFinishedHint.value = false
-}
+const model = shallowRef(null)
+const styleMemory = new Map() // tipo → estilo, estable entre refrescos
+let renderer = null
 
-// 监听 isSimulating 变化，检测模拟结束
-watch(() => props.isSimulating, (newValue, oldValue) => {
-  if (wasSimulating.value && !newValue) {
-    // 从模拟中变为非模拟状态，显示结束提示
-    showSimulationFinishedHint.value = true
-  }
+const query = ref('')
+const searchOpen = ref(false)
+const activeIdx = ref(-1)
+const previewType = ref(null)
+const pinnedType = ref(null)
+const narrow = ref(false)
+const legendOpen = ref(true)
+
+const hasGraph = computed(() => !!model.value && model.value.nodes.length > 0)
+const isLive = computed(() => hasGraph.value && (props.currentPhase === 1 || !!props.isSimulating))
+
+// ── Avisos ────────────────────────────────────────────────────────────────
+const dismissFinishedHint = () => { showSimulationFinishedHint.value = false }
+
+watch(() => props.isSimulating, (newValue) => {
+  if (wasSimulating.value && !newValue) showSimulationFinishedHint.value = true
   wasSimulating.value = newValue
 }, { immediate: true })
 
-// 切换自环项展开/折叠状态
 const toggleSelfLoop = (id) => {
-  const newSet = new Set(expandedSelfLoops.value)
-  if (newSet.has(id)) {
-    newSet.delete(id)
-  } else {
-    newSet.add(id)
-  }
-  expandedSelfLoops.value = newSet
+  const next = new Set(expandedSelfLoops.value)
+  next.has(id) ? next.delete(id) : next.add(id)
+  expandedSelfLoops.value = next
 }
 
-// 计算实体类型用于图例
-const entityTypes = computed(() => {
-  if (!props.graphData?.nodes) return []
-  const typeMap = {}
-  // 美观的颜色调色板
-  const colors = ['#FF6B35', '#004E89', '#7B2D8E', '#1A936F', '#C5283D', '#E9724C', '#3498db', '#9b59b6', '#27ae60', '#f39c12']
-  
-  props.graphData.nodes.forEach(node => {
-    const type = node.labels?.find(l => l !== 'Entity') || 'Entity'
-    if (!typeMap[type]) {
-      typeMap[type] = { name: type, count: 0, color: colors[Object.keys(typeMap).length % colors.length] }
-    }
-    typeMap[type].count++
-  })
-  return Object.values(typeMap)
+// ── Textos derivados ──────────────────────────────────────────────────────
+const entitiesText = computed(() => t('graph.entitiesCount', model.value?.nodes.length || 0))
+const relationsText = computed(() => t('graph.relationsCount', model.value?.relationCount || 0))
+const typeLabel = (ty) => (ty.key === OTHER_KEY ? t('graph.otherTypes') : ty.name)
+
+const legendTypes = computed(() => (model.value?.types || []).map(ty => ({
+  ...ty,
+  label: typeLabel(ty),
+  title: ty.key === OTHER_KEY ? t('graph.otherTypesList', { list: ty.members.join(', ') }) : t('graph.highlightType', { type: ty.name }),
+})))
+
+const canvasLabel = computed(() => {
+  const m = model.value
+  if (!m) return t('graph.panelTitle')
+  const types = m.types.map(ty => `${ty.key === OTHER_KEY ? ty.members.join(', ') : ty.name} (${ty.count})`).join(', ')
+  return t('graph.canvasLabel', { entities: entitiesText.value, relations: relationsText.value, types })
 })
 
-// 格式化时间
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true 
-    })
-  } catch {
-    return dateStr
+const MAIN_LIMIT = 30
+const mainEntities = computed(() => (model.value?.byPriority || []).slice(0, MAIN_LIMIT))
+const moreEntities = computed(() => Math.max(0, (model.value?.nodes.length || 0) - MAIN_LIMIT))
+
+// ── Búsqueda ──────────────────────────────────────────────────────────────
+const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+const matches = computed(() => {
+  const m = model.value
+  const q = norm(query.value.trim())
+  if (!m || !q) return []
+  const out = []
+  for (const n of m.byPriority) {
+    const nn = n._norm || (n._norm = norm(n.name))
+    const i = nn.indexOf(q)
+    if (i === 0) out.push([0, n])
+    else if (i > 0) out.push([nn.includes(` ${q}`) ? 1 : 2, n])
+    else if (norm(n.type).includes(q)) out.push([3, n])
+  }
+  return out.sort((a, b) => a[0] - b[0]).map(x => x[1])
+})
+const matchedIds = computed(() => new Set(matches.value.map(n => n.id)))
+const results = computed(() => (query.value.trim() ? matches.value : (model.value?.byPriority || [])).slice(0, 8))
+
+const onSearchKey = (e) => {
+  const n = results.value.length
+  if (e.key === 'ArrowDown') { e.preventDefault(); searchOpen.value = true; if (n) activeIdx.value = (activeIdx.value + 1) % n }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); searchOpen.value = true; if (n) activeIdx.value = activeIdx.value <= 0 ? n - 1 : activeIdx.value - 1 }
+  else if (e.key === 'Enter') {
+    const pick = results.value[activeIdx.value >= 0 ? activeIdx.value : 0]
+    if (pick) { e.preventDefault(); pickNode(pick.id) }
+  } else if (e.key === 'Escape') {
+    if (query.value) { e.preventDefault(); query.value = ''; activeIdx.value = -1 }
+    else if (searchOpen.value) { e.preventDefault(); searchOpen.value = false }
   }
 }
 
-const closeDetailPanel = () => {
+// ── Selección ─────────────────────────────────────────────────────────────
+const selectedNode = computed(() => (selectedItem.value?.type === 'node' ? model.value?.nodeById.get(selectedItem.value.id) || null : null))
+
+const openNode = (id) => {
+  const n = model.value?.nodeById.get(id)
+  if (!n) return false
+  selectedItem.value = { type: 'node', id, data: n.raw, entityType: n.type, color: `var(${n.style.stroke || n.style.fill})` }
+  expandedSelfLoops.value = new Set()
+  renderer?.setSelected({ kind: 'node', id })
+  return true
+}
+const openEdge = (id) => {
+  const e = model.value?.edgeById.get(id)
+  if (!e) return false
+  selectedItem.value = { type: 'edge', id, data: e.raw }
+  expandedSelfLoops.value = new Set()
+  renderer?.setSelected({ kind: 'edge', id })
+  return true
+}
+const closeDetailPanel = (restoreFocus = false) => {
+  const had = !!selectedItem.value
   selectedItem.value = null
   expandedSelfLoops.value = new Set() // 重置展开状态
+  renderer?.setSelected(null)
+  if (had && restoreFocus === true) nextTick(() => canvasEl.value?.focus({ preventScroll: true }))
 }
 
-let currentSimulation = null
-let linkLabelsRef = null
-let linkLabelBgRef = null
-
-const renderGraph = () => {
-  if (!graphSvg.value || !props.graphData) return
-  
-  // 停止之前的仿真
-  if (currentSimulation) {
-    currentSimulation.stop()
-  }
-  
-  const container = graphContainer.value
-  const width = container.clientWidth
-  const height = container.clientHeight
-  
-  const svg = d3.select(graphSvg.value)
-    .attr('width', width)
-    .attr('height', height)
-    .attr('viewBox', `0 0 ${width} ${height}`)
-    
-  svg.selectAll('*').remove()
-  
-  const nodesData = props.graphData.nodes || []
-  const edgesData = props.graphData.edges || []
-  
-  if (nodesData.length === 0) return
-
-  // Prep data
-  const nodeMap = {}
-  nodesData.forEach(n => nodeMap[n.uuid] = n)
-  
-  const nodes = nodesData.map(n => ({
-    id: n.uuid,
-    name: n.name || 'Unnamed',
-    type: n.labels?.find(l => l !== 'Entity') || 'Entity',
-    rawData: n
-  }))
-  
-  const nodeIds = new Set(nodes.map(n => n.id))
-  
-  // 处理边数据，计算同一对节点间的边数量和索引
-  const edgePairCount = {}
-  const selfLoopEdges = {} // 按节点分组的自环边
-  const tempEdges = edgesData
-    .filter(e => nodeIds.has(e.source_node_uuid) && nodeIds.has(e.target_node_uuid))
-  
-  // 统计每对节点之间的边数量，收集自环边
-  tempEdges.forEach(e => {
-    if (e.source_node_uuid === e.target_node_uuid) {
-      // 自环 - 收集到数组中
-      if (!selfLoopEdges[e.source_node_uuid]) {
-        selfLoopEdges[e.source_node_uuid] = []
-      }
-      selfLoopEdges[e.source_node_uuid].push({
-        ...e,
-        source_name: nodeMap[e.source_node_uuid]?.name,
-        target_name: nodeMap[e.target_node_uuid]?.name
-      })
-    } else {
-      const pairKey = [e.source_node_uuid, e.target_node_uuid].sort().join('_')
-      edgePairCount[pairKey] = (edgePairCount[pairKey] || 0) + 1
-    }
-  })
-  
-  // 记录当前处理到每对节点的第几条边
-  const edgePairIndex = {}
-  const processedSelfLoopNodes = new Set() // 已处理的自环节点
-  
-  const edges = []
-  
-  tempEdges.forEach(e => {
-    const isSelfLoop = e.source_node_uuid === e.target_node_uuid
-    
-    if (isSelfLoop) {
-      // 自环边 - 每个节点只添加一条合并的自环
-      if (processedSelfLoopNodes.has(e.source_node_uuid)) {
-        return // 已处理过，跳过
-      }
-      processedSelfLoopNodes.add(e.source_node_uuid)
-      
-      const allSelfLoops = selfLoopEdges[e.source_node_uuid]
-      const nodeName = nodeMap[e.source_node_uuid]?.name || 'Unknown'
-      
-      edges.push({
-        source: e.source_node_uuid,
-        target: e.target_node_uuid,
-        type: 'SELF_LOOP',
-        name: `Self Relations (${allSelfLoops.length})`,
-        curvature: 0,
-        isSelfLoop: true,
-        rawData: {
-          isSelfLoopGroup: true,
-          source_name: nodeName,
-          target_name: nodeName,
-          selfLoopCount: allSelfLoops.length,
-          selfLoopEdges: allSelfLoops // 存储所有自环边的详细信息
-        }
-      })
-      return
-    }
-    
-    const pairKey = [e.source_node_uuid, e.target_node_uuid].sort().join('_')
-    const totalCount = edgePairCount[pairKey]
-    const currentIndex = edgePairIndex[pairKey] || 0
-    edgePairIndex[pairKey] = currentIndex + 1
-    
-    // 判断边的方向是否与标准化方向一致（源UUID < 目标UUID）
-    const isReversed = e.source_node_uuid > e.target_node_uuid
-    
-    // 计算曲率：多条边时分散开，单条边为直线
-    let curvature = 0
-    if (totalCount > 1) {
-      // 均匀分布曲率，确保明显区分
-      // 曲率范围根据边数量增加，边越多曲率范围越大
-      const curvatureRange = Math.min(1.2, 0.6 + totalCount * 0.15)
-      curvature = ((currentIndex / (totalCount - 1)) - 0.5) * curvatureRange * 2
-      
-      // 如果边的方向与标准化方向相反，翻转曲率
-      // 这样确保所有边在同一参考系下分布，不会因方向不同而重叠
-      if (isReversed) {
-        curvature = -curvature
-      }
-    }
-    
-    edges.push({
-      source: e.source_node_uuid,
-      target: e.target_node_uuid,
-      type: e.fact_type || e.name || 'RELATED',
-      name: e.name || e.fact_type || 'RELATED',
-      curvature,
-      isSelfLoop: false,
-      pairIndex: currentIndex,
-      pairTotal: totalCount,
-      rawData: {
-        ...e,
-        source_name: nodeMap[e.source_node_uuid]?.name,
-        target_name: nodeMap[e.target_node_uuid]?.name
-      }
-    })
-  })
-    
-  // Color scale
-  const colorMap = {}
-  entityTypes.value.forEach(t => colorMap[t.name] = t.color)
-  const getColor = (type) => colorMap[type] || '#999'
-
-  // Simulation - 根据边数量动态调整节点间距
-  const simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(edges).id(d => d.id).distance(d => {
-      // 根据这对节点之间的边数量动态调整距离
-      // 基础距离 150，每多一条边增加 40
-      const baseDistance = 150
-      const edgeCount = d.pairTotal || 1
-      return baseDistance + (edgeCount - 1) * 50
-    }))
-    .force('charge', d3.forceManyBody().strength(-400))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide(50))
-    // 添加向中心的引力，让独立的节点群聚集到中心区域
-    .force('x', d3.forceX(width / 2).strength(0.04))
-    .force('y', d3.forceY(height / 2).strength(0.04))
-  
-  currentSimulation = simulation
-
-  const g = svg.append('g')
-  
-  // Zoom
-  svg.call(d3.zoom().extent([[0, 0], [width, height]]).scaleExtent([0.1, 4]).on('zoom', (event) => {
-    g.attr('transform', event.transform)
-  }))
-
-  // Links - 使用 path 支持曲线
-  const linkGroup = g.append('g').attr('class', 'links')
-  
-  // 计算曲线路径
-  const getLinkPath = (d) => {
-    const sx = d.source.x, sy = d.source.y
-    const tx = d.target.x, ty = d.target.y
-    
-    // 检测自环
-    if (d.isSelfLoop) {
-      // 自环：绘制一个圆弧从节点出发再返回
-      const loopRadius = 30
-      // 从节点右侧出发，绕一圈回来
-      const x1 = sx + 8  // 起点偏移
-      const y1 = sy - 4
-      const x2 = sx + 8  // 终点偏移
-      const y2 = sy + 4
-      // 使用圆弧绘制自环（sweep-flag=1 顺时针）
-      return `M${x1},${y1} A${loopRadius},${loopRadius} 0 1,1 ${x2},${y2}`
-    }
-    
-    if (d.curvature === 0) {
-      // 直线
-      return `M${sx},${sy} L${tx},${ty}`
-    }
-    
-    // 计算曲线控制点 - 根据边数量和距离动态调整
-    const dx = tx - sx, dy = ty - sy
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    // 垂直于连线方向的偏移，根据距离比例计算，保证曲线明显可见
-    // 边越多，偏移量占距离的比例越大
-    const pairTotal = d.pairTotal || 1
-    const offsetRatio = 0.25 + pairTotal * 0.05 // 基础25%，每多一条边增加5%
-    const baseOffset = Math.max(35, dist * offsetRatio)
-    const offsetX = -dy / dist * d.curvature * baseOffset
-    const offsetY = dx / dist * d.curvature * baseOffset
-    const cx = (sx + tx) / 2 + offsetX
-    const cy = (sy + ty) / 2 + offsetY
-    
-    return `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`
-  }
-  
-  // 计算曲线中点（用于标签定位）
-  const getLinkMidpoint = (d) => {
-    const sx = d.source.x, sy = d.source.y
-    const tx = d.target.x, ty = d.target.y
-    
-    // 检测自环
-    if (d.isSelfLoop) {
-      // 自环标签位置：节点右侧
-      return { x: sx + 70, y: sy }
-    }
-    
-    if (d.curvature === 0) {
-      return { x: (sx + tx) / 2, y: (sy + ty) / 2 }
-    }
-    
-    // 二次贝塞尔曲线的中点 t=0.5
-    const dx = tx - sx, dy = ty - sy
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    const pairTotal = d.pairTotal || 1
-    const offsetRatio = 0.25 + pairTotal * 0.05
-    const baseOffset = Math.max(35, dist * offsetRatio)
-    const offsetX = -dy / dist * d.curvature * baseOffset
-    const offsetY = dx / dist * d.curvature * baseOffset
-    const cx = (sx + tx) / 2 + offsetX
-    const cy = (sy + ty) / 2 + offsetY
-    
-    // 二次贝塞尔曲线公式 B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2, t=0.5
-    const midX = 0.25 * sx + 0.5 * cx + 0.25 * tx
-    const midY = 0.25 * sy + 0.5 * cy + 0.25 * ty
-    
-    return { x: midX, y: midY }
-  }
-  
-  const link = linkGroup.selectAll('path')
-    .data(edges)
-    .enter().append('path')
-    .attr('stroke', '#C0C0C0')
-    .attr('stroke-width', 1.5)
-    .attr('fill', 'none')
-    .style('cursor', 'pointer')
-    .on('click', (event, d) => {
-      event.stopPropagation()
-      // 重置之前选中边的样式
-      linkGroup.selectAll('path').attr('stroke', '#C0C0C0').attr('stroke-width', 1.5)
-      linkLabelBg.attr('fill', 'rgba(255,255,255,0.95)')
-      linkLabels.attr('fill', '#666')
-      // 高亮当前选中的边
-      d3.select(event.target).attr('stroke', '#3498db').attr('stroke-width', 3)
-      
-      selectedItem.value = {
-        type: 'edge',
-        data: d.rawData
-      }
-    })
-
-  // Link labels background (白色背景使文字更清晰)
-  const linkLabelBg = linkGroup.selectAll('rect')
-    .data(edges)
-    .enter().append('rect')
-    .attr('fill', 'rgba(255,255,255,0.95)')
-    .attr('rx', 3)
-    .attr('ry', 3)
-    .style('cursor', 'pointer')
-    .style('pointer-events', 'all')
-    .style('display', showEdgeLabels.value ? 'block' : 'none')
-    .on('click', (event, d) => {
-      event.stopPropagation()
-      linkGroup.selectAll('path').attr('stroke', '#C0C0C0').attr('stroke-width', 1.5)
-      linkLabelBg.attr('fill', 'rgba(255,255,255,0.95)')
-      linkLabels.attr('fill', '#666')
-      // 高亮对应的边
-      link.filter(l => l === d).attr('stroke', '#3498db').attr('stroke-width', 3)
-      d3.select(event.target).attr('fill', 'rgba(52, 152, 219, 0.1)')
-      
-      selectedItem.value = {
-        type: 'edge',
-        data: d.rawData
-      }
-    })
-
-  // Link labels
-  const linkLabels = linkGroup.selectAll('text')
-    .data(edges)
-    .enter().append('text')
-    .text(d => formatEdgeLabel(d.name))
-    .attr('font-size', '9px')
-    .attr('fill', '#666')
-    .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'middle')
-    .style('cursor', 'pointer')
-    .style('pointer-events', 'all')
-    .style('font-family', 'system-ui, sans-serif')
-    .style('display', showEdgeLabels.value ? 'block' : 'none')
-    .on('click', (event, d) => {
-      event.stopPropagation()
-      linkGroup.selectAll('path').attr('stroke', '#C0C0C0').attr('stroke-width', 1.5)
-      linkLabelBg.attr('fill', 'rgba(255,255,255,0.95)')
-      linkLabels.attr('fill', '#666')
-      // 高亮对应的边
-      link.filter(l => l === d).attr('stroke', '#3498db').attr('stroke-width', 3)
-      d3.select(event.target).attr('fill', '#3498db')
-
-      selectedItem.value = {
-        type: 'edge',
-        data: d.rawData
-      }
-    })
-  // Native SVG tooltip — hover over the truncated label to see the full
-  // predicate name, so shortening the display doesn't lose information.
-  linkLabels.append('title').text(d => d.name)
-  
-  // 保存引用供外部控制显隐
-  linkLabelsRef = linkLabels
-  linkLabelBgRef = linkLabelBg
-
-  // Nodes group
-  const nodeGroup = g.append('g').attr('class', 'nodes')
-  
-  // Node circles
-  const node = nodeGroup.selectAll('circle')
-    .data(nodes)
-    .enter().append('circle')
-    .attr('r', 10)
-    .attr('fill', d => getColor(d.type))
-    .attr('stroke', '#fff')
-    .attr('stroke-width', 2.5)
-    .style('cursor', 'pointer')
-    .call(d3.drag()
-      .on('start', (event, d) => {
-        // 只记录位置，不重启仿真（区分点击和拖拽）
-        d.fx = d.x
-        d.fy = d.y
-        d._dragStartX = event.x
-        d._dragStartY = event.y
-        d._isDragging = false
-      })
-      .on('drag', (event, d) => {
-        // 检测是否真正开始拖拽（移动超过阈值）
-        const dx = event.x - d._dragStartX
-        const dy = event.y - d._dragStartY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        
-        if (!d._isDragging && distance > 3) {
-          // 首次检测到真正拖拽，才重启仿真
-          d._isDragging = true
-          simulation.alphaTarget(0.3).restart()
-        }
-        
-        if (d._isDragging) {
-          d.fx = event.x
-          d.fy = event.y
-        }
-      })
-      .on('end', (event, d) => {
-        // 只有真正拖拽过才让仿真逐渐停止
-        if (d._isDragging) {
-          simulation.alphaTarget(0)
-        }
-        d.fx = null
-        d.fy = null
-        d._isDragging = false
-      })
-    )
-    .on('click', (event, d) => {
-      event.stopPropagation()
-      // 重置所有节点样式
-      node.attr('stroke', '#fff').attr('stroke-width', 2.5)
-      linkGroup.selectAll('path').attr('stroke', '#C0C0C0').attr('stroke-width', 1.5)
-      // 高亮选中节点
-      d3.select(event.target).attr('stroke', '#E91E63').attr('stroke-width', 4)
-      // 高亮与此节点相连的边
-      link.filter(l => l.source.id === d.id || l.target.id === d.id)
-        .attr('stroke', '#E91E63')
-        .attr('stroke-width', 2.5)
-      
-      selectedItem.value = {
-        type: 'node',
-        data: d.rawData,
-        entityType: d.type,
-        color: getColor(d.type)
-      }
-    })
-    .on('mouseenter', (event, d) => {
-      if (!selectedItem.value || selectedItem.value.data?.uuid !== d.rawData.uuid) {
-        d3.select(event.target).attr('stroke', '#333').attr('stroke-width', 3)
-      }
-    })
-    .on('mouseleave', (event, d) => {
-      if (!selectedItem.value || selectedItem.value.data?.uuid !== d.rawData.uuid) {
-        d3.select(event.target).attr('stroke', '#fff').attr('stroke-width', 2.5)
-      }
-    })
-
-  // Node Labels
-  const nodeLabels = nodeGroup.selectAll('text')
-    .data(nodes)
-    .enter().append('text')
-    .text(d => d.name.length > 8 ? d.name.substring(0, 8) + '…' : d.name)
-    .attr('font-size', '11px')
-    .attr('fill', '#333')
-    .attr('font-weight', '500')
-    .attr('dx', 14)
-    .attr('dy', 4)
-    .style('pointer-events', 'none')
-    .style('font-family', 'system-ui, sans-serif')
-
-  simulation.on('tick', () => {
-    // 更新曲线路径
-    link.attr('d', d => getLinkPath(d))
-    
-    // 更新边标签位置（无旋转，水平显示更清晰）
-    linkLabels.each(function(d) {
-      const mid = getLinkMidpoint(d)
-      d3.select(this)
-        .attr('x', mid.x)
-        .attr('y', mid.y)
-        .attr('transform', '') // 移除旋转，保持水平
-    })
-    
-    // 更新边标签背景
-    linkLabelBg.each(function(d, i) {
-      const mid = getLinkMidpoint(d)
-      const textEl = linkLabels.nodes()[i]
-      const bbox = textEl.getBBox()
-      d3.select(this)
-        .attr('x', mid.x - bbox.width / 2 - 4)
-        .attr('y', mid.y - bbox.height / 2 - 2)
-        .attr('width', bbox.width + 8)
-        .attr('height', bbox.height + 4)
-        .attr('transform', '') // 移除旋转
-    })
-
-    node
-      .attr('cx', d => d.x)
-      .attr('cy', d => d.y)
-
-    nodeLabels
-      .attr('x', d => d.x)
-      .attr('y', d => d.y)
-  })
-  
-  // 点击空白处关闭详情面板
-  svg.on('click', () => {
-    selectedItem.value = null
-    node.attr('stroke', '#fff').attr('stroke-width', 2.5)
-    linkGroup.selectAll('path').attr('stroke', '#C0C0C0').attr('stroke-width', 1.5)
-    linkLabelBg.attr('fill', 'rgba(255,255,255,0.95)')
-    linkLabels.attr('fill', '#666')
+// desde la búsqueda, la lista accesible o una conexión del panel: abre, centra y lleva el foco al detalle
+const pickNode = (id) => {
+  if (!openNode(id)) return
+  query.value = ''
+  searchOpen.value = false
+  activeIdx.value = -1
+  nextTick(() => {
+    updateInsets()
+    renderer?.centerOn(id)
+    detailEl.value?.focus({ preventScroll: true })
   })
 }
+const pickEdge = (id) => {
+  if (!openEdge(id)) return
+  nextTick(() => detailEl.value?.focus({ preventScroll: true }))
+}
 
-watch(() => props.graphData, () => {
-  nextTick(renderGraph)
-}, { deep: true })
+const onRendererSelect = (sel) => {
+  if (!sel) return closeDetailPanel()
+  if (sel.kind === 'node') {
+    if (openNode(sel.id)) nextTick(() => { updateInsets(); renderer?.ensureVisible(sel.id, { minK: narrow.value ? 1 : 0 }) })
+  } else openEdge(sel.id)
+}
 
-// 监听边标签显示开关
-watch(showEdgeLabels, (newVal) => {
-  if (linkLabelsRef) {
-    linkLabelsRef.style('display', newVal ? 'block' : 'none')
-  }
-  if (linkLabelBgRef) {
-    linkLabelBgRef.style('display', newVal ? 'block' : 'none')
-  }
+const nodeCreated = computed(() => selectedItem.value?.data?.created_at || selectedItem.value?.data?.attributes?.created_at || null)
+const edgeValidAt = computed(() => selectedItem.value?.data?.valid_at || selectedItem.value?.data?.attributes?.valid_at || null)
+const episodesOf = (d) => {
+  if (!d) return []
+  if (Array.isArray(d.episodes) && d.episodes.length) return d.episodes
+  return Array.isArray(d.attributes?.episodes) ? d.attributes.episodes : []
+}
+
+// Propiedades sin ruido: fuera los vectores de embedding (768 números) y lo que ya se muestra arriba
+const HIDDEN_ATTR = /(^|_)embedding$|^(labels|created_at|name|uuid|summary)$/
+const fmtValue = (v) => {
+  if (v == null || v === '') return t('graph.noValue')
+  if (Array.isArray(v)) return v.length ? v.join(', ') : t('graph.noValue')
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+const nodeProps = computed(() => {
+  const attrs = selectedItem.value?.type === 'node' ? selectedItem.value.data?.attributes : null
+  if (!attrs) return []
+  return Object.entries(attrs)
+    .filter(([k]) => !HIDDEN_ATTR.test(k))
+    .map(([k, v]) => ({ key: k, label: k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()), value: fmtValue(v) }))
 })
 
-const handleResize = () => {
-  nextTick(renderGraph)
+const nodeConnections = computed(() => {
+  const n = selectedNode.value
+  const m = model.value
+  if (!n || !m) return []
+  return n.links.slice(0, 40).map(e => {
+    if (e.self) return { key: e.id, self: true, edgeId: e.id, rel: t('ui.selfRelations'), name: `(${e.count})` }
+    const out = e.sid === n.id
+    const other = m.nodeById.get(out ? e.tid : e.sid)
+    return { key: e.id, self: false, out, otherId: other?.id, rel: humanizeRelation(e.name), name: other?.name || '—' }
+  })
+})
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return ''
+  // Graphiti devuelve nanosegundos («…03.058450000+00:00»): se recortan a milisegundos para que Date lo entienda
+  const date = new Date(String(dateStr).replace(/(\.\d{3})\d+/, '$1'))
+  if (Number.isNaN(date.getTime())) return String(dateStr)
+  try {
+    return date.toLocaleString(locale.value || undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  } catch {
+    return date.toISOString()
+  }
 }
 
+// ── Vista ─────────────────────────────────────────────────────────────────
+const fitView = () => renderer?.fit(true)
+const zoomIn = () => renderer?.zoomBy(1.4)
+const zoomOut = () => renderer?.zoomBy(1 / 1.4)
+
+const onCanvasKey = (e) => {
+  if (!renderer) return
+  const step = e.shiftKey ? 180 : 60
+  const keys = {
+    ArrowLeft: () => renderer.panBy(step, 0), ArrowRight: () => renderer.panBy(-step, 0),
+    ArrowUp: () => renderer.panBy(0, step), ArrowDown: () => renderer.panBy(0, -step),
+    '+': () => renderer.zoomBy(1.3), '=': () => renderer.zoomBy(1.3), '-': () => renderer.zoomBy(1 / 1.3), _: () => renderer.zoomBy(1 / 1.3),
+    0: () => renderer.fit(true), Escape: () => { if (selectedItem.value) closeDetailPanel(); else { pinnedType.value = null; query.value = '' } },
+  }
+  const fn = keys[e.key]
+  if (fn) { e.preventDefault(); fn() }
+}
+
+// Lo que tapan los controles del escenario: el encuadre y el centrado los esquivan
+const updateInsets = () => {
+  if (!renderer || !stageEl.value) return
+  const top = topEl.value ? topEl.value.offsetTop + topEl.value.offsetHeight + 8 : 0
+  // la leyenda abierta y ancha ocupa la franja de abajo: el grafo se encuadra por encima
+  const bottomH = bottomEl.value ? bottomEl.value.offsetHeight : 0
+  const legendW = bottomEl.value?.querySelector('.graph-legend')?.offsetWidth || 0
+  const wide = legendW > (stageEl.value.clientWidth || 1) * 0.4
+  let right = 0, bottom = (wide && legendOpen.value ? bottomH : Math.min(bottomH, 48)) + 12
+  if (selectedItem.value && detailEl.value) {
+    if (narrow.value) bottom = Math.max(bottom, detailEl.value.offsetHeight + 16)
+    else right = detailEl.value.offsetWidth + 24
+  }
+  renderer.setInsets({ top, right, bottom, left: 0 })
+}
+
+// ── Datos ─────────────────────────────────────────────────────────────────
+const rebuild = () => {
+  const gd = props.graphData
+  const m = gd ? buildGraphModel(gd, styleMemory) : null
+  model.value = m
+  if (!m || !m.nodes.length) {
+    renderer?.setModel(null)
+    closeDetailPanel()
+    return
+  }
+  // la selección sobrevive al refresco si la entidad sigue ahí (con sus datos al día)
+  const sel = selectedItem.value
+  if (sel) {
+    const ok = sel.type === 'node' ? m.nodeById.has(sel.id) : m.edgeById.has(sel.id)
+    if (!ok) closeDetailPanel()
+    else if (sel.type === 'node') { const n = m.nodeById.get(sel.id); selectedItem.value = { ...sel, data: n.raw, entityType: n.type } }
+    else selectedItem.value = { ...sel, data: m.edgeById.get(sel.id).raw }
+  }
+  if (pinnedType.value && !m.types.some(ty => ty.key === pinnedType.value)) pinnedType.value = null
+  nextTick(() => {
+    if (!renderer) return
+    measure()
+    updateInsets()
+    renderer.setModel(m)
+    renderer.setHighlight(highlightSet.value)
+  })
+}
+
+watch(() => [props.graphData, props.graphData?.nodes?.length, props.graphData?.edges?.length], rebuild)
+
+const highlightSet = computed(() => {
+  const m = model.value
+  if (!m) return null
+  const key = previewType.value || pinnedType.value
+  if (key) return new Set(m.nodes.filter(n => n.legend === key).map(n => n.id))
+  if (query.value.trim()) return matchedIds.value
+  return null
+})
+watch(highlightSet, (s) => renderer?.setHighlight(s))
+watch(() => (searchOpen.value && activeIdx.value >= 0 ? results.value[activeIdx.value]?.id : null), (id) => renderer?.setPreview(id))
+watch(showEdgeLabels, (v) => renderer?.setShowEdgeLabels(v))
+watch(isLive, (v) => renderer?.setLive(v))
+watch(selectedItem, () => nextTick(updateInsets))
+watch(locale, () => renderer?.setStrings({ selfLoop: (n) => `${t('ui.selfRelations')} (${n})` }))
+watch(narrow, (v) => { legendOpen.value = !v; nextTick(updateInsets) })
+watch(legendOpen, () => nextTick(updateInsets))
+
+// ── Ciclo de vida ─────────────────────────────────────────────────────────
+let ro = null, io = null, mq = null
+const measure = () => {
+  const el = stageEl.value
+  if (!el || !renderer) return
+  renderer.resize(el.clientWidth, el.clientHeight)
+}
+const onVisibility = () => renderer?.setHidden(document.hidden)
+const onMotion = () => renderer?.setReducedMotion(!!mq?.matches)
+
 onMounted(() => {
-  window.addEventListener('resize', handleResize)
+  renderer = new GraphRenderer(canvasEl.value, { onSelect: onRendererSelect })
+  if (import.meta.env.DEV) canvasEl.value.__graph = renderer
+  mq = window.matchMedia?.('(prefers-reduced-motion: reduce)') || null
+  renderer.setReducedMotion(!!mq?.matches)
+  mq?.addEventListener?.('change', onMotion)
+  renderer.setStrings({ selfLoop: (n) => `${t('ui.selfRelations')} (${n})` })
+  renderer.setShowEdgeLabels(showEdgeLabels.value)
+  narrow.value = (panelEl.value?.clientWidth || 9999) < 560
+  legendOpen.value = !narrow.value
+
+  ro = new ResizeObserver(() => {
+    narrow.value = (panelEl.value?.clientWidth || 9999) < 560
+    updateInsets()
+    measure()
+  })
+  ro.observe(stageEl.value)
+  ro.observe(panelEl.value)
+  // fuera de pantalla (o con el panel plegado a 0 en «Mesa de trabajo»): el bucle se para
+  io = new IntersectionObserver(([entry]) => renderer?.setVisible(entry.isIntersecting && entry.intersectionRect.width > 0))
+  io.observe(stageEl.value)
+  document.addEventListener('visibilitychange', onVisibility)
+  measure()
+  if (props.graphData) rebuild()
+  renderer.setLive(isLive.value)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  if (currentSimulation) {
-    currentSimulation.stop()
-  }
+  ro?.disconnect()
+  io?.disconnect()
+  document.removeEventListener('visibilitychange', onVisibility)
+  mq?.removeEventListener?.('change', onMotion)
+  renderer?.destroy()
+  renderer = null
 })
+
+defineExpose({ fit: fitView })
 </script>
 
 <style scoped>
+/* Panel: cabecera clara + escenario oscuro. Solo tokens de marca (koolbrand.css). */
 .graph-panel {
   position: relative;
   width: 100%;
   height: 100%;
-  background-color: var(--kb-surface-2);
-  background-image: radial-gradient(#D0D0D0 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  background: var(--ink-950);
+  font-family: var(--kb-font-sans);
+  container-type: inline-size;
 }
 
-.panel-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: 16px 20px;
-  z-index: 10;
+/* ── Cabecera ── */
+.gp-head {
+  flex: none;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0));
-  pointer-events: none;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 16px 10px 20px;
+  background: var(--kb-surface);
+  border-bottom: 1px solid var(--ink-950);
 }
-
+.gp-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--kb-text-2);
-  pointer-events: auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--kb-text);
 }
-
-.header-tools {
-  pointer-events: auto;
-  display: flex;
-  gap: 10px;
+.gp-status {
+  /* flujo de texto: en paneles estrechos el estado empieza junto al chip y parte en dos líneas, no en tres */
+  display: block;
+  min-height: 20px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--kb-muted);
+}
+.gp-stats { font-family: var(--kb-font-mono); font-size: 12px; letter-spacing: 0.02em; color: var(--kb-muted); }
+.gp-status-text { color: var(--kb-text-2); }
+.live-chip {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  vertical-align: 1px;
+  padding: 1px 8px 1px 7px;
+  border-radius: 999px;
+  background: var(--ink-950);
+  color: var(--lime-500);
+  font: 600 12px/18px var(--kb-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-
-.tool-btn {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--kb-line);
-  background: #FFF;
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime-500);
+  animation: live-ping 1.6s ease-out infinite;
+}
+@keyframes live-ping {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--lime-500) 70%, transparent); }
+  75%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--lime-500) 0%, transparent); }
+}
+.finished-hint { display: inline-flex; align-items: flex-start; gap: 6px; flex: 1 1 0; min-width: 0; }
+.gp-status:has(.finished-hint) { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
+.hint-icon { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--kb-accent-text); }
+.hint-close-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--kb-control-line);
   border-radius: 6px;
-  display: flex;
+  background: var(--kb-surface);
+  color: var(--kb-text-2);
+  cursor: pointer;
+}
+.hint-close-btn:hover { background: var(--kb-soft); }
+
+.header-tools { flex: none; display: flex; gap: 8px; align-items: center; }
+.tool-btn {
+  height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  border: 1px solid var(--kb-control-line);
+  border-radius: 8px;
+  background: var(--kb-surface);
+  color: var(--kb-text-2);
+  font: 500 13px var(--kb-font-sans);
   cursor: pointer;
-  color: var(--kb-muted);
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-
-.tool-btn:hover {
-  background: var(--kb-soft);
-  color: var(--kb-text);
-  border-color: var(--kb-line-strong);
-}
-
-.tool-btn .btn-text {
-  font-size: 12px;
-}
-
-.icon-refresh.spinning {
-  animation: spin 1s linear infinite;
-}
-
+.tool-btn.icon-only { width: 34px; padding: 0; }
+.tool-btn:hover:not(:disabled) { background: var(--kb-accent-solid); border-color: var(--ink-950); color: var(--kb-accent-on); }
+.tool-btn:disabled { cursor: default; color: var(--kb-muted); }
+.icon-refresh.spinning { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-.graph-container {
-  width: 100%;
-  height: 100%;
-}
-
-.graph-view, .graph-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.graph-state {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  color: var(--kb-subtle);
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.2;
-}
-
-/* Entity Types Legend - Bottom Left */
-.graph-legend {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  background: rgba(255,255,255,0.95);
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--kb-line);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-  z-index: 10;
-}
-
-.legend-title {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: #E91E63;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.legend-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  max-width: 320px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--kb-text-2);
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-label {
-  white-space: nowrap;
-}
-
-/* Edge Labels Toggle - Top Right */
-.edge-labels-toggle {
-  position: absolute;
-  top: 60px;
-  right: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #FFF;
-  padding: 8px 14px;
-  border-radius: 20px;
-  border: 1px solid var(--kb-line);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  z-index: 10;
-}
-
-.toggle-switch {
+/* ── Escenario ── */
+.gp-stage {
   position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 22px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  /* el brillo del escenario (en CSS: en el canvas costaría ~10 ms por fotograma sin aceleración gráfica) */
+  background:
+    radial-gradient(ellipse 42% 38% at 50% 46%, color-mix(in srgb, var(--lime-500) 5%, transparent), transparent),
+    radial-gradient(ellipse 72% 64% at 50% 46%, color-mix(in srgb, var(--ink-800) 85%, transparent), color-mix(in srgb, var(--ink-800) 20%, transparent) 60%, transparent),
+    var(--ink-950);
+}
+.gp-stage.is-live {
+  background:
+    radial-gradient(ellipse 42% 38% at 50% 46%, color-mix(in srgb, var(--lime-500) 8%, transparent), transparent),
+    radial-gradient(ellipse 72% 64% at 50% 46%, color-mix(in srgb, var(--ink-800) 85%, transparent), color-mix(in srgb, var(--ink-800) 20%, transparent) 60%, transparent),
+    var(--ink-950);
+}
+.gp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; outline: none; }
+.gp-canvas:active { cursor: grabbing; }
+.gp-canvas:focus-visible { outline: 2px solid var(--lime-500); outline-offset: -3px; }
+
+/* Controles sobre el escenario: anillo de foco doble (tinta + lima) que se ve sobre claro y sobre oscuro */
+.gp-top :focus-visible,
+.gp-zoom :focus-visible,
+.legend-title:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 0;
+  box-shadow: 0 0 0 4px var(--lime-500);
 }
 
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
+.gp-top {
   position: absolute;
-  cursor: pointer;
-  top: 0;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+.gp-top > * { pointer-events: auto; }
+
+.gp-search { position: relative; flex: 0 1 300px; min-width: 0; }
+.gp-search-icon { position: absolute; left: 11px; top: 10px; color: var(--kb-muted); pointer-events: none; }
+.gp-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--ink-950);
+  border-radius: 8px;
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  font: 500 13px var(--kb-font-sans);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.gp-search-input::placeholder { color: var(--gray-600); }
+.gp-search-input::-webkit-search-cancel-button { cursor: pointer; }
+.gp-results {
+  position: absolute;
+  top: calc(100% + 6px);
   left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--kb-line);
-  border-radius: 22px;
-  transition: 0.3s;
+  width: max(100%, 280px);
+  max-width: calc(100cqw - 24px);
+  padding: 6px;
+  background: var(--kb-surface);
+  border: 1px solid var(--ink-950);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 var(--lime-500);
 }
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  border-radius: 50%;
-  transition: 0.3s;
+.gp-results-head,
+.gp-results-empty {
+  margin: 0;
+  padding: 6px 8px 4px;
+  font: 500 12px var(--kb-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-600);
 }
-
-input:checked + .slider {
-  background-color: var(--kb-accent-solid);
+.gp-results-empty { text-transform: none; letter-spacing: 0; font-family: var(--kb-font-sans); padding: 8px; }
+.gp-results ul { list-style: none; margin: 0; padding: 0; }
+.gp-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
 }
+.gp-option.active { background: var(--lime-50); box-shadow: inset 0 0 0 1px var(--lime-800); }
+.opt-name { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 500; color: var(--kb-text); line-height: 1.3; }
+.opt-type { flex: none; max-width: 40%; font: 500 12px var(--kb-font-mono); color: var(--gray-600); overflow-wrap: anywhere; text-align: right; }
 
-input:checked + .slider:before {
-  transform: translateX(18px);
-}
-
-.toggle-label {
+.edge-labels-toggle {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px 0 8px;
+  border-radius: 999px;
+  background: var(--kb-surface);
+  color: var(--kb-text-2);
   font-size: 12px;
-  color: var(--kb-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
+.toggle-input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.edge-labels-toggle:has(.toggle-input:focus-visible) { outline: 2px solid var(--ink-950); box-shadow: 0 0 0 4px var(--lime-500); }
+.slider {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--gray-200);
+  border: 1px solid var(--kb-control-line);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-950);
+  transition: transform 0.2s ease;
+}
+.toggle-input:checked + .slider { background: var(--lime-500); border-color: var(--ink-950); }
+.toggle-input:checked + .slider::before { transform: translateX(14px); }
 
-/* Detail Panel - Right Side */
+/* ── Detalle ── */
 .detail-panel {
   position: absolute;
   top: 60px;
-  right: 20px;
-  width: 320px;
-  max-height: calc(100% - 100px);
-  background: #FFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  right: 12px;
+  z-index: 8;
+  width: 344px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 72px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  font-family: var(--kb-font-sans);
-  font-size: 13px;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 16px;
-  background: var(--kb-surface-2);
-  border-bottom: 1px solid var(--kb-line);
-  flex-shrink: 0;
-}
-
-.detail-title {
-  font-weight: 600;
-  color: var(--kb-text-2);
-  font-size: 14px;
-}
-
-.detail-type-badge {
-  padding: 4px 10px;
+  background: var(--kb-surface);
+  border: 1px solid var(--ink-950);
   border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
-  margin-left: auto;
-  margin-right: 12px;
+  box-shadow: 5px 5px 0 var(--lime-500);
+  color: var(--kb-text-2);
+  font-size: 13px;
+  outline: none;
 }
-
+.detail-panel:focus-visible { box-shadow: 5px 5px 0 var(--lime-500), 0 0 0 3px var(--lime-800); }
+.detail-panel-header {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 12px 16px;
+  border-bottom: 1px solid var(--ink-950);
+  background: var(--cream-100);
+}
+.detail-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.detail-eyebrow { font: 500 12px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-600); }
+.detail-title { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; color: var(--kb-text); overflow-wrap: anywhere; }
 .detail-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--kb-subtle);
-  line-height: 1;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  transition: color 0.2s;
-}
-
-.detail-close:hover {
-  color: var(--kb-text-2);
-}
-
-.detail-content {
-  padding: 16px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.detail-row {
-  margin-bottom: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.detail-label {
-  color: var(--kb-subtle);
-  font-size: 12px;
-  font-weight: 500;
-  min-width: 80px;
-}
-
-.detail-value {
-  color: var(--kb-text-2);
-  flex: 1;
-  word-break: break-word;
-}
-
-.detail-value.uuid-text {
-  font-family: var(--kb-font-mono);
-  font-size: 11px;
-  color: var(--kb-muted);
-}
-
-.detail-value.fact-text {
-  line-height: 1.5;
-  color: var(--kb-text-2);
-}
-
-.detail-section {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--kb-soft);
-}
-
-.section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--kb-muted);
-  margin-bottom: 10px;
-}
-
-.properties-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.property-item {
-  display: flex;
-  gap: 8px;
-}
-
-.property-key {
-  color: var(--kb-subtle);
-  font-weight: 500;
-  min-width: 90px;
-}
-
-.property-value {
-  color: var(--kb-text-2);
-  flex: 1;
-}
-
-.summary-text {
-  line-height: 1.6;
-  color: var(--kb-text-2);
-  font-size: 12px;
-}
-
-.labels-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.label-tag {
-  display: inline-block;
-  padding: 4px 12px;
-  background: var(--kb-soft);
-  border: 1px solid var(--kb-line);
-  border-radius: 16px;
-  font-size: 11px;
-  color: var(--kb-text-2);
-}
-
-.episodes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.episode-tag {
-  display: inline-block;
-  padding: 6px 10px;
-  background: #F8F8F8;
-  border: 1px solid #E8E8E8;
-  border-radius: 6px;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  color: var(--kb-muted);
-  word-break: break-all;
-}
-
-/* Edge relation header */
-.edge-relation-header {
-  background: #F8F8F8;
-  padding: 12px;
+  border: 1px solid var(--kb-control-line);
   border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--kb-text-2);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-/* Building hint */
-.graph-building-hint {
-  position: absolute;
-  bottom: 160px; /* Moved up from 80px */
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  color: #fff;
-  padding: 10px 20px;
-  border-radius: 30px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  z-index: 100;
-}
-
-.memory-icon-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: breathe 2s ease-in-out infinite;
-}
-
-.memory-icon {
-  width: 18px;
-  height: 18px;
-  color: #4CAF50;
-}
-
-@keyframes breathe {
-  0%, 100% { opacity: 0.7; transform: scale(1); filter: drop-shadow(0 0 2px rgba(76, 175, 80, 0.3)); }
-  50% { opacity: 1; transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.6)); }
-}
-
-/* 模拟结束后的提示样式 */
-.graph-building-hint.finished-hint {
-  background: rgba(0, 0, 0, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.finished-hint .hint-icon-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.finished-hint .hint-icon {
-  width: 18px;
-  height: 18px;
-  color: #FFF;
-}
-
-.finished-hint .hint-text {
-  flex: 1;
-  white-space: nowrap;
-}
-
-.hint-close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
+  background: var(--kb-surface);
+  color: var(--kb-text);
   cursor: pointer;
-  color: #FFF;
-  transition: all 0.2s;
-  margin-left: 8px;
-  flex-shrink: 0;
 }
+.detail-close:hover { background: var(--kb-accent-solid); border-color: var(--ink-950); }
 
-.hint-close-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
-  transform: scale(1.1);
+.detail-content { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 16px; }
+.detail-type { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.detail-type-badge {
+  padding: 2px 8px;
+  border: 1px solid var(--ink-950);
+  border-radius: 4px;
+  background: var(--lime-50);
+  font: 500 12px/18px var(--kb-font-mono);
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
 }
+.detail-degree { font-size: 12px; color: var(--gray-600); }
 
-/* Loading spinner */
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--kb-line);
-  border-top-color: var(--kb-accent-text);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
+.detail-rows { margin: 0; display: grid; gap: 8px; }
+.detail-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: baseline; }
+.detail-label { font-size: 12px; font-weight: 500; color: var(--gray-600); }
+.detail-value { margin: 0; color: var(--kb-text-2); overflow-wrap: anywhere; line-height: 1.45; }
+.detail-value.mono { font: 500 12px var(--kb-font-mono); }
+.detail-value.uuid-text { font: 400 12px var(--kb-font-mono); color: var(--gray-600); }
+.detail-value.fact-text { line-height: 1.5; color: var(--kb-text); }
+
+.detail-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--kb-line); }
+.section-title { margin: 0 0 8px; font: 500 12px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-600); }
+.summary-text { margin: 0; font-size: 13px; line-height: 1.55; color: var(--kb-text-2); }
+
+.conn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.conn-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
+.conn-item:hover { background: var(--cream-100); border-color: var(--kb-line); }
+.conn-item:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 0; }
+.conn-arrow { font-family: var(--kb-font-mono); color: var(--gray-600); }
+.conn-rel { font: 500 12px var(--kb-font-mono); color: var(--gray-600); overflow-wrap: anywhere; }
+.conn-name { font-weight: 600; color: var(--kb-text); overflow-wrap: anywhere; }
 
-/* Self-loop styles */
-.self-loop-header {
+.properties-list { margin: 0; display: grid; gap: 6px; }
+.property-item { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
+.property-key { font-size: 12px; font-weight: 500; color: var(--gray-600); overflow-wrap: anywhere; }
+.property-value { margin: 0; color: var(--kb-text-2); overflow-wrap: anywhere; }
+
+.labels-list, .episodes-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.label-tag, .episode-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--kb-line-strong);
+  border-radius: 4px;
+  background: var(--cream-100);
+  font: 400 12px/18px var(--kb-font-mono);
+  color: var(--kb-text-2);
+  overflow-wrap: anywhere;
+}
+.episodes-list { flex-direction: column; align-items: flex-start; }
+.episodes-list.compact { flex-direction: row; }
+
+.edge-relation-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ink-950);
+  border-radius: 8px;
+  background: var(--cream-100);
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--kb-text);
+}
+.edge-end {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--kb-text);
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.edge-end:hover { text-decoration-color: var(--ink-950); }
+.edge-mid { font: 500 12px var(--kb-font-mono); color: var(--gray-600); }
+
+.self-loop-header { justify-content: space-between; }
+.self-loop-count { font: 500 12px var(--kb-font-mono); color: var(--gray-600); }
+.self-loop-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.self-loop-item { border: 1px solid var(--kb-line-strong); border-radius: 8px; overflow: hidden; }
+.self-loop-item-header {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #E8F5E9;
-  border: 1px solid #C8E6C9;
+  padding: 9px 10px;
+  border: 0;
+  background: var(--cream-50);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.self-loop-item-header:hover, .self-loop-item.expanded .self-loop-item-header { background: var(--cream-100); }
+.self-loop-index { font: 500 12px var(--kb-font-mono); color: var(--gray-600); }
+.self-loop-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--kb-text); }
+.self-loop-toggle { width: 20px; text-align: center; font: 600 14px var(--kb-font-mono); color: var(--kb-text-2); }
+.self-loop-item-content { padding: 10px; border-top: 1px solid var(--kb-line); }
+.self-loop-episodes { margin-top: 8px; display: grid; gap: 6px; }
 
-.self-loop-count {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--kb-muted);
-  background: rgba(255,255,255,0.8);
-  padding: 2px 8px;
+/* ── Leyenda y zoom ── */
+.gp-bottom {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+.gp-bottom > * { pointer-events: auto; }
+.graph-legend {
+  min-width: 0;
+  max-width: min(400px, calc(100% - 52px));
+  padding: 8px 10px;
+  background: var(--cream-100);
+  border: 1px solid var(--ink-950);
   border-radius: 10px;
 }
-
-.self-loop-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.self-loop-item {
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-}
-
-.self-loop-item-header {
+.legend-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  background: var(--kb-soft);
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.self-loop-item-header:hover {
-  background: var(--kb-line);
-}
-
-.self-loop-item.expanded .self-loop-item-header {
-  background: #E8E8E8;
-}
-
-.self-loop-index {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--kb-subtle);
-  background: var(--kb-line);
-  padding: 2px 6px;
+  min-height: 24px;   /* objetivo táctil mínimo (WCAG 2.5.8) */
+  padding: 2px 2px;
+  border: 0;
   border-radius: 4px;
+  background: none;
+  font: 500 12px var(--kb-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kb-text);
+  cursor: pointer;
 }
-
-.self-loop-name {
-  font-size: 12px;
-  font-weight: 500;
+.legend-total { color: var(--gray-600); }
+.legend-chevron { transition: transform 0.2s ease; transform: rotate(180deg); }
+.graph-legend.open .legend-chevron { transform: none; }
+.legend-items { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: 500 12px var(--kb-font-sans);
   color: var(--kb-text-2);
-  flex: 1;
+  cursor: pointer;
+}
+.legend-item:hover { background: var(--kb-surface); border-color: var(--kb-control-line); }
+.legend-item[aria-pressed="true"] { background: var(--kb-surface); border-color: var(--ink-950); }
+.legend-item:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 0; }
+.legend-label { overflow-wrap: anywhere; text-align: left; }
+.legend-num { font: 500 12px var(--kb-font-mono); color: var(--gray-600); }
+
+.gp-zoom {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--kb-surface);
+}
+.gp-zoom button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+.gp-zoom button + button { border-top: 1px solid var(--kb-line); }
+.gp-zoom button:first-child { border-radius: 10px 10px 0 0; }
+.gp-zoom button:last-child { border-radius: 0 0 10px 10px; }
+.gp-zoom button:hover { background: var(--lime-500); }
+
+/* ── Lista accesible: oculta hasta que recibe el foco del teclado ── */
+.gp-sr-list:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.gp-sr-list:focus-within {
+  position: absolute;
+  top: 60px;
+  left: 12px;
+  z-index: 9;
+  width: min(320px, calc(100% - 24px));
+  max-height: calc(100% - 72px);
+  overflow: auto;
+  padding: 10px;
+  background: var(--kb-surface);
+  border: 1px solid var(--ink-950);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--lime-500);
+}
+.gp-sr-title { margin: 2px 4px 8px; font: 500 12px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-600); }
+.gp-sr-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.gp-sr-list button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: 500 13px var(--kb-font-sans);
+  color: var(--kb-text);
+  cursor: pointer;
+}
+.gp-sr-list button:hover { background: var(--cream-100); }
+.gp-sr-list button:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 0; }
+.gp-sr-more { margin: 8px 4px 2px; font-size: 12px; color: var(--gray-600); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.self-loop-toggle {
-  width: 20px;
-  height: 20px;
+/* ── Vacío y carga ── */
+.graph-state {
+  position: absolute;
+  inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--kb-subtle);
-  background: var(--kb-line);
-  border-radius: 4px;
-  transition: all 0.2s;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--lime-500) 7%, transparent) 0, transparent 40%),
+    radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--ink-800) 80%, transparent) 0, transparent 70%),
+    var(--ink-950);
+}
+.state-art { position: relative; width: 240px; height: 150px; display: grid; place-items: center; margin-bottom: 10px; }
+.state-art :deep(.bianka-avatar) { position: relative; z-index: 1; }
+.state-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--cream-100); }
+.state-hint { margin: 0; max-width: 340px; font-size: 13px; line-height: 1.5; color: var(--gray-300); } /* 9,2:1 sobre el centro del escenario (gray-500 daba 4,2) */
+.ghost { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ghost path { fill: none; stroke: color-mix(in srgb, var(--gray-600) 55%, transparent); stroke-width: 1.2; stroke-dasharray: 3 5; }
+.ghost circle { fill: color-mix(in srgb, var(--gray-600) 70%, transparent); }
+.ghost .ghost-hub { fill: var(--lime-800); animation: ghost-breathe 2.4s ease-in-out infinite; }
+@keyframes ghost-breathe { 50% { fill: var(--lime-600); } }
+.orbit { position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 1px dashed color-mix(in srgb, var(--gray-600) 70%, transparent); animation: spin 3.2s linear infinite; }
+.orbit-b { width: 104px; height: 104px; margin: -52px 0 0 -52px; animation-duration: 2.1s; animation-direction: reverse; }
+.orbit i { position: absolute; top: -4px; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--lime-500); box-shadow: 0 0 12px var(--lime-500); }
+.orbit-b i { width: 6px; height: 6px; margin-left: -3px; top: -3px; background: var(--cream-100); box-shadow: none; }
+
+/* ── Paneles estrechos (móvil, o el panel en «Dividido» en pantallas pequeñas) ── */
+@container (max-width: 560px) {
+  .gp-head { padding: 10px 12px; }
+  .btn-text { display: none; }
+  .tool-btn { width: 34px; padding: 0; }
+  .edge-labels-toggle { padding: 0 8px; }
+  .toggle-label {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .gp-search { flex: 1 1 auto; }
+  .detail-panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-width: none;
+    max-height: 64%;
+    box-shadow: 0 -4px 0 var(--lime-500);
+  }
+  .graph-legend { max-width: calc(100% - 52px); }
 }
 
-.self-loop-item.expanded .self-loop-toggle {
-  background: #D0D0D0;
-  color: var(--kb-muted);
-}
-
-.self-loop-item-content {
-  padding: 12px;
-  border-top: 1px solid var(--kb-line);
-}
-
-.self-loop-item-content .detail-row {
-  margin-bottom: 8px;
-}
-
-.self-loop-item-content .detail-label {
-  font-size: 11px;
-  min-width: 60px;
-}
-
-.self-loop-item-content .detail-value {
-  font-size: 12px;
-}
-
-.self-loop-episodes {
-  margin-top: 8px;
-}
-
-.episodes-list.compact {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.episode-tag.small {
-  padding: 3px 6px;
-  font-size: 9px;
+@media (prefers-reduced-motion: reduce) {
+  .live-dot, .icon-refresh.spinning, .orbit, .ghost .ghost-hub { animation: none; }
+  .slider, .slider::before, .legend-chevron, .tool-btn { transition: none; }
 }
 </style>
