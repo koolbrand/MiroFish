@@ -831,6 +831,8 @@ def delete_simulation(simulation_id: str):
             state = SimulationRunner.get_run_state(simulation_id)
             if state and state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
                 SimulationRunner.stop_simulation(simulation_id)
+            # Una simulación ya COMPLETADA sigue teniendo su proceso vivo esperando entrevistas: también se mata
+            SimulationRunner.terminate_if_alive(simulation_id, finished=True)
         except Exception as stop_err:
             logger.warning(f"Fallo al detener la simulación (se continúa con el borrado): {simulation_id}: {stop_err}")
 
@@ -2006,24 +2008,14 @@ def get_run_status_detail(simulation_id: str):
             platform=platform_filter
         )
         
-        # 分平台获取动作
-        twitter_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform="twitter"
-        ) if not platform_filter or platform_filter == "twitter" else []
-        
-        reddit_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform="reddit"
-        ) if not platform_filter or platform_filter == "reddit" else []
+        # 分平台 / 当前轮次: se derivan de la misma lectura. Antes se releía TODO el actions.jsonl cuatro veces
+        # por consulta (la pantalla pregunta cada 3 s) y con miles de acciones cada lectura cuesta cientos de ms
+        twitter_actions = [a for a in all_actions if a.platform == "twitter"] if not platform_filter or platform_filter == "twitter" else []
+        reddit_actions = [a for a in all_actions if a.platform == "reddit"] if not platform_filter or platform_filter == "reddit" else []
         
         # 获取当前轮次的动作（recent_actions 只展示最新一轮）
         current_round = run_state.current_round
-        recent_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform=platform_filter,
-            round_num=current_round
-        ) if current_round > 0 else []
+        recent_actions = [a for a in all_actions if a.round_num == current_round] if current_round > 0 else []
         
         # 获取基础状态信息
         result = run_state.to_dict()

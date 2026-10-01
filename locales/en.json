@@ -1121,6 +1121,7 @@
     "fileReadFailed": "Failed to read file: {error}",
     "fileUnsupported": "Unsupported file format: {ext}",
     "simAlreadyRunning": "Simulation is already running: {simulationId}",
+    "simTooManyRunning": "There are already {limit} simulations running and the server does not have the memory for another one. Wait for one to finish.",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
     "simNotRunning": "Simulation is not running: {simulationId} (status={status})",

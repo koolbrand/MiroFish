@@ -56,6 +56,10 @@ class Config:
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
     # Tope de max_tokens al reintentar respuestas cortadas (modelos de razonamiento)
     LLM_MAX_TOKENS_CAP = int(os.environ.get('LLM_MAX_TOKENS_CAP', '32768'))
+    # Plazo por llamada al modelo y reintentos del SDK. Sin plazo propio valían 600 s × 3 intentos = 30 min por
+    # llamada, y un proveedor colgado dejaba un informe de 20 minutos esperando media hora en una sola sección.
+    LLM_TIMEOUT_SECONDS = float(os.environ.get('LLM_TIMEOUT_SECONDS', '240'))
+    LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '2'))
     # Construcción del grafo: tope por llamada al LLM/embeddings y por fragmento
     GRAPH_LLM_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_LLM_TIMEOUT_SECONDS', '180'))
     GRAPH_EPISODE_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_EPISODE_TIMEOUT_SECONDS', '900'))
@@ -173,6 +177,9 @@ class Config:
     # Rondas por simulación: el servidor nunca arranca más (la configuración automática puede
     # proponer hasta 336 y cada ronda cuesta memoria y dinero de LLM). Mínimo = el de la pantalla.
     SIMULATION_MIN_ROUNDS = 10
+    # Simulaciones con proceso vivo a la vez (cada una ocupa ~1 GB y el contenedor tiene 4); incluye las ya
+    # terminadas que esperan entrevistas: esas se cierran solas para dejar sitio
+    MAX_CONCURRENT_SIMULATIONS = int(os.environ.get('MAX_CONCURRENT_SIMULATIONS', '2'))
     SIMULATION_MAX_ROUNDS = int(os.environ.get('SIMULATION_MAX_ROUNDS', '100'))
     OASIS_SIMULATION_DATA_DIR = os.path.join(os.path.dirname(__file__), '../uploads/simulations')
     

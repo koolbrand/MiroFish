@@ -1121,6 +1121,7 @@
     "fileReadFailed": "No se pudo leer el archivo: {error}",
     "fileUnsupported": "Formato de archivo no soportado: {ext}",
     "simAlreadyRunning": "La simulación ya está en ejecución: {simulationId}",
+    "simTooManyRunning": "Ya hay {limit} simulaciones en marcha y el servidor no tiene memoria para otra. Espera a que termine alguna.",
     "simConfigMissing": "No se encontró la configuración de simulación. Llama primero al endpoint /prepare.",
     "simNotFound": "La simulación no existe: {simulationId}",
     "simNotRunning": "La simulación no está en ejecución: {simulationId} (estado={status})",

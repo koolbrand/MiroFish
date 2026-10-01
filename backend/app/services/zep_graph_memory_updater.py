@@ -284,15 +284,22 @@ class ZepGraphMemoryUpdater:
         self._worker_thread.start()
         logger.info(f"ZepGraphMemoryUpdater iniciado: graph_id={self.graph_id}")
     
-    def stop(self):
+    # Tope del vaciado final al parar. Antes enviaba TODO el atraso (cientos de actividades) en un solo
+    # episodio, sin plazo, mientras tenía cogido el candado global: parar una simulación bloqueaba las demás.
+    STOP_TIMEOUT = 60.0
+    FLUSH_CHUNK = 25
+
+    def stop(self, timeout: Optional[float] = None):
         """停止后台工作线程"""
         self._running = False
+        deadline = time.monotonic() + (self.STOP_TIMEOUT if timeout is None else timeout)
         
-        # 发送剩余的活动
-        self._flush_remaining()
-        
+        # El hilo de trabajo sale en cuanto ve `_running = False` (a lo sumo tras el lote que tiene en curso)
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=10)
+        
+        # 发送剩余的活动 (con plazo)
+        self._flush_remaining(deadline)
         
         logger.info(f"ZepGraphMemoryUpdater detenido: graph_id={self.graph_id}, "
                    f"total_activities={self._total_activities}, "
@@ -358,7 +365,7 @@ class ZepGraphMemoryUpdater:
     def _worker_loop(self, locale: str = 'zh'):
         """后台工作循环 - 按平台批量发送活动到Zep"""
         set_locale(locale)
-        while self._running or not self._activity_queue.empty():
+        while self._running:
             try:
                 # 尝试从队列获取活动（超时1秒）
                 try:
@@ -366,6 +373,7 @@ class ZepGraphMemoryUpdater:
                     
                     # 将活动添加到对应平台的缓冲区
                     platform = activity.platform.lower()
+                    batch = None
                     with self._buffer_lock:
                         if platform not in self._platform_buffers:
                             self._platform_buffers[platform] = []
@@ -375,10 +383,13 @@ class ZepGraphMemoryUpdater:
                         if len(self._platform_buffers[platform]) >= self.BATCH_SIZE:
                             batch = self._platform_buffers[platform][:self.BATCH_SIZE]
                             self._platform_buffers[platform] = self._platform_buffers[platform][self.BATCH_SIZE:]
-                            # 释放锁后再发送
-                            self._send_batch_activities(batch, platform)
-                            # 发送间隔，避免请求过快
-                            time.sleep(self.SEND_INTERVAL)
+                    
+                    # Fuera del candado: enviar a Neo4j/modelo tarda segundos y tener cogido `_buffer_lock` bloqueaba
+                    # `add_activity`, `get_stats` y el vaciado final
+                    if batch:
+                        self._send_batch_activities(batch, platform)
+                        # 发送间隔，避免请求过快
+                        time.sleep(self.SEND_INTERVAL)
                     
                 except Empty:
                     pass
@@ -426,8 +437,8 @@ class ZepGraphMemoryUpdater:
                     logger.error(f"Error al enviar el lote a Zep, se reintentó {self.MAX_RETRIES} veces: {e}")
                     self._failed_count += 1
     
-    def _flush_remaining(self):
-        """发送队列和缓冲区中剩余的活动"""
+    def _flush_remaining(self, deadline: Optional[float] = None):
+        """发送队列和缓冲区中剩余的活动 — en trozos de FLUSH_CHUNK, fuera del candado y hasta `deadline`."""
         # 首先处理队列中剩余的活动，添加到缓冲区
         while not self._activity_queue.empty():
             try:
@@ -442,14 +453,21 @@ class ZepGraphMemoryUpdater:
         
         # 然后发送各平台缓冲区中剩余的活动（即使不足BATCH_SIZE条）
         with self._buffer_lock:
-            for platform, buffer in self._platform_buffers.items():
-                if buffer:
-                    display_name = self._get_platform_display_name(platform)
-                    logger.info(f"Enviando las {len(buffer)} actividades restantes de la plataforma {display_name}")
-                    self._send_batch_activities(buffer, platform)
-            # 清空所有缓冲区
+            pending = {platform: list(buffer) for platform, buffer in self._platform_buffers.items() if buffer}
             for platform in self._platform_buffers:
                 self._platform_buffers[platform] = []
+
+        dropped = 0
+        for platform, buffer in pending.items():
+            display_name = self._get_platform_display_name(platform)
+            logger.info(f"Enviando las {len(buffer)} actividades restantes de la plataforma {display_name}")
+            for start in range(0, len(buffer), self.FLUSH_CHUNK):
+                if deadline is not None and time.monotonic() > deadline:
+                    dropped += len(buffer) - start
+                    break
+                self._send_batch_activities(buffer[start:start + self.FLUSH_CHUNK], platform)
+        if dropped:
+            logger.warning(f"Se agotó el plazo del vaciado final: {dropped} actividades no se enviaron al grafo")
     
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -493,16 +511,17 @@ class ZepGraphMemoryManager:
             ZepGraphMemoryUpdater实例
         """
         with cls._lock:
-            # 如果已存在，先停止旧的
-            if simulation_id in cls._updaters:
-                cls._updaters[simulation_id].stop()
-            
+            # 如果已存在，先停止旧的 (se saca del registro bajo el candado y se para fuera: parar puede tardar)
+            previous = cls._updaters.pop(simulation_id, None)
+
             updater = ZepGraphMemoryUpdater(graph_id)
             updater.start()
             cls._updaters[simulation_id] = updater
             
             logger.info(f"Actualizador de memoria del grafo creado: simulation_id={simulation_id}, graph_id={graph_id}")
-            return updater
+        if previous is not None:
+            previous.stop()
+        return updater
     
     @classmethod
     def get_updater(cls, simulation_id: str) -> Optional[ZepGraphMemoryUpdater]:
@@ -513,10 +532,10 @@ class ZepGraphMemoryManager:
     def stop_updater(cls, simulation_id: str):
         """停止并移除模拟的更新器"""
         with cls._lock:
-            if simulation_id in cls._updaters:
-                cls._updaters[simulation_id].stop()
-                del cls._updaters[simulation_id]
-                logger.info(f"Actualizador de memoria del grafo detenido: simulation_id={simulation_id}")
+            updater = cls._updaters.pop(simulation_id, None)
+        if updater is not None:
+            updater.stop()          # fuera del candado: el vaciado final puede tardar y bloqueaba a todas las demás
+            logger.info(f"Actualizador de memoria del grafo detenido: simulation_id={simulation_id}")
     
     # 防止 stop_all 重复调用的标志
     _stop_all_done = False
@@ -530,14 +549,14 @@ class ZepGraphMemoryManager:
         cls._stop_all_done = True
         
         with cls._lock:
-            if cls._updaters:
-                for simulation_id, updater in list(cls._updaters.items()):
-                    try:
-                        updater.stop()
-                    except Exception as e:
-                        logger.error(f"Error al detener el actualizador: simulation_id={simulation_id}, error={e}")
-                cls._updaters.clear()
-            logger.info("Todos los actualizadores de memoria del grafo han sido detenidos")
+            updaters = dict(cls._updaters)
+            cls._updaters.clear()
+        for simulation_id, updater in updaters.items():
+            try:
+                updater.stop(timeout=5.0)       # al apagar no hay tiempo para vaciar el atraso: el plazo es corto
+            except Exception as e:
+                logger.error(f"Error al detener el actualizador: simulation_id={simulation_id}, error={e}")
+        logger.info("Todos los actualizadores de memoria del grafo han sido detenidos")
     
     @classmethod
     def get_all_stats(cls) -> Dict[str, Dict[str, Any]]:

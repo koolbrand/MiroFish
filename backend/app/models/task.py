@@ -106,7 +106,23 @@ class TaskManager:
         with self._task_lock:
             self._tasks[task_id] = task
         
+        self._maybe_cleanup()
         return task_id
+
+    # Las tareas viven solo en memoria y `cleanup_old_tasks` no se llamaba desde ningún sitio: se acumulaban
+    # (con sus mensajes de error) hasta el siguiente reinicio
+    CLEANUP_EVERY_SECONDS = 1800
+
+    def _maybe_cleanup(self) -> None:
+        import time
+        now = time.monotonic()
+        if now - getattr(self, '_last_cleanup', 0.0) < self.CLEANUP_EVERY_SECONDS:
+            return
+        self._last_cleanup = now
+        try:
+            self.cleanup_old_tasks()
+        except Exception:  # noqa: BLE001 — limpiar nunca debe romper la creación de una tarea
+            pass
     
     def get_task(self, task_id: str) -> Optional[Task]:
         """获取任务"""
@@ -185,9 +201,12 @@ class TaskManager:
         cutoff = datetime.now() - timedelta(hours=max_age_hours)
         
         with self._task_lock:
+            # Una tarea «en curso» de hace más de 12 h es una tarea muerta (ninguna etapa dura tanto)
+            stale_cutoff = datetime.now() - timedelta(hours=12)
             old_ids = [
                 tid for tid, task in self._tasks.items()
-                if task.created_at < cutoff and task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]
+                if (task.created_at < cutoff and task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED])
+                or (task.created_at < stale_cutoff and task.status in [TaskStatus.PENDING, TaskStatus.PROCESSING])
             ]
             for tid in old_ids:
                 del self._tasks[tid]
