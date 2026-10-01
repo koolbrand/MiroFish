@@ -37,6 +37,8 @@ from test_pipeline import (  # noqa: F401 — fixtures reutilizados
 
 KEY = "sk-clave-secreta-de-prueba-123"
 TITLE = "Contexto de internet (investigación automática)"
+# Lo que entra en el material es el cuerpo del informe (graph_text): sin título, sin fuentes y sin referencias [n]
+BODY_MARK = "La patronal la rechaza."
 DOC = ProjectManager.RESEARCH_DOCUMENT_FILENAME
 
 PATRONAL = {"type": "web_search_result", "title": "Las patronales rechazan la jornada de 37,5 horas",
@@ -336,7 +338,7 @@ def test_without_the_field_nothing_changes(client, ontology, provider):
     assert provider.requests == []
     project = ProjectManager.get_project(data["project_id"])
     assert project.web_research is None
-    assert TITLE not in ontology.calls[0][0][-1]
+    assert BODY_MARK not in ontology.calls[0][0][-1]
 
 
 def test_done_adds_the_document_to_the_material(client, ontology, provider):
@@ -355,9 +357,9 @@ def test_done_adds_the_document_to_the_material(client, ontology, provider):
     assert "markdown" not in research_view and len(research_view["sources"]) == 3
     # Entra en la ontología (y en el texto extraído, que es lo que lee el grafo)
     [(texts, _req, _ctx)] = ontology.calls
-    assert len(texts) == 2 and texts[1].startswith(f"# {TITLE}")
+    assert len(texts) == 2 and texts[1].startswith("## ") and BODY_MARK in texts[1] and "Fuentes" not in texts[1]
     extracted = ProjectManager.get_extracted_text(project_id)
-    assert "Una app para familias." in extracted and TITLE in extracted
+    assert "Una app para familias." in extracted and BODY_MARK in extracted and "Fuentes" not in extracted
     assert data["total_text_length"] == len(extracted)
     # GET /project lo devuelve (sin el Markdown)
     project = client.get(f"/api/graph/project/{project_id}", headers=auth()).get_json()["data"]
@@ -375,7 +377,7 @@ def test_empty_is_saved_but_not_added(client, ontology, provider):
     assert "Tepor" in data["web_research"]["note"]
     [(texts, _req, _ctx)] = ontology.calls
     assert len(texts) == 1
-    assert TITLE not in ProjectManager.get_extracted_text(data["project_id"])
+    assert BODY_MARK not in ProjectManager.get_extracted_text(data["project_id"])
     assert ProjectManager.get_project(data["project_id"]).web_research["status"] == "empty"
     r = client.get(f"/api/graph/project/{data['project_id']}/research", headers=auth())
     assert r.status_code == 404
@@ -431,8 +433,8 @@ def test_auto_goes_through_research_before_ontology(client, backend, ontology, p
     assert final["web_research"] is True
     assert provider.stages == ["research", "research"]  # búsqueda y redacción, en la etapa research
     [(texts, _req, _ctx)] = ontology.calls
-    assert texts[-1].startswith(f"# {TITLE}")
-    assert TITLE in ProjectManager.get_extracted_text(project_id)
+    assert texts[-1].startswith("## ") and BODY_MARK in texts[-1]
+    assert BODY_MARK in ProjectManager.get_extracted_text(project_id)
     assert action_posts(backend)[0] == ("/api/graph/build", {"project_id": project_id})
     project = ProjectManager.get_project(project_id)
     assert project.web_research["status"] == "done"
@@ -472,7 +474,7 @@ def test_resume_does_not_repeat_research(client, backend, ontology, provider):
     assert wait_finished(client, project_id)["status"] == "completed"
     assert len(provider.requests) == 2  # no se volvió a investigar
     # La ontología lee el texto de disco, ya con la investigación
-    assert TITLE in ontology.calls[-1][0][0]
+    assert BODY_MARK in ontology.calls[-1][0][0]
 
 
 def test_resume_interrupted_in_research_runs_it(client, backend, ontology, provider):
@@ -486,9 +488,9 @@ def test_resume_interrupted_in_research_runs_it(client, backend, ontology, provi
     assert wait_finished(client, project_id)["status"] == "completed"
     assert len(provider.requests) == 2
     texts = ontology.calls[-1][0]
-    assert len(texts) == 1 and "Una app para familias." in texts[0] and TITLE in texts[0]
+    assert len(texts) == 1 and "Una app para familias." in texts[0] and BODY_MARK in texts[0]
     # Una sola vez en el material aunque se hubiera empezado antes
-    assert ProjectManager.get_extracted_text(project_id).count(f"# {TITLE}") == 1
+    assert ProjectManager.get_extracted_text(project_id).count(BODY_MARK) == 1
 
 
 def test_old_pipelines_report_web_research_false(client):
@@ -509,13 +511,13 @@ def test_repeated_research_replaces_the_previous_one(storage, provider):
     run_project_web_research(ProjectManager.get_project(project_id), None, "es")
     project = ProjectManager.get_project(project_id)
     assert [f["filename"] for f in project.files] == ["brief.md", DOC]
-    assert ProjectManager.get_extracted_text(project_id).count(f"# {TITLE}") == 1
+    assert ProjectManager.get_extracted_text(project_id).count(BODY_MARK) == 1
 
     provider.write = lambda: write_response(NOTHING)
     run_project_web_research(project, None, "es")
     project = ProjectManager.get_project(project_id)
     assert [f["filename"] for f in project.files] == ["brief.md"]
-    assert TITLE not in ProjectManager.get_extracted_text(project_id)
+    assert BODY_MARK not in ProjectManager.get_extracted_text(project_id)
     assert ProjectManager.get_research_document(project_id) is None
 
 
@@ -537,3 +539,24 @@ def test_drop_uncited_bullets_keeps_unconfirmed_section():
     assert "Cifra que nadie cita" not in out
     assert "## Datos sin respaldo" not in out          # se quedó sin contenido
     assert "No hay encuestas publicadas" in out        # la sección de lo no confirmado no lleva citas
+
+
+def test_graph_text_keeps_body_only():
+    from app.services.web_research import graph_text
+    md = (
+        "# Contexto de internet (investigación automática)\n\n"
+        "*Búsqueda del 2026-10-01*\n\n"
+        "> Información de internet sin verificar: revisa las fuentes.\n\n"
+        "## Implicados\n"
+        "- Aena y el Gobierno lo defienden [1, 2].\n\n"
+        "## Lo que no se puede confirmar\n"
+        "- No hay encuestas publicadas.\n\n"
+        "## Fuentes\n\n"
+        "1. El País — https://elpais.com/x\n"
+        "2. Instagram — https://instagram.com/y\n"
+    )
+    out = graph_text(md)
+    assert "Aena y el Gobierno lo defienden." in out      # el cuerpo, sin la referencia
+    assert "[1" not in out
+    for ausente in ("Contexto de internet", "Búsqueda del", "sin verificar", "encuestas", "elpais.com", "Instagram", "Fuentes"):
+        assert ausente not in out
