@@ -24,6 +24,10 @@ class ProjectStatus(str, Enum):
     FAILED = "failed"                # 失败
 
 
+# Marca «usa el dueño de la petición en curso» (distinta de None, que significa «sin dueño»)
+_CURRENT_OWNER: Any = object()
+
+
 @dataclass
 class Project:
     """项目数据模型"""
@@ -57,6 +61,9 @@ class Project:
     # Markdown: el documento vive en files/investigacion-internet.md.
     web_research: Optional[Dict[str, Any]] = None
 
+    # Usuario de PocketBase que lo creó (aislamiento por usuario). None = sin dueño: solo lo ve el admin.
+    owner_id: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -75,7 +82,8 @@ class Project:
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
             "error": self.error,
-            "web_research": self.web_research
+            "web_research": self.web_research,
+            "owner_id": self.owner_id
         }
     
     @classmethod
@@ -101,7 +109,8 @@ class Project:
             chunk_size=data.get('chunk_size', 500),
             chunk_overlap=data.get('chunk_overlap', 50),
             error=data.get('error'),
-            web_research=data.get('web_research')
+            web_research=data.get('web_research'),
+            owner_id=data.get('owner_id')
         )
 
 
@@ -138,16 +147,20 @@ class ProjectManager:
         return os.path.join(cls._get_project_dir(project_id), 'extracted_text.txt')
     
     @classmethod
-    def create_project(cls, name: str = "Unnamed Project") -> Project:
+    def create_project(cls, name: str = "Unnamed Project", owner_id: Optional[str] = _CURRENT_OWNER) -> Project:
         """
         创建新项目
         
         Args:
             name: 项目名称
+            owner_id: dueño (usuario de PocketBase). Por defecto, el de la petición en curso; None = sin dueño
             
         Returns:
             新创建的Project对象
         """
+        if owner_id is _CURRENT_OWNER:
+            from ..utils.access import current_owner_id
+            owner_id = current_owner_id()
         cls._ensure_projects_dir()
         
         project_id = f"proj_{uuid.uuid4().hex[:12]}"
@@ -158,7 +171,8 @@ class ProjectManager:
             name=name,
             status=ProjectStatus.CREATED,
             created_at=now,
-            updated_at=now
+            updated_at=now,
+            owner_id=owner_id
         )
         
         # 创建项目目录结构

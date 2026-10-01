@@ -17,6 +17,7 @@ from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
 from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
+from ..utils.access import can_see, current_identity, visible_task
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.security import validate_upload_content, sanitize_user_text
 from ..models.task import TaskManager, TaskStatus
@@ -158,7 +159,9 @@ def list_projects():
     列出所有项目
     """
     limit = request.args.get('limit', 50, type=int)
-    projects = ProjectManager.list_projects(limit=limit)
+    # Aislamiento por usuario: primero se filtra y después se corta (cortar antes dejaría fuera lo propio)
+    identity = current_identity()
+    projects = [p for p in ProjectManager.list_projects(limit=100000) if can_see(identity, p.owner_id)][:limit]
     
     return jsonify({
         "success": True,
@@ -955,7 +958,7 @@ def list_tasks():
     列出所有任务
     """
     # list_tasks() ya devuelve diccionarios (antes se llamaba a .to_dict() otra vez y la ruta daba 500)
-    tasks = TaskManager().list_tasks()
+    tasks = [t for t in TaskManager().list_tasks() if visible_task(t.get('metadata'))]
     
     return jsonify({
         "success": True,

@@ -19,6 +19,7 @@ from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..services.auto_pipeline import get_pipeline_summary
 from ..utils.logger import get_logger
+from ..utils.access import visible_project_id
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.llm_client import LLMClient
 from ..utils.security import validate_platform, validate_storage_id
@@ -959,7 +960,7 @@ def list_simulations():
         project_id = request.args.get('project_id')
         
         manager = SimulationManager()
-        simulations = manager.list_simulations(project_id=project_id)
+        simulations = [s for s in manager.list_simulations(project_id=project_id) if visible_project_id(s.project_id)]
         
         return jsonify({
             "success": True,
@@ -1085,7 +1086,8 @@ def get_simulation_history():
         limit = request.args.get('limit', 20, type=int)
         
         manager = SimulationManager()
-        simulations = manager.list_simulations()[:limit]
+        # Aislamiento por usuario: primero se filtra y después se corta
+        simulations = [s for s in manager.list_simulations() if visible_project_id(s.project_id)][:limit]
         
         # 增强模拟数据，只从 Simulation 文件读取
         enriched_simulations = []

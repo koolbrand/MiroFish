@@ -27,6 +27,9 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or (secrets.token_urlsafe(32) if DEBUG else None)
     API_AUTH_REQUIRED = os.environ.get('API_AUTH_REQUIRED', 'true').lower() == 'true'
     API_AUTH_TOKEN = os.environ.get('API_AUTH_TOKEN')
+    # Proyectos creados antes del aislamiento por usuario (sin dueño): se tratan como de este usuario de
+    # PocketBase. Vacío = solo el admin los ve.
+    LEGACY_OWNER_ID = os.environ.get('LEGACY_OWNER_ID') or None
     POCKETBASE_URL = os.environ.get('POCKETBASE_URL') or os.environ.get(
         'VITE_POCKETBASE_URL',
         'https://pocketbase.koolgrowth.com'

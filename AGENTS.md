@@ -189,6 +189,15 @@ docker run -d \
 | `backend/app/services/report_pdf.py`, `backend/app/assets/fonts/` | PDF del informe con la marca de Simuloo (WeasyPrint + Markdown): portada con cifras, pie con página y fuentes Inter Tight / JetBrains Mono embebidas. Se pide con `GET /api/report/<id>/download?format=pdf` (sin `format`, sigue el `.md`) |
 | `frontend/src/components/ReportDownloads.vue` | Botones PDF (lima, con estado ocupado) y `.md` del informe, en los pasos 4 y 5; muestra el error que devuelve el servidor |
 
+### Aislamiento por usuario (`utils/access.py`)
+
+- **Cada usuario ve solo sus proyectos.** `Project.owner_id` = id del usuario de PocketBase que lo creó. Simulaciones e informes no guardan dueño: lo heredan por la cadena informe → simulación → proyecto (`owner_of_*`, leyendo el JSON del disco sin crear carpetas).
+- **Un único control central** (`authorize_request`, en el `before_request` de `__init__.py`) mira todos los ids que nombra la petición —URL, query, JSON y formulario: `project_id`, `simulation_id`, `report_id`, `graph_id`, `task_id`— y responde 404 («No encontrado», nunca 403) si no son del usuario. Una ruta nueva con ids queda cubierta sola; solo hay que filtrar a mano **los listados** (`can_see`, `visible_project_id`, `visible_simulation_id`, `visible_task`) y **filtrar antes de cortar con `limit`**.
+- **Identidades**: usuario de PocketBase (ve lo suyo) · clave estática `API_AUTH_TOKEN` o desarrollo sin auth (admin, ve todo) · secreto interno del modo automático (ve todo) · ninguna (nada). `identify_bearer` saca el id del `record` de `auth-refresh` (o del claim `id` del JWT) y lo cachea 5 min.
+- **Sin dueño** (anteriores a este cambio o creados con la clave de emergencia): solo el admin, salvo `LEGACY_OWNER_ID` = id de un usuario de PocketBase, que los hereda. Tareas: llevan `owner_id` en `metadata`; una tarea sin dueño pasa por id (no se adivina) pero no sale en los listados.
+- **Pendiente (paso 2)**: organización + «compartir» y rol admin para usuarios. El esquema ya lo admite: añadir `org_id`/`visibility` al proyecto y ampliar `can_see`.
+- Tests: `tests/test_access.py` (dos usuarios cruzados; desactivando el control fallan 12 de 23).
+
 ### Al tocar el grafo (`graphRender.js`)
 
 - **Orden de capas**: aristas → nodos → capa viva (`_flow`, `_bloom`, `_sweepFx`, `_pulses`, `_flashFx`) → etiquetas → anillos de selección. Lo que se mueva siempre va en la capa viva (dos `drawImage` + trazos baratos); nada animado dentro de las capas en caché, que se repintan enteras.

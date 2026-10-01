@@ -2,10 +2,12 @@
 Security helpers for API authentication and safe error responses.
 """
 
+import base64
 import hmac
+import json
 import re
 import secrets
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional, Tuple
 
 import httpx
 from cachetools import TTLCache
@@ -41,7 +43,7 @@ def is_internal_request(headers: Mapping[str, str]) -> bool:
 # distinct tokens, eventually exhausting the container memory.
 # 10k slots × 300 s TTL absorbs realistic load while capping worst-case
 # footprint to a few MB. Evictions happen automatically on access.
-_PB_TOKEN_CACHE: "TTLCache[str, bool]" = TTLCache(maxsize=10000, ttl=300)
+_PB_TOKEN_CACHE: "TTLCache[str, str]" = TTLCache(maxsize=10000, ttl=300)   # token → id del usuario
 _STORAGE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -60,13 +62,25 @@ def _validate_static_token(token: str) -> bool:
     return bool(expected) and hmac.compare_digest(token.encode(), expected.encode())
 
 
-def _validate_pocketbase_token(token: str) -> bool:
+def _jwt_claim(token: str, claim: str) -> Optional[str]:
+    """Una reclamación del payload de un JWT, sin verificar la firma (PocketBase ya validó el token)."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        value = json.loads(base64.urlsafe_b64decode(payload)).get(claim)
+        return value if isinstance(value, str) and value else None
+    except (IndexError, ValueError):
+        return None
+
+
+def _pocketbase_user_id(token: str) -> Optional[str]:
+    """Id del usuario de PocketBase dueño del token, o None si no es un token válido."""
     if token in _PB_TOKEN_CACHE:
-        return True
+        return _PB_TOKEN_CACHE[token]
 
     pb_url = (Config.POCKETBASE_URL or "").rstrip("/")
     if not pb_url:
-        return False
+        return None
 
     try:
         with httpx.Client(timeout=8) as client:
@@ -74,24 +88,43 @@ def _validate_pocketbase_token(token: str) -> bool:
                 f"{pb_url}/api/collections/users/auth-refresh",
                 headers={"Authorization": f"Bearer {token}"},
             )
-        if response.status_code == 200:
-            _PB_TOKEN_CACHE[token] = True
-            return True
+        if response.status_code != 200:
+            return None
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        record = (body.get("record") or body.get("user") or {}) if isinstance(body, dict) else {}
+        user_id = record.get("id") if isinstance(record, dict) else None
+        user_id = user_id if isinstance(user_id, str) and user_id else _jwt_claim(token, "id")
+        if user_id:
+            _PB_TOKEN_CACHE[token] = user_id
+            return user_id
     except (httpx.HTTPError, httpx.InvalidURL):
-        return False
+        return None
 
-    return False
+    return None
+
+
+def identify_bearer(auth_header: str) -> Optional[Tuple[str, Optional[str]]]:
+    """
+    Quién es el dueño de un `Authorization: Bearer …`:
+    ("admin", None) si es la clave estática de emergencia, ("user", id) si es un usuario de PocketBase,
+    None si no es válido.
+    """
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.removeprefix("Bearer ").strip()
+    if not token:
+        return None
+    if _validate_static_token(token):
+        return "admin", None
+    user_id = _pocketbase_user_id(token)
+    return ("user", user_id) if user_id else None
 
 
 def validate_bearer_token(auth_header: str) -> bool:
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return False
-
-    token = auth_header.removeprefix("Bearer ").strip()
-    if not token:
-        return False
-
-    return _validate_static_token(token) or _validate_pocketbase_token(token)
+    return identify_bearer(auth_header) is not None
 
 
 def validate_storage_id(value: str, *allowed_prefixes: str) -> str:
