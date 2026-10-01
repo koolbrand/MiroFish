@@ -121,7 +121,7 @@
         <button
           v-else
           class="action-btn primary"
-          :disabled="phase !== 2 || isGeneratingReport"
+          :disabled="phase !== 2 || isGeneratingReport || !reportChecked"
           @click="handleNextStep"
         >
           <span v-if="isGeneratingReport" class="loading-spinner-small"></span>
@@ -434,6 +434,9 @@ const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
 
 // Modo lectura: con un informe ya hecho, este paso lleva a él en vez de regenerarlo, y no se reinicia
 const existingReport = ref(null)   // { report_id, status }
+// Hasta saber si ya hay informe no se ofrece generarlo: «Generar» manda force_regenerate y, con un informe
+// hecho, lo escribiría de nuevo (otra tanda de llamadas al modelo) si se pulsa justo al abrir la pantalla.
+const reportChecked = ref(false)
 const hasReport = computed(() => !!existingReport.value?.report_id && existingReport.value.status !== 'failed')
 const { isRunning: autoRunning, state: pipelineState, refresh: refreshPipeline } = usePipeline(() => props.projectData?.project_id)
 const loadExistingReport = async () => {
@@ -444,6 +447,8 @@ const loadExistingReport = async () => {
     existingReport.value = d?.has_report ? { report_id: d.report_id, status: d.report_status } : null
   } catch (e) {
     existingReport.value = null
+  } finally {
+    reportChecked.value = true
   }
 }
 const openReport = () => {
@@ -952,6 +957,12 @@ const handleNextStep = async () => {
   }
 
   isGeneratingReport.value = true
+  // Última comprobación justo antes de gastar: si mientras tanto apareció un informe (otra pestaña, el servidor), se abre ese
+  await loadExistingReport()
+  if (hasReport.value) {
+    isGeneratingReport.value = false
+    return openReport()
+  }
   addLog(t('log.startingReportGen'))
 
   const ok = await doGenerateReport({ force: false })

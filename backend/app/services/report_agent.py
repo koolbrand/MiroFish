@@ -2937,6 +2937,38 @@ class ReportManager:
         return None
     
     @classmethod
+    def fail_unfinished(cls, reason: str) -> int:
+        """
+        Al arrancar el servidor: un informe en pending / planning / generating no puede tener hilo
+        vivo (los hilos murieron con el proceso), y se quedaría «generándose» para siempre, con la
+        pantalla esperando y sin botón para volver a generarlo. Se marcan failed con el motivo.
+        Solo se toca `status` y `error` del meta.json; el resto (esquema, secciones ya escritas) se conserva.
+        Devuelve cuántos cambió.
+        """
+        cls._ensure_reports_dir()
+        changed = 0
+        for item in os.listdir(cls.REPORTS_DIR):
+            if not is_valid_storage_id(item, "report_") or not os.path.isdir(os.path.join(cls.REPORTS_DIR, item)):
+                continue
+            path = cls._get_report_path(item)
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if data.get('status') not in (ReportStatus.PENDING.value, ReportStatus.PLANNING.value,
+                                              ReportStatus.GENERATING.value):
+                    continue
+                data['status'] = ReportStatus.FAILED.value
+                data['error'] = reason
+                tmp = path + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, path)
+                changed += 1
+            except (OSError, ValueError) as exc:
+                logger.warning(f"[boot-recovery] No se pudo revisar el informe {item}: {exc}")
+        return changed
+
+    @classmethod
     def list_reports(cls, simulation_id: Optional[str] = None, limit: int = 50) -> List[Report]:
         """列出报告"""
         cls._ensure_reports_dir()
