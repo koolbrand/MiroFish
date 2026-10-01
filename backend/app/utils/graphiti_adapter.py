@@ -888,6 +888,16 @@ class GraphitiNodeClient:
                 attributes={k: v for k, v in props.items() if k not in ("uuid", "name", "summary", "group_id")}
             )
 
+    def in_graph(self, uuid_: str, group_id: str) -> bool:
+        """¿Ese nodo pertenece a ese grafo? `get` y `get_entity_edges` buscan por uuid en TODA la base: sin esta
+        comprobación, quien conoce un uuid ajeno (en una captura, un informe compartido) lo leía desde su propio grafo."""
+        with self._driver.session() as session:
+            record = session.run(
+                "MATCH (n:Entity {uuid: $uuid, group_id: $gid}) RETURN count(n) AS c",
+                uuid=uuid_, gid=group_id
+            ).single()
+            return bool(record and record["c"])
+
     def get_entity_edges(self, node_uuid: str) -> list:
         with self._driver.session() as session:
             result = session.run(

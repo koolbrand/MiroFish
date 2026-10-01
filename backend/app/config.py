@@ -19,13 +19,23 @@ else:
     load_dotenv(override=False)
 
 
+def env_flag_on_by_default(name: str) -> bool:
+    """
+    Interruptor que está ENCENDIDO salvo que se apague de forma explícita (`false`, `0`, `no`, `off`).
+    Con `== 'true'`, un valor como `1`, `yes`, `on` o ` true` dejaba la API abierta (todos admin) sin avisar.
+    """
+    return os.environ.get(name, 'true').strip().lower() not in ('false', '0', 'no', 'off')
+
+
 class Config:
     """Flask配置类"""
     
     # Flask配置
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     SECRET_KEY = os.environ.get('SECRET_KEY') or (secrets.token_urlsafe(32) if DEBUG else None)
-    API_AUTH_REQUIRED = os.environ.get('API_AUTH_REQUIRED', 'true').lower() == 'true'
+    # Estricto: con `== 'true'`, valores como `1`, `yes`, `on` o ` true` dejaban la API ABIERTA (todos admin) sin avisar.
+    # Solo se desactiva con un valor explícito de «apagado».
+    API_AUTH_REQUIRED = env_flag_on_by_default('API_AUTH_REQUIRED')
     API_AUTH_TOKEN = os.environ.get('API_AUTH_TOKEN')
     # Proyectos creados antes del aislamiento por usuario (sin dueño): se tratan como de este usuario de
     # PocketBase. Vacío = solo el admin los ve.
@@ -163,7 +173,21 @@ class Config:
     WEB_RESEARCH_FORCE_SEARCH = os.environ.get('WEB_RESEARCH_FORCE_SEARCH', 'true').lower() == 'true'
 
     # 文件上传配置
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB — solo las rutas de subida de archivos (ver UPLOAD_PATHS en app/__init__.py)
+    # Cualquier otra petición: 1 MB. Con 50 MB para todo, 20 POST anónimos de 42 MB agotaban los 4 GB del contenedor
+    MAX_BODY_BYTES = int(os.environ.get('MAX_BODY_BYTES', str(1024 * 1024)))
+    # Topes de coste de una sola petición (el límite de tasa cuenta peticiones, no llamadas al modelo)
+    MAX_UPLOAD_FILES = int(os.environ.get('MAX_UPLOAD_FILES', '10'))
+    MAX_UPLOAD_IMAGES = int(os.environ.get('MAX_UPLOAD_IMAGES', '3'))            # cada imagen = una llamada al modelo de visión
+    MAX_TOTAL_TEXT_CHARS = int(os.environ.get('MAX_TOTAL_TEXT_CHARS', '1000000'))  # ~10 libros; el grafo gasta un episodio por ~500 caracteres
+    MAX_INTERVIEWS_PER_REQUEST = 20
+    MAX_CHAT_MESSAGE_CHARS = 4000
+    MAX_CHAT_HISTORY_TURNS = 20
+    # Pipelines automáticos vivos a la vez: cada uno son horas de modelo y una simulación de ~1 GB
+    MAX_ACTIVE_PIPELINES = int(os.environ.get('MAX_ACTIVE_PIPELINES', '3'))
+    MAX_ACTIVE_PIPELINES_PER_USER = int(os.environ.get('MAX_ACTIVE_PIPELINES_PER_USER', '2'))
+    MAX_INTERVIEW_PROMPT_CHARS = 2000
+    MAX_PARALLEL_PROFILES = 8
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
     ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown', 'png', 'jpg', 'jpeg', 'webp', 'gif'}
     IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}

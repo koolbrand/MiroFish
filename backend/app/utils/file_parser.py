@@ -5,6 +5,7 @@
 
 import base64
 import io
+import warnings
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -40,7 +41,7 @@ def _read_text_with_fallback(file_path: str) -> str:
     encoding = None
     try:
         from charset_normalizer import from_bytes
-        best = from_bytes(data).best()
+        best = from_bytes(data[:100_000]).best()        # detectar sobre una muestra: 3 MB de bytes aleatorios costaban 10 s de CPU
         if best and best.encoding:
             encoding = best.encoding
     except Exception:
@@ -50,7 +51,7 @@ def _read_text_with_fallback(file_path: str) -> str:
     if not encoding:
         try:
             import chardet
-            result = chardet.detect(data)
+            result = chardet.detect(data[:100_000])
             encoding = result.get('encoding') if result else None
         except Exception:
             pass
@@ -135,7 +136,20 @@ class FileParser:
 
         # ── 1. Redimensionar y convertir a JPEG ────────────────────────────
         MAX_PX = 1024
-        with Image.open(file_path) as img:
+        # Un PNG de 140 KB puede declarar 12.000 x 12.000 píxeles (~420 MB al abrirlo): se rechaza por tamaño
+        # declarado, antes de decodificar nada
+        Image.MAX_IMAGE_PIXELS = 25_000_000
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('error', Image.DecompressionBombWarning)
+                img_ctx = Image.open(file_path)
+                declared = img_ctx.size[0] * img_ctx.size[1]
+                if declared > Image.MAX_IMAGE_PIXELS:
+                    img_ctx.close()
+                    raise Image.DecompressionBombError("imagen demasiado grande")
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+            raise ValueError(t('api.imageTooLarge'))
+        with img_ctx as img:
             img = img.convert('RGB')
             w, h = img.size
             if max(w, h) > MAX_PX:
