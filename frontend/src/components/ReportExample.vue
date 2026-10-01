@@ -7,23 +7,23 @@
       <span class="report-kicker">{{ $t('home.reportKicker') }}</span>
       <span class="report-tag">{{ $t('home.reportExampleTag') }}</span>
     </header>
-    <h3 class="report-title">{{ $t('home.reportTitle') }}</h3>
+    <h3 class="report-title">{{ $t(`home.cases.${caseId}.title`) }}</h3>
 
     <section class="report-block">
       <span class="report-label">{{ $t('home.reportVerdictLabel') }}</span>
-      <p class="report-verdict">{{ $t('home.reportVerdict') }}</p>
+      <p class="report-verdict">{{ $t(`home.cases.${caseId}.verdict`) }}</p>
     </section>
 
     <section class="report-block">
       <span class="report-label">{{ $t('home.chartKicker') }} · {{ $t('home.chartTitle') }}</span>
-      <OpinionChart flat />
+      <OpinionChart flat :favor="current.favor" :against="current.against" />
     </section>
 
     <section class="report-block">
       <span class="report-label">{{ $t('home.reportGroupsLabel') }}</span>
       <ul class="groups">
-        <li v-for="(g, i) in GROUPS" :key="g.key" :style="{ '--i': i }">
-          <span class="group-name">{{ $t(`home.reportGroup${g.key}`) }}</span>
+        <li v-for="(g, i) in current.groups" :key="i" :style="{ '--i': i }">
+          <span class="group-name">{{ $t(`home.cases.${caseId}.g${i + 1}`) }}</span>
           <span class="group-bar" role="img" :aria-label="`${$t('home.crowdFor')} ${g.f} %, ${$t('home.crowdUndecided')} ${g.u} %, ${$t('home.crowdAgainst')} ${g.a} %`">
             <span class="seg is-favor" :style="{ '--w': `${g.f}%` }"></span>
             <span class="seg is-undecided" :style="{ '--w': `${g.u}%` }"></span>
@@ -35,10 +35,10 @@
     </section>
 
     <section class="report-quote">
-      <BiankaAvatar :look="{ ears: 'flop', head: 'beanie', body: 'coffee' }" bucket="undecided" :pixel="2" />
+      <BiankaAvatar :look="current.look" bucket="undecided" :pixel="2" />
       <div>
-        <p class="quote-text">{{ $t('home.reportQuote') }}</p>
-        <span class="quote-by">{{ $t('home.reportQuoteBy') }}</span>
+        <p class="quote-text">{{ $t(`home.cases.${caseId}.quote`) }}</p>
+        <span class="quote-by">{{ $t(`home.cases.${caseId}.quoteBy`) }}</span>
       </div>
     </section>
 
@@ -50,13 +50,10 @@
 import OpinionChart from './OpinionChart.vue'
 import BiankaAvatar from './BiankaAvatar.vue'
 import { vReveal } from '../composables/useReveal'
+import { useExampleCase } from '../lib/exampleCases'
 
-// Datos inventados (favor / indecisos / en contra, en %)
-const GROUPS = [
-  { key: 'Regular', f: 58, u: 27, a: 15 },
-  { key: 'Casual', f: 34, u: 41, a: 25 },
-  { key: 'Clubs', f: 22, u: 38, a: 40 },
-]
+// El ejemplo elegido en las pestañas (datos inventados: favor / indecisos / en contra, en %)
+const { currentId: caseId, current } = useExampleCase()
 </script>
 
 <style scoped>

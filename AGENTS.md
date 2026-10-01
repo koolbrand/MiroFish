@@ -178,9 +178,21 @@ docker run -d \
 | `frontend/src/lib/biankaSprite.js` | Motor de sprites de la Bianka (conejo en pixel art), compartido por el muro, las escenas y los avatares |
 | `frontend/src/components/Bianka{Scene,Row,Avatar}.vue`, `ReportExample.vue` | Escenas de «cómo funciona», filas que asoman, avatar con semilla y el informe de ejemplo |
 | `backend/app/services/auto_pipeline.py`, `pipeline_state.py`, `api/pipeline.py` | Modo automático en el servidor: encadena las cinco etapas con los mismos parámetros que la pantalla (40 rondas de tope); estado en `uploads/projects/<id>/pipeline.json`; al arrancar, lo que estaba en marcha pasa a `interrupted` y no se reanuda solo |
+| `backend/app/services/web_research.py` | Investigación en internet opcional antes de la ontología (`web_research=true` en `ontology/generate` y `pipeline/auto`; etapa «research» del automático). Búsqueda web de MiniMax forzada (`tool_choice: any`) y redacción aparte con los resultados numerados: sin forzar, M3 contesta de memoria con citas inventadas; forzado, busca hasta `pause_turn` sin escribir (medido el 1-oct-2026). Si encuentra algo entra en el material como `files/investigacion-internet.md`; si falla o no encuentra nada, el proyecto sigue sin ella |
 | `frontend/src/composables/usePipeline.js`, `components/AutoPipelineBanner.vue` | Estado del automático compartido en pantalla y aviso en las cinco pantallas del proceso (detener, reanudar, seguir la etapa) |
+| `backend/app/services/web_research.py` | Investigación opcional en internet antes de la ontología (búsqueda web de MiniMax en servidor); fase 1 busca, fase 2 redacta con los resultados numerados por nosotros; toda viñeta sin referencia [n] se quita; si no encuentra nada o falla, el proyecto sigue sin ella |
+| `frontend/src/lib/exampleCases.js`, `components/ExampleTabs.vue` | Cinco ejemplos de la portada (pádel, B2B, precio, crisis, decisión pública): «La multitud» y el informe de ejemplo cambian a la vez; la multitud acaba donde dice el gráfico; textos en `home.cases.<id>.*` |
+| `frontend/src/components/GraphPanel.vue`, `lib/graphRender.js`, `GraphTypeSwatch.vue` | Panel del grafo en canvas 2D (d3-force): tipos por forma y tono de marca, pulsos en vivo, etiquetas sin cortar, teclado y lista accesible, «reducir movimiento» |
+| `frontend/src/lib/miniMarkdown.js` | Markdown mínimo SIN HTML para lo que escriben las personas simuladas y el modelo (posts, chat, encuestas). No uses `v-html` con texto de la API |
 | `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
 | `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
+
+### Auditoría UX/UI (1-oct-2026) — reglas que salieron de medir
+
+- **Color**: solo tokens de `koolbrand.css`. Sobre tinta, el texto gris es `--kb-muted-on-dark` (#8A8A8A: 5,5:1; el #6E6E6E daba 3,7); sobre `--kb-soft` (#ECECEC), `--kb-text-on-soft` (#2A2A2A); «bien» = `--kb-ok-*` (lima oscuro), «mal» = `--kb-danger-*`. Nada de verdes, ámbares ni violetas de MiroFish: lo que se distinguía por color se distingue también por texto, forma o icono.
+- Borde de campos y controles `--kb-control-line` (#858585, ≥ 3:1); foco visible de 2 px; objetivos ≥ 24 px; texto ≥ 12 px (rótulos mono de ≤ 12 caracteres, 11 px).
+- Antes → después medido con `probar-ui.js` en 12 pantallas: fallos de contraste 871 → 0, fallos 2.5.8 de 1 a 0, color de marca 85–95 % → 99–100 %. Medir de nuevo al tocar una pantalla.
+- Diálogos: `role="dialog"`/`alertdialog`, foco dentro al abrir, Tab atrapado, Escape cierra y el foco vuelve a quien lo abrió.
 
 ### Al tocar las pantallas del proceso
 

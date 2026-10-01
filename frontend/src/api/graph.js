@@ -1,21 +1,28 @@
-import service, { requestWithRetry } from './index'
+import service, { requestWithRetry, downloadFile } from './index'
 
 /**
  * 生成本体（上传文档和模拟需求）
  * @param {Object} data - 包含files, simulation_requirement, project_name等
  * @returns {Promise}
  */
-export function generateOntology(formData) {
+export function generateOntology(formData, { timeout } = {}) {
   return requestWithRetry(() => 
     service({
       url: '/api/graph/ontology/generate',
       method: 'post',
       data: formData,
+      // con la investigación en internet activada (hasta 4 min) la ontología tarda más
+      ...(timeout ? { timeout } : {}),
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
   )
+}
+
+// Descarga la investigación de internet de un proyecto (Markdown; lleva el token, no sirve un enlace directo)
+export function downloadResearch(projectId) {
+  return downloadFile(`/api/graph/project/${projectId}/research`, 'investigacion-internet.md')
 }
 
 /**

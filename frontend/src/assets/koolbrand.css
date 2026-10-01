@@ -45,6 +45,16 @@
   --kb-accent-line: var(--lime-600);      /* filetes decorativos */
   --kb-accent-subtle: var(--lime-50);     /* fondo suave de estado activo */
   --kb-danger: #DC2626;
+  /* Derivados de la auditoría UX/UI (1-oct-2026): mismos colores de la marca, solo dicen CUÁL usar según el fondo.
+     Sobre ink (#111): el gris de texto #6E6E6E da 3,7:1; --gray-500 (#8A8A8A) da 5,5:1. Sobre --kb-soft (#ECECEC):
+     #6E6E6E da 4,32:1; --ink-800 da 12,2:1. El estado «bien» es lima oscuro sobre lima muy claro (5,3:1), no un verde ajeno. */
+  --kb-muted-on-dark: var(--gray-500);
+  --kb-text-on-soft: var(--ink-800);
+  --kb-ok-text: var(--lime-800);
+  --kb-ok-bg: var(--lime-50);
+  --kb-ok-line: var(--lime-600);
+  --kb-danger-text: var(--kb-danger);
+  --kb-danger-line: var(--kb-danger);
 
   --kb-font-sans: 'Inter Tight', 'Noto Sans SC', system-ui, sans-serif;
   --kb-font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -92,6 +102,6 @@ body:not(.show-tech) .tech-only { display: none !important; }
 .log-toggle {
   flex-shrink: 0; background: none; border: 1px solid rgba(255, 255, 255, 0.25); color: #fff;
   font: 500 11px var(--kb-font-mono); letter-spacing: 0.06em; text-transform: uppercase;
-  padding: 3px 8px; border-radius: 4px; cursor: pointer;
+  padding: 3px 8px; min-height: 24px; border-radius: 4px; cursor: pointer;
 }
 .log-toggle:hover { border-color: var(--kb-accent-solid); color: var(--kb-accent-solid); }

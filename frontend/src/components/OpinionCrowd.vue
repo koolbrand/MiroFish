@@ -6,7 +6,7 @@
     <header class="oc-head">
       <div class="oc-brief">
         <span class="oc-label">{{ $t('home.multBriefLabel') }}</span>
-        <strong class="oc-brief-text">{{ $t('home.multBrief') }}</strong>
+        <strong class="oc-brief-text">{{ $t(`home.cases.${caseId}.brief`) }}</strong>
       </div>
       <div class="oc-count">
         <span class="oc-count-num">{{ N }}</span>
@@ -14,7 +14,7 @@
       </div>
       <div class="oc-round">
         <span class="oc-label">{{ $t('home.crowdRound') }} <b>{{ String(round).padStart(2, '0') }}/{{ ROUNDS }}</b></span>
-        <span class="oc-event"><span class="oc-label">{{ $t('home.crowdEventTag') }}</span> {{ $t(`home.crowdEvent${round}`) }}</span>
+        <span class="oc-event"><span class="oc-label">{{ $t('home.crowdEventTag') }}</span> {{ $t(`home.cases.${caseId}.e${round}`) }}</span>
       </div>
     </header>
 
@@ -55,31 +55,29 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BiankaAvatar from './BiankaAvatar.vue'
 import { makeLook, drawBianka, spriteFor } from '../lib/biankaSprite'
+import { useExampleCase } from '../lib/exampleCases'
 
 const { t } = useI18n()
+const { currentId: caseId, current } = useExampleCase()
 
 const N = 120                 // el tope del rango publicado («20–120 personas»)
 const ROUNDS = 10
 const ROUND_SECS = 2.6
 const HOLD_SECS = 5
-// Cómo acaba el ejemplo: el MISMO final que el gráfico del informe de ejemplo (OpinionChart: 38 % a favor, 41 % dudando, 21 % en contra)
-// — interesa, pero el precio genera dudas —, de modo que las dos piezas de la página cuentan la misma historia.
-const FINAL = { favor: 46, undecided: 49, against: 25 }
-const QUOTES = {
-  favor: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteF${i}`),
-  undecided: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteU${i}`),
-  against: [1, 2, 3, 4, 5, 6].map(i => `home.multQuoteA${i}`),
-}
+// Cómo acaba cada ejemplo: el MISMO final que el gráfico del informe de ejemplo (OpinionChart), de modo que las dos piezas
+// de la página cuentan la misma historia. El caso elegido (pádel, B2B, precio, crisis, decisión pública) cambia el final,
+// las frases y los eventos; los textos viven en `home.cases.<id>.*`.
+const quotesOf = (bucket) => [1, 2, 3, 4, 5, 6].map(i => `home.cases.${caseId.value}.${{ favor: 'f', undecided: 'u', against: 'a' }[bucket]}${i}`)
 const TAG = { favor: 'home.crowdFor', undecided: 'home.crowdTagUndecided', against: 'home.crowdAgainst' }
 
 const root = ref(null)
 const canvas = ref(null)
 const round = ref(ROUNDS)
-const stats = reactive({ favor: FINAL.favor, undecided: FINAL.undecided, against: FINAL.against })
+const stats = reactive({ ...current.value.final })
 const feed = ref([])
 
 const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -94,6 +92,7 @@ const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math
 const pickOf = (arr) => arr[Math.floor(Math.random() * arr.length)]
 
 const seed = () => {
+  const FINAL = current.value.final
   const finals = shuffle([
     ...Array(FINAL.favor).fill('favor'), ...Array(FINAL.undecided).fill('undecided'), ...Array(FINAL.against).fill('against'),
   ])
@@ -177,9 +176,9 @@ const say = (a, r) => {
   const from = a.flipAt === r && a.start !== a.final ? a.start : null
   // nunca la misma frase dos veces a la vez en pantalla; y, si se puede, tampoco una de las últimas
   const visibleNow = new Set(feed.value.map(m => m.key))
-  const fresh = QUOTES[bucket].filter(k => !visibleNow.has(k))
+  const fresh = quotesOf(bucket).filter(k => !visibleNow.has(k))
   const pool = fresh.filter(k => !recent.includes(k))
-  const key = pickOf(pool.length ? pool : fresh.length ? fresh : QUOTES[bucket])
+  const key = pickOf(pool.length ? pool : fresh.length ? fresh : quotesOf(bucket))
   recent.push(key); if (recent.length > 6) recent.shift()
   a.spokeIn = r
   a.speakUntil = tNow + 1.7
@@ -233,7 +232,7 @@ const settle = () => {
   feed.value = pick4.map(([b, q], i) => {
     const a = agents.find(x => bucketAt(x, ROUNDS) === b && !used.has(x)) || by(b)
     used.add(a)
-    return { id: ++msgSeq, look: a.look, bucket: b, who: t(`home.biankas.${a.look.persona}`), tag: t(TAG[b]), text: t(QUOTES[b][q]) }
+    return { id: ++msgSeq, look: a.look, bucket: b, who: t(`home.biankas.${a.look.persona}`), tag: t(TAG[b]), text: t(quotesOf(b)[q]) }
   })
 }
 
@@ -258,6 +257,13 @@ onMounted(() => {
   io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; visible ? start() : stop() }, { threshold: 0.2 })
   io.observe(root.value)
   document.addEventListener('visibilitychange', onVis)
+})
+// Otro ejemplo: otra multitud (final, frases y eventos propios), desde la ronda 1
+watch(caseId, () => {
+  feed.value = []; recent.length = 0; speakClock = 1.2; tNow = 0
+  seed(); prewarm(); layout()
+  if (reduced) settle(); else { setRound(1); primeFeed() }
+  paint()
 })
 onUnmounted(() => { stop(); ro?.disconnect(); io?.disconnect(); document.removeEventListener('visibilitychange', onVis) })
 </script>

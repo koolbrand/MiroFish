@@ -9,14 +9,16 @@ const state = reactive({
   simulationRequirement: '',
   projectName: '',
   mode: 'manual',        // 'manual' (paso a paso) o 'auto' (el servidor sigue hasta el informe)
+  webResearch: false,    // investigar en internet antes de la ontología (opcional)
   isPending: false
 })
 
-export function setPendingUpload(files, requirement, projectName = '', mode = 'manual') {
+export function setPendingUpload(files, requirement, projectName = '', mode = 'manual', webResearch = false) {
   state.files = files
   state.simulationRequirement = requirement
   state.projectName = projectName
   state.mode = mode === 'auto' ? 'auto' : 'manual'
+  state.webResearch = !!webResearch
   state.isPending = true
 }
 
@@ -26,6 +28,7 @@ export function getPendingUpload() {
     simulationRequirement: state.simulationRequirement,
     projectName: state.projectName,
     mode: state.mode,
+    webResearch: state.webResearch,
     isPending: state.isPending
   }
 }
@@ -35,6 +38,7 @@ export function clearPendingUpload() {
   state.simulationRequirement = ''
   state.projectName = ''
   state.mode = 'manual'
+  state.webResearch = false
   state.isPending = false
 }
 

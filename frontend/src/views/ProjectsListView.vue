@@ -115,7 +115,7 @@
           <div class="col col-date mono">{{ formatDate(p.created_at) }}</div>
           <div class="col col-info">
             <span v-if="p.error" class="error-text mono" :title="p.error">
-              {{ truncate(p.error, 60) }}
+              {{ errorLabel(p.error) }}
             </span>
             <span v-else-if="p.graph_id" class="mono">
               {{ shortId(p.graph_id) }}
@@ -129,7 +129,7 @@
               class="row-btn primary"
               @click="openInteraction(p.project_id)"
             >
-              Step 5 →
+              {{ $t('projects.openInteraction') }} →
             </button>
             <span
               v-else-if="reportMapLoading && p.status === 'graph_completed'"
@@ -155,12 +155,12 @@
     <Teleport to="body">
       <Transition name="modal">
         <div v-if="confirmState" class="modal-overlay" @click.self="cancelConfirm">
-          <div class="modal-content">
+          <div class="modal-content" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
             <div class="modal-header">
-              <h2>{{ $t('projects.confirmTitle') }}</h2>
-              <button class="modal-close" @click="cancelConfirm">×</button>
+              <h2 id="confirm-title">{{ $t('projects.confirmTitle') }}</h2>
+              <button class="modal-close" :aria-label="$t('projects.cancel')" @click="cancelConfirm">×</button>
             </div>
-            <div class="modal-body">
+            <div id="confirm-body" class="modal-body">
               <p>{{ confirmState.message }}</p>
               <ul v-if="confirmState.ids.length <= 10" class="id-list">
                 <li v-for="id in confirmState.ids" :key="id" class="mono">{{ shortId(id) }}</li>
@@ -168,7 +168,7 @@
               <p class="warning mono">{{ $t('projects.confirmWarning') }}</p>
             </div>
             <div class="modal-actions">
-              <button class="modal-btn" @click="cancelConfirm">
+              <button ref="cancelBtn" class="modal-btn" @click="cancelConfirm">
                 {{ $t('projects.cancel') }}
               </button>
               <button class="modal-btn danger" @click="runConfirm" :disabled="deleting">
@@ -183,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { listProjects, deleteProject } from '../api/graph'
@@ -372,6 +372,11 @@ const truncate = (txt, max) => {
   return txt.length > max ? txt.slice(0, max - 1) + '…' : txt
 }
 
+// Un fallo del servidor («Cannot resolve address neo4j:7687») no dice nada a quien usa la app: se cuenta en claro
+// y el texto técnico queda en el título (al pasar el ratón) para quien lo necesite.
+const TECHNICAL_ERROR = /neo4j|embedding|resolve address|connection|timed? ?out|traceback|errno|status code|ECONN|HTTP \d{3}/i
+const errorLabel = (err) => (TECHNICAL_ERROR.test(err || '') ? t('projects.errorService') : truncate(err, 60))
+
 const formatDate = (iso) => {
   if (!iso) return '—'
   try {
@@ -395,6 +400,22 @@ const statusLabel = (s) => {
   const key = 'projects.status_' + s
   return t(key)
 }
+
+// Modal de confirmación: el foco entra en «Cancelar» (lo más seguro), Escape cierra y, al cerrar, el foco vuelve a donde estaba
+const cancelBtn = ref(null)
+let lastFocus = null
+const onKeydown = (e) => { if (e.key === 'Escape' && confirmState.value && !deleting.value) cancelConfirm() }
+watch(confirmState, (open) => {
+  if (open) {
+    lastFocus = document.activeElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => cancelBtn.value?.focus())
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    lastFocus?.focus?.()
+  }
+})
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 onMounted(refresh)
 </script>
@@ -529,7 +550,7 @@ onMounted(refresh)
 }
 .filter-btn:not(.active) .count {
   background: var(--kb-soft);
-  color: var(--kb-muted);
+  color: var(--kb-text-on-soft);
 }
 
 .actions { display: flex; align-items: center; gap: 16px; }
@@ -608,7 +629,7 @@ onMounted(refresh)
 }
 .table-row:last-child { border-bottom: none; }
 .table-row:hover { background: var(--kb-surface-2); }
-.table-row.selected { background: #eff6ff; }
+.table-row.selected { background: var(--kb-accent-subtle); }
 
 .col { min-width: 0; }
 .col-name { display: flex; flex-direction: column; gap: 4px; overflow: hidden; align-items: flex-start; }
@@ -624,8 +645,11 @@ onMounted(refresh)
 .col-info { overflow: hidden; }
 .col-info .sub { color: var(--kb-subtle); }
 .error-text {
-  color: #dc2626;
-  font-size: 0.72rem;
+  color: var(--kb-danger-text);
+  background: var(--kb-surface);   /* el rojo de marca llega a 4,8:1 sobre blanco; sobre la crema, 4,3 */
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -635,27 +659,38 @@ onMounted(refresh)
 
 .col-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
+/* Estados con la paleta de marca (lima, tinta, gris, peligro): cada uno se distingue también por su marca de la izquierda,
+   no solo por el color. Todos ≥ 4,5:1 (el verde y el ámbar de antes daban 3,05 y 3,66). */
 .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 3px 8px;
   border-radius: 2px;
+  border: 1px solid transparent;
   font-family: var(--kb-font-mono);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.3px;
 }
-.status-badge.ok { background: rgba(16, 185, 129, 0.1); color: #059669; }
-.status-badge.busy { background: rgba(245, 158, 11, 0.1); color: #d97706; }
-.status-badge.pending { background: var(--kb-soft); color: var(--kb-muted); }
-.status-badge.fail { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
-.status-badge.neutral { background: var(--kb-soft); color: var(--kb-muted); }
+.status-badge::before { content: ''; width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+.status-badge.ok { background: var(--kb-ok-bg); color: var(--kb-ok-text); border-color: var(--kb-ok-line); }
+.status-badge.busy { background: var(--kb-surface); color: var(--kb-text); border-color: var(--kb-text); }
+.status-badge.busy::before { background: var(--kb-accent-solid); box-shadow: 0 0 0 1.5px var(--kb-text); animation: badge-pulse 1.4s ease-in-out infinite; }
+.status-badge.pending { background: var(--kb-soft); color: var(--kb-text-on-soft); }
+.status-badge.pending::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+.status-badge.fail { background: var(--kb-surface); color: var(--kb-danger-text); border-color: var(--kb-danger-line); }
+.status-badge.neutral { background: var(--kb-soft); color: var(--kb-text-on-soft); }
+@keyframes badge-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .status-badge.busy::before { animation: none; } }
 
 .row-btn {
   background: #fff;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
+  min-height: 28px;
   padding: 4px 10px;
   font-family: var(--kb-font-mono);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   cursor: pointer;
   color: var(--kb-text-2);
   white-space: nowrap;
@@ -668,8 +703,8 @@ onMounted(refresh)
   font-weight: 700;
 }
 .row-btn.primary:hover { background: var(--kb-text-2); border-color: var(--kb-text-2); }
-.row-btn.danger { border-color: #fecaca; color: #dc2626; }
-.row-btn.danger:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+.row-btn.danger { border-color: var(--kb-danger-line); color: var(--kb-danger-text); }
+.row-btn.danger:hover { background: var(--kb-danger); color: #fff; border-color: var(--kb-danger); }
 .report-checking {
   font-size: 0.72rem;
   color: var(--kb-subtle);

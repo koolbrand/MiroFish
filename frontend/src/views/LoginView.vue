@@ -17,7 +17,7 @@
           <div class="form-group">
             <label class="form-label">{{ t('login.email') }}</label>
             <div class="input-wrapper">
-              <span class="input-icon">✉</span>
+              <svg class="input-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
               <input
                 type="email"
                 v-model="email"
@@ -32,9 +32,10 @@
           <div class="form-group">
             <label class="form-label">{{ t('login.password') }}</label>
             <div class="input-wrapper">
-              <span class="input-icon">🔒</span>
+              <svg class="input-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
               <input
                 type="password"
+                ref="passwordEl"
                 v-model="password"
                 required
                 class="form-input"
@@ -44,7 +45,7 @@
             </div>
           </div>
 
-          <div v-if="error" class="login-error">
+          <div v-if="error" class="login-error" role="alert">
             <span>⚠ {{ error }}</span>
           </div>
 
@@ -69,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { pb } from '../lib/pocketbase'
@@ -94,6 +95,7 @@ const password = ref('')
 const error = ref(null)
 const info = ref(null)
 const loading = ref(false)
+const passwordEl = ref(null)
 
 // PocketBase manda el correo con el enlace para poner una contraseña nueva.
 // Mensaje neutro aunque el email no exista, para no revelar qué cuentas hay.
@@ -132,6 +134,8 @@ const handleLogin = async () => {
     error.value = t('login.invalidCredentials')
   } finally {
     loading.value = false
+    // el formulario se deshabilita mientras entra y el foco se pierde: si falló, vuelve al campo de la contraseña
+    if (error.value) { password.value = ''; nextTick(() => passwordEl.value?.focus()) }
   }
 }
 </script>
@@ -141,9 +145,9 @@ const handleLogin = async () => {
   align-self: center;
   background: none;
   border: none;
-  color: var(--kb-subtle);
+  color: var(--kb-muted-on-dark);
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   cursor: pointer;
   text-decoration: underline;
   padding: 0.25rem;
@@ -164,15 +168,15 @@ const handleLogin = async () => {
 }
 .login-back {
   align-self: center;
-  color: var(--kb-subtle);
-  font-size: 0.8rem;
+  color: var(--kb-muted-on-dark);
+  font-size: 0.85rem;
   text-decoration: none;
   padding: 0.25rem 0.5rem;
 }
 .login-back:hover { color: var(--kb-accent-solid); }
 .login-info {
   color: var(--kb-accent-solid);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   text-align: center;
 }
 .login-page {
@@ -221,8 +225,8 @@ const handleLogin = async () => {
 }
 
 .login-byline {
-  color: var(--kb-text-2);
-  font-size: 0.7rem;
+  color: var(--kb-muted-on-dark);
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
   margin: 0.4rem 0 0;
   text-transform: uppercase;
@@ -262,7 +266,7 @@ const handleLogin = async () => {
 
 .form-label {
   font-size: 0.75rem;
-  color: var(--kb-subtle);
+  color: var(--kb-muted-on-dark);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -276,16 +280,15 @@ const handleLogin = async () => {
   left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.9rem;
   pointer-events: none;
-  opacity: 0.5;
+  color: var(--kb-muted-on-dark);
 }
 
 .form-input {
   width: 100%;
   padding: 0.65rem 0.75rem 0.65rem 2.2rem;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--kb-text);
+  border: 1px solid var(--kb-muted-on-dark);   /* ≥ 3:1 frente a la tarjeta (WCAG 1.4.11); antes, blanco al 10 % = 1,35:1 */
   border-radius: 0.5rem;
   color: var(--kb-line);
   font-size: 0.9rem;
@@ -296,26 +299,28 @@ const handleLogin = async () => {
 }
 
 .form-input:focus {
-  border-color: rgba(204, 230, 115, 0.5);
-  box-shadow: 0 0 0 2px rgba(204, 230, 115, 0.1);
+  border-color: var(--kb-accent-solid);
+  box-shadow: 0 0 0 2px var(--kb-accent-solid);
 }
 
 .form-input:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 .form-input::placeholder {
-  color: var(--kb-text-2);
+  color: var(--kb-muted-on-dark);
 }
 
+/* el error se dice con texto claro y filete de peligro (el rojo de marca no llega a 4,5:1 sobre tinta) */
 .login-error {
-  background: rgba(255, 80, 80, 0.1);
-  border: 1px solid rgba(255, 80, 80, 0.2);
+  background: rgba(220, 38, 38, 0.14);
+  border: 1px solid var(--kb-danger-line);
   border-radius: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  color: #ff6b6b;
-  font-size: 0.8rem;
+  padding: 0.65rem 0.8rem;
+  color: var(--kb-surface);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .login-btn {
@@ -358,8 +363,8 @@ const handleLogin = async () => {
 
 .login-footer {
   text-align: center;
-  font-size: 0.7rem;
-  color: var(--kb-text-2);
+  font-size: 0.75rem;
+  color: var(--kb-muted-on-dark);
   letter-spacing: 0.05em;
 }
 </style>

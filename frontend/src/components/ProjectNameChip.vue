@@ -28,6 +28,7 @@
 
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { renameProject } from '../api/graph'
 
 const props = defineProps({
@@ -35,6 +36,7 @@ const props = defineProps({
   name: { type: String, default: '' }
 })
 
+const { t } = useI18n()
 const emit = defineEmits(['updated'])
 
 const isEditing = ref(false)
@@ -42,9 +44,10 @@ const saving = ref(false)
 const draft = ref(props.name || '')
 const inputRef = ref(null)
 
+// el servidor nombra «Unnamed Project» a un proyecto sin nombre: se enseña en el idioma de quien lo mira
 const displayName = computed(() => {
   const n = (props.name || '').trim()
-  return n || 'Unnamed Project'
+  return !n || n === 'Unnamed Project' ? t('projects.unnamed') : n
 })
 
 watch(() => props.name, (v) => {

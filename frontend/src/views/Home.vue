@@ -1,5 +1,7 @@
 <template>
   <div class="home">
+    <!-- Para teclado y lectores de pantalla: salta la barra y las dos portadas y va directo a montar el ensayo -->
+    <a class="skip-link" href="#ensayo" @click.prevent="scrollToForm">{{ $t('home.skipToForm') }}</a>
     <nav class="topbar" :class="{ 'is-scrolled': scrolledNav, 'is-hidden': navHidden }">
       <router-link to="/" class="topbar-brand" :aria-label="$t('home.heroDescBrand')">
         <BrandLogo />
@@ -184,6 +186,15 @@
                 <p v-if="canSubmit" class="composer-note">{{ readyNote }}</p>
               </div>
             </div>
+            <!-- Investigación opcional: busca contexto en internet (polémicas, noticias, actores) y lo suma al material -->
+            <label class="research-opt" :class="{ on: webResearch }" data-tour="home-research">
+              <input v-model="webResearch" type="checkbox" />
+              <span class="research-box" aria-hidden="true"></span>
+              <span class="research-text">
+                <strong>{{ $t('home.researchLabel') }}</strong>
+                <span>{{ $t('home.researchHint') }}</span>
+              </span>
+            </label>
             <div class="composer-launch">
               <!-- Paso a paso (tú decides cuándo avanzar) o automático (el servidor sigue hasta el informe) -->
               <div class="mode-switch" role="radiogroup" :aria-label="$t('home.modeLabel')" data-tour="home-mode">
@@ -250,6 +261,7 @@
           <h2 class="section-title wide">{{ $t('home.multTitle') }}</h2>
           <p class="section-lede">{{ $t('home.multLede') }}</p>
         </div>
+        <ExampleTabs class="crowd-tabs" />
         <OpinionCrowd v-reveal />
       </section>
 
@@ -272,7 +284,10 @@
             </div>
           </li>
         </ul>
-        <div class="results-report"><ReportExample /></div>
+        <div class="results-report">
+          <ExampleTabs class="report-tabs" on-ink />
+          <ReportExample />
+        </div>
       </section>
       </div>
 
@@ -327,6 +342,7 @@ import HelpButton from '../components/HelpButton.vue'
 import BiankaCrowd from '../components/BiankaCrowd.vue'
 import ReportExample from '../components/ReportExample.vue'
 import OpinionCrowd from '../components/OpinionCrowd.vue'
+import ExampleTabs from '../components/ExampleTabs.vue'
 import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
@@ -537,6 +553,7 @@ const formData = ref({
 })
 const files = ref([])
 const runMode = ref('manual')   // 'manual' · 'auto'
+const webResearch = ref(false)   // buscar contexto en internet antes de simular (opcional)
 const loading = ref(false)
 const isDragOver = ref(false)
 const fileInput = ref(null)
@@ -549,6 +566,7 @@ if (pending.isPending && (pending.files.length || pending.simulationRequirement)
   formData.value.simulationRequirement = pending.simulationRequirement
   formData.value.projectName = pending.projectName
   runMode.value = pending.mode === 'auto' ? 'auto' : 'manual'
+  webResearch.value = !!pending.webResearch
   clearPendingUpload()
 }
 
@@ -663,7 +681,8 @@ const stashForm = () => {
     files.value,
     formData.value.simulationRequirement,
     (formData.value.projectName || '').trim(),
-    runMode.value
+    runMode.value,
+    webResearch.value
   )
 }
 
@@ -692,6 +711,23 @@ const startSimulation = () => {
 </script>
 
 <style scoped>
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  padding: 12px 18px;
+  border: 2px solid var(--ink-950);
+  border-radius: 10px;
+  background: var(--lime-500);
+  color: var(--ink-950);
+  font: 700 0.95rem/1 var(--kb-font-sans);
+  text-decoration: none;
+  transform: translateY(-200%);
+  transition: transform 0.15s ease;
+}
+.skip-link:focus { transform: none; outline: 2px solid var(--ink-950); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .skip-link { transition: none; } }
 .home {
   --gutter: clamp(16px, 4vw, 48px);
   --overlap: 72px;
@@ -1149,6 +1185,40 @@ const startSimulation = () => {
 .composer-status.ready { color: var(--kb-accent-text); font-weight: 600; }
 .composer-copy { display: grid; gap: 2px; min-width: 0; }
 .composer-note { max-width: 52ch; margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+.research-opt {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1 1 100%;
+  order: 3;
+  max-width: 62ch;
+  padding: 12px 14px;
+  border: 1.5px dashed var(--kb-control-line);
+  border-radius: 10px;
+  background: var(--kb-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.research-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.research-box {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 2px solid var(--ink-950);
+  border-radius: 4px;
+  background: var(--kb-surface);
+  display: grid;
+  place-items: center;
+}
+.research-opt.on { border-style: solid; border-color: var(--ink-950); background: var(--kb-accent-subtle); }
+.research-opt.on .research-box { background: var(--lime-500); }
+.research-opt.on .research-box::after { content: ''; width: 9px; height: 5px; border: solid var(--ink-950); border-width: 0 0 2.5px 2.5px; transform: translateY(-1px) rotate(-45deg); }
+.research-opt:has(input:focus-visible) { outline: 2px solid var(--ink-950); outline-offset: 2px; }
+.research-text { display: grid; gap: 3px; min-width: 0; }
+.research-text strong { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
+.research-text span { font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
 .composer-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 16px; }
 .mode-switch {
   display: inline-flex;
@@ -1354,6 +1424,8 @@ const startSimulation = () => {
 .band-ink :deep(.report) { color: var(--kb-text); border-color: var(--cream-100); box-shadow: 8px 8px 0 var(--lime-500); }
 .band-ink :focus-visible { outline-color: var(--lime-500); }
 /* el informe de ejemplo: la prueba, debajo de lo que se obtiene */
+.crowd-tabs { margin-bottom: 22px; }
+.report-tabs { margin-bottom: 26px; }
 .results-report { margin: 72px 0 0; }   /* el informe ocupa el ancho de la sección: arranca en la misma línea que el resto (no centrado) */
 
 .figures {

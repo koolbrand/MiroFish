@@ -9,9 +9,9 @@
           <div class="report-header-block">
             <div class="report-meta">
               <span class="report-tag">{{ $t('ui.predictionReport') }}</span>
-              <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
-              <button class="download-btn" @click="downloadReport" :title="$t('step5.downloadReport')">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <span class="report-id">ID: {{ reportId || '—' }}</span>
+              <button type="button" class="download-btn" @click="downloadReport" :title="$t('step5.downloadReport')" :aria-label="$t('step5.downloadReport')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="7 10 12 15 17 10"/>
                   <line x1="12" y1="15" x2="12" y2="3"/>
@@ -39,31 +39,41 @@
               <div class="section-header-row" @click="toggleSectionCollapse(idx)" :class="{ 'clickable': isSectionCompleted(idx + 1) }">
                 <span class="section-number">{{ String(idx + 1).padStart(2, '0') }}</span>
                 <h3 class="section-title">{{ section.title }}</h3>
-                <svg 
-                  v-if="isSectionCompleted(idx + 1)" 
-                  class="collapse-icon" 
-                  :class="{ 'is-collapsed': collapsedSections.has(idx) }"
-                  viewBox="0 0 24 24" 
-                  width="20" 
-                  height="20" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  stroke-width="2"
+                <!-- botón de verdad para el teclado; el clic en toda la fila sigue funcionando -->
+                <button
+                  v-if="isSectionCompleted(idx + 1)"
+                  type="button"
+                  class="collapse-btn"
+                  :aria-expanded="!collapsedSections.has(idx)"
+                  :aria-label="(collapsedSections.has(idx) ? $t('step5.expandSection') : $t('step5.collapseSection')) + ': ' + section.title"
+                  @click.stop="toggleSectionCollapse(idx)"
                 >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                  <svg
+                    class="collapse-icon"
+                    :class="{ 'is-collapsed': collapsedSections.has(idx) }"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
               </div>
-              
+
               <div class="section-body" v-show="!collapsedSections.has(idx)">
                 <!-- Completed Content -->
-                <div v-if="generatedSections[idx + 1]" class="generated-content" v-html="renderMarkdown(generatedSections[idx + 1])"></div>
-                
+                <MiniMarkdown v-if="generatedSections[idx + 1]" class="generated-content" headings strip-leading-heading :text="generatedSections[idx + 1]" />
+
                 <!-- Loading State -->
                 <div v-else-if="currentSectionIndex === idx + 1" class="loading-state">
                   <div class="loading-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <circle cx="12" cy="12" r="10" stroke-width="4" stroke="#E5E7EB"></circle>
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke-width="4" stroke="#4B5563" stroke-linecap="round"></path>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke-width="4" stroke="var(--kb-line)"></circle>
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke-width="4" stroke="var(--kb-text-2)" stroke-linecap="round"></path>
                     </svg>
                   </div>
                   <span class="loading-text">{{ $t('step4.generatingSection', { title: section.title }) }}</span>
@@ -73,14 +83,26 @@
           </div>
         </div>
 
-        <!-- Waiting State -->
-        <div v-if="!reportOutline" class="waiting-placeholder">
+        <!-- Error / vacío / esperando: siempre una frase clara (antes se quedaba en «Waiting…» para siempre si la carga fallaba) -->
+        <div v-if="!reportOutline && reportLoadError" class="panel-notice is-error" role="alert">
+          <p class="panel-notice-title">{{ $t('step5.reportLoadFailedTitle') }}</p>
+          <p class="panel-notice-text">{{ $t('step5.reportLoadFailedBody') }}</p>
+          <details class="notice-details">
+            <summary>{{ $t('main.failDetails') }}</summary>
+            <code>{{ reportLoadError }}</code>
+          </details>
+        </div>
+        <div v-else-if="!reportOutline && reportLoaded" class="panel-notice" role="status">
+          <p class="panel-notice-title">{{ $t('step5.reportEmptyTitle') }}</p>
+          <p class="panel-notice-text">{{ $t('step5.reportEmptyBody') }}</p>
+        </div>
+        <div v-else-if="!reportOutline" class="waiting-placeholder" role="status">
           <div class="waiting-animation">
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
           </div>
-          <span class="waiting-text">Waiting for Report Agent...</span>
+          <span class="waiting-text">{{ $t('step4.waitingForReportAgent') }}</span>
         </div>
       </div>
 
@@ -89,7 +111,7 @@
         <!-- Unified Action Bar - Professional Design -->
         <div class="action-bar" data-tour="int-action-bar">
         <div class="action-bar-header">
-          <svg class="action-bar-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg class="action-bar-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
           <div class="action-bar-text">
@@ -99,59 +121,69 @@
         </div>
           <div class="action-bar-tabs">
             <button
+              type="button"
               class="tab-pill"
               data-tour="int-tab-report"
               :class="{ active: activeTab === 'chat' && chatTarget === 'report_agent' }"
+              :aria-pressed="activeTab === 'chat' && chatTarget === 'report_agent'"
               @click="selectReportAgentChat"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
               </svg>
               <span>{{ $t('step5.chatWithReportAgent') }}</span>
             </button>
             <div class="agent-dropdown" v-if="profiles.length > 0" data-tour="int-tab-agent">
               <button
+                type="button"
                 class="tab-pill agent-pill"
                 :class="{ active: activeTab === 'chat' && chatTarget === 'agent' }"
+                :aria-expanded="showAgentDropdown"
+                aria-haspopup="true"
+                :title="selectedAgent ? selectedAgent.username : $t('step5.chatWithAgent')"
                 @click="toggleAgentDropdown"
                 ref="agentPillRef"
               >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
                 <span>{{ selectedAgent ? selectedAgent.username : $t('step5.chatWithAgent') }}</span>
-                <svg class="dropdown-arrow" :class="{ open: showAgentDropdown }" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="dropdown-arrow" :class="{ open: showAgentDropdown }" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
               <!-- Teleport: escapa el overflow:hidden de los paneles ancestros -->
               <Teleport to="body">
-                <div v-if="showAgentDropdown" class="dropdown-menu-global" :style="dropdownGlobalStyle">
+                <div v-if="showAgentDropdown" class="dropdown-menu-global" :style="dropdownGlobalStyle" @keydown.esc="closeAgentDropdown">
                   <div class="dropdown-header-g">{{ $t('step5.selectChatTarget') }}</div>
-                  <div
+                  <!-- botones (antes divs): se recorren con Tab y se eligen con Intro -->
+                  <button
                     v-for="(agent, idx) in profiles"
                     :key="idx"
+                    type="button"
                     class="dropdown-item-g"
                     @click="selectAgent(agent, idx)"
                   >
-                    <div class="agent-avatar-g">{{ (agent.username || 'A')[0] }}</div>
-                    <div class="agent-info-g">
+                    <span class="agent-avatar-g" aria-hidden="true">{{ (agent.username || 'A')[0] }}</span>
+                    <span class="agent-info-g">
                       <span class="agent-name-g">{{ agent.username }}</span>
                       <span class="agent-role-g">{{ agent.profession || $t('step2.unknownProfession') }}</span>
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 </div>
               </Teleport>
             </div>
             <div class="tab-divider"></div>
             <button
+              type="button"
               class="tab-pill explorer-pill"
               data-tour="int-tab-explorer"
               :class="{ active: activeTab === 'explorer' }"
+              :aria-pressed="activeTab === 'explorer'"
               @click="selectExplorerTab"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M2 12h20"></path>
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
@@ -160,12 +192,14 @@
             </button>
             <div class="tab-divider"></div>
             <button
+              type="button"
               class="tab-pill survey-pill"
               data-tour="int-tab-survey"
               :class="{ active: activeTab === 'survey' }"
+              :aria-pressed="activeTab === 'survey'"
               @click="selectSurveyTab"
             >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M9 11l3 3L22 4"></path>
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
               </svg>
@@ -185,8 +219,15 @@
                 <div class="tools-card-name">{{ $t('step5.reportAgentChat') }}</div>
                 <div class="tools-card-subtitle">{{ $t('step5.reportAgentDesc') }}</div>
               </div>
-              <button class="tools-card-toggle" @click="showToolsDetail = !showToolsDetail">
-                <svg :class="{ 'is-expanded': showToolsDetail }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <button
+                type="button"
+                class="tools-card-toggle"
+                :aria-expanded="showToolsDetail"
+                :aria-label="showToolsDetail ? $t('step5.hideTools') : $t('step5.showTools')"
+                :title="showToolsDetail ? $t('step5.hideTools') : $t('step5.showTools')"
+                @click="showToolsDetail = !showToolsDetail"
+              >
+                <svg :class="{ 'is-expanded': showToolsDetail }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
@@ -195,7 +236,7 @@
               <div class="tools-grid">
                 <div class="tool-item tool-purple">
                   <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.5V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.5A7 7 0 0 0 12 2z"></path>
                     </svg>
                   </div>
@@ -206,7 +247,7 @@
                 </div>
                 <div class="tool-item tool-blue">
                   <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <circle cx="12" cy="12" r="10"></circle>
                       <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
                     </svg>
@@ -218,7 +259,7 @@
                 </div>
                 <div class="tool-item tool-orange">
                   <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
                   </div>
@@ -229,7 +270,7 @@
                 </div>
                 <div class="tool-item tool-green">
                   <div class="tool-icon-wrapper">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
@@ -255,8 +296,15 @@
                   <span class="profile-card-profession">{{ selectedAgent.profession || $t('step2.unknownProfession') }}</span>
                 </div>
               </div>
-              <button class="profile-card-toggle" @click="showFullProfile = !showFullProfile">
-                <svg :class="{ 'is-expanded': showFullProfile }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <button
+                type="button"
+                class="profile-card-toggle"
+                :aria-expanded="showFullProfile"
+                :aria-label="showFullProfile ? $t('step5.hideProfile') : $t('step5.showProfile')"
+                :title="showFullProfile ? $t('step5.hideProfile') : $t('step5.showProfile')"
+                @click="showFullProfile = !showFullProfile"
+              >
+                <svg :class="{ 'is-expanded': showFullProfile }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
@@ -273,7 +321,7 @@
           <div class="chat-messages" ref="chatMessages">
             <div v-if="chatHistory.length === 0" class="chat-empty">
               <div class="empty-icon">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
               </div>
@@ -281,32 +329,41 @@
                 {{ chatTarget === 'report_agent' ? $t('step5.chatEmptyReportAgent') : $t('step5.chatEmptyAgent') }}
               </p>
             </div>
-            <div 
-              v-for="(msg, idx) in chatHistory" 
+            <div
+              v-for="(msg, idx) in chatHistory"
               :key="idx"
               class="chat-message"
-              :class="msg.role"
+              :class="[msg.role, { 'is-error': msg.error }]"
             >
-              <div class="message-avatar">
-                <span v-if="msg.role === 'user'">U</span>
+              <div class="message-avatar" aria-hidden="true">
+                <span v-if="msg.role === 'user'">{{ $t('step5.you')[0] }}</span>
                 <span v-else>{{ msg.role === 'assistant' && chatTarget === 'report_agent' ? 'R' : (selectedAgent?.username?.[0] || 'A') }}</span>
               </div>
               <div class="message-content">
                 <div class="message-header">
                   <span class="sender-name">
-                    {{ msg.role === 'user' ? 'You' : (chatTarget === 'report_agent' ? 'Report Agent' : (selectedAgent?.username || 'Agent')) }}
+                    {{ msg.role === 'user' ? $t('step5.you') : (chatTarget === 'report_agent' ? $t('step5.reportAgentName') : (selectedAgent?.username || $t('step5.agentFallback'))) }}
                   </span>
                   <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                 </div>
-                <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
+                <!-- error: frase clara y el texto técnico plegado -->
+                <div v-if="msg.error" class="message-text" role="alert">
+                  <p class="md-p">{{ msg.content }}</p>
+                  <details v-if="msg.detail" class="notice-details">
+                    <summary>{{ $t('main.failDetails') }}</summary>
+                    <code>{{ msg.detail }}</code>
+                  </details>
+                </div>
+                <MiniMarkdown v-else-if="msg.role === 'assistant'" class="message-text" :text="msg.content" />
+                <div v-else class="message-text is-plain">{{ msg.content }}</div>
               </div>
             </div>
-            <div v-if="isSending" class="chat-message assistant">
-              <div class="message-avatar">
+            <div v-if="isSending" class="chat-message assistant" role="status" :aria-label="$t('common.loading')">
+              <div class="message-avatar" aria-hidden="true">
                 <span>{{ chatTarget === 'report_agent' ? 'R' : (selectedAgent?.username?.[0] || 'A') }}</span>
               </div>
               <div class="message-content">
-                <div class="typing-indicator">
+                <div class="typing-indicator" aria-hidden="true">
                   <span></span>
                   <span></span>
                   <span></span>
@@ -317,21 +374,25 @@
 
           <!-- Chat Input -->
           <div class="chat-input-area" data-tour="int-chat-input">
-            <textarea 
+            <textarea
               v-model="chatInput"
               class="chat-input"
               :placeholder="$t('step5.chatInputPlaceholder')"
+              :aria-label="$t('step5.chatInputPlaceholder')"
               @keydown.enter.exact.prevent="sendMessage"
               :disabled="isSending || (!selectedAgent && chatTarget === 'agent')"
               rows="1"
               ref="chatInputRef"
             ></textarea>
-            <button 
+            <button
+              type="button"
               class="send-btn"
+              :aria-label="$t('step5.sendMessage')"
+              :title="$t('step5.sendMessage')"
               @click="sendMessage"
               :disabled="!chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
@@ -355,27 +416,29 @@
                   class="agent-checkbox"
                   :class="{ checked: selectedAgents.has(idx) }"
                 >
-                  <input 
-                    type="checkbox" 
+                  <!-- casilla real (oculta a la vista, no al teclado): con display:none no se podía marcar con Tab + Espacio -->
+                  <input
+                    type="checkbox"
+                    class="checkbox-input"
                     :checked="selectedAgents.has(idx)"
                     @change="toggleAgentSelection(idx)"
                   >
-                  <div class="checkbox-avatar">{{ (agent.username || 'A')[0] }}</div>
+                  <div class="checkbox-avatar" aria-hidden="true">{{ (agent.username || 'A')[0] }}</div>
                   <div class="checkbox-info">
                     <span class="checkbox-name">{{ agent.username }}</span>
                     <span class="checkbox-role">{{ agent.profession || $t('step2.unknownProfession') }}</span>
                   </div>
-                  <div class="checkbox-indicator">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3">
+                  <div class="checkbox-indicator" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                       <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                   </div>
                 </label>
               </div>
               <div class="selection-actions">
-                <button class="action-link" @click="selectAllAgents">{{ $t('step5.selectAll') }}</button>
-                <span class="action-divider">|</span>
-                <button class="action-link" @click="clearAgentSelection">{{ $t('step5.clearSelection') }}</button>
+                <button type="button" class="action-link" @click="selectAllAgents">{{ $t('step5.selectAll') }}</button>
+                <span class="action-divider" aria-hidden="true"></span>
+                <button type="button" class="action-link" @click="clearAgentSelection">{{ $t('step5.clearSelection') }}</button>
               </div>
             </div>
 
@@ -383,22 +446,34 @@
               <div class="section-header">
                 <span class="section-title">{{ $t('step5.surveyQuestions') }}</span>
               </div>
-              <textarea 
+              <textarea
                 v-model="surveyQuestion"
                 class="survey-input"
                 :placeholder="$t('step5.surveyInputPlaceholder')"
+                :aria-label="$t('step5.surveyQuestions')"
                 rows="3"
               ></textarea>
             </div>
 
-            <button 
+            <button
+              type="button"
               class="survey-submit-btn"
               :disabled="selectedAgents.size === 0 || !surveyQuestion.trim() || isSurveying"
               @click="submitSurvey"
             >
-              <span v-if="isSurveying" class="loading-spinner"></span>
+              <span v-if="isSurveying" class="loading-spinner" role="status" :aria-label="$t('common.loading')"></span>
               <span v-else>{{ $t('step5.submitSurvey') }}</span>
             </button>
+
+            <!-- Si falla, se dice (antes solo quedaba en el registro y la pantalla no cambiaba) -->
+            <div v-if="surveyError" class="panel-notice is-error survey-error" role="alert">
+              <p class="panel-notice-title">{{ $t('step5.surveyFailedTitle') }}</p>
+              <p class="panel-notice-text">{{ $t('step5.requestFailedBody') }}</p>
+              <details class="notice-details">
+                <summary>{{ $t('main.failDetails') }}</summary>
+                <code>{{ surveyError }}</code>
+              </details>
+            </div>
           </div>
 
           <!-- Survey Results (container closed after this block) -->
@@ -414,21 +489,21 @@
                 class="result-card"
               >
                 <div class="result-header">
-                  <div class="result-avatar">{{ (result.agent_name || 'A')[0] }}</div>
+                  <div class="result-avatar" aria-hidden="true">{{ (result.agent_name || 'A')[0] }}</div>
                   <div class="result-info">
                     <span class="result-name">{{ result.agent_name }}</span>
                     <span class="result-role">{{ result.profession || $t('step2.unknownProfession') }}</span>
                   </div>
                 </div>
                 <div class="result-question">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                   </svg>
                   <span>{{ result.question }}</span>
                 </div>
-                <div class="result-answer" v-html="renderMarkdown(result.answer)"></div>
+                <MiniMarkdown class="result-answer" :text="result.answer" />
               </div>
             </div>
           </div>
@@ -453,6 +528,10 @@ import { useI18n } from 'vue-i18n'
 import { chatWithReport, getReport, getAgentLog, downloadReport as downloadReportFile } from '../api/report'
 import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
 import Step5WorldExplorer from './Step5WorldExplorer.vue'
+import { MiniMarkdown } from '../lib/miniMarkdown'
+
+// El texto técnico de un fallo (lo que dice el servidor o axios), para el detalle plegado
+const errorDetail = (err) => err?.response?.data?.error || err?.message || String(err || '')
 
 const { t } = useI18n()
 
@@ -489,8 +568,11 @@ const selectedAgents = ref(new Set())
 const surveyQuestion = ref('')
 const surveyResults = ref([])
 const isSurveying = ref(false)
+const surveyError = ref('')
 
 // Report Data
+const reportLoaded = ref(false)      // la carga terminó (con o sin índice)
+const reportLoadError = ref('')      // detalle técnico si falló
 const reportOutline = ref(null)
 const generatedSections = ref({})
 const collapsedSections = ref(new Set())
@@ -584,6 +666,11 @@ const handleExplorerChat = (idx) => {
   activeTab.value = 'chat'
 }
 
+const closeAgentDropdown = () => {
+  showAgentDropdown.value = false
+  nextTick(() => agentPillRef.value?.focus())
+}
+
 const toggleAgentDropdown = () => {
   showAgentDropdown.value = !showAgentDropdown.value
   if (showAgentDropdown.value) {
@@ -631,99 +718,7 @@ const formatTime = (timestamp) => {
   }
 }
 
-const escapeHtml = (value) => String(value)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;')
-
-const renderMarkdown = (content) => {
-  if (!content) return ''
-  
-  let processedContent = escapeHtml(content.replace(/^##\s+.+\n+/, ''))
-  let html = processedContent.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-  html = html.replace(/^#### (.+)$/gm, '<h5 class="md-h5">$1</h5>')
-  html = html.replace(/^### (.+)$/gm, '<h4 class="md-h4">$1</h4>')
-  html = html.replace(/^## (.+)$/gm, '<h3 class="md-h3">$1</h3>')
-  html = html.replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>')
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
-  
-  // 处理列表 - 支持子列表
-  html = html.replace(/^(\s*)- (.+)$/gm, (match, indent, text) => {
-    const level = Math.floor(indent.length / 2)
-    return `<li class="md-li" data-level="${level}">${text}</li>`
-  })
-  html = html.replace(/^(\s*)(\d+)\. (.+)$/gm, (match, indent, num, text) => {
-    const level = Math.floor(indent.length / 2)
-    return `<li class="md-oli" data-level="${level}">${text}</li>`
-  })
-  
-  // 包装无序列表
-  html = html.replace(/(<li class="md-li"[^>]*>.*?<\/li>\s*)+/g, '<ul class="md-ul">$&</ul>')
-  // 包装有序列表
-  html = html.replace(/(<li class="md-oli"[^>]*>.*?<\/li>\s*)+/g, '<ol class="md-ol">$&</ol>')
-  
-  // 清理列表项之间的所有空白
-  html = html.replace(/<\/li>\s+<li/g, '</li><li')
-  // 清理列表开始标签后的空白
-  html = html.replace(/<ul class="md-ul">\s+/g, '<ul class="md-ul">')
-  html = html.replace(/<ol class="md-ol">\s+/g, '<ol class="md-ol">')
-  // 清理列表结束标签前的空白
-  html = html.replace(/\s+<\/ul>/g, '</ul>')
-  html = html.replace(/\s+<\/ol>/g, '</ol>')
-  
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  html = html.replace(/_(.+?)_/g, '<em>$1</em>')
-  html = html.replace(/^---$/gm, '<hr class="md-hr">')
-  html = html.replace(/\n\n/g, '</p><p class="md-p">')
-  html = html.replace(/\n/g, '<br>')
-  html = '<p class="md-p">' + html + '</p>'
-  html = html.replace(/<p class="md-p"><\/p>/g, '')
-  html = html.replace(/<p class="md-p">(<h[2-5])/g, '$1')
-  html = html.replace(/(<\/h[2-5]>)<\/p>/g, '$1')
-  html = html.replace(/<p class="md-p">(<ul|<ol|<blockquote|<pre|<hr)/g, '$1')
-  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>|<\/pre>)<\/p>/g, '$1')
-  // 清理块级元素前后的 <br> 标签
-  html = html.replace(/<br>\s*(<ul|<ol|<blockquote)/g, '$1')
-  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>)\s*<br>/g, '$1')
-  // 清理 <p><br> 紧跟块级元素的情况（多余空行导致）
-  html = html.replace(/<p class="md-p">(<br>\s*)+(<ul|<ol|<blockquote|<pre|<hr)/g, '$2')
-  // 清理连续的 <br> 标签
-  html = html.replace(/(<br>\s*){2,}/g, '<br>')
-  // 清理块级元素后紧跟的段落开始标签前的 <br>
-  html = html.replace(/(<\/ol>|<\/ul>|<\/blockquote>)<br>(<p|<div)/g, '$1$2')
-
-  // 修复非连续有序列表的编号：当单项 <ol> 被段落内容隔开时，保持编号递增
-  const tokens = html.split(/(<ol class="md-ol">(?:<li class="md-oli"[^>]*>[\s\S]*?<\/li>)+<\/ol>)/g)
-  let olCounter = 0
-  let inSequence = false
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].startsWith('<ol class="md-ol">')) {
-      const liCount = (tokens[i].match(/<li class="md-oli"/g) || []).length
-      if (liCount === 1) {
-        olCounter++
-        if (olCounter > 1) {
-          tokens[i] = tokens[i].replace('<ol class="md-ol">', `<ol class="md-ol" start="${olCounter}">`)
-        }
-        inSequence = true
-      } else {
-        olCounter = 0
-        inSequence = false
-      }
-    } else if (inSequence) {
-      if (/<h[2-5]/.test(tokens[i])) {
-        olCounter = 0
-        inSequence = false
-      }
-    }
-  }
-  html = tokens.join('')
-
-  return html
-}
+// El Markdown de las respuestas lo pinta MiniMarkdown (lib/miniMarkdown.js): sin v-html, el texto nunca se interpreta como HTML
 
 // Chat Methods
 const sendMessage = async () => {
@@ -750,9 +745,12 @@ const sendMessage = async () => {
     }
   } catch (err) {
     addLog(t('log.sendFailed', { error: err.message }))
+    // Frase clara para la persona; el texto del servidor va plegado como detalle técnico
     chatHistory.value.push({
       role: 'assistant',
-      content: t('step5.errorOccurred', { error: err.message }),
+      error: true,
+      content: t('step5.chatFailed'),
+      detail: errorDetail(err),
       timestamp: new Date().toISOString()
     })
   } finally {
@@ -768,6 +766,7 @@ const sendToReportAgent = async (message) => {
   
   // Build chat history for API
   const historyForApi = chatHistory.value
+    .filter(msg => !msg.error)   // los avisos de error no son parte de la conversación
     .filter(msg => msg.role !== 'user' || msg.content !== message)
     .slice(-10) // Keep last 10 messages
     .map(msg => ({
@@ -804,7 +803,7 @@ const sendToAgent = async (message) => {
   let prompt = message
   if (chatHistory.value.length > 1) {
     const historyContext = chatHistory.value
-      .filter(msg => msg.content !== message)
+      .filter(msg => !msg.error && msg.content !== message)
       .slice(-6)
       .map(msg => `${msg.role === 'user' ? 'Entrevistador' : 'Tú'}: ${msg.content}`)
       .join('\n')
@@ -890,6 +889,7 @@ const submitSurvey = async () => {
   if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim()) return
   
   isSurveying.value = true
+  surveyError.value = ''
   addLog(t('log.sendSurvey', { count: selectedAgents.value.size }))
   
   try {
@@ -950,6 +950,7 @@ const submitSurvey = async () => {
     }
   } catch (err) {
     addLog(t('log.surveySendFailed', { error: err.message }))
+    surveyError.value = errorDetail(err)
   } finally {
     isSurveying.value = false
   }
@@ -959,9 +960,10 @@ const submitSurvey = async () => {
 const loadReportData = async () => {
   if (!props.reportId) return
   
+  reportLoadError.value = ''
   try {
     addLog(t('log.loadReportData', { id: props.reportId }))
-    
+
     // Get report info
     const reportRes = await getReport(props.reportId)
     if (reportRes.success && reportRes.data) {
@@ -970,6 +972,9 @@ const loadReportData = async () => {
     }
   } catch (err) {
     addLog(t('log.loadReportFailed', { error: err.message }))
+    reportLoadError.value = errorDetail(err)
+  } finally {
+    reportLoaded.value = true
   }
 }
 
@@ -995,6 +1000,7 @@ const loadAgentLogs = async () => {
     }
   } catch (err) {
     addLog(t('log.loadReportLogFailed', { error: err.message }))
+    reportLoadError.value = errorDetail(err)
   }
 }
 
@@ -1127,13 +1133,14 @@ watch(() => props.simulationId, (newId) => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 24px;
   background: transparent;
-  border: 1px solid var(--kb-line-strong);
+  border: 1px solid var(--kb-control-line);
   color: var(--kb-muted);
   font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 3px 10px;
   cursor: pointer;
   border-radius: 3px;
   letter-spacing: 0.03em;
@@ -1148,7 +1155,7 @@ watch(() => props.simulationId, (newId) => {
 .report-tag {
   background: var(--kb-text);
   color: #FFFFFF;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 4px 8px;
   letter-spacing: 0.05em;
@@ -1156,10 +1163,11 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .report-id {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
   font-weight: 500;
   letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
 }
 
 .main-title {
@@ -1225,22 +1233,38 @@ watch(() => props.simulationId, (newId) => {
   background-color: var(--kb-surface-2);
 }
 
-.collapse-icon {
+.collapse-btn {
   margin-left: auto;
-  color: var(--kb-subtle);
-  transition: transform 0.3s ease;
   flex-shrink: 0;
   align-self: center;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--kb-subtle);
+  cursor: pointer;
+}
+
+.collapse-btn:hover { color: var(--kb-text); }
+
+.collapse-icon {
+  transition: transform 0.3s ease;
 }
 
 .collapse-icon.is-collapsed {
   transform: rotate(-90deg);
 }
 
+/* Número de sección: --kb-muted también en las pendientes (el #DDD daba 1,36:1) */
 .section-number {
   font-family: var(--kb-font-sans);
   font-size: 16px;
-  color: var(--kb-line);
+  color: var(--kb-muted);
   font-weight: 500;
   transition: color 0.3s ease;
 }
@@ -1256,10 +1280,10 @@ watch(() => props.simulationId, (newId) => {
 
 /* States */
 .report-section-item.is-pending .section-number {
-  color: var(--kb-line);
+  color: var(--kb-muted);
 }
 .report-section-item.is-pending .section-title {
-  color: var(--kb-line-strong);
+  color: var(--kb-muted);
 }
 
 .report-section-item.is-active .section-number,
@@ -1418,6 +1442,27 @@ watch(() => props.simulationId, (newId) => {
   font-size: 14px;
 }
 
+/* Avisos del panel (informe sin cargar, sin contenido, encuesta fallida): frase clara + detalle plegado */
+.panel-notice {
+  margin: 24px auto 0;
+  max-width: 520px;
+  padding: 16px 18px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+  border-radius: 8px;
+}
+.panel-notice.is-error { border-color: var(--kb-danger-line); border-left-width: 4px; }
+.panel-notice-title { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: var(--kb-text); }
+.panel-notice-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--kb-text-2); }
+.notice-details { margin-top: 8px; font-size: 12px; color: var(--kb-muted); }
+.notice-details summary { cursor: pointer; }
+.notice-details code {
+  display: block; margin-top: 6px; padding: 8px 10px; white-space: pre-wrap;
+  background: var(--kb-surface-2); border: 1px solid var(--kb-line); border-radius: 6px;
+  font-family: var(--kb-font-mono); font-size: 12px; color: var(--kb-text-2); overflow-wrap: anywhere;
+}
+.survey-error { margin: 16px 0 0; max-width: none; }
+
 /* Right Panel - Interaction */
 .right-panel {
   flex: 1;
@@ -1434,7 +1479,7 @@ watch(() => props.simulationId, (newId) => {
   justify-content: space-between;
   padding: 14px 20px;
   border-bottom: 1px solid var(--kb-line);
-  background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%);
+  background: var(--kb-surface);
   gap: 16px;
   position: relative;
   z-index: 50;
@@ -1466,7 +1511,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .action-bar-subtitle {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
 }
 
@@ -1485,14 +1530,17 @@ watch(() => props.simulationId, (newId) => {
   row-gap: 6px;
 }
 
+/* Pestañas: la elegida en lima claro con filete de tinta (el estado se ve con ≥ 3:1);
+   el único relleno en tinta de la vista es la acción (Enviar) */
 .tab-pill {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  color: var(--kb-muted);
+  color: var(--kb-text-on-soft);
   background: var(--kb-soft);
   border: 1px solid transparent;
   border-radius: 20px;
@@ -1503,22 +1551,18 @@ watch(() => props.simulationId, (newId) => {
 
 .tab-pill:hover {
   background: var(--kb-line);
-  color: var(--kb-text-2);
+  color: var(--kb-text);
 }
 
 .tab-pill.active {
-  background: var(--kb-text);
-  color: #FFFFFF;
-  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.15);
+  background: var(--kb-accent-subtle);
+  color: var(--kb-text);
+  border-color: var(--kb-text);
+  font-weight: 600;
 }
 
 .tab-pill svg {
   flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.tab-pill.active svg {
-  opacity: 1;
 }
 
 .tab-divider {
@@ -1541,21 +1585,7 @@ watch(() => props.simulationId, (newId) => {
   text-align: left;
 }
 
-.survey-pill {
-  background: #ECFDF5;
-  color: #047857;
-}
-
-.survey-pill:hover {
-  background: #D1FAE5;
-  color: #065F46;
-}
-
-.survey-pill.active {
-  background: #047857;
-  color: #FFFFFF;
-  box-shadow: 0 2px 8px rgba(4, 120, 87, 0.2);
-}
+/* «Enviar encuesta» es una pestaña más (antes, verde ajeno a la marca): mismo aspecto que las demás */
 
 /* Interaction Header */
 .interaction-header {
@@ -1608,9 +1638,10 @@ watch(() => props.simulationId, (newId) => {
 }
 
 /* Report Agent Tools Card */
+/* Fondo liso (el degradado hacia --kb-soft dejaba el texto gris por debajo de 4,5:1 en la esquina) */
 .report-agent-tools-card {
   border-bottom: 1px solid var(--kb-line);
-  background: linear-gradient(135deg, var(--kb-surface-2) 0%, var(--kb-soft) 100%);
+  background: var(--kb-surface-2);
 }
 
 .tools-card-header {
@@ -1658,7 +1689,7 @@ watch(() => props.simulationId, (newId) => {
   width: 28px;
   height: 28px;
   background: #FFFFFF;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -1717,24 +1748,14 @@ watch(() => props.simulationId, (newId) => {
   flex-shrink: 0;
 }
 
-.tool-purple .tool-icon-wrapper {
-  background: rgba(139, 92, 246, 0.1);
-  color: #8B5CF6;
-}
-
-.tool-blue .tool-icon-wrapper {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3B82F6;
-}
-
-.tool-orange .tool-icon-wrapper {
-  background: rgba(249, 115, 22, 0.1);
-  color: #F97316;
-}
-
+/* Las cuatro herramientas se distinguen por su icono y su nombre; el color es el de la marca para todas
+   (antes, morado/azul/naranja/verde ajenos a la paleta) */
+.tool-purple .tool-icon-wrapper,
+.tool-blue .tool-icon-wrapper,
+.tool-orange .tool-icon-wrapper,
 .tool-green .tool-icon-wrapper {
-  background: rgba(34, 197, 94, 0.1);
-  color: #22C55E;
+  background: var(--kb-accent-subtle);
+  color: var(--kb-accent-text);
 }
 
 .tool-content {
@@ -1750,7 +1771,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .tool-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -1762,7 +1783,7 @@ watch(() => props.simulationId, (newId) => {
 /* Agent Profile Card */
 .agent-profile-card {
   border-bottom: 1px solid var(--kb-line);
-  background: linear-gradient(135deg, var(--kb-surface-2) 0%, var(--kb-soft) 100%);
+  background: var(--kb-surface-2);
 }
 
 .profile-card-header {
@@ -1815,9 +1836,10 @@ watch(() => props.simulationId, (newId) => {
 
 .profile-card-profession {
   padding: 2px 8px;
-  background: var(--kb-line);
+  background: var(--kb-soft);
+  color: var(--kb-text-on-soft);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1825,7 +1847,7 @@ watch(() => props.simulationId, (newId) => {
   width: 28px;
   height: 28px;
   background: #FFFFFF;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -1857,7 +1879,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .profile-card-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--kb-subtle);
   text-transform: uppercase;
@@ -2120,7 +2142,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .message-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
 }
 
@@ -2129,6 +2151,14 @@ watch(() => props.simulationId, (newId) => {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.message-text.is-plain { white-space: pre-wrap; }
+
+.chat-message.assistant.is-error .message-text {
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-danger-line);
 }
 
 .chat-message.user .message-text {
@@ -2149,6 +2179,19 @@ watch(() => props.simulationId, (newId) => {
 
 .message-text :deep(.md-p:last-child) {
   margin-bottom: 0;
+}
+
+.message-text :deep(.md-p + .md-p) {
+  margin-top: 8px;
+}
+
+.message-text :deep(strong) {
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.chat-message.user .message-text :deep(strong) {
+  color: inherit;
 }
 
 /* 修复有序列表编号 - 使用 CSS 计数器让多个 ol 连续编号 */
@@ -2214,30 +2257,36 @@ watch(() => props.simulationId, (newId) => {
   30% { transform: translateY(-8px); }
 }
 
-/* Chat Input */
+/* Chat Input: campo y botón con la misma altura (44 px) y el mismo centro;
+   borde de control (3,69:1) y foco visible al momento (la transición del borde hacía que, al enfocar, no cambiara nada) */
 .chat-input-area {
   padding: 16px 24px;
   border-top: 1px solid var(--kb-line);
   display: flex;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .chat-input {
   flex: 1;
-  padding: 12px 16px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 10px 16px;
   font-size: 14px;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 8px;
   resize: none;
   font-family: inherit;
   line-height: 1.5;
-  transition: border-color 0.2s ease;
 }
 
 .chat-input:focus {
-  outline: none;
   border-color: var(--kb-text);
+}
+
+.chat-input:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
 }
 
 .chat-input:disabled {
@@ -2246,6 +2295,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .send-btn {
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   background: var(--kb-text);
@@ -2269,12 +2319,12 @@ watch(() => props.simulationId, (newId) => {
   cursor: not-allowed;
 }
 
-/* Survey Container */
+/* Survey Container: todo el panel se desplaza (al llegar los resultados, la rejilla de destinatarios se quedaba en una franja de 20 px) */
 .survey-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .explorer-container {
@@ -2286,12 +2336,11 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .survey-setup {
-  flex: 1;
+  flex: none;
   display: flex;
   flex-direction: column;
   padding: 24px;
   border-bottom: 1px solid var(--kb-line);
-  overflow: hidden;
 }
 
 .setup-section {
@@ -2299,11 +2348,8 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .setup-section:first-child {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
 }
 
 .setup-section:last-child {
@@ -2333,13 +2379,14 @@ watch(() => props.simulationId, (newId) => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 10px;
-  flex: 1;
+  max-height: 300px;
   overflow-y: auto;
   padding: 4px;
   align-content: start;
 }
 
 .agent-checkbox {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2352,16 +2399,27 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .agent-checkbox:hover {
-  border-color: var(--kb-line-strong);
+  border-color: var(--kb-control-line);
 }
 
+/* Marcado: borde de tinta + casilla rellena con ✓ (forma, no solo color) */
 .agent-checkbox.checked {
-  background: #F0FDF4;
-  border-color: #10B981;
+  background: var(--kb-accent-subtle);
+  border-color: var(--kb-text);
 }
 
-.agent-checkbox input {
-  display: none;
+.agent-checkbox:focus-within {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
+}
+
+.agent-checkbox .checkbox-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
 }
 
 .checkbox-avatar {
@@ -2375,13 +2433,13 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
 }
 
 .agent-checkbox.checked .checkbox-avatar {
-  background: #10B981;
+  background: var(--kb-text);
   color: #FFFFFF;
 }
 
@@ -2402,7 +2460,7 @@ watch(() => props.simulationId, (newId) => {
 
 .checkbox-role {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
   white-space: nowrap;
   overflow: hidden;
@@ -2412,7 +2470,7 @@ watch(() => props.simulationId, (newId) => {
 .checkbox-indicator {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--kb-line);
+  border: 2px solid var(--kb-control-line);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -2422,8 +2480,8 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .agent-checkbox.checked .checkbox-indicator {
-  background: #10B981;
-  border-color: #10B981;
+  background: var(--kb-text);
+  border-color: var(--kb-text);
   color: #FFFFFF;
 }
 
@@ -2440,17 +2498,21 @@ watch(() => props.simulationId, (newId) => {
 
 .selection-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-top: 12px;
 }
 
+/* 24 px de alto como mínimo (WCAG 2.5.8): antes eran 15 px y estaban pegados */
 .action-link {
+  min-height: 24px;
+  font-family: inherit;
   font-size: 12px;
   color: var(--kb-muted);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 0 6px;
 }
 
 .action-link:hover {
@@ -2459,25 +2521,31 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .action-divider {
-  color: var(--kb-line);
+  width: 1px;
+  height: 14px;
+  background: var(--kb-line-strong);
 }
 
 /* Survey Input */
 .survey-input {
   width: 100%;
+  box-sizing: border-box;
   padding: 14px 16px;
   font-size: 14px;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 8px;
   resize: none;
   font-family: inherit;
   line-height: 1.5;
-  transition: border-color 0.2s ease;
 }
 
 .survey-input:focus {
-  outline: none;
   border-color: var(--kb-text);
+}
+
+.survey-input:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
 }
 
 .survey-submit-btn {
@@ -2523,8 +2591,7 @@ watch(() => props.simulationId, (newId) => {
 
 /* Survey Results */
 .survey-results {
-  flex: 1;
-  overflow-y: auto;
+  flex: none;
   padding: 24px;
 }
 
@@ -2731,7 +2798,7 @@ html[lang="en"] .report-header-block .main-title {
 
 .dropdown-header-g {
   padding: 12px 16px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--kb-subtle);
   text-transform: uppercase;
@@ -2743,15 +2810,27 @@ html[lang="en"] .report-header-block .main-title {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 10px 16px;
   cursor: pointer;
   transition: background 0.15s ease, border-left-color 0.15s ease;
+  background: none;
+  border: 0;
   border-left: 3px solid transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 
-.dropdown-item-g:hover {
+.dropdown-item-g:hover,
+.dropdown-item-g:focus-visible {
   background: var(--kb-surface-2);
   border-left-color: var(--kb-text);
+}
+
+.dropdown-item-g:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: -2px;
 }
 
 .dropdown-item-g:first-of-type { margin-top: 4px; }
@@ -2790,7 +2869,7 @@ html[lang="en"] .report-header-block .main-title {
 }
 
 .agent-role-g {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
   white-space: nowrap;
   overflow: hidden;

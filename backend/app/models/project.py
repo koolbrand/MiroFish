@@ -52,7 +52,11 @@ class Project:
     
     # 错误信息
     error: Optional[str] = None
-    
+
+    # Investigación en internet (paso opcional antes de la ontología). Sin el
+    # Markdown: el documento vive en files/investigacion-internet.md.
+    web_research: Optional[Dict[str, Any]] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -70,7 +74,8 @@ class Project:
             "simulation_requirement": self.simulation_requirement,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
-            "error": self.error
+            "error": self.error,
+            "web_research": self.web_research
         }
     
     @classmethod
@@ -95,7 +100,8 @@ class Project:
             simulation_requirement=data.get('simulation_requirement'),
             chunk_size=data.get('chunk_size', 500),
             chunk_overlap=data.get('chunk_overlap', 50),
-            error=data.get('error')
+            error=data.get('error'),
+            web_research=data.get('web_research')
         )
 
 
@@ -293,6 +299,43 @@ class ProjectManager:
         with open(text_path, 'r', encoding='utf-8') as f:
             return f.read()
     
+    # Documento de la investigación en internet: un archivo más del material
+    RESEARCH_DOCUMENT_FILENAME = 'investigacion-internet.md'
+
+    @classmethod
+    def _get_research_document_path(cls, project_id: str) -> str:
+        return os.path.join(cls._get_project_files_dir(project_id), cls.RESEARCH_DOCUMENT_FILENAME)
+
+    @classmethod
+    def save_research_document(cls, project_id: str, markdown: str) -> Dict[str, Any]:
+        """Guarda el Markdown de la investigación en files/ (sobrescribe el anterior)."""
+        files_dir = cls._get_project_files_dir(project_id)
+        if not os.path.isdir(cls._get_project_dir(project_id)):
+            raise FileNotFoundError(f"El proyecto {project_id} ya no existe")
+        os.makedirs(files_dir, exist_ok=True)
+        path = cls._get_research_document_path(project_id)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(markdown)
+        return {"path": path, "size": os.path.getsize(path)}
+
+    @classmethod
+    def delete_research_document(cls, project_id: str) -> bool:
+        """Borra el documento de la investigación si existe. True si había uno."""
+        try:
+            os.remove(cls._get_research_document_path(project_id))
+            return True
+        except FileNotFoundError:
+            return False
+
+    @classmethod
+    def get_research_document(cls, project_id: str) -> Optional[str]:
+        """Markdown de la investigación, o None si el proyecto no la tiene."""
+        path = cls._get_research_document_path(project_id)
+        if not os.path.exists(path):
+            return None
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+
     @classmethod
     def get_project_files(cls, project_id: str) -> List[str]:
         """获取项目的所有文件路径"""

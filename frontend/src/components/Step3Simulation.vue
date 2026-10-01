@@ -6,27 +6,27 @@
         <!-- Twitter 平台进度 -->
         <div class="platform-status twitter" :class="{ active: runStatus.twitter_running, completed: runStatus.twitter_completed }">
           <div class="platform-header">
-            <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
             </svg>
-            <span class="platform-name">Info Plaza</span>
-            <span v-if="runStatus.twitter_completed" class="status-badge">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3">
+            <span class="platform-name">{{ $t('step3.platformTwitter') }}</span>
+            <span v-if="runStatus.twitter_completed" class="status-badge" role="img" :aria-label="$t('common.completed')" :title="$t('common.completed')">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </span>
           </div>
           <div class="platform-stats">
             <span class="stat">
-              <span class="stat-label">ROUND</span>
+              <span class="stat-label">{{ $t('step3.statRound') }}</span>
               <span class="stat-value mono">{{ runStatus.twitter_current_round || 0 }}<span class="stat-total">/{{ runStatus.total_rounds || maxRounds || '-' }}</span></span>
             </span>
             <span class="stat">
-              <span class="stat-label">TIME</span>
+              <span class="stat-label">{{ $t('step3.statTime') }}</span>
               <span class="stat-value mono">{{ twitterElapsedTime }}</span>
             </span>
             <span class="stat">
-              <span class="stat-label">ACTS</span>
+              <span class="stat-label">{{ $t('step3.statActs') }}</span>
               <span class="stat-value mono">{{ runStatus.twitter_actions_count || 0 }}</span>
             </span>
           </div>
@@ -34,40 +34,35 @@
           <div class="actions-tooltip">
             <div class="tooltip-title">{{ $t('ui.availableActions') }}</div>
             <div class="tooltip-actions">
-              <span class="tooltip-action">POST</span>
-              <span class="tooltip-action">LIKE</span>
-              <span class="tooltip-action">REPOST</span>
-              <span class="tooltip-action">QUOTE</span>
-              <span class="tooltip-action">FOLLOW</span>
-              <span class="tooltip-action">IDLE</span>
+              <span v-for="a in ['CREATE_POST', 'LIKE_POST', 'REPOST', 'QUOTE_POST', 'FOLLOW', 'DO_NOTHING']" :key="a" class="tooltip-action">{{ getActionTypeLabel(a) }}</span>
             </div>
           </div>
         </div>
-        
+
         <!-- Reddit 平台进度 -->
         <div class="platform-status reddit" :class="{ active: runStatus.reddit_running, completed: runStatus.reddit_completed }">
           <div class="platform-header">
-            <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="platform-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
             </svg>
-            <span class="platform-name">Topic Community</span>
-            <span v-if="runStatus.reddit_completed" class="status-badge">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3">
+            <span class="platform-name">{{ $t('step3.platformReddit') }}</span>
+            <span v-if="runStatus.reddit_completed" class="status-badge" role="img" :aria-label="$t('common.completed')" :title="$t('common.completed')">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </span>
           </div>
           <div class="platform-stats">
             <span class="stat">
-              <span class="stat-label">ROUND</span>
+              <span class="stat-label">{{ $t('step3.statRound') }}</span>
               <span class="stat-value mono">{{ runStatus.reddit_current_round || 0 }}<span class="stat-total">/{{ runStatus.total_rounds || maxRounds || '-' }}</span></span>
             </span>
             <span class="stat">
-              <span class="stat-label">TIME</span>
+              <span class="stat-label">{{ $t('step3.statTime') }}</span>
               <span class="stat-value mono">{{ redditElapsedTime }}</span>
             </span>
             <span class="stat">
-              <span class="stat-label">ACTS</span>
+              <span class="stat-label">{{ $t('step3.statActs') }}</span>
               <span class="stat-value mono">{{ runStatus.reddit_actions_count || 0 }}</span>
             </span>
           </div>
@@ -75,16 +70,7 @@
           <div class="actions-tooltip">
             <div class="tooltip-title">{{ $t('ui.availableActions') }}</div>
             <div class="tooltip-actions">
-              <span class="tooltip-action">POST</span>
-              <span class="tooltip-action">COMMENT</span>
-              <span class="tooltip-action">LIKE</span>
-              <span class="tooltip-action">DISLIKE</span>
-              <span class="tooltip-action">SEARCH</span>
-              <span class="tooltip-action">TREND</span>
-              <span class="tooltip-action">FOLLOW</span>
-              <span class="tooltip-action">MUTE</span>
-              <span class="tooltip-action">REFRESH</span>
-              <span class="tooltip-action">IDLE</span>
+              <span v-for="a in ['CREATE_POST', 'CREATE_COMMENT', 'LIKE_POST', 'DOWNVOTE_POST', 'SEARCH_POSTS', 'TREND', 'FOLLOW', 'MUTE', 'REFRESH', 'DO_NOTHING']" :key="a" class="tooltip-action">{{ getActionTypeLabel(a) }}</span>
             </div>
           </div>
         </div>
@@ -156,13 +142,15 @@
             <span v-if="hasActiveFilters" class="stats-total-hint">/ {{ allActions.length }}</span>
           </span>
           <span class="platform-breakdown">
-            <span class="breakdown-item twitter">
-              <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span class="breakdown-item twitter" :title="$t('step3.platformTwitter')">
+              <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              <span class="sr-only">{{ $t('step3.platformTwitter') }}:</span>
               <span class="mono">{{ twitterActionsCount }}</span>
             </span>
-            <span class="breakdown-divider">/</span>
-            <span class="breakdown-item reddit">
-              <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            <span class="breakdown-divider" aria-hidden="true"></span>
+            <span class="breakdown-item reddit" :title="$t('step3.platformReddit')">
+              <svg class="mini-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+              <span class="sr-only">{{ $t('step3.platformReddit') }}:</span>
               <span class="mono">{{ redditActionsCount }}</span>
             </span>
           </span>
@@ -180,8 +168,10 @@
               { key: 'reddit', label: $t('step3.platformReddit') }
             ]"
             :key="opt.key"
+            type="button"
             class="filter-chip"
             :class="{ active: feedFilters.platform === opt.key }"
+            :aria-pressed="feedFilters.platform === opt.key"
             @click="feedFilters.platform = opt.key"
           >
             {{ opt.label }}
@@ -198,8 +188,10 @@
               { key: 'comments', label: $t('step3.filterGroupComments') }
             ]"
             :key="opt.key"
+            type="button"
             class="filter-chip"
             :class="{ active: feedFilters.actionGroup === opt.key }"
+            :aria-pressed="feedFilters.actionGroup === opt.key"
             @click="feedFilters.actionGroup = opt.key"
           >
             {{ opt.label }}
@@ -207,7 +199,7 @@
         </div>
 
         <div class="filter-search">
-          <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input
             type="text"
             v-model="feedFilters.query"
@@ -216,6 +208,7 @@
           />
           <button
             v-if="hasActiveFilters"
+            type="button"
             class="clear-filters-btn"
             @click="clearFeedFilters"
             :title="$t('step3.clearFilters')"
@@ -225,6 +218,16 @@
         </div>
       </div>
       
+      <!-- Si falla el arranque o la ejecución: una frase clara y el detalle técnico plegado (no tapa lo ya simulado) -->
+      <div v-if="startError" class="feed-error" role="alert">
+        <p class="feed-error-title">{{ phase === 2 ? $t('step3.runFailedTitle') : $t('step3.startFailedTitle') }}</p>
+        <p class="feed-error-text">{{ allActions.length ? $t('step3.runFailedBody') : $t('step3.startFailedBody') }}</p>
+        <details class="feed-error-details">
+          <summary>{{ $t('main.failDetails') }}</summary>
+          <code>{{ startError }}</code>
+        </details>
+      </div>
+
       <!-- Timeline Feed -->
       <div class="timeline-feed">
         <div class="timeline-axis"></div>
@@ -248,31 +251,28 @@
                 </div>
                 
                 <div class="header-meta">
-                  <div class="platform-indicator">
-                    <svg v-if="action.platform === 'twitter'" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                    <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                  <div class="platform-indicator" :title="platformName(action.platform)">
+                    <svg v-if="action.platform === 'twitter'" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                    <span class="sr-only">{{ platformName(action.platform) }}</span>
                   </div>
                   <div class="action-badge" :class="getActionTypeClass(action.action_type)">
                     {{ getActionTypeLabel(action.action_type) }}
                   </div>
                 </div>
               </div>
-              
+
               <div class="card-body">
                 <!-- CREATE_POST: 发布帖子 -->
-                <div v-if="action.action_type === 'CREATE_POST' && action.action_args?.content" class="content-text main-text">
-                  {{ action.action_args.content }}
-                </div>
+                <MiniMarkdown v-if="action.action_type === 'CREATE_POST' && action.action_args?.content" class="content-text main-text" :text="action.action_args.content" />
 
                 <!-- QUOTE_POST: 引用帖子 -->
                 <template v-if="action.action_type === 'QUOTE_POST'">
-                  <div v-if="action.action_args?.quote_content" class="content-text">
-                    {{ action.action_args.quote_content }}
-                  </div>
+                  <MiniMarkdown v-if="action.action_args?.quote_content" class="content-text" :text="action.action_args.quote_content" />
                   <div v-if="action.action_args?.original_content" class="quoted-block">
                     <div class="quote-header">
-                      <svg class="icon-small" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                      <span class="quote-label">@{{ action.action_args.original_author_name || 'User' }}</span>
+                      <svg class="icon-small" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                      <span class="quote-label">@{{ action.action_args.original_author_name || $t('step3.someone') }}</span>
                     </div>
                     <div class="quote-text">
                       {{ truncateContent(action.action_args.original_content, 150) }}
@@ -283,8 +283,8 @@
                 <!-- REPOST: 转发帖子 -->
                 <template v-if="action.action_type === 'REPOST'">
                   <div class="repost-info">
-                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-                    <span class="repost-label">Reposted from @{{ action.action_args?.original_author_name || 'User' }}</span>
+                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                    <span class="repost-label">{{ $t('step3.repostedFrom', { name: atName(action.action_args?.original_author_name) }) }}</span>
                   </div>
                   <div v-if="action.action_args?.original_content" class="repost-content">
                     {{ truncateContent(action.action_args.original_content, 200) }}
@@ -294,8 +294,8 @@
                 <!-- LIKE_POST: 点赞帖子 -->
                 <template v-if="action.action_type === 'LIKE_POST'">
                   <div class="like-info">
-                    <svg class="icon-small filled" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                    <span class="like-label">Liked @{{ action.action_args?.post_author_name || 'User' }}'s post</span>
+                    <svg class="icon-small filled" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <span class="like-label">{{ $t('step3.likedPost', { name: atName(action.action_args?.post_author_name) }) }}</span>
                   </div>
                   <div v-if="action.action_args?.post_content" class="liked-content">
                     "{{ truncateContent(action.action_args.post_content, 120) }}"
@@ -304,20 +304,18 @@
 
                 <!-- CREATE_COMMENT: 发表评论 -->
                 <template v-if="action.action_type === 'CREATE_COMMENT'">
-                  <div v-if="action.action_args?.content" class="content-text">
-                    {{ action.action_args.content }}
-                  </div>
+                  <MiniMarkdown v-if="action.action_args?.content" class="content-text" :text="action.action_args.content" />
                   <div v-if="action.action_args?.post_id" class="comment-context">
-                    <svg class="icon-small" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                    <span>Reply to post #{{ action.action_args.post_id }}</span>
+                    <svg class="icon-small" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                    <span>{{ $t('step3.replyToPost', { id: action.action_args.post_id }) }}</span>
                   </div>
                 </template>
 
                 <!-- SEARCH_POSTS: 搜索帖子 -->
                 <template v-if="action.action_type === 'SEARCH_POSTS'">
                   <div class="search-info">
-                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <span class="search-label">Search Query:</span>
+                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <span class="search-label">{{ $t('step3.searchQuery') }}</span>
                     <span class="search-query">"{{ action.action_args?.query || '' }}"</span>
                   </div>
                 </template>
@@ -325,17 +323,17 @@
                 <!-- FOLLOW: 关注用户 -->
                 <template v-if="action.action_type === 'FOLLOW'">
                   <div class="follow-info">
-                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-                    <span class="follow-label">Followed @{{ action.action_args?.target_user || action.action_args?.user_id || 'User' }}</span>
+                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                    <span class="follow-label">{{ $t('step3.followed', { name: atName(action.action_args?.target_user || action.action_args?.user_id) }) }}</span>
                   </div>
                 </template>
 
                 <!-- UPVOTE / DOWNVOTE -->
                 <template v-if="action.action_type === 'UPVOTE_POST' || action.action_type === 'DOWNVOTE_POST'">
                   <div class="vote-info">
-                    <svg v-if="action.action_type === 'UPVOTE_POST'" class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-                    <svg v-else class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    <span class="vote-label">{{ action.action_type === 'UPVOTE_POST' ? 'Upvoted' : 'Downvoted' }} Post</span>
+                    <svg v-if="action.action_type === 'UPVOTE_POST'" class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                    <svg v-else class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <span class="vote-label">{{ action.action_type === 'UPVOTE_POST' ? $t('step3.upvotedPost') : $t('step3.downvotedPost') }}</span>
                   </div>
                   <div v-if="action.action_args?.post_content" class="voted-content">
                     "{{ truncateContent(action.action_args.post_content, 120) }}"
@@ -345,35 +343,34 @@
                 <!-- DO_NOTHING: 无操作（静默） -->
                 <template v-if="action.action_type === 'DO_NOTHING'">
                   <div class="idle-info">
-                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                    <span class="idle-label">Action Skipped</span>
+                    <svg class="icon-small" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span class="idle-label">{{ $t('step5.actionSkipped') }}</span>
                   </div>
                 </template>
 
                 <!-- 通用回退：未知类型或有 content 但未被上述处理 -->
-                <div v-if="!['CREATE_POST', 'QUOTE_POST', 'REPOST', 'LIKE_POST', 'CREATE_COMMENT', 'SEARCH_POSTS', 'FOLLOW', 'UPVOTE_POST', 'DOWNVOTE_POST', 'DO_NOTHING'].includes(action.action_type) && action.action_args?.content" class="content-text">
-                  {{ action.action_args.content }}
-                </div>
+                <MiniMarkdown v-if="!['CREATE_POST', 'QUOTE_POST', 'REPOST', 'LIKE_POST', 'CREATE_COMMENT', 'SEARCH_POSTS', 'FOLLOW', 'UPVOTE_POST', 'DOWNVOTE_POST', 'DO_NOTHING'].includes(action.action_type) && action.action_args?.content" class="content-text" :text="action.action_args.content" />
               </div>
 
               <div class="card-footer">
-                <span class="time-tag">R{{ action.round_num }} • {{ formatActionTime(action.timestamp) }}</span>
+                <span class="time-tag">{{ $t('step3.roundShort', { n: action.round_num }) }} · {{ formatActionTime(action.timestamp) }}</span>
                 <!-- Platform tag removed as it is in header now -->
               </div>
             </div>
           </div>
         </TransitionGroup>
 
-        <div v-if="allActions.length === 0" class="waiting-state">
+        <div v-if="allActions.length === 0 && !startError" class="waiting-state" role="status">
           <div class="pulse-ring"></div>
           <span>{{ $t('step3.waitingForActions') }}</span>
         </div>
         <div
           v-else-if="filteredActionsCount === 0 && hasActiveFilters"
-          class="waiting-state feed-empty"
+          class="feed-empty"
+          role="status"
         >
           <span>{{ $t('step3.noMatchingActions') }}</span>
-          <button class="clear-filters-btn inline" @click="clearFeedFilters">
+          <button type="button" class="clear-filters-btn inline" @click="clearFeedFilters">
             {{ $t('step3.clearFilters') }}
           </button>
         </div>
@@ -383,7 +380,7 @@
     <!-- Bottom Info / Logs -->
     <div class="system-logs">
       <div class="log-header">
-        <span class="log-title">SIMULATION MONITOR</span>
+        <span class="log-title">{{ $t('ui.systemDashboard') }}</span>
         <span v-if="!showTech && lastLog" class="log-last">{{ lastLog }}</span>
         <button type="button" class="log-toggle" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
         <span class="log-id tech-only">{{ simulationId || 'NO_SIMULATION' }}</span>
@@ -411,8 +408,9 @@ import {
 } from '../api/simulation'
 import { generateReport, checkReportForSimulation } from '../api/report'
 import { usePipeline } from '../composables/usePipeline'
+import { MiniMarkdown, stripMarkdown } from '../lib/miniMarkdown'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const props = defineProps({
   simulationId: String,
@@ -831,22 +829,14 @@ const fetchRunStatusDetail = async () => {
 }
 
 // Helpers
+// Rótulo corto de cada acción (step3.actions.*); lo que el motor añada sin traducir se enseña tal cual
 const getActionTypeLabel = (type) => {
-  const labels = {
-    'CREATE_POST': 'POST',
-    'REPOST': 'REPOST',
-    'LIKE_POST': 'LIKE',
-    'CREATE_COMMENT': 'COMMENT',
-    'LIKE_COMMENT': 'LIKE',
-    'DO_NOTHING': 'IDLE',
-    'FOLLOW': 'FOLLOW',
-    'SEARCH_POSTS': 'SEARCH',
-    'QUOTE_POST': 'QUOTE',
-    'UPVOTE_POST': 'UPVOTE',
-    'DOWNVOTE_POST': 'DOWNVOTE'
-  }
-  return labels[type] || type || 'UNKNOWN'
+  const key = `step3.actions.${type}`
+  return type && te(key) ? t(key) : (type || t('common.unknown'))
 }
+// «@nombre» si hay autor; si no, «alguien» (la @ va aquí: en vue-i18n es un carácter especial)
+const atName = (n) => (n ? '@' + n : t('step3.someone'))
+const platformName = (p) => (p === 'twitter' ? t('step3.platformTwitter') : p === 'reddit' ? t('step3.platformReddit') : (p || ''))
 
 const getActionTypeClass = (type) => {
   const classes = {
@@ -865,10 +855,12 @@ const getActionTypeClass = (type) => {
   return classes[type] || 'badge-default'
 }
 
+// Recortes: primero fuera las marcas de Markdown (recortar antes dejaría «**» sueltos a la vista)
 const truncateContent = (content, maxLength = 100) => {
   if (!content) return ''
-  if (content.length > maxLength) return content.substring(0, maxLength) + '...'
-  return content
+  const plain = stripMarkdown(content).replace(/\s+/g, ' ').trim()
+  if (plain.length > maxLength) return plain.substring(0, maxLength) + '…'
+  return plain
 }
 
 const formatActionTime = (timestamp) => {
@@ -1115,7 +1107,9 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-/* Platform Status Cards */
+/* Platform Status Cards
+   Antes, la tarjeta en espera iba al 70 % de opacidad: apagaba también el texto (los rótulos grises caían por debajo de 4,5:1).
+   Ahora el estado se lee por el borde (discontinuo en espera) y por el icono ✓ al terminar, no por transparencia ni solo por color. */
 .platform-status {
   display: flex;
   flex-direction: column;
@@ -1123,24 +1117,23 @@ onUnmounted(() => {
   padding: 6px 12px;
   border-radius: 4px;
   background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  opacity: 0.7;
-  transition: all 0.3s;
+  border: 1px dashed var(--kb-control-line);
+  transition: border-color 0.3s, background-color 0.3s;
   min-width: 140px;
   position: relative;
-  cursor: pointer;
+  cursor: default;
 }
 
 .platform-status.active {
-  opacity: 1;
+  border-style: solid;
   border-color: var(--kb-text-2);
   background: #FFF;
 }
 
 .platform-status.completed {
-  opacity: 1;
-  border-color: #1A936F;
-  background: #F2FAF6;
+  border-style: solid;
+  border-color: var(--kb-ok-line);
+  background: var(--kb-ok-bg);
 }
 
 /* Actions Tooltip */
@@ -1180,9 +1173,9 @@ onUnmounted(() => {
 }
 
 .tooltip-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--kb-subtle);
+  color: var(--kb-muted-on-dark);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 8px;
@@ -1195,13 +1188,15 @@ onUnmounted(() => {
 }
 
 .tooltip-action {
-  font-size: 10px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--kb-text-2);
   border-radius: 2px;
   color: #FFF;
   letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .platform-header {
@@ -1212,7 +1207,7 @@ onUnmounted(() => {
 }
 
 .platform-name {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--kb-text);
   text-transform: uppercase;
@@ -1224,38 +1219,41 @@ onUnmounted(() => {
 
 .platform-stats {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 2px 10px;
 }
 
 .stat {
   display: flex;
   align-items: baseline;
-  gap: 3px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .stat-label {
-  font-size: 8px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
   color: var(--kb-subtle);
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .stat-value {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--kb-text-2);
 }
 
 .stat-total, .stat-unit {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--kb-subtle);
   font-weight: 400;
 }
 
 .status-badge {
   margin-left: auto;
-  color: #1A936F;
+  color: var(--kb-ok-text);
   display: flex;
   align-items: center;
 }
@@ -1296,14 +1294,26 @@ onUnmounted(() => {
   background: var(--kb-text-2);
 }
 
+/* «Detener» y «Reiniciar»: contorno, nunca relleno — el único botón relleno de la barra es el principal */
 .action-btn.danger {
   background: transparent;
-  color: #ff4444;
-  border: 1px solid #ff4444;
+  color: var(--kb-danger-text);
+  border: 1px solid var(--kb-danger-line);
 }
 
 .action-btn.danger:hover:not(:disabled) {
-  background: rgba(255, 68, 68, 0.1);
+  background: var(--kb-surface-2);
+}
+
+.action-btn.secondary {
+  background: transparent;
+  color: var(--kb-text);
+  border: 1px solid var(--kb-control-line);
+}
+
+.action-btn.secondary:hover:not(:disabled) {
+  border-color: var(--kb-text);
+  background: var(--kb-surface-2);
 }
 
 /* Compact icon-only variant (used for Stop button) */
@@ -1347,8 +1357,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  font-size: 11px;
-  color: var(--kb-muted);
+  font-size: 12px;
+  color: var(--kb-text-on-soft);
   background: var(--kb-soft);
   padding: 4px 12px;
   border-radius: 20px;
@@ -1371,14 +1381,27 @@ onUnmounted(() => {
   gap: 4px;
 }
 
-.breakdown-divider { color: var(--kb-line-strong); }
+/* separador: un filete, no un «/» de texto gris (1,32:1) */
+.breakdown-divider { width: 1px; height: 12px; background: var(--kb-control-line); }
 .breakdown-item.twitter { color: var(--kb-text); }
 .breakdown-item.reddit { color: var(--kb-text); }
 
 .stats-total-hint {
-  color: var(--kb-subtle);
+  color: var(--kb-text-on-soft);
   margin-left: 4px;
   font-weight: 400;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* --- Feed Filters --- */
@@ -1398,36 +1421,41 @@ onUnmounted(() => {
 
 .filter-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
 .filter-label {
-  font-size: 9px;
-  font-weight: 700;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  font-weight: 500;
   color: var(--kb-subtle);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-right: 2px;
 }
 
+/* Chips de filtro: son controles, así que el borde es --kb-control-line (3,69:1), no el filete --kb-line (1,36:1) */
 .filter-chip {
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
-  border: 1px solid var(--kb-line);
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid var(--kb-control-line);
   background: #FFF;
   color: var(--kb-muted);
   border-radius: 999px;
   cursor: pointer;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 
 .filter-chip:hover {
-  border-color: var(--kb-line-strong);
+  border-color: var(--kb-text);
   color: var(--kb-text);
 }
 
@@ -1444,14 +1472,17 @@ onUnmounted(() => {
   margin-left: auto;
   flex: 1 1 220px;
   max-width: 360px;
-  padding: 4px 10px;
-  border: 1px solid var(--kb-line);
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--kb-control-line);
   border-radius: 999px;
   background: #FFF;
 }
 
 .filter-search:focus-within {
   border-color: var(--kb-text);
+  box-shadow: 0 0 0 1px var(--kb-text);
 }
 
 .filter-search .search-icon {
@@ -1477,12 +1508,13 @@ onUnmounted(() => {
 
 .clear-filters-btn {
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 8px;
+  min-height: 24px;
+  padding: 3px 10px;
   background: transparent;
   color: var(--kb-muted);
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 999px;
   cursor: pointer;
   text-transform: uppercase;
@@ -1500,12 +1532,42 @@ onUnmounted(() => {
   margin-top: 12px;
 }
 
+/* Sin resultados: en el flujo, arriba del todo (centrado en absoluto quedaba fuera de la vista mientras salían las tarjetas) */
 .feed-empty {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  margin: 24px auto 0;
+  padding: 20px 24px;
+  max-width: 420px;
+  background: #FFF;
+  border: 1px solid var(--kb-line);
+  border-radius: 4px;
   color: var(--kb-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Error de arranque o de ejecución: franja clara encima del feed; el detalle técnico, plegado */
+.feed-error {
+  margin: 16px 24px 0;
+  padding: 14px 16px;
+  background: #FFF;
+  border: 1px solid var(--kb-danger-line);
+  border-left-width: 4px;
+  border-radius: 4px;
+}
+.feed-error-title { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: var(--kb-text); }
+.feed-error-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--kb-text-2); }
+.feed-error-details { margin-top: 8px; font-size: 12px; color: var(--kb-muted); }
+.feed-error-details summary { cursor: pointer; }
+.feed-error-details code {
+  display: block; margin-top: 6px; padding: 8px 10px;
+  background: var(--kb-surface-2); border: 1px solid var(--kb-line); border-radius: 4px;
+  font-family: var(--kb-font-mono); font-size: 12px; color: var(--kb-text-2); overflow-wrap: anywhere;
 }
 
 /* --- Timeline Feed --- */
@@ -1649,33 +1711,51 @@ onUnmounted(() => {
 }
 
 .action-badge {
-  font-size: 9px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
   padding: 2px 6px;
   border-radius: 2px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
   border: 1px solid transparent;
 }
 
-/* Monochromatic Badges */
-.badge-post { background: var(--kb-soft); color: var(--kb-text-2); border-color: var(--kb-line); }
-.badge-comment { background: var(--kb-soft); color: var(--kb-muted); border-color: var(--kb-line); }
+/* Monochromatic Badges (sobre --kb-soft, el texto va en --kb-text-on-soft: el gris daba 4,32:1) */
+.badge-post { background: var(--kb-soft); color: var(--kb-text-on-soft); border-color: var(--kb-line); }
+.badge-comment { background: var(--kb-soft); color: var(--kb-text-on-soft); border-color: var(--kb-line); }
 .badge-action { background: #FFF; color: var(--kb-muted); border: 1px solid var(--kb-line); }
 .badge-meta { background: var(--kb-surface-2); color: var(--kb-subtle); border: 1px dashed var(--kb-line-strong); }
-.badge-idle { opacity: 0.5; }
+.badge-idle { background: #FFF; color: var(--kb-muted); border: 1px dashed var(--kb-line-strong); }
 
 .content-text {
   font-size: 13px;
   line-height: 1.6;
   color: var(--kb-text-2);
   margin-bottom: 10px;
+  overflow-wrap: anywhere;
 }
 
 .content-text.main-text {
   font-size: 14px;
   color: var(--kb-text);
 }
+
+/* Markdown de los posts (MiniMarkdown) */
+.content-text :deep(.md-p) { margin: 0 0 8px; }
+.content-text :deep(.md-p:last-child),
+.content-text :deep(.md-ul:last-child),
+.content-text :deep(.md-ol:last-child) { margin-bottom: 0; }
+.content-text :deep(.md-ul),
+.content-text :deep(.md-ol) { margin: 0 0 8px; padding-left: 20px; }
+.content-text :deep(.md-li),
+.content-text :deep(.md-oli) { margin: 2px 0; }
+.content-text :deep(strong) { font-weight: 700; color: var(--kb-text); }
+.content-text :deep(.md-quote) { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--kb-line-strong); color: var(--kb-text-2); }
+.content-text :deep(.inline-code) { font-family: var(--kb-font-mono); font-size: 12px; background: var(--kb-soft); padding: 0 4px; border-radius: 2px; }
+.content-text :deep(.code-block) { margin: 0 0 8px; padding: 8px 10px; background: var(--kb-surface-2); border: 1px solid var(--kb-line); font-family: var(--kb-font-mono); font-size: 12px; white-space: pre-wrap; }
+.content-text :deep(.md-hr) { border: 0; border-top: 1px solid var(--kb-line); margin: 8px 0; }
 
 /* Info Blocks (Quote, Repost, etc) */
 .quoted-block, .repost-content {
@@ -1693,8 +1773,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-muted);
+}
+
+/* el texto citado de un «me gusta» o un voto heredaba 16 px: más grande que el propio post */
+.liked-content, .voted-content {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--kb-text-2);
 }
 
 .icon-small {
@@ -1711,12 +1798,13 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
+/* Ronda y hora: metadato, en --kb-muted (5,1:1); el #BBB de antes daba 1,92:1 */
 .card-footer {
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
-  font-size: 10px;
-  color: #BBB;
+  font-size: 12px;
+  color: var(--kb-muted);
   font-family: var(--kb-font-mono);
 }
 
@@ -1730,10 +1818,11 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  color: var(--kb-line-strong);
+  color: var(--kb-muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  text-align: center;
 }
 
 .pulse-ring {
@@ -1777,12 +1866,18 @@ onUnmounted(() => {
 .log-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   border-bottom: 1px solid var(--kb-text-2);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  font-size: 10px;
-  color: var(--kb-muted);
+  font-size: 12px;
+  color: var(--kb-muted-on-dark);
 }
+
+/* Sobre tinta, el gris de texto da 3,7:1: el rótulo va en --kb-muted-on-dark (5,5:1) */
+.log-title { color: var(--kb-muted-on-dark); font-size: 12px; flex-shrink: 0; }
+/* el botón global medía 22 px de alto: el mínimo táctil es 24 (WCAG 2.5.8) */
+.log-toggle { min-height: 24px; }
 
 .log-content {
   display: flex;
@@ -1797,14 +1892,14 @@ onUnmounted(() => {
 .log-content::-webkit-scrollbar-thumb { background: var(--kb-text-2); border-radius: 2px; }
 
 .log-line {
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   gap: 12px;
   line-height: 1.5;
 }
 
-.log-time { color: var(--kb-text-2); min-width: 75px; }
-.log-msg { color: #BBB; word-break: break-all; }
+.log-time { color: var(--kb-muted-on-dark); min-width: 75px; }
+.log-msg { color: var(--kb-line-strong); word-break: break-all; }
 .mono { font-family: var(--kb-font-mono); }
 
 /* Loading spinner for button */
@@ -1824,5 +1919,33 @@ onUnmounted(() => {
   .control-bar { height: auto; flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px; }
   .status-group { flex-wrap: wrap; width: 100%; }
   .platform-status { flex: 1 1 150px; min-width: 0; }
+}
+/* Móvil: cada plataforma a todo el ancho, con sus tres cifras en una línea (a media anchura se partían en 3 filas) */
+@media (max-width: 700px) {
+  .status-group { gap: 8px; }
+  .platform-status { flex: 1 1 100%; }
+  .action-controls { width: 100%; }
+  .action-controls .action-btn.primary { flex: 1; }
+}
+
+/* Panel estrecho (móvil, o «Dividido» en un portátil pequeño): una sola columna.
+   A dos columnas, cada tarjeta se quedaba en ~170 px y el texto iba palabra a palabra.
+   La plataforma se sigue leyendo en el icono y su nombre de cada tarjeta. */
+.main-content-area { container-type: inline-size; }
+@container (max-width: 700px) {
+  .timeline-header { padding: 10px 14px; }
+  .timeline-stats { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
+  .feed-filters { position: static; padding: 10px 14px; gap: 10px; }
+  .filter-search { margin-left: 0; max-width: none; flex-basis: 100%; }
+  .feed-error { margin: 12px 14px 0; }
+  .timeline-axis { left: 22px; transform: none; }
+  .timeline-marker { left: 22px; }
+  .timeline-item.twitter,
+  .timeline-item.reddit { justify-content: stretch; padding: 0 14px 0 44px; margin-bottom: 20px; }
+  .timeline-item.twitter .timeline-card,
+  .timeline-item.reddit .timeline-card { width: 100%; margin: 0; padding: 14px 16px; }
+  .card-header { gap: 8px; }
+  .agent-info { min-width: 0; }
+  .header-meta { flex-shrink: 0; }
 }
 </style>

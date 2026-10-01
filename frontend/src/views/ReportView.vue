@@ -313,7 +313,7 @@ onMounted(() => {
   padding: 6px 16px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-on-soft);   /* #6E6E6E sobre el fondo gris da 4,32:1; la tinta, 12:1 */
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
@@ -376,9 +376,9 @@ onMounted(() => {
   background: var(--kb-line-strong);
 }
 
-.status-indicator.processing .dot { background: #FF9800; animation: pulse 1s infinite; }
-.status-indicator.completed .dot { background: #4CAF50; }
-.status-indicator.error .dot { background: #F44336; }
+.status-indicator.processing .dot { background: var(--kb-accent-solid); box-shadow: 0 0 0 1.5px var(--kb-text); animation: pulse 1s infinite; }
+.status-indicator.completed .dot { background: var(--kb-ok-text); }
+.status-indicator.error .dot { background: var(--kb-danger); }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
 

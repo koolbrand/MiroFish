@@ -275,6 +275,8 @@ const handleNewProject = async () => {
       formData.append('project_name', pending.projectName.trim())
     }
 
+    if (pending.webResearch) formData.append('web_research', 'true')
+
     // Automático: el servidor lee el material y sigue solo hasta el informe; esta pantalla solo observa
     if (pending.mode === 'auto') {
       const autoRes = await startAutoPipeline(formData)
@@ -287,7 +289,7 @@ const handleNewProject = async () => {
       return
     }
 
-    const res = await generateOntology(formData)
+    const res = await generateOntology(formData, pending.webResearch ? { timeout: 600000 } : {})
     if (res.success) {
       clearPendingUpload()
       currentProjectId.value = res.data.project_id
@@ -636,7 +638,7 @@ watch(currentStep, (step, prev) => {
   padding: 6px 16px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--kb-muted);
+  color: var(--kb-text-on-soft);   /* #6E6E6E sobre el fondo gris da 4,32:1; la tinta, 12:1 */
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
@@ -700,8 +702,8 @@ watch(currentStep, (step, prev) => {
 }
 
 .status-indicator.processing .dot { background: var(--kb-accent-solid); animation: pulse 1s infinite; }
-.status-indicator.completed .dot { background: #4CAF50; }
-.status-indicator.error .dot { background: #F44336; }
+.status-indicator.completed .dot { background: var(--kb-ok-text); }
+.status-indicator.error .dot { background: var(--kb-danger); }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
 

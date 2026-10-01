@@ -36,39 +36,47 @@ import { useI18n } from 'vue-i18n'
 import { vReveal } from '../composables/useReveal'
 
 // flat: sin tarjeta ni título propios (va dentro de otro artefacto, p. ej. el informe de ejemplo)
-defineProps({ flat: { type: Boolean, default: false } })
+// favor / against: % a favor y en contra en R0…R10 (el resto son indecisos); por defecto, el ejemplo del pádel
+const props = defineProps({
+  flat: { type: Boolean, default: false },
+  favor: { type: Array, default: () => [8, 14, 12, 19, 17, 26, 24, 31, 29, 35, 38] },
+  against: { type: Array, default: () => [5, 4, 11, 10, 17, 14, 19, 16, 20, 19, 21] },
+})
 
 const { t } = useI18n()
 
 const VW = 600
 const VH = 280
 // Serie ilustrativa (rotulada como ejemplo en la interfaz).
-const FAVOR = [8, 14, 12, 19, 17, 26, 24, 31, 29, 35, 38]
-const AGAINST = [5, 4, 11, 10, 17, 14, 19, 16, 20, 19, 21]
-const UNDECIDED = FAVOR.map((f, i) => 100 - f - AGAINST[i])
+const FAVOR = computed(() => props.favor)
+const AGAINST = computed(() => props.against)
+const UNDECIDED = computed(() => FAVOR.value.map((f, i) => 100 - f - AGAINST.value[i]))
 
-const x = (i) => (i / (FAVOR.length - 1)) * VW
+const x = (i) => (i / (FAVOR.value.length - 1)) * VW
 const y = (v) => VH * (1 - v / 100)
 const pts = (vals) => vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
 
-const top1 = FAVOR
-const top2 = FAVOR.map((f, i) => f + UNDECIDED[i])
+const top1 = computed(() => FAVOR.value)
+const top2 = computed(() => FAVOR.value.map((f, i) => f + UNDECIDED.value[i]))
 
-const areaFavor = computed(() => `M0,${VH} L${pts(top1).join(' L')} L${VW},${VH} Z`)
-const areaUndecided = computed(() => `M${pts(top1).join(' L')} L${pts(top2).reverse().join(' L')} Z`)
-const areaAgainst = computed(() => `M${pts(top2).join(' L')} L${VW},0 L0,0 Z`)
-const lineFavor = computed(() => `M${pts(top1).join(' L')}`)
-const lineAgainst = computed(() => `M${pts(top2).join(' L')}`)
+const areaFavor = computed(() => `M0,${VH} L${pts(top1.value).join(' L')} L${VW},${VH} Z`)
+const areaUndecided = computed(() => `M${pts(top1.value).join(' L')} L${pts(top2.value).reverse().join(' L')} Z`)
+const areaAgainst = computed(() => `M${pts(top2.value).join(' L')} L${VW},0 L0,0 Z`)
+const lineFavor = computed(() => `M${pts(top1.value).join(' L')}`)
+const lineAgainst = computed(() => `M${pts(top2.value).join(' L')}`)
 
-const last = FAVOR.length - 1
-const ends = computed(() => [
-  { key: 'against', value: AGAINST[last], label: t('home.crowdAgainst'), top: 100 - (top2[last] + AGAINST[last] / 2) },
-  { key: 'undecided', value: UNDECIDED[last], label: t('home.crowdUndecided'), top: 100 - (top1[last] + UNDECIDED[last] / 2) },
-  { key: 'favor', value: FAVOR[last], label: t('home.crowdFor'), top: 100 - FAVOR[last] / 2 },
-])
+const last = computed(() => FAVOR.value.length - 1)
+const ends = computed(() => {
+  const l = last.value
+  return [
+    { key: 'against', value: AGAINST.value[l], label: t('home.crowdAgainst'), top: 100 - (top2.value[l] + AGAINST.value[l] / 2) },
+    { key: 'undecided', value: UNDECIDED.value[l], label: t('home.crowdUndecided'), top: 100 - (top1.value[l] + UNDECIDED.value[l] / 2) },
+    { key: 'favor', value: FAVOR.value[l], label: t('home.crowdFor'), top: 100 - FAVOR.value[l] / 2 },
+  ]
+})
 
 const ariaLabel = computed(() =>
-  t('home.chartAria', { favor: FAVOR[last], undecided: UNDECIDED[last], against: AGAINST[last] })
+  t('home.chartAria', { favor: FAVOR.value[last.value], undecided: UNDECIDED.value[last.value], against: AGAINST.value[last.value] })
 )
 </script>
 
