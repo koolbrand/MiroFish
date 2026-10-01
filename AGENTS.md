@@ -212,6 +212,7 @@ docker run -d \
 
 - **Una etapa ya hecha es de solo lectura**: abrirla no puede crear, preparar, lanzar, detener ni regenerar nada. Ojo con lo que dispara el montaje: el paso 2 prepara si la simulación no lo está, y el paso 3 **la lanza** si nunca se ejecutó (`runner_status: idle`). El indicador de etapas solo abre lo que ya ha ocurrido.
 - En automático la pantalla observa: no lanza el grafo, la preparación, la simulación ni el informe (lo hace el servidor).
+- **Texto largo sin espacios** (nombres que genera el modelo, URL, hashes): `overflow-wrap: anywhere` (no `break-word`, que no reduce el ancho mínimo en flex/grid) en todo título, nombre y párrafo que salga de la API; una tarjeta de rejilla o de flex lleva además `min-width: 0`. Medido el 1-oct-2026 alargando las respuestas de la API en el navegador (nombre de 96 letras pegadas y frases de 360 caracteres): fallaban el historial de la portada (+130 px de scroll horizontal) y los títulos de los pasos 4 y 5; a 390–1440 px ya no queda nada, a **320 px** quedan cabecera de estado, chips de archivos y etiquetas del paso 1–3 (pendiente). El script del barrido vive en la sesión (`_largo.js`): rehacerlo con la misma idea si se toca una pantalla con texto generado.
 - Las pruebas sin interfaz de estas pantallas deben **abortar toda petición que no sea GET** (salvo lo que se compruebe a propósito): abrir una etapa a medias gasta LLM de verdad.
 
 ### Al tocar la portada
