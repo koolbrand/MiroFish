@@ -346,11 +346,25 @@ const confirmDelete = async () => {
   }
 }
 
+// Diálogos (ficha y confirmación de borrado): el foco entra, Tab se queda dentro, Escape cierra y el foco vuelve a la tarjeta
+const dialogEl = () => document.querySelector('.kb-modal-overlay .kb-modal')
 const onKeydown = (e) => {
-  if (e.key !== 'Escape') return
-  if (deleteTarget.value) cancelDelete()
-  else if (selectedProject.value) closeModal()
+  if (e.key === 'Escape') {
+    if (deleteTarget.value) cancelDelete()
+    else if (selectedProject.value) closeModal()
+    return
+  }
+  if (e.key !== 'Tab') return
+  const dlg = dialogEl()
+  if (!dlg) return
+  const items = [...dlg.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')].filter(el => el.offsetParent !== null)
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1]
+  if (!dlg.contains(document.activeElement)) { e.preventDefault(); first.focus() }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
+let lastFocus = null
 
 const loadHistory = async () => {
   try {
@@ -372,9 +386,16 @@ watch(() => route.path, (newPath) => {
   if (newPath === '/') loadHistory()
 })
 
-watch([selectedProject, deleteTarget], ([sel, del]) => {
-  if (sel || del) window.addEventListener('keydown', onKeydown)
-  else window.removeEventListener('keydown', onKeydown)
+watch([selectedProject, deleteTarget], ([sel, del], [wasSel, wasDel]) => {
+  const open = !!(sel || del)
+  if (open) {
+    if (!(wasSel || wasDel)) { lastFocus = document.activeElement; window.addEventListener('keydown', onKeydown) }
+    // en el borrado el foco va a «Cancelar» (lo más seguro); en la ficha, al cierre
+    nextTick(() => (document.querySelector('.kb-modal-actions .kb-btn.ghost') || document.querySelector('.kb-modal-close'))?.focus())
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    lastFocus?.focus?.(); lastFocus = null
+  }
 })
 
 onMounted(async () => {

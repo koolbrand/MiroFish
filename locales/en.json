@@ -4,7 +4,7 @@
     "password": "Password",
     "signIn": "Sign In",
     "invalidCredentials": "Invalid credentials. Please check your email and password.",
-    "protected": "Protected by PocketBase Authentication",
+    "protected": "Protected access",
     "forgotPassword": "Forgot your password?",
     "forgotNeedsEmail": "Type your email above and click again.",
     "resetSent": "If that email has an account, we've sent you a link to set a new password.",
@@ -86,7 +86,9 @@
     "confirm": "Delete",
     "cancel": "Cancel",
     "deleting": "Deleting…",
-    "deleteFailed": "Failed to delete {count} project(s). Check the console."
+    "deleteFailed": "Failed to delete {count} project(s). Check the console.",
+    "openInteraction": "Chat",
+    "errorService": "The service didn’t respond. You can delete it and retry."
   },
   "home": {
     "tagline": "AI-powered social opinion simulation",
@@ -510,7 +512,10 @@
         "a5": "They promised us jobs before.",
         "a6": "I don’t want a marina where my beach used to be."
       }
-    }
+    },
+    "researchLabel": "Research the web before simulating",
+    "researchHint": "Looks up context on your topic —controversies, news, who is involved— and adds it to your document, with sources. Your question and the start of your document are sent to the search engine: don’t turn it on for anything confidential.",
+    "skipToForm": "Skip to the form"
   },
   "main": {
     "layoutGraph": "Graph",
@@ -558,7 +563,23 @@
     "enterEnvSetup": "Enter Environment Setup",
     "createSimulationFailed": "Failed to create simulation: {error}",
     "createSimulationException": "Simulation creation error: {error}",
-    "viewEnvSetup": "View the setup"
+    "viewEnvSetup": "View the setup",
+    "researchKicker": "Web research",
+    "researchFound": "{n} sources added to your material",
+    "researchEmpty": "The web turned up nothing reliable on this topic",
+    "researchEmptyNote": "The simulation uses only your material. If your topic has little-known names, add the context to your document.",
+    "researchFailed": "Web research could not be done",
+    "researchFailedNote": "Carrying on with your material, nothing lost. You can create the project again with research turned on.",
+    "researchDownload": "Download the research (.md)",
+    "researchWarn": "Unverified web information: check the sources.",
+    "researchDownloadFailed": "Could not download the research.",
+    "kindEntity": "ENTITY",
+    "kindRelation": "RELATION",
+    "attributes": "ATTRIBUTES",
+    "examples": "EXAMPLES",
+    "connections": "CONNECTIONS",
+    "generatedEntityTypes": "GENERATED ENTITY TYPES",
+    "generatedRelationTypes": "GENERATED RELATION TYPES"
   },
   "step2": {
     "simInstanceInit": "Simulation Instance Initialization",
@@ -1474,7 +1495,8 @@
       "prepare": "Creating the people",
       "simulate": "Simulating",
       "report": "Writing the report",
-      "done": "Done"
+      "done": "Done",
+      "research": "Researching the web"
     },
     "step1Note": "Automatic mode will open the setup as soon as the map is ready.",
     "step2Note": "Automatic mode will launch the simulation with 40 rounds as soon as the people are ready.",

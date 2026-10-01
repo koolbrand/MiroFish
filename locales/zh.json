@@ -4,7 +4,7 @@
     "password": "密码",
     "signIn": "登录",
     "invalidCredentials": "凭据无效，请检查您的邮箱和密码。",
-    "protected": "由 PocketBase 身份验证保护",
+    "protected": "受保护的访问",
     "forgotPassword": "忘记密码？",
     "forgotNeedsEmail": "请先在上方输入邮箱，然后再次点击。",
     "resetSent": "如果该邮箱已注册，我们已发送设置新密码的链接。",
@@ -86,7 +86,9 @@
     "confirm": "删除",
     "cancel": "取消",
     "deleting": "删除中…",
-    "deleteFailed": "{count} 个项目删除失败。请查看控制台。"
+    "deleteFailed": "{count} 个项目删除失败。请查看控制台。",
+    "openInteraction": "对话",
+    "errorService": "服务未响应。可删除后重试。"
   },
   "home": {
     "tagline": "AI 舆论模拟",
@@ -510,7 +512,10 @@
         "a5": "以前他们也承诺过工作。",
         "a6": "我不想在我的海滩原址上建码头。"
       }
-    }
+    },
+    "researchLabel": "模拟前先上网调研",
+    "researchHint": "搜索与你的主题相关的背景——争议、新闻、涉及的各方——并连同来源一起并入你的文档。你的问题和文档开头部分会发送给搜索引擎：涉及机密内容时请勿开启。",
+    "skipToForm": "跳到表单"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -558,7 +563,23 @@
     "enterEnvSetup": "进入环境搭建",
     "createSimulationFailed": "创建模拟失败: {error}",
     "createSimulationException": "创建模拟异常: {error}",
-    "viewEnvSetup": "查看配置"
+    "viewEnvSetup": "查看配置",
+    "researchKicker": "网络调研",
+    "researchFound": "已将 {n} 个来源加入你的材料",
+    "researchEmpty": "网上没有关于该主题的可靠信息",
+    "researchEmptyNote": "模拟将仅基于你的材料。如果主题涉及不太知名的名称，请在文档中补充背景。",
+    "researchFailed": "无法完成网络调研",
+    "researchFailedNote": "将继续使用你的材料，不会丢失任何内容。你可以开启调研后重新创建项目。",
+    "researchDownload": "下载调研内容（.md）",
+    "researchWarn": "网络信息未经核实：请查看来源。",
+    "researchDownloadFailed": "无法下载调研内容。",
+    "kindEntity": "实体",
+    "kindRelation": "关系",
+    "attributes": "属性",
+    "examples": "示例",
+    "connections": "连接",
+    "generatedEntityTypes": "已生成的实体类型",
+    "generatedRelationTypes": "已生成的关系类型"
   },
   "step2": {
     "simInstanceInit": "模拟实例初始化",
@@ -1474,7 +1495,8 @@
       "prepare": "生成人物",
       "simulate": "模拟中",
       "report": "撰写报告",
-      "done": "已完成"
+      "done": "已完成",
+      "research": "网络调研中"
     },
     "step1Note": "图谱就绪后，自动模式会打开环境配置。",
     "step2Note": "人物就绪后，自动模式会以 40 轮启动模拟。",

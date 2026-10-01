@@ -4,7 +4,7 @@
     "password": "Contraseña",
     "signIn": "Iniciar sesión",
     "invalidCredentials": "Credenciales incorrectas. Verifica tu email y contraseña.",
-    "protected": "Protegido por PocketBase Authentication",
+    "protected": "Acceso protegido",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "forgotNeedsEmail": "Escribe tu correo arriba y vuelve a pulsar.",
     "resetSent": "Si el correo tiene cuenta, te hemos enviado un enlace para crear una contraseña nueva.",
@@ -86,7 +86,9 @@
     "confirm": "Eliminar",
     "cancel": "Cancelar",
     "deleting": "Eliminando…",
-    "deleteFailed": "Falló la eliminación de {count} proyecto(s). Revisa la consola."
+    "deleteFailed": "Falló la eliminación de {count} proyecto(s). Revisa la consola.",
+    "openInteraction": "Conversar",
+    "errorService": "El servicio no respondió. Puedes borrarlo y reintentar."
   },
   "home": {
     "tagline": "Simulación de opinión pública con IA",
@@ -510,7 +512,10 @@
         "a5": "Ya nos prometieron empleo otras veces.",
         "a6": "No quiero un puerto donde tenía mi playa."
       }
-    }
+    },
+    "researchLabel": "Investigar en internet antes de simular",
+    "researchHint": "Busca contexto sobre tu tema —polémicas, noticias, quién está implicado— y lo suma a tu documento, con las fuentes. Tu pregunta y el inicio de tu documento se envían al buscador: no lo actives con algo confidencial.",
+    "skipToForm": "Saltar al formulario"
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -558,7 +563,23 @@
     "enterEnvSetup": "Configurar entorno",
     "createSimulationFailed": "Error al crear la simulación: {error}",
     "createSimulationException": "Error en la creación de simulación: {error}",
-    "viewEnvSetup": "Ver la configuración"
+    "viewEnvSetup": "Ver la configuración",
+    "researchKicker": "Investigación en internet",
+    "researchFound": "{n} fuentes sumadas a tu material",
+    "researchEmpty": "Internet no aportó nada fiable sobre este tema",
+    "researchEmptyNote": "Se simula solo con tu material. Si el tema tiene nombres propios poco conocidos, añade el contexto en tu documento.",
+    "researchFailed": "No se pudo investigar en internet",
+    "researchFailedNote": "Se sigue con tu material sin perder nada. Puedes crear el proyecto de nuevo con la investigación activada.",
+    "researchDownload": "Descargar la investigación (.md)",
+    "researchWarn": "Información de internet sin verificar: revisa las fuentes.",
+    "researchDownloadFailed": "No se pudo descargar la investigación.",
+    "kindEntity": "ENTIDAD",
+    "kindRelation": "RELACIÓN",
+    "attributes": "ATRIBUTOS",
+    "examples": "EJEMPLOS",
+    "connections": "CONEXIONES",
+    "generatedEntityTypes": "TIPOS DE ENTIDAD GENERADOS",
+    "generatedRelationTypes": "TIPOS DE RELACIÓN GENERADOS"
   },
   "step2": {
     "simInstanceInit": "Inicialización de instancia de simulación",
@@ -1474,7 +1495,8 @@
       "prepare": "Creando a las personas",
       "simulate": "Simulando",
       "report": "Escribiendo el informe",
-      "done": "Terminado"
+      "done": "Terminado",
+      "research": "Investigando en internet"
     },
     "step1Note": "El automático abrirá la configuración en cuanto el mapa esté listo.",
     "step2Note": "El automático lanzará la simulación con 40 rondas en cuanto las personas estén listas.",

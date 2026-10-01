@@ -1,6 +1,30 @@
 <template>
   <div class="workbench-panel">
     <div class="scroll-container">
+      <!-- Contexto de internet (si se pidió): qué se encontró y de dónde, antes de crear a las personas -->
+      <section v-if="research" class="research-card" :class="`is-${research.status}`" aria-labelledby="research-title">
+        <header class="research-head">
+          <span class="research-kicker">{{ $t('step1.researchKicker') }}</span>
+          <h3 id="research-title" class="research-title">{{ researchTitle }}</h3>
+        </header>
+        <p v-if="researchNote" class="research-note">{{ researchNote }}</p>
+        <template v-if="research.status === 'done' && research.sources?.length">
+          <ul class="research-sources">
+            <li v-for="(src, i) in research.sources.slice(0, 6)" :key="src.url">
+              <span class="src-n">{{ i + 1 }}</span>
+              <a :href="src.url" target="_blank" rel="noopener noreferrer" :title="src.title">{{ src.title || hostOf(src.url) }}</a>
+              <span class="src-host">{{ hostOf(src.url) }}<template v-if="src.page_age"> · {{ src.page_age }}</template></span>
+            </li>
+          </ul>
+          <div class="research-foot">
+            <button type="button" class="research-dl" :disabled="downloading" @click="downloadResearchFile">
+              ↓ {{ $t('step1.researchDownload') }}
+            </button>
+            <span class="research-warn">{{ $t('step1.researchWarn') }}</span>
+          </div>
+        </template>
+      </section>
+
       <!-- Step 01: Ontology -->
       <div class="step-card" :class="{ 'active': currentPhase === 0, 'completed': currentPhase > 0 }">
         <div class="card-header">
@@ -16,7 +40,7 @@
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/graph/ontology/generate</p>
+          <p class="api-note tech-only">POST /api/graph/ontology/generate</p>
           <p class="description">
             {{ $t('step1.ontologyDesc') }}
           </p>
@@ -31,7 +55,7 @@
           <div v-if="selectedOntologyItem" class="ontology-detail-overlay">
             <div class="detail-header">
                <div class="detail-title-group">
-                  <span class="detail-type-badge">{{ selectedOntologyItem.itemType === 'entity' ? 'ENTITY' : 'RELATION' }}</span>
+                  <span class="detail-type-badge">{{ selectedOntologyItem.itemType === 'entity' ? $t('step1.kindEntity') : $t('step1.kindRelation') }}</span>
                   <span class="detail-name">{{ selectedOntologyItem.name }}</span>
                </div>
                <button class="close-btn" @click="selectedOntologyItem = null">×</button>
@@ -41,7 +65,7 @@
                
                <!-- Attributes -->
                <div class="detail-section" v-if="selectedOntologyItem.attributes?.length">
-                  <span class="section-label">ATTRIBUTES</span>
+                  <span class="section-label">{{ $t('step1.attributes') }}</span>
                   <div class="attr-list">
                      <div v-for="attr in selectedOntologyItem.attributes" :key="attr.name" class="attr-item">
                         <span class="attr-name">{{ attr.name }}</span>
@@ -53,7 +77,7 @@
 
                <!-- Examples (Entity) -->
                <div class="detail-section" v-if="selectedOntologyItem.examples?.length">
-                  <span class="section-label">EXAMPLES</span>
+                  <span class="section-label">{{ $t('step1.examples') }}</span>
                   <div class="example-list">
                      <span v-for="ex in selectedOntologyItem.examples" :key="ex" class="example-tag">{{ ex }}</span>
                   </div>
@@ -61,7 +85,7 @@
 
                <!-- Source/Target (Relation) -->
                <div class="detail-section" v-if="selectedOntologyItem.source_targets?.length">
-                  <span class="section-label">CONNECTIONS</span>
+                  <span class="section-label">{{ $t('step1.connections') }}</span>
                   <div class="conn-list">
                      <div v-for="(conn, idx) in selectedOntologyItem.source_targets" :key="idx" class="conn-item">
                         <span class="conn-node">{{ conn.source }}</span>
@@ -75,7 +99,7 @@
 
           <!-- Generated Entity Tags -->
           <div v-if="projectData?.ontology?.entity_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
-            <span class="tag-label">GENERATED ENTITY TYPES</span>
+            <span class="tag-label">{{ $t('step1.generatedEntityTypes') }}</span>
             <div class="tags-list">
               <span 
                 v-for="entity in projectData.ontology.entity_types" 
@@ -90,7 +114,7 @@
 
           <!-- Generated Relation Tags -->
           <div v-if="projectData?.ontology?.edge_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
-            <span class="tag-label">GENERATED RELATION TYPES</span>
+            <span class="tag-label">{{ $t('step1.generatedRelationTypes') }}</span>
             <div class="tags-list">
               <span 
                 v-for="rel in projectData.ontology.edge_types" 
@@ -122,7 +146,7 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/graph/build</p>
+          <p class="api-note tech-only">POST /api/graph/build</p>
           <p class="description">
             {{ $t('step1.graphRagDesc') }}
           </p>
@@ -158,7 +182,7 @@
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/create</p>
+          <p class="api-note tech-only">POST /api/simulation/create</p>
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
           <!-- En automático la simulación la crea el servidor; si ya existe, se abre (nunca se crea otra) -->
           <p v-if="autoRunning && !existingSimulationId" class="auto-note">{{ $t('auto.step1Note') }}</p>
@@ -206,6 +230,7 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createSimulation, listSimulations } from '../api/simulation'
+import { downloadResearch } from '../api/graph'
 import { usePipeline } from '../composables/usePipeline'
 
 const router = useRouter()
@@ -231,6 +256,31 @@ defineEmits(['next-step'])
 const selectedOntologyItem = ref(null)
 const logContent = ref(null)
 const creatingSimulation = ref(false)
+
+// Investigación en internet (opcional): lo que encontró el servidor antes de la ontología
+const research = computed(() => {
+  const r = props.projectData?.web_research
+  return r && ['done', 'empty', 'failed'].includes(r.status) ? r : null
+})
+const researchTitle = computed(() => {
+  const r = research.value
+  if (!r) return ''
+  if (r.status === 'done') return t('step1.researchFound', { n: r.sources?.length || 0 })
+  if (r.status === 'empty') return t('step1.researchEmpty')
+  return t('step1.researchFailed')
+})
+const researchNote = computed(() => {
+  const r = research.value
+  if (!r || r.status === 'done') return ''
+  return r.status === 'empty' ? t('step1.researchEmptyNote') : t('step1.researchFailedNote')
+})
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch (e) { return u } }
+const downloading = ref(false)
+const downloadResearchFile = async () => {
+  if (downloading.value || !props.projectData?.project_id) return
+  downloading.value = true
+  try { await downloadResearch(props.projectData.project_id) } catch (e) { window.alert(t('step1.researchDownloadFailed')) } finally { downloading.value = false }
+}
 
 // Modo lectura: si el proyecto ya tiene simulación, este paso la abre en vez de crear otra
 // (crear una segunda deja la primera huérfana y el proyecto a medias).
@@ -324,6 +374,30 @@ watch(() => props.systemLogs.length, () => {
 </script>
 
 <style scoped>
+.research-card {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  background: var(--kb-surface);
+  border: 1.5px solid var(--ink-950);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 var(--ink-950);
+}
+.research-card.is-empty, .research-card.is-failed { box-shadow: none; border-style: dashed; border-color: var(--kb-control-line); }
+.research-head { display: grid; gap: 4px; }
+.research-kicker { font: 600 11px var(--kb-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--kb-accent-text); }
+.research-title { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; }
+.research-note { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+.research-sources { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.research-sources li { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-items: baseline; }
+.src-n { grid-row: 1 / span 2; font: 700 11px var(--kb-font-mono); color: var(--kb-text-2); text-align: center; border: 1.5px solid var(--ink-950); border-radius: 4px; padding: 1px 0; }
+.research-sources a { font-size: 13px; font-weight: 600; color: var(--kb-text); text-decoration-color: var(--kb-control-line); text-underline-offset: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-sources a:hover { text-decoration-color: var(--ink-950); }
+.src-host { font: 400 11px var(--kb-font-mono); color: var(--kb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--kb-line); }
+.research-dl { padding: 7px 12px; border: 1.5px solid var(--ink-950); border-radius: 8px; background: var(--kb-surface); font: 600 12px var(--kb-font-sans); cursor: pointer; }
+.research-dl:hover:not(:disabled) { background: var(--kb-accent-subtle); }
+.research-dl:disabled { opacity: 0.6; cursor: default; }
+.research-warn { font-size: 12px; color: var(--kb-muted); line-height: 1.4; }
 .auto-note {
   margin: 0;
   padding: 10px 12px;
@@ -408,7 +482,7 @@ watch(() => props.systemLogs.length, () => {
 .badge.success { background: #E8F5E9; color: #2E7D32; }
 .badge.processing { background: var(--kb-accent-solid); color: var(--kb-accent-on); }
 .badge.accent { background: var(--kb-accent-solid); color: var(--kb-accent-on); }
-.badge.pending { background: var(--kb-soft); color: var(--kb-subtle); }
+.badge.pending { background: var(--kb-soft); color: var(--kb-text-on-soft); }
 
 .api-note {
   font-family: var(--kb-font-mono);
@@ -719,8 +793,8 @@ watch(() => props.systemLogs.length, () => {
   border-bottom: 1px solid var(--kb-text-2);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  font-size: 10px;
-  color: var(--kb-subtle);
+  font-size: 11px;
+  color: var(--kb-muted-on-dark);
 }
 
 .log-content {
