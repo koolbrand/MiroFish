@@ -254,7 +254,10 @@ class Config:
     MAX_BODY_BYTES = env_int('MAX_BODY_BYTES', 1024 * 1024, minimum=1024)
     # Topes de coste de una sola petición (el límite de tasa cuenta peticiones, no llamadas al modelo)
     MAX_UPLOAD_FILES = env_int('MAX_UPLOAD_FILES', 10, minimum=1)
-    MAX_UPLOAD_IMAGES = env_int('MAX_UPLOAD_IMAGES', 3, minimum=0)            # cada imagen = una llamada al modelo de visión
+    # Cada imagen = una llamada al modelo de visión. Eran 3, un tope elegido sin datos: el material real de northkin
+    # trae 6 imágenes (logo, icono, retrato, estructura…) y la subida se rechazaba. 8 las cubre y el tope de archivos
+    # (10) ya acota el total por petición.
+    MAX_UPLOAD_IMAGES = env_int('MAX_UPLOAD_IMAGES', 8, minimum=0)
     MAX_TOTAL_TEXT_CHARS = env_int('MAX_TOTAL_TEXT_CHARS', 1000000, minimum=1000)  # ~10 libros; el grafo gasta un episodio por ~500 caracteres
     MAX_INTERVIEWS_PER_REQUEST = 20
     MAX_CHAT_MESSAGE_CHARS = 4000

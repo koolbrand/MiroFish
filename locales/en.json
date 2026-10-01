@@ -527,7 +527,10 @@
     "roundsTime": "≈ {n} min",
     "roundsHint": "More rounds give opinions more time to change. This is only the conversation itself: the analysis beforehand and the report come on top.",
     "skipToForm": "Skip to the form",
-    "launchedElsewhere": "Your analysis has been created: you will find it in Projects."
+    "launchedElsewhere": "Your analysis has been created: you will find it in Projects.",
+    "limitImages": "You can upload at most {max} images at a time: {n} were not added. Remove some or upload only the most important ones.",
+    "limitFiles": "You can upload at most {max} files at a time: {n} were not added.",
+    "roundsWhat": "A round is one turn of the conversation: normally, one simulated hour. In each one, the people who are active at that hour read what the others have posted and decide whether to write, reply, like or stay quiet. 20 rounds are almost a day of conversation; 72, three days."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -547,7 +550,8 @@
     "failBodyNoFiles": "There's no pending document (did you reload the page?). Go back to the start and upload it again.",
     "failRetry": "Retry",
     "failBack": "Back to the start",
-    "failDetails": "Technical detail"
+    "failDetails": "Technical detail",
+    "failFixAndBack": "Fix it and launch again: your material is still in the form."
   },
   "stepper": {
     "ariaLabel": "Wizard navigation",
@@ -855,7 +859,8 @@
     "failedTitle": "The report could not be finished",
     "regenerate": "Generate the report again",
     "regenerating": "Generating…",
-    "reportNotFound": "This report no longer exists or you do not have access to it."
+    "reportNotFound": "This report no longer exists or you do not have access to it.",
+    "techTimeline": "Technical detail: how the agent worked, step by step"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
