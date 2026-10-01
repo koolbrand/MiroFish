@@ -909,7 +909,10 @@
     "requestFailedBody": "请几秒后重试；问题和对象仍保留在这里。",
     "activityFailed": "未能加载该 Agent 的活动。",
     "platformShortTwitter": "广场",
-    "platformShortReddit": "社区"
+    "platformShortReddit": "社区",
+    "downloadPdfTitle": "以 Simuloo 风格下载 PDF 报告",
+    "generatingPdf": "正在生成 PDF…",
+    "pdfFailed": "无法生成 PDF。请下载 Markdown (.md) 版本，或稍后重试。"
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",
@@ -1107,7 +1110,9 @@
     "simConfigMissing": "模拟配置不存在，请先调用 /prepare 接口。",
     "simNotFound": "模拟不存在: {simulationId}",
     "simNotRunning": "模拟未在运行: {simulationId} (状态={status})",
-    "fileContentInvalid": "文件内容与扩展名不匹配：{filename}"
+    "fileContentInvalid": "文件内容与扩展名不匹配：{filename}",
+    "pdfUnavailable": "此服务器不支持生成 PDF。请下载 Markdown 版本的报告。",
+    "reportNotReady": "报告尚未完成。"
   },
   "progress": {
     "initGraphService": "初始化图谱构建服务...",

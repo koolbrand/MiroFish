@@ -909,7 +909,10 @@
     "requestFailedBody": "Vuelve a intentarlo en unos segundos; la pregunta y los destinatarios siguen aquí.",
     "activityFailed": "No hemos podido cargar la actividad de este agente.",
     "platformShortTwitter": "Plaza",
-    "platformShortReddit": "Comunidad"
+    "platformShortReddit": "Comunidad",
+    "downloadPdfTitle": "Descargar el informe en PDF con el estilo de Simuloo",
+    "generatingPdf": "Generando PDF…",
+    "pdfFailed": "No se pudo generar el PDF. Descarga el informe en Markdown (.md) o inténtalo de nuevo."
   },
   "graph": {
     "panelTitle": "Visualización de relaciones del grafo",
@@ -1107,7 +1110,9 @@
     "simConfigMissing": "No se encontró la configuración de simulación. Llama primero al endpoint /prepare.",
     "simNotFound": "La simulación no existe: {simulationId}",
     "simNotRunning": "La simulación no está en ejecución: {simulationId} (estado={status})",
-    "fileContentInvalid": "El contenido del archivo no coincide con la extensión: {filename}"
+    "fileContentInvalid": "El contenido del archivo no coincide con la extensión: {filename}",
+    "pdfUnavailable": "El PDF no está disponible en este servidor. Descarga el informe en Markdown.",
+    "reportNotReady": "El informe aún no está terminado."
   },
   "progress": {
     "initGraphService": "Inicializando servicio de construcción del grafo...",

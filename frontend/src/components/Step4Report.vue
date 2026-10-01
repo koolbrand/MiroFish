@@ -10,6 +10,7 @@
             <div class="report-meta">
               <span class="report-tag">{{ $t('ui.predictionReport') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
+              <ReportDownloads v-if="reportId" :report-id="reportId" :disabled="!isComplete" />
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
@@ -418,6 +419,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } f
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAgentLog, getConsoleLog } from '../api/report'
+import ReportDownloads from './ReportDownloads.vue'
 
 const router = useRouter()
 const { t, locale } = useI18n()

@@ -10,14 +10,7 @@
             <div class="report-meta">
               <span class="report-tag">{{ $t('ui.predictionReport') }}</span>
               <span class="report-id">ID: {{ reportId || '—' }}</span>
-              <button type="button" class="download-btn" @click="downloadReport" :title="$t('step5.downloadReport')" :aria-label="$t('step5.downloadReport')">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                .md
-              </button>
+              <ReportDownloads :report-id="reportId" />
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
@@ -525,7 +518,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { chatWithReport, getReport, getAgentLog, downloadReport as downloadReportFile } from '../api/report'
+import { chatWithReport, getReport, getAgentLog } from '../api/report'
+import ReportDownloads from './ReportDownloads.vue'
 import { interviewAgents, getSimulationProfilesRealtime } from '../api/simulation'
 import Step5WorldExplorer from './Step5WorldExplorer.vue'
 import { MiniMarkdown } from '../lib/miniMarkdown'
@@ -591,14 +585,6 @@ const rightPanel = ref(null)
 // Methods
 const addLog = (msg) => {
   emit('add-log', msg)
-}
-
-const downloadReport = async () => {
-  try {
-    await downloadReportFile(props.reportId)
-  } catch (err) {
-    addLog(`Error al descargar el informe: ${err.message}`)
-  }
 }
 
 const toggleSectionCollapse = (idx) => {
@@ -1123,33 +1109,10 @@ watch(() => props.simulationId, (newId) => {
 
 .report-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
   margin-bottom: 24px;
-}
-
-.download-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 24px;
-  background: transparent;
-  border: 1px solid var(--kb-control-line);
-  color: var(--kb-muted);
-  font-family: var(--kb-font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  cursor: pointer;
-  border-radius: 3px;
-  letter-spacing: 0.03em;
-  transition: all 0.15s ease;
-}
-.download-btn:hover {
-  border-color: var(--kb-text);
-  color: var(--kb-text);
-  background: var(--kb-surface-2);
 }
 
 .report-tag {
