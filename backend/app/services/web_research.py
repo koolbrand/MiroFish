@@ -643,6 +643,29 @@ def _drop_uncited(body: str) -> Tuple[str, int]:
     return "\n".join(cleaned), dropped
 
 
+_SOURCES_HEADING_RE = re.compile(r"^#{1,6}\s*(fuentes|sources|来源|参考)", re.IGNORECASE)
+
+
+def graph_text(markdown: str) -> str:
+    """
+    Lo que entra en la ontología y el grafo: el cuerpo del informe, sin las cabeceras del documento,
+    sin las referencias [n], sin la lista de fuentes (sus URL se convertían en entidades: Instagram, Facebook,
+    cada medio…) y sin la sección de lo no confirmado (listaba lo que NO hay). El archivo descargable lo conserva todo.
+    """
+    kept: List[str] = []
+    skip = False
+    for line in (markdown or "").splitlines():
+        if _HEADING_RE.match(line):
+            skip = bool(_SOURCES_HEADING_RE.match(line) or _UNCONFIRMED_HEADING_RE.search(line))
+            if line.startswith("# ") and not line.startswith("## "):
+                continue          # título del documento
+        if skip or line.startswith(">") or re.fullmatch(r"\*[^*]+\*", line.strip() or "x"):
+            continue              # sección saltada, aviso «sin verificar» y línea de fecha
+        kept.append(_CITED_RE.sub("", line).rstrip() if _CITED_RE.search(line) else line)
+    text = re.sub(r"\s+([,.;:])", r"\1", "\n".join(kept))
+    return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
 def _demote_headings(body: str) -> str:
     """El título del documento es nuestro: un # del modelo pasa a ##."""
     return re.sub(r"^#(?!#)\s*", "## ", body, flags=re.MULTILINE)

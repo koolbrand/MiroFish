@@ -481,7 +481,9 @@ def run_project_web_research(project, document_texts=None, locale=None):
         try:
             info = ProjectManager.save_research_document(project_id, markdown)
             document = ProjectManager.RESEARCH_DOCUMENT_FILENAME
-            new_text = extracted + _RESEARCH_TEXT_HEADER + markdown
+            # Al material va el cuerpo del informe, no la lista de fuentes ni lo no confirmado (ver graph_text)
+            graph_markdown = web_research_service.graph_text(markdown)
+            new_text = extracted + _RESEARCH_TEXT_HEADER + graph_markdown
             ProjectManager.save_extracted_text(project_id, new_text)
             project.files.append({
                 "filename": document,
@@ -490,7 +492,7 @@ def run_project_web_research(project, document_texts=None, locale=None):
             })
             project.total_text_length = len(new_text)
             if texts is not None:
-                texts.append(markdown)
+                texts.append(graph_markdown)
             in_material = True
         except OSError as exc:
             logger.warning(f"No se pudo añadir la investigación al material de {project_id}: {exc}")
