@@ -20,7 +20,7 @@ SOURCE = os.path.join(HERE, '..', 'app', 'assets', 'brief', 'plantilla-brief-sim
 TARGET = os.path.join(HERE, '..', '..', 'frontend', 'public', 'plantilla-brief-simuloo.docx')
 
 with open(SOURCE, encoding='utf-8') as f:
-    data = build_docx(f.read())
+    data = build_docx(f.read(), kind='template')
 with open(TARGET, 'wb') as f:
     f.write(data)
 print(f'{os.path.normpath(TARGET)}: {len(data)} bytes')

@@ -99,8 +99,47 @@ def test_published_template_matches_its_source():
     source = os.path.join(BACKEND, "app", "assets", "brief", "plantilla-brief-simuloo.md")
     published = os.path.join(BACKEND, "..", "frontend", "public", "plantilla-brief-simuloo.docx")
     with open(source, encoding="utf-8") as f:
-        expected = read(build_docx(f.read()))
+        expected = read(build_docx(f.read(), kind='template'))
     assert extract_docx_text(published) == expected
+
+
+def test_written_docx_carries_the_simuloo_identity():
+    """La marca va en estilos, cabecera y pie (no en el cuerpo): Word debe encontrarlos bien enlazados y el texto de
+    cabecera y pie no debe colarse en lo que lee el análisis cuando alguien sube el documento rellenado."""
+    from lxml import etree
+    data = build_docx("# Brief: café\n\n> Nota\n\n## Sección\n\nTexto", kind="template")
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        names = set(z.namelist())
+        assert {"word/header1.xml", "word/footer1.xml", "word/fontTable.xml", "word/styles.xml"} <= names
+        for n in names:
+            if n.endswith((".xml", ".rels")):
+                etree.fromstring(z.read(n))                      # todo bien formado
+        header, footer = z.read("word/header1.xml").decode(), z.read("word/footer1.xml").decode()
+        styles, document = z.read("word/styles.xml").decode(), z.read("word/document.xml").decode()
+        content_types, rels = z.read("[Content_Types].xml").decode(), z.read("word/_rels/document.xml.rels").decode()
+    assert "simul" in header and 'w:fill="CCE673"' in header and "PLANTILLA DE BRIEF".lower() in header.lower()
+    assert "PAGE" in footer and "NUMPAGES" in footer and "Simulación de opinión pública con IA" in footer
+    assert 'w:fill="CCE673"' in styles and 'w:fill="F0F8D5"' in styles and "Inter Tight" in styles and "JetBrains Mono" in styles
+    assert 'r:id="rId2"' in document and 'r:id="rId3"' in document            # la sección enlaza cabecera y pie
+    assert "header+xml" in content_types and "footer+xml" in content_types and "fontTable+xml" in content_types
+    assert 'Target="header1.xml"' in rels and 'Target="footer1.xml"' in rels
+    text = read(data)
+    assert "Plantilla de brief" not in text and "Simuloo" not in text and "Página" not in text
+    assert text.splitlines()[0] == "# Brief: café"
+
+
+def test_written_docx_labels_follow_kind_and_locale():
+    def parts(**kw):
+        with zipfile.ZipFile(io.BytesIO(build_docx("# T", **kw))) as z:
+            return z.read("word/header1.xml").decode(), z.read("word/footer1.xml").decode(), z.read("word/styles.xml").decode()
+    header, _, _ = parts()
+    assert "Borrador de brief" in header                                         # por defecto es un borrador
+    header, footer, styles = parts(locale="en", kind="template")
+    assert "Brief template" in header and "Page " in footer and "AI public opinion simulation" in footer and 'w:val="en-GB"' in styles
+    header, footer, _ = parts(locale="zh")
+    assert "简报草稿" in header and "第 " in footer and "AI 舆论模拟" in footer
+    header, _, _ = parts(locale="xx")                                            # idioma desconocido: español
+    assert "Borrador de brief" in header
 
 
 # ---------- lo que un programa no genera ----------
