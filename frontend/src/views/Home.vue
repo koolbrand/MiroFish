@@ -378,12 +378,13 @@ const EXAMPLES = ['Launch', 'Price', 'Campaign', 'Crisis']
 
 // Cifras medidas: el número se anima, la unidad («min») va aparte y más pequeña.
 const splitFigure = (s) => {
-  // «20–30 min» → «20–30» + «min»; «20–120» → «20–120»
+  // «1–2 horas» → «1–2» + «horas»; «20–120» → «20–120»
   const m = String(s).match(/^(\d[\d.,]*(?:\s*[–-]\s*\d[\d.,]*)?)\s*(.*)$/)
   return m ? { value: m[1].trim(), unit: (m[2] || '').trim() } : { value: s, unit: '' }
 }
 const figures = computed(() => [
-  { value: '20–30', unit: t('home.figureUnitMinutes'), label: t('home.metricLowCostDesc') },
+  // Medido el 1-oct-2026 en producción: 83 min de punta a punta (automático, 47 personas, 40 rondas)
+  { value: '1–2', unit: t('home.figureUnitHours'), label: t('home.metricLowCostDesc') },
   { value: '20–120', unit: t('home.figureUnitPeople'), label: t('home.metricHighAvailDesc') },
   { value: '2', unit: t('home.figureUnitNetworks'), label: t('home.figurePlatformsDesc') },
   { value: '5', unit: t('home.figureUnitSteps'), label: t('home.figureStepsDesc') },
