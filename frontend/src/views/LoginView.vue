@@ -287,7 +287,7 @@ const handleLogin = async () => {
 .form-input {
   width: 100%;
   padding: 0.65rem 0.75rem 0.65rem 2.2rem;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--kb-text);
   border: 1px solid var(--kb-muted-on-dark);   /* ≥ 3:1 frente a la tarjeta (WCAG 1.4.11); antes, blanco al 10 % = 1,35:1 */
   border-radius: 0.5rem;
   color: var(--kb-line);

@@ -646,6 +646,9 @@ onMounted(refresh)
 .col-info .sub { color: var(--kb-subtle); }
 .error-text {
   color: var(--kb-danger-text);
+  background: var(--kb-surface);   /* el rojo de marca llega a 4,8:1 sobre blanco; sobre la crema, 4,3 */
+  padding: 1px 6px;
+  border-radius: 2px;
   font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;

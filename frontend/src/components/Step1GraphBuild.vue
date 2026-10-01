@@ -16,6 +16,7 @@
               <span class="src-host">{{ hostOf(src.url) }}<template v-if="src.page_age"> · {{ src.page_age }}</template></span>
             </li>
           </ul>
+          <p v-if="research.sources.length > 6" class="research-more">{{ $t('step1.researchMore', { n: research.sources.length - 6 }) }}</p>
           <div class="research-foot">
             <button type="button" class="research-dl" :disabled="downloading" @click="downloadResearchFile">
               ↓ {{ $t('step1.researchDownload') }}
@@ -393,6 +394,7 @@ watch(() => props.systemLogs.length, () => {
 .research-sources a { font-size: 13px; font-weight: 600; color: var(--kb-text); text-decoration-color: var(--kb-control-line); text-underline-offset: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .research-sources a:hover { text-decoration-color: var(--ink-950); }
 .src-host { font: 400 11px var(--kb-font-mono); color: var(--kb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-more { margin: 8px 0 0 30px; font-size: 12px; color: var(--kb-muted); }
 .research-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--kb-line); }
 .research-dl { padding: 7px 12px; border: 1.5px solid var(--ink-950); border-radius: 8px; background: var(--kb-surface); font: 600 12px var(--kb-font-sans); cursor: pointer; }
 .research-dl:hover:not(:disabled) { background: var(--kb-accent-subtle); }

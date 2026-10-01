@@ -232,7 +232,7 @@ const getSimulationTitle = (requirement) => {
 // Lima si terminó bien, tinta si falló, blanca en cualquier otro caso
 const faceBucket = (project) => ({ completed: 'favor', failed: 'against' }[statusKind(project)] || 'undecided')
 
-const cardTitle = (project) => project?.project_name || getSimulationTitle(project?.simulation_requirement)
+const cardTitle = (project) => (project?.project_name && project.project_name !== 'Unnamed Project' ? project.project_name : getSimulationTitle(project?.simulation_requirement))
 
 const formatSimulationId = (simulationId) => {
   if (!simulationId) return 'SIM_UNKNOWN'
