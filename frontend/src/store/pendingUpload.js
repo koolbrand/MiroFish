@@ -12,7 +12,8 @@ const state = reactive({
   mode: 'manual',        // 'manual' (paso a paso) o 'auto' (el servidor sigue hasta el informe)
   webResearch: false,    // investigar en internet antes de la ontología (opcional)
   rounds: DEFAULT_ROUNDS, // rondas de la simulación en modo automático (20 / 40 / 72)
-  isPending: false
+  isPending: false,
+  launching: false       // la pantalla del proceso está enviando el material ahora mismo (la portada no debe permitir lanzar otra vez)
 })
 
 export function setPendingUpload(files, requirement, projectName = '', mode = 'manual', webResearch = false, rounds = DEFAULT_ROUNDS) {
@@ -35,6 +36,15 @@ export function getPendingUpload() {
     rounds: state.rounds,
     isPending: state.isPending
   }
+}
+
+// Reactivo: la portada lo lee para no dejar lanzar una segunda vez mientras la primera sigue en vuelo
+export function setLaunching(value) {
+  state.launching = !!value
+}
+
+export function isLaunching() {
+  return state.launching
 }
 
 export function clearPendingUpload() {

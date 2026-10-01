@@ -161,12 +161,13 @@ class SimulationIPCClient:
                         response_data = json.load(f)
                     response = IPCResponse.from_dict(response_data)
                     
-                    # 清理命令和响应文件
-                    try:
-                        os.remove(command_file)
-                        os.remove(response_file)
-                    except OSError:
-                        pass
+                    # 清理命令和响应文件 — cada uno por separado: el servidor del script ya borra el comando, y
+                    # con un solo try el `remove` fallido impedía borrar la respuesta (~100 KB que se acumulaban)
+                    for leftover in (command_file, response_file):
+                        try:
+                            os.remove(leftover)
+                        except OSError:
+                            pass
                     
                     logger.info(f"Respuesta IPC recibida: command_id={command_id}, status={response.status.value}")
                     return response

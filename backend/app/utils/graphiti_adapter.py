@@ -850,9 +850,18 @@ def _neo4j_val(v):
     return v
 
 
+def _is_embedding_key(key) -> bool:
+    return str(key).endswith('_embedding')
+
+
 def _neo4j_props(props: dict) -> dict:
-    """Recursively sanitize a Neo4j property dict for JSON serialization."""
-    return {k: _neo4j_val(v) for k, v in props.items()}
+    """Recursively sanitize a Neo4j property dict for JSON serialization.
+
+    Los vectores de embedding (`name_embedding` en los nodos, `fact_embedding` en las relaciones; ~17 KB cada
+    uno) NO salen del adaptador: no sirven a nadie fuera de Graphiti y, si pasan, la pantalla recibe decenas
+    de MB por consulta del grafo y cada prompt de perfil lleva ~10.000 tokens de números.
+    """
+    return {k: _neo4j_val(v) for k, v in props.items() if not _is_embedding_key(k)}
 
 
 class GraphitiNodeClient:
@@ -878,6 +887,16 @@ class GraphitiNodeClient:
                 summary=props.get("summary", ""),
                 attributes={k: v for k, v in props.items() if k not in ("uuid", "name", "summary", "group_id")}
             )
+
+    def in_graph(self, uuid_: str, group_id: str) -> bool:
+        """¿Ese nodo pertenece a ese grafo? `get` y `get_entity_edges` buscan por uuid en TODA la base: sin esta
+        comprobación, quien conoce un uuid ajeno (en una captura, un informe compartido) lo leía desde su propio grafo."""
+        with self._driver.session() as session:
+            record = session.run(
+                "MATCH (n:Entity {uuid: $uuid, group_id: $gid}) RETURN count(n) AS c",
+                uuid=uuid_, gid=group_id
+            ).single()
+            return bool(record and record["c"])
 
     def get_entity_edges(self, node_uuid: str) -> list:
         with self._driver.session() as session:

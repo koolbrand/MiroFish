@@ -26,6 +26,15 @@ from ..utils.security import validate_platform, validate_storage_id
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 
+
+def _clamp_timeout(value, default, low=5.0, high=120.0) -> float:
+    """El plazo de una orden al entorno de simulación lo pone el cliente: sin tope, una petición retenía un hilo
+    y la conexión el tiempo que quisiera."""
+    try:
+        return max(low, min(float(value), high))
+    except (TypeError, ValueError):
+        return float(default)
+
 logger = get_logger('mirofish.api.simulation')
 
 
@@ -499,7 +508,10 @@ def prepare_simulation():
         
         entity_types_list = data.get('entity_types')
         use_llm_for_profiles = data.get('use_llm_for_profiles', True)
-        parallel_profile_count = data.get('parallel_profile_count', 5)
+        try:
+            parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
+        except (TypeError, ValueError):
+            parallel_profile_count = 5
         
         # ========== 同步获取实体数量（在后台任务启动前） ==========
         # 这样前端在调用prepare后立即就能获取到预期Agent总数
@@ -831,6 +843,8 @@ def delete_simulation(simulation_id: str):
             state = SimulationRunner.get_run_state(simulation_id)
             if state and state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
                 SimulationRunner.stop_simulation(simulation_id)
+            # Una simulación ya COMPLETADA sigue teniendo su proceso vivo esperando entrevistas: también se mata
+            SimulationRunner.terminate_if_alive(simulation_id, finished=True)
         except Exception as stop_err:
             logger.warning(f"Fallo al detener la simulación (se continúa con el borrado): {simulation_id}: {stop_err}")
 
@@ -1479,7 +1493,7 @@ def download_simulation_config(simulation_id: str):
     """下载模拟配置文件"""
     try:
         manager = SimulationManager()
-        sim_dir = manager._get_simulation_dir(simulation_id)
+        sim_dir = manager._get_simulation_dir(simulation_id, create=False)     # un GET no crea carpetas
         config_path = os.path.join(sim_dir, "simulation_config.json")
         
         if not os.path.exists(config_path):
@@ -1977,8 +1991,7 @@ def get_run_status_detail(simulation_id: str):
                     },
                     ...
                 ],
-                "twitter_actions": [...],  # Twitter 平台的所有动作
-                "reddit_actions": [...]    # Reddit 平台的所有动作
+                "recent_actions": [...]    # solo la ronda actual
             }
         }
     """
@@ -1994,9 +2007,7 @@ def get_run_status_detail(simulation_id: str):
                 "data": {
                     "simulation_id": simulation_id,
                     "runner_status": "idle",
-                    "all_actions": [],
-                    "twitter_actions": [],
-                    "reddit_actions": []
+                    "all_actions": []
                 }
             })
         
@@ -2006,30 +2017,16 @@ def get_run_status_detail(simulation_id: str):
             platform=platform_filter
         )
         
-        # 分平台获取动作
-        twitter_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform="twitter"
-        ) if not platform_filter or platform_filter == "twitter" else []
-        
-        reddit_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform="reddit"
-        ) if not platform_filter or platform_filter == "reddit" else []
-        
-        # 获取当前轮次的动作（recent_actions 只展示最新一轮）
+        # 当前轮次: se deriva de la misma lectura. Antes se releía TODO el actions.jsonl cuatro veces por consulta (la
+        # pantalla pregunta cada 3 s) y con miles de acciones cada lectura cuesta cientos de ms
         current_round = run_state.current_round
-        recent_actions = SimulationRunner.get_all_actions(
-            simulation_id=simulation_id,
-            platform=platform_filter,
-            round_num=current_round
-        ) if current_round > 0 else []
+        recent_actions = [a for a in all_actions if a.round_num == current_round] if current_round > 0 else []
         
         # 获取基础状态信息
         result = run_state.to_dict()
         result["all_actions"] = [a.to_dict() for a in all_actions]
-        result["twitter_actions"] = [a.to_dict() for a in twitter_actions]
-        result["reddit_actions"] = [a.to_dict() for a in reddit_actions]
+        # (`twitter_actions` / `reddit_actions` ya no se envían: eran las mismas acciones repartidas por plataforma, la
+        # pantalla solo usa `all_actions` y triplicaban el tamaño de cada respuesta)
         result["rounds_count"] = len(run_state.rounds)
         # recent_actions 只展示当前最新一轮两个平台的内容
         result["recent_actions"] = [a.to_dict() for a in recent_actions]
@@ -2388,7 +2385,7 @@ def interview_agent():
         agent_id = data.get('agent_id')
         prompt = data.get('prompt')
         platform = data.get('platform')  # 可选：twitter/reddit/None
-        timeout = data.get('timeout', 60)
+        timeout = _clamp_timeout(data.get('timeout', 60), default=60)
         
         if not simulation_id:
             return jsonify({
@@ -2725,6 +2722,18 @@ def interview_agents_batch():
                 "success": False,
                 "error": t('api.requireInterviews')
             }), 400
+        # Cada elemento puede ser una llamada al modelo (si el entorno ya no existe): sin tope eran 2.000 por petición
+        if len(interviews) > Config.MAX_INTERVIEWS_PER_REQUEST or not all(isinstance(x, dict) for x in interviews):
+            return jsonify({
+                "success": False,
+                "error": t('api.tooManyInterviews', max=Config.MAX_INTERVIEWS_PER_REQUEST)
+            }), 400
+        if any(len(str(x.get('prompt', ''))) > Config.MAX_INTERVIEW_PROMPT_CHARS for x in interviews):
+            return jsonify({
+                "success": False,
+                "error": t('api.interviewPromptTooLong', max=Config.MAX_INTERVIEW_PROMPT_CHARS)
+            }), 400
+        timeout = _clamp_timeout(timeout, default=10)
 
         # 验证platform参数
         if platform and platform not in ("twitter", "reddit"):
@@ -2839,7 +2848,7 @@ def interview_all_agents():
         simulation_id = data.get('simulation_id')
         prompt = data.get('prompt')
         platform = data.get('platform')  # 可选：twitter/reddit/None
-        timeout = data.get('timeout', 180)
+        timeout = _clamp_timeout(data.get('timeout', 180), default=180)
 
         if not simulation_id:
             return jsonify({
@@ -3070,7 +3079,7 @@ def close_simulation_env():
         data = request.get_json() or {}
         
         simulation_id = data.get('simulation_id')
-        timeout = data.get('timeout', 30)
+        timeout = _clamp_timeout(data.get('timeout', 30), default=30)
         
         if not simulation_id:
             return jsonify({

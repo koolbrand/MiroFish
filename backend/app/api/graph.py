@@ -21,7 +21,7 @@ from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..utils.access import can_see, current_identity, visible_task
 from ..utils.locale import t, get_locale, set_locale
-from ..utils.security import validate_upload_content, sanitize_user_text
+from ..utils.security import validate_upload_content, sanitize_user_text, is_valid_storage_id
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 
@@ -48,6 +48,17 @@ def _get_build_lock(project_id: str) -> threading.Lock:
             lock = threading.Lock()
             _BUILD_LOCKS[project_id] = lock
         return lock
+
+
+def _chunk_params_ok(size, overlap) -> bool:
+    """Tamaño y solape del troceado: enteros razonables (None = el valor del proyecto o el de por defecto)."""
+    for value in (size, overlap):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            return False
+    effective_size = size if size is not None else Config.DEFAULT_CHUNK_SIZE
+    if not 100 <= effective_size <= 5000:
+        return False
+    return overlap is None or 0 <= overlap <= effective_size // 2
 
 
 def allowed_file(filename: str) -> bool:
@@ -205,8 +216,9 @@ def update_project(project_id: str):
     if len(new_name) > 120:
         new_name = new_name[:120]
 
-    project.name = new_name
-    ProjectManager.save_project(project)
+    project = ProjectManager.update_project(project_id, lambda p: setattr(p, 'name', new_name))
+    if project is None:
+        return jsonify({"success": False, "error": t('api.projectNotFound', id=project_id)}), 404
     logger.info(f"Proyecto {project_id} renombrado a: {new_name}")
 
     return jsonify({
@@ -236,7 +248,7 @@ def type_labels():
     return jsonify({"success": True, "data": {"locale": locale, "labels": labels}})
 
 
-_OWNER_ID_RE = re.compile(r'^[A-Za-z0-9]{8,32}$')     # ids de PocketBase: 15 caracteres alfanuméricos
+_OWNER_ID_RE = re.compile(r'[A-Za-z0-9]{8,32}')     # ids de PocketBase: 15 caracteres alfanuméricos
 
 
 @graph_bp.route('/project/<project_id>/owner', methods=['PUT'])
@@ -263,12 +275,18 @@ def set_project_owner(project_id: str):
     if not isinstance(data, dict) or 'owner_id' not in data:
         return jsonify({"success": False, "error": t('api.ownerInvalid')}), 400
     new_owner = data['owner_id']
-    if new_owner is not None and not (isinstance(new_owner, str) and _OWNER_ID_RE.match(new_owner)):
+    if new_owner is not None and not (isinstance(new_owner, str) and _OWNER_ID_RE.fullmatch(new_owner)):
         return jsonify({"success": False, "error": t('api.ownerInvalid')}), 400
 
-    previous = project.owner_id
-    project.owner_id = new_owner
-    ProjectManager.save_project(project)
+    changes = {}
+
+    def hand_over(p):
+        changes['previous'] = p.owner_id
+        p.owner_id = new_owner
+
+    if ProjectManager.update_project(project_id, hand_over) is None:
+        return jsonify({"success": False, "error": t('api.projectNotFound', id=project_id)}), 404
+    previous = changes['previous']
     logger.info(f"[acceso] Dueño del proyecto {project_id}: {previous or 'sin dueño'} -> {new_owner or 'sin dueño'}")
 
     return jsonify({
@@ -281,11 +299,29 @@ def set_project_owner(project_id: str):
     })
 
 
+def _delete_graph_quietly(graph_id) -> bool:
+    """Borra un grafo de Neo4j sin que un fallo estropee lo que se está haciendo (mejor esfuerzo)."""
+    if not graph_id:
+        return False
+    try:
+        GraphBuilderService().delete_graph(graph_id)
+        logger.info(f"Grafo {graph_id} borrado")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"No se pudo borrar el grafo {graph_id} (queda huérfano en Neo4j): {exc}")
+        return False
+
+
 @graph_bp.route('/project/<project_id>', methods=['DELETE'])
 def delete_project(project_id: str):
     """
-    删除项目，并级联清理相关的 simulations 和 reports。
+    删除项目，并级联清理相关的 simulations 和 reports（y su grafo en Neo4j).
+
+    Si la limpieza en cascada falla, NO se borra el proyecto: se responde 500 y se puede reintentar.
+    Antes se seguía igualmente y quedaban simulaciones e informes huérfanos que solo veía el administrador.
     """
+    project = ProjectManager.get_project(project_id)       # None si no existe o está ilegible (se borra igual)
+
     # Cascade: remove associated simulations (which also remove their reports)
     cascaded_sims = 0
     try:
@@ -299,27 +335,36 @@ def delete_project(project_id: str):
                 run_state = SimulationRunner.get_run_state(sid)
                 if run_state and run_state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
                     SimulationRunner.stop_simulation(sid)
+                SimulationRunner.terminate_if_alive(sid, finished=True)      # también la ya terminada que espera entrevistas
             except Exception as stop_err:
                 logger.warning(f"Fallo al detener la simulación en cascada: {sid}: {stop_err}")
-            try:
-                for rep in ReportManager.list_reports(simulation_id=sid):
-                    rid = getattr(rep, 'report_id', None)
-                    if rid:
-                        ReportManager.delete_report(rid)
-            except Exception as rep_err:
-                logger.warning(f"Fallo al eliminar informes en cascada: {sid}: {rep_err}")
+            for rep in ReportManager.list_reports(simulation_id=sid):
+                rid = getattr(rep, 'report_id', None)
+                if rid:
+                    ReportManager.delete_report(rid)
             if sim_manager.delete_simulation(sid):
                 cascaded_sims += 1
     except Exception as cascade_err:
-        logger.warning(f"Fallo en la limpieza en cascada de simulaciones (se continúa con la eliminación del proyecto): {project_id}: {cascade_err}")
+        logger.error(f"Fallo en la limpieza en cascada; el proyecto NO se borra: {project_id}: {cascade_err}")
+        return jsonify({
+            "success": False,
+            "error": t('api.projectCascadeFailed', id=project_id)
+        }), 500
 
+    graph_id = project.graph_id if project else None
     success = ProjectManager.delete_project(project_id)
+    with _BUILD_LOCKS_COORDINATOR:
+        lock = _BUILD_LOCKS.get(project_id)
+        if lock is not None and not lock.locked():
+            _BUILD_LOCKS.pop(project_id, None)          # si hay una construcción en vuelo, su hilo lo suelta y se ve en el siguiente borrado
 
     if not success:
         return jsonify({
             "success": False,
             "error": t('api.projectDeleteFailed', id=project_id)
         }), 404
+
+    _delete_graph_quietly(graph_id)
 
     if cascaded_sims:
         logger.info(f"Proyecto {project_id} eliminado · {cascaded_sims} simulaciones limpiadas en cascada")
@@ -336,24 +381,24 @@ def reset_project(project_id: str):
     """
     重置项目状态（用于重新构建图谱）
     """
-    project = ProjectManager.get_project(project_id)
-    
+    old_graph = {}
+
+    def reset(p):
+        old_graph['id'] = p.graph_id
+        # 重置到本体已生成状态
+        p.status = ProjectStatus.ONTOLOGY_GENERATED if p.ontology else ProjectStatus.CREATED
+        p.graph_id = None
+        p.graph_build_task_id = None
+        p.error = None
+
+    project = ProjectManager.update_project(project_id, reset)
     if not project:
         return jsonify({
             "success": False,
             "error": t('api.projectNotFound', id=project_id)
         }), 404
 
-    # 重置到本体已生成状态
-    if project.ontology:
-        project.status = ProjectStatus.ONTOLOGY_GENERATED
-    else:
-        project.status = ProjectStatus.CREATED
-    
-    project.graph_id = None
-    project.graph_build_task_id = None
-    project.error = None
-    ProjectManager.save_project(project)
+    _delete_graph_quietly(old_graph.get('id'))      # el grafo anterior ya no lo referencia nadie
     
     return jsonify({
         "success": True,
@@ -411,6 +456,14 @@ def read_ontology_form(form, files):
     uploaded_files = files.getlist('files')
     if not uploaded_files or all(not f.filename for f in uploaded_files):
         raise OntologyUploadError(t('api.requireFileUpload'))
+
+    # Topes por petición: 990 imágenes de 75 bytes eran 990 llamadas al modelo de visión en una sola petición
+    named = [f for f in uploaded_files if f and f.filename]
+    if len(named) > Config.MAX_UPLOAD_FILES:
+        raise OntologyUploadError(t('api.tooManyFiles', max=Config.MAX_UPLOAD_FILES), 413)
+    images = [f for f in named if os.path.splitext(f.filename)[1].lower() in FileParser.IMAGE_EXTENSIONS]
+    if len(images) > Config.MAX_UPLOAD_IMAGES:
+        raise OntologyUploadError(t('api.tooManyImages', max=Config.MAX_UPLOAD_IMAGES), 413)
 
     return simulation_requirement, project_name, additional_context, uploaded_files
 
@@ -470,10 +523,18 @@ def create_project_from_upload(simulation_requirement: str, project_name: str, u
             })
 
             # 提取文本
-            text = FileParser.extract_text(file_info["path"])
+            try:
+                text = FileParser.extract_text(file_info["path"])
+            except ValueError as exc:
+                # El parser rechaza el archivo por una razón que la persona puede entender (imagen enorme...): 400
+                raise OntologyUploadError(str(exc), 400)
             text = TextProcessor.preprocess_text(text)
             document_texts.append(text)
             all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
+            if len(all_text) > Config.MAX_TOTAL_TEXT_CHARS:
+                # El grafo gasta un episodio (varias llamadas al modelo) por cada ~500 caracteres: 50 MB de texto
+                # eran unos 130.000 episodios desde una sola petición
+                raise OntologyUploadError(t('api.textTooLong', max=f"{Config.MAX_TOTAL_TEXT_CHARS:,}".replace(",", ".")), 413)
 
         if not document_texts:
             raise OntologyUploadError(t('api.noDocProcessed'))
@@ -735,13 +796,23 @@ def build_graph():
         project_id = data.get('project_id')
         logger.debug(f"Parámetros de la petición: project_id={project_id}")
         
-        if not project_id:
+        if not project_id or not isinstance(project_id, str) or not is_valid_storage_id(project_id, "proj_"):
             return jsonify({
                 "success": False,
                 "error": t('api.requireProjectId')
             }), 400
         
         force = data.get('force', False)  # Forzar la reconstrucción
+
+        # Troceado del texto: sin validar, overlap >= chunk_size colgaba el hilo para siempre y chunk_size=1
+        # lanzaba un episodio (varias llamadas al modelo) por carácter
+        requested_size, requested_overlap = data.get('chunk_size'), data.get('chunk_overlap')
+        if not _chunk_params_ok(requested_size, requested_overlap):
+            return jsonify({"success": False, "error": t('api.chunkParamsInvalid')}), 400
+
+        # Un id con buen formato pero inexistente no merece un candado (el diccionario crecería con ids inventados)
+        if ProjectManager.get_project(project_id) is None:
+            return jsonify({"success": False, "error": t('api.projectNotFound', id=project_id)}), 404
 
         # Serialise the check-then-act for this project so two concurrent
         # /build calls cannot both pass the conflict check and both launch
@@ -753,6 +824,7 @@ def build_graph():
                 "error": t('api.graphBuilding'),
             }), 409
 
+        thread_started = False
         try:
             # Re-read the project inside the lock — the writer above might
             # have promoted it to GRAPH_BUILDING just before we got here.
@@ -777,7 +849,9 @@ def build_graph():
                 }), 409
 
             # 如果强制重建，重置状态
+            replaced_graph_id = None
             if force and project.status in [ProjectStatus.GRAPH_BUILDING, ProjectStatus.FAILED, ProjectStatus.GRAPH_COMPLETED]:
+                replaced_graph_id = project.graph_id       # el grafo anterior queda sin dueño: se borra al guardar
                 project.status = ProjectStatus.ONTOLOGY_GENERATED
                 project.graph_id = None
                 project.graph_build_task_id = None
@@ -785,8 +859,10 @@ def build_graph():
 
             # 获取配置
             graph_name = data.get('graph_name', project.name or 'Simuloo Graph')
-            chunk_size = data.get('chunk_size', project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
-            chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
+            chunk_size = requested_size if requested_size is not None else (project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
+            chunk_overlap = requested_overlap if requested_overlap is not None else (project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
+            if not _chunk_params_ok(chunk_size, chunk_overlap):          # lo guardado en el proyecto también
+                chunk_size, chunk_overlap = Config.DEFAULT_CHUNK_SIZE, Config.DEFAULT_CHUNK_OVERLAP
 
             # 更新项目配置
             project.chunk_size = chunk_size
@@ -817,9 +893,12 @@ def build_graph():
             project.status = ProjectStatus.GRAPH_BUILDING
             project.graph_build_task_id = task_id
             ProjectManager.save_project(project)
-        except Exception:
-            build_lock.release()
-            raise
+            if replaced_graph_id:
+                _delete_graph_quietly(replaced_graph_id)
+            thread_started = True       # a partir de aquí el candado lo suelta el hilo
+        finally:
+            if not thread_started:
+                build_lock.release()    # cualquier salida temprana (400, 404, 409, error): el candado no se queda cogido
         # Lock stays held — released inside `build_task()` once the thread
         # has reached its terminal state (completed/failed). This prevents
         # a second /build call from racing in while the first thread is
@@ -832,6 +911,7 @@ def build_graph():
         def build_task():
             set_locale(current_locale)
             build_logger = get_logger('mirofish.build')
+            graph_id = None
             try:
                 build_logger.info(f"[{task_id}] Iniciando la construcción del grafo...")
                 task_manager.update_task(
@@ -864,9 +944,10 @@ def build_graph():
                 )
                 graph_id = builder.create_graph(name=graph_name)
                 
-                # 更新项目的graph_id
-                project.graph_id = graph_id
-                ProjectManager.save_project(project)
+                # 更新项目的graph_id (solo ese campo, sobre la copia más reciente del disco: durante minutos el
+                # proyecto puede haber cambiado de nombre o de dueño y no se pisa)
+                if ProjectManager.update_project(project_id, lambda p: setattr(p, 'graph_id', graph_id)) is None:
+                    raise RuntimeError("El proyecto se borró mientras se construía su grafo")
                 
                 # 设置本体
                 task_manager.update_task(
@@ -932,8 +1013,8 @@ def build_graph():
                     )
 
                 # 更新项目状态
-                project.status = ProjectStatus.GRAPH_COMPLETED
-                ProjectManager.save_project(project)
+                if ProjectManager.update_project(project_id, lambda p: setattr(p, 'status', ProjectStatus.GRAPH_COMPLETED)) is None:
+                    raise RuntimeError("El proyecto se borró mientras se construía su grafo")
                 
                 node_count = graph_data.get("node_count", 0)
                 edge_count = graph_data.get("edge_count", 0)
@@ -957,17 +1038,26 @@ def build_graph():
             except Exception as e:
                 # Actualizar el estado del proyecto a fallido
                 build_logger.error(f"[{task_id}] Fallo en la construcción del grafo: {str(e)}")
-                build_logger.debug(traceback.format_exc())
+                build_logger.warning(traceback.format_exc())      # el detalle va al log, no al cliente
 
-                project.status = ProjectStatus.FAILED
-                project.error = str(e)
-                ProjectManager.save_project(project)
+                def mark_failed(p):
+                    p.status = ProjectStatus.FAILED
+                    p.error = str(e)
+                    p.graph_build_task_id = None
+
+                try:
+                    ProjectManager.update_project(project_id, mark_failed)
+                except Exception as save_err:  # noqa: BLE001 — que un fallo al guardar no deje la tarea «en curso»
+                    build_logger.warning(f"[{task_id}] No se pudo guardar el estado fallido: {save_err}")
+                # Un grafo a medias (o de un proyecto ya borrado) no lo referencia nadie: se borra
+                if graph_id:
+                    _delete_graph_quietly(graph_id)
 
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.FAILED,
                     message=t('progress.buildFailed', error=str(e)),
-                    error=traceback.format_exc()
+                    error=str(e)
                 )
             finally:
                 # Release the per-project build lock so a subsequent /build
@@ -982,7 +1072,12 @@ def build_graph():
 
         # 启动后台线程
         thread = threading.Thread(target=build_task, daemon=True)
-        thread.start()
+        try:
+            thread.start()
+        except Exception:
+            build_lock.release()            # sin hilo no habrá quien suelte el candado
+            ProjectManager.update_project(project_id, lambda p: setattr(p, 'status', ProjectStatus.FAILED))
+            raise
         
         return jsonify({
             "success": True,

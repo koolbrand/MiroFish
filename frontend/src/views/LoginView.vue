@@ -131,7 +131,13 @@ const handleLogin = async () => {
     router.push(destination)
   } catch (err) {
     console.error('Login failed', err)
-    error.value = t('login.invalidCredentials')
+    // «Credenciales incorrectas» solo si PocketBase contestó que lo son (400/401/403). Sin conexión, con el servicio
+    // caído o con demasiados intentos (429) la persona revisaba una contraseña que estaba bien
+    const status = err?.status ?? err?.response?.status
+    if (status === 400 || status === 401 || status === 403) error.value = t('login.invalidCredentials')
+    else if (status === 429) error.value = t('errors.http429')
+    else if (!status) error.value = t('errors.network')
+    else error.value = t('errors.http5xx')
   } finally {
     loading.value = false
     // el formulario se deshabilita mientras entra y el foco se pierde: si falló, vuelve al campo de la contraseña

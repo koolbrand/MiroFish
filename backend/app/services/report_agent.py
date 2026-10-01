@@ -13,6 +13,7 @@ import os
 import json
 import time
 import re
+import threading
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -31,6 +32,7 @@ from ..utils.locale import (
     t,
 )
 from ..utils.security import validate_storage_id, is_valid_storage_id
+from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
 from .simulation_runner import SimulationRunner
 from .zep_tools import (
     ZepToolsService, 
@@ -355,6 +357,11 @@ class ReportConsoleLogger:
             encoding='utf-8'
         )
         self._file_handler.setLevel(logging.INFO)
+        # Los loggers son globales: sin este filtro el console_log.txt de cada informe recogía también lo que
+        # registraban los demás informes (de otros usuarios) generándose a la vez: consultas, parámetros, chat.
+        # El registrador se crea en el hilo que genera el informe y las herramientas no usan otros hilos.
+        owner_thread = threading.get_ident()
+        self._file_handler.addFilter(lambda record, tid=owner_thread: record.thread == tid)
         
         # 使用与控制台相同的简洁格式
         formatter = logging.Formatter(
@@ -1359,6 +1366,29 @@ class ReportAgent:
                 ]
             )
     
+    SECTION_ATTEMPTS = 3
+    SECTION_BACKOFF_SECONDS = (15, 45)       # espera antes del 2.º y del 3.er intento
+
+    def _generate_section_with_retries(self, **kwargs) -> str:
+        """Genera una sección reintentando ante fallos del proveedor (red, 429, 5xx, respuesta vacía)."""
+        last_error: Optional[Exception] = None
+        for attempt in range(self.SECTION_ATTEMPTS):
+            try:
+                return self._generate_section_react(**kwargs)
+            except FileNotFoundError:
+                raise                       # el informe se borró mientras se escribía: no hay nada que reintentar
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                title = getattr(kwargs.get('section'), 'title', '?')
+                if attempt + 1 >= self.SECTION_ATTEMPTS:
+                    break
+                wait = self.SECTION_BACKOFF_SECONDS[min(attempt, len(self.SECTION_BACKOFF_SECONDS) - 1)]
+                logger.warning(f"Fallo al escribir la sección «{title}» (intento {attempt + 1}/{self.SECTION_ATTEMPTS}): "
+                               f"{exc}. Se reintenta en {wait} s")
+                time.sleep(wait)
+        assert last_error is not None
+        raise last_error
+
     def _generate_section_react(
         self, 
         section: ReportSection,
@@ -1973,8 +2003,9 @@ class ReportAgent:
                         t('progress.generatingSection', title=section.title, current=section_num, total=total_sections)
                     )
                 
-                # 生成主章节内容
-                section_content = self._generate_section_react(
+                # 生成主章节内容 (con reintentos: un 503/429 pasajero del proveedor en la sección 4 tiraba el informe
+                # entero, con las tres primeras ya escritas y sin forma de continuar)
+                section_content = self._generate_section_with_retries(
                     section=section,
                     outline=outline,
                     previous_sections=generated_sections,
@@ -2261,10 +2292,16 @@ class ReportManager:
         validate_storage_id(report_id, "report_")
         return os.path.join(cls.REPORTS_DIR, report_id)
     
+    # Informes borrados en esta ejecución: el hilo que los generaba no debe recrear su carpeta
+    _deleted_ids: set = set()
+
     @classmethod
     def _ensure_report_folder(cls, report_id: str) -> str:
         """确保报告文件夹存在并返回路径"""
         folder = cls._get_report_folder(report_id)
+        if report_id in cls._deleted_ids:
+            # El hilo que lo generaba sigue vivo tras borrar el informe: no se recrea su carpeta
+            raise FileNotFoundError(f"El informe {report_id} fue borrado")
         os.makedirs(folder, exist_ok=True)
         return folder
     
@@ -2435,8 +2472,7 @@ class ReportManager:
         """
         cls._ensure_report_folder(report_id)
         
-        with open(cls._get_outline_path(report_id), 'w', encoding='utf-8') as f:
-            json.dump(outline.to_dict(), f, ensure_ascii=False, indent=2)
+        atomic_write_json(cls._get_outline_path(report_id), outline.to_dict())
         
         logger.info(t('report.outlineSaved', reportId=report_id))
     
@@ -2471,8 +2507,8 @@ class ReportManager:
         # 保存文件
         file_suffix = f"section_{section_index:02d}.md"
         file_path = os.path.join(cls._get_report_folder(report_id), file_suffix)
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(md_content)
+        cls._ensure_report_folder(report_id)
+        atomic_write_text(file_path, md_content)
 
         logger.info(t('report.sectionFileSaved', reportId=report_id, fileSuffix=file_suffix))
         return file_path
@@ -2637,19 +2673,14 @@ class ReportManager:
             "updated_at": datetime.now().isoformat()
         }
         
-        with open(cls._get_progress_path(report_id), 'w', encoding='utf-8') as f:
-            json.dump(progress_data, f, ensure_ascii=False, indent=2)
+        cls._ensure_report_folder(report_id)
+        atomic_write_json(cls._get_progress_path(report_id), progress_data, fsync=False)
     
     @classmethod
     def get_progress(cls, report_id: str) -> Optional[Dict[str, Any]]:
         """获取报告生成进度"""
-        path = cls._get_progress_path(report_id)
-        
-        if not os.path.exists(path):
-            return None
-        
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        data = read_json_or_none(cls._get_progress_path(report_id), what=f"el progreso de {report_id}")
+        return data if isinstance(data, dict) else None
     
     @classmethod
     def get_generated_sections(cls, report_id: str) -> List[Dict[str, Any]]:
@@ -2706,8 +2737,8 @@ class ReportManager:
         
         # 保存完整报告
         full_path = cls._get_report_markdown_path(report_id)
-        with open(full_path, 'w', encoding='utf-8') as f:
-            f.write(md_content)
+        cls._ensure_report_folder(report_id)
+        atomic_write_text(full_path, md_content)
         
         logger.info(t('report.fullReportAssembled', reportId=report_id))
         return md_content
@@ -2844,8 +2875,7 @@ class ReportManager:
         cls._ensure_report_folder(report.report_id)
         
         # 保存元信息JSON
-        with open(cls._get_report_path(report.report_id), 'w', encoding='utf-8') as f:
-            json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+        atomic_write_json(cls._get_report_path(report.report_id), report.to_dict())
         
         # 保存大纲
         if report.outline:
@@ -2853,8 +2883,7 @@ class ReportManager:
         
         # 保存完整Markdown报告
         if report.markdown_content:
-            with open(cls._get_report_markdown_path(report.report_id), 'w', encoding='utf-8') as f:
-                f.write(report.markdown_content)
+            atomic_write_text(cls._get_report_markdown_path(report.report_id), report.markdown_content)
         
         logger.info(t('report.reportSaved', reportId=report.report_id))
     
@@ -2862,18 +2891,22 @@ class ReportManager:
     def get_report(cls, report_id: str) -> Optional[Report]:
         """获取报告"""
         path = cls._get_report_path(report_id)
-        
-        if not os.path.exists(path):
+        data = read_json_or_none(path, what=f"el informe {report_id}")
+        if data is None and not os.path.exists(path):
             # 兼容旧格式：检查直接存储在reports目录下的文件
-            old_path = os.path.join(cls.REPORTS_DIR, f"{report_id}.json")
-            if os.path.exists(old_path):
-                path = old_path
-            else:
-                return None
+            data = read_json_or_none(os.path.join(cls.REPORTS_DIR, f"{report_id}.json"), what=f"el informe {report_id}")
+        if not isinstance(data, dict):
+            return None          # no existe, se borró mientras se leía o está ilegible (queda en el log)
         
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
+        try:
+            return cls._report_from_dict(report_id, data)
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            logger.warning(f"[estado] El informe {report_id} tiene un formato que no se entiende: {exc}")
+            return None
+
+    @classmethod
+    def _report_from_dict(cls, report_id: str, data: Dict[str, Any]) -> "Report":
+        """Reconstruye el informe desde su meta.json."""
         # 重建Report对象
         outline = None
         if data.get('outline'):
@@ -2908,33 +2941,27 @@ class ReportManager:
             markdown_content=markdown_content,
             created_at=data.get('created_at', ''),
             completed_at=data.get('completed_at', ''),
-            error=data.get('error')
+            error=data.get('error'),
+            warnings=list(data.get('warnings') or []),
         )
     
     @classmethod
     def get_report_by_simulation(cls, simulation_id: str) -> Optional[Report]:
-        """根据模拟ID获取报告"""
-        cls._ensure_reports_dir()
-        
-        for item in os.listdir(cls.REPORTS_DIR):
-            item_path = os.path.join(cls.REPORTS_DIR, item)
-            # 新格式：文件夹
-            if os.path.isdir(item_path):
-                if not is_valid_storage_id(item, "report_"):
-                    continue
-                report = cls.get_report(item)
-                if report and report.simulation_id == simulation_id:
+        """
+        El informe de una simulación. Cada «generar» crea un informe nuevo, así que puede haber varios: se
+        devuelve el que se está escribiendo (el más reciente), si no el último terminado y, solo si no hay otro,
+        el último fallido. Devolver «el primero del listado» enseñaba un informe fallido antiguo y ofrecía
+        volver a generar uno que ya existía.
+        """
+        candidates = cls.list_reports(simulation_id=simulation_id, limit=1000)   # ya vienen del más nuevo al más viejo
+        if not candidates:
+            return None
+        in_progress = (ReportStatus.PENDING, ReportStatus.PLANNING, ReportStatus.GENERATING)
+        for wanted in (in_progress, (ReportStatus.COMPLETED,), (ReportStatus.FAILED,)):
+            for report in candidates:
+                if report.status in wanted:
                     return report
-            # 兼容旧格式：JSON文件
-            elif item.endswith('.json'):
-                report_id = item[:-5]
-                if not is_valid_storage_id(report_id, "report_"):
-                    continue
-                report = cls.get_report(report_id)
-                if report and report.simulation_id == simulation_id:
-                    return report
-        
-        return None
+        return candidates[0]
     
     @classmethod
     def fail_unfinished(cls, reason: str) -> int:
@@ -2959,10 +2986,7 @@ class ReportManager:
                     continue
                 data['status'] = ReportStatus.FAILED.value
                 data['error'] = reason
-                tmp = path + '.tmp'
-                with open(tmp, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                os.replace(tmp, path)
+                atomic_write_json(path, data)
                 changed += 1
             except (OSError, ValueError) as exc:
                 logger.warning(f"[boot-recovery] No se pudo revisar el informe {item}: {exc}")
@@ -3008,6 +3032,7 @@ class ReportManager:
         
         # 新格式：删除整个文件夹
         if os.path.exists(folder_path) and os.path.isdir(folder_path):
+            cls._deleted_ids.add(report_id)
             shutil.rmtree(folder_path)
             logger.info(t('report.reportFolderDeleted', reportId=report_id))
             return True

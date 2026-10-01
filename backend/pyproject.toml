@@ -36,6 +36,9 @@ dependencies = [
     "cachetools>=5.3.0",
     "weasyprint>=70",
     "markdown>=3.5",
+    # Llega por camel-ai/OASIS/sentence-transformers; se declara aquí para poder elegir su índice (ver
+    # [tool.uv.sources]) — uv solo aplica `sources` a las dependencias directas. Misma versión que ya corría.
+    "torch==2.9.1",
 ]
 
 [project.optional-dependencies]
@@ -59,6 +62,19 @@ dev = [
 packages = ["app"]
 
 [tool.uv]
-# Force CPU-only PyTorch — avoids pulling CUDA packages (~2.5 GB) from camel-ai.
-# This keeps the Docker image under 500 MB instead of 3+ GB.
-torch-backend = "cpu"
+# camel-ai 0.2.78 pide pillow<11, y esas versiones tienen avisos de seguridad graves (Pillow lee imágenes que
+# suben los usuarios). camel solo importa PIL para mensajes multimodales que Simuloo no usa. Se fuerza una
+# versión corregida; los tests de imágenes (test_cost_limits) y el arranque de OASIS comprueban que sigue valiendo.
+override-dependencies = ["pillow>=12.3.0"]
+
+# PyTorch solo CPU en Linux (el servidor no tiene GPU). `torch-backend = "cpu"`, que estaba aquí, solo vale para
+# `uv pip`, no para `uv sync`: la imagen llevaba torch 2.9.1+cu128 con `nvidia/` (4,3 GB) y `triton` (0,6 GB)
+# — medido el 1-oct-2026 —, cinco veces más de lo que el comentario prometía. En macOS (desarrollo) PyPI ya da la
+# versión de CPU/MPS, por eso el índice solo se aplica a Linux.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

@@ -299,6 +299,25 @@ def test_owner_null_leaves_the_project_ownerless_and_unknown_projects_are_404(cl
     assert set_owner(client, ADMIN_TOKEN, "proj_000000000000", "userB").status_code == 404
 
 
+# ============== Metadatos ilegibles: no se deja pasar a nadie ==============
+
+def test_a_truncated_metadata_file_does_not_open_the_door(client, world):
+    """Un archivo roto (corte, carrera con un guardado) NO es «no existe»: antes dejaba pasar a cualquier usuario."""
+    import os
+    mine = world["A"]
+    open(ProjectManager._get_project_meta_path(mine["project"]), "w", encoding="utf-8").write('{"project_id": "pro')
+    sim_state = os.path.join(SimulationManager.SIMULATION_DATA_DIR, mine["sim"], "state.json")
+    open(sim_state, "w", encoding="utf-8").write('{"simulation_id": "sim_')
+    open(ReportManager._get_report_path(mine["report"]), "w", encoding="utf-8").write('{"report_id": "rep')
+
+    for path in (f"/api/simulation/{mine['sim']}/posts", f"/api/simulation/{mine['sim']}/profiles",
+                 f"/api/report/{mine['report']}", f"/api/report/{mine['report']}/console-log",
+                 f"/api/graph/project/{mine['project']}"):
+        for token in ("tokB", "tokA"):          # ni un tercero ni (por prudencia) el dueño: solo el admin hasta que se repare
+            r = client.get(path, headers=hdr(token))
+            assert r.status_code == 404, (path, token, r.status_code)
+
+
 # ============== Tareas ==============
 
 def test_tasks_are_listed_and_readable_only_by_their_owner(app, client):
@@ -383,3 +402,11 @@ def test_the_static_key_is_admin(monkeypatch):
     monkeypatch.setattr(Config, "API_AUTH_TOKEN", ADMIN_TOKEN)
     assert security.identify_bearer(f"Bearer {ADMIN_TOKEN}") == ("admin", None)
     assert security.validate_bearer_token(f"Bearer {ADMIN_TOKEN}") is True
+
+
+def test_a_get_for_an_unknown_simulation_creates_no_folder(client, world):
+    import os
+    fake = "sim_ffffffffffff"
+    r = client.get(f"/api/simulation/{fake}/config/download", headers=hdr(ADMIN_TOKEN))
+    assert r.status_code == 404
+    assert not os.path.exists(os.path.join(SimulationManager.SIMULATION_DATA_DIR, fake))

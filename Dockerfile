@@ -1,5 +1,5 @@
 # ===== Stage 1: Build Frontend =====
-FROM node:22-alpine as frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY locales/ ./locales/
 RUN npm run build --prefix frontend
 
 # ===== Stage 2: Build Backend Dependencies =====
-FROM python:3.11-slim as backend-builder
+FROM python:3.11-slim AS backend-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl && rm -rf /var/lib/apt/lists/*
@@ -25,7 +25,9 @@ WORKDIR /app/backend
 
 COPY backend/pyproject.toml backend/uv.lock ./
 
-RUN uv sync --frozen --no-editable
+# --no-dev: deja fuera el grupo de desarrollo de pyproject.toml. Hoy ahí solo hay pytest, que de todos modos queda
+# dentro porque camel-oasis lo exige; sirve para que una herramienta de desarrollo futura no entre en la imagen.
+RUN uv sync --frozen --no-editable --no-dev
 
 # ===== Stage 3: Production Runtime =====
 FROM python:3.11-slim

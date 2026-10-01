@@ -88,7 +88,8 @@
     "deleting": "Deleting…",
     "deleteFailed": "Failed to delete {count} project(s). Check the console.",
     "openInteraction": "Chat",
-    "errorService": "The service didn’t respond. You can delete it and retry."
+    "errorService": "The service didn’t respond. You can delete it and retry.",
+    "selectOne": "Select “{name}”"
   },
   "home": {
     "tagline": "AI-powered social opinion simulation",
@@ -132,6 +133,8 @@
     "projectNamePlaceholder": "e.g. New app launch",
     "heroCta": "Start a simulation",
     "startHint": "To start, upload at least one document and write what you want to predict.",
+    "alreadyLaunching": "Your previous analysis is still being sent. When it finishes you will find it in Projects.",
+    "alreadyLaunchingTitle": "Your material is already being analysed",
     "visStatAgents": "agents",
     "visStatSteps": "steps",
     "visStatPlatforms": "platforms",
@@ -523,7 +526,8 @@
     "roundsUpTo": "up to {n} rounds",
     "roundsTime": "≈ {n} min",
     "roundsHint": "More rounds give opinions more time to change. This is only the conversation itself: the analysis beforehand and the report come on top.",
-    "skipToForm": "Skip to the form"
+    "skipToForm": "Skip to the form",
+    "launchedElsewhere": "Your analysis has been created: you will find it in Projects."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -769,7 +773,8 @@
       "UPVOTE_POST": "Upvote",
       "DOWNVOTE_POST": "Downvote",
       "DO_NOTHING": "Idle"
-    }
+    },
+    "showEarlier": "Show the {n} earlier ones"
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -846,7 +851,11 @@
     "interviewer": "Interviewer",
     "showMore": "Show more",
     "showLess": "Show less",
-    "keyQuotes": "Key quotes"
+    "keyQuotes": "Key quotes",
+    "failedTitle": "The report could not be finished",
+    "regenerate": "Generate the report again",
+    "regenerating": "Generating…",
+    "reportNotFound": "This report no longer exists or you do not have access to it."
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -1075,6 +1084,8 @@
     "ownerAdminOnly": "Only the administrator can change a project owner",
     "ownerInvalid": "owner_id must be a user id (letters and digits, 8 to 32 characters) or null",
     "typeLabelsInvalid": "Expected an object with lists of names (entity, relation, attribute)",
+    "projectCascadeFailed": "Could not clean up everything that depends on project {id}; nothing was deleted. Try again.",
+    "chunkParamsInvalid": "chunk_size must be an integer between 100 and 5000 and chunk_overlap between 0 and half of chunk_size",
     "invalidPlatform": "Invalid platform type: {platform}. Options: twitter/reddit/parallel",
     "simRunningForceHint": "Simulation is running. Stop it first via /stop, or use force=true to restart.",
     "simNotReady": "Simulation not ready. Current status: {status}. Please call /prepare first.",
@@ -1120,6 +1131,18 @@
     "fileReadFailed": "Failed to read file: {error}",
     "fileUnsupported": "Unsupported file format: {ext}",
     "simAlreadyRunning": "Simulation is already running: {simulationId}",
+    "simTooManyRunning": "There are already {limit} simulations running and the server does not have the memory for another one. Wait for one to finish.",
+    "internalError": "A server error occurred",
+    "payloadTooLarge": "The request is too large",
+    "tooManyPipelines": "Several automatic analyses are already running and the server cannot take another right now. Try again in a few minutes.",
+    "tooManyPipelinesYours": "You already have {max} automatic analyses running. Wait for one to finish.",
+    "tooManyFiles": "You can upload at most {max} files at a time",
+    "tooManyImages": "You can upload at most {max} images at a time",
+    "textTooLong": "The material is too long (at most {max} characters in total). Upload only the essentials.",
+    "imageTooLarge": "The image is too large",
+    "imageUnreadable": "The image could not be read: it may be damaged or not a PNG, JPG, WEBP or GIF file",
+    "tooManyInterviews": "At most {max} interviews per request",
+    "interviewPromptTooLong": "Each question can have at most {max} characters",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
     "simNotRunning": "Simulation is not running: {simulationId} (status={status})",
@@ -1572,7 +1595,8 @@
     "close": "Close",
     "error": "Error: {error}",
     "cardTitle": "No brief yet?",
-    "cardBody": "I’ll interview you for a few minutes and write it with the template. A good brief is what improves the simulation most."
+    "cardBody": "I’ll interview you for a few minutes and write it with the template. A good brief is what improves the simulation most.",
+    "retry": "Try again"
   },
   "ui": {
     "predictionReport": "Prediction Report",
@@ -1630,6 +1654,21 @@
     "adjust": "Adjust",
     "agentsShowAll": "Show all {count} agents",
     "agentsShowLess": "Show less"
+  },
+  "errors": {
+    "offlineBanner": "No connection to the server. Retrying…",
+    "network": "Could not reach the server. Check your connection.",
+    "timeout": "The server took too long to respond. Please try again.",
+    "http400": "The request is not valid.",
+    "http401": "Your session has expired. Please sign in again.",
+    "http403": "You do not have permission to do this.",
+    "http404": "We could not find what you were looking for.",
+    "http408": "The server took too long to respond. Please try again.",
+    "http409": "That is already in progress or has changed. Reload the page.",
+    "http413": "The upload is too large.",
+    "http429": "Too many requests in a row. Wait a few seconds and try again.",
+    "http5xx": "The server had a problem. Please try again in a few minutes.",
+    "unknown": "An unexpected error occurred."
   },
   "auto": {
     "tag": "Automatic",

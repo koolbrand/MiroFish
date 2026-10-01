@@ -30,6 +30,7 @@ from typing import Callable, Dict, Iterable, Optional, Tuple
 from flask import g, has_request_context, jsonify, request
 
 from ..config import Config
+from .fs import exists_but_unreadable
 from .security import is_valid_storage_id
 
 
@@ -91,19 +92,28 @@ def _read_json(path: str) -> Optional[dict]:
         return None
 
 
+def _unreadable_or_missing(path: str) -> Resolved:
+    """Sin datos legibles: si el archivo EXISTE pero está roto o a medias, la cosa existe y no tiene dueño
+    conocido (solo el admin la ve). Tratarlo como «no existe» dejaba pasar a cualquiera por una carrera con un
+    guardado o por un archivo truncado."""
+    return (True, None) if exists_but_unreadable(path) else _MISSING
+
+
 def owner_of_project(project_id: str) -> Resolved:
     from ..models.project import ProjectManager
-    data = _read_json(ProjectManager._get_project_meta_path(project_id))
+    path = ProjectManager._get_project_meta_path(project_id)
+    data = _read_json(path)
     if data is None:
-        return _MISSING
+        return _unreadable_or_missing(path)
     return True, data.get("owner_id") or None
 
 
 def owner_of_simulation(simulation_id: str) -> Resolved:
     from ..services.simulation_manager import SimulationManager
-    data = _read_json(os.path.join(SimulationManager.SIMULATION_DATA_DIR, simulation_id, "state.json"))
+    path = os.path.join(SimulationManager.SIMULATION_DATA_DIR, simulation_id, "state.json")
+    data = _read_json(path)
     if data is None:
-        return _MISSING
+        return _unreadable_or_missing(path)
     project_id = data.get("project_id") or ""
     if not is_valid_storage_id(project_id, "proj_"):
         return True, None                  # simulación huérfana: solo el admin
@@ -113,11 +123,13 @@ def owner_of_simulation(simulation_id: str) -> Resolved:
 
 def owner_of_report(report_id: str) -> Resolved:
     from ..services.report_agent import ReportManager
-    data = _read_json(ReportManager._get_report_path(report_id))
+    path = ReportManager._get_report_path(report_id)
+    data = _read_json(path)
     if data is None:
-        data = _read_json(os.path.join(ReportManager.REPORTS_DIR, f"{report_id}.json"))   # formato antiguo
-    if data is None:
-        return _MISSING
+        old_path = os.path.join(ReportManager.REPORTS_DIR, f"{report_id}.json")           # formato antiguo
+        data = _read_json(old_path)
+        if data is None:
+            return _unreadable_or_missing(path) if exists_but_unreadable(path) else _unreadable_or_missing(old_path)
     simulation_id = data.get("simulation_id") or ""
     if not is_valid_storage_id(simulation_id, "sim_"):
         return True, None

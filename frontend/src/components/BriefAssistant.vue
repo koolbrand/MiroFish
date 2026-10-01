@@ -40,7 +40,14 @@
 
     <!-- Entrevista (grill-me) -->
     <div v-if="interviewOpen" class="brief-modal" @click.self="closeInterview">
-      <div class="brief-dialog" role="dialog" aria-modal="true">
+      <div
+        class="brief-dialog"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        ref="dialogEl"
+        @keydown.tab="trapTab"
+      >
         <div class="brief-dialog-head">
           <span>{{ $t('brief.interviewTitle') }}</span>
           <button type="button" class="brief-close" @click="closeInterview" :aria-label="$t('brief.close')">×</button>
@@ -90,14 +97,18 @@
           </div>
         </div>
 
-        <p v-if="errorMsg" class="brief-warning">{{ errorMsg }}</p>
+        <p v-if="errorMsg" class="brief-warning" role="alert">{{ errorMsg }}</p>
+        <!-- Si el modelo falla, lo respondido no se pierde y se puede reintentar -->
+        <div v-if="errorMsg && !busy && !draft && !currentQuestion" class="brief-answer-actions">
+          <button type="button" class="brief-btn" @click="retry">{{ $t('brief.retry') }}</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { checkBrief, interviewNext, interviewCompose } from '../api/brief'
 
@@ -181,8 +192,10 @@ const askNext = async () => {
       currentQuestion.value = res.data.question
       currentSection.value = res.data.section
     }
+    return true
   } catch (e) {
     errorMsg.value = t('brief.error', { error: e.message })
+    return false
   } finally {
     busy.value = false
     scrollChat()
@@ -192,18 +205,37 @@ const askNext = async () => {
 const openInterview = async () => {
   if (!props.signedIn) return emit('need-login')
   interviewOpen.value = true
-  if (transcript.value.length || currentQuestion.value || draft.value) return
-  seedText = await readSeedText()
+  focusDialog()
+  if (currentQuestion.value || draft.value) return
+  if (!transcript.value.length) seedText = await readSeedText()
+  // Sin pregunta y sin borrador (se cerró tras un fallo): se vuelve a preguntar, ya no se queda sin salida
   await askNext()
 }
 
 const sendAnswer = async () => {
   if (!answer.value.trim() || busy.value) return
-  transcript.value.push({ question: currentQuestion.value, answer: answer.value.trim(), section: currentSection.value })
+  const asked = currentQuestion.value
+  const turn = { question: asked, answer: answer.value.trim(), section: currentSection.value }
+  transcript.value.push(turn)
   answer.value = ''
   currentQuestion.value = ''
   scrollChat()
-  await askNext()
+  if (!(await askNext())) {
+    // El modelo falló: la pregunta y lo escrito vuelven a su sitio para reintentar sin perder nada
+    transcript.value.pop()
+    currentQuestion.value = asked
+    answer.value = turn.answer
+  }
+}
+
+const retry = async () => {
+  if (busy.value) return
+  if (transcript.value.length && !currentQuestion.value) {
+    await compose()
+    if (!draft.value) await askNext()
+  } else {
+    await askNext()
+  }
 }
 
 const compose = async () => {
@@ -238,6 +270,28 @@ const downloadDraft = () => {
 }
 
 const closeInterview = () => { interviewOpen.value = false }
+
+// Diálogo: el foco entra al abrir, Tab no se sale de él y Esc lo cierra. Esc se escucha en todo el documento:
+// tras enviar una respuesta el botón se deshabilita y el foco cae al <body>, fuera del diálogo.
+const dialogEl = ref(null)
+const onEscape = (event) => { if (event.key === 'Escape') closeInterview() }
+watch(interviewOpen, (open) => {
+  if (open) document.addEventListener('keydown', onEscape)
+  else document.removeEventListener('keydown', onEscape)
+})
+onBeforeUnmount(() => document.removeEventListener('keydown', onEscape))
+const focusDialog = () => nextTick(() => dialogEl.value?.focus())
+const trapTab = (event) => {
+  const nodes = [...(dialogEl.value?.querySelectorAll('button, textarea, [href], input, [tabindex]:not([tabindex="-1"])') || [])]
+    .filter(el => !el.disabled && el.offsetParent !== null)
+  if (!nodes.length) return
+  const first = nodes[0], last = nodes[nodes.length - 1]
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogEl.value)) {
+    event.preventDefault(); last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault(); first.focus()
+  }
+}
 </script>
 
 <style scoped>
