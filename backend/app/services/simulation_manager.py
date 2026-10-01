@@ -14,6 +14,7 @@ from enum import Enum
 
 from ..config import Config
 from ..utils.logger import get_logger
+from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
 from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
@@ -152,13 +153,13 @@ class SimulationManager:
     
     def _save_simulation_state(self, state: SimulationState):
         """保存模拟状态到文件"""
-        sim_dir = self._get_simulation_dir(state.simulation_id)
+        # Atómico, y sin crear la carpeta: un hilo que sigue vivo tras borrar la simulación no debe resucitarla
+        # (`create_simulation` y `_prepare` la crean antes con `_get_simulation_dir`).
+        sim_dir = self._get_simulation_dir(state.simulation_id, create=False)
         state_file = os.path.join(sim_dir, "state.json")
         
         state.updated_at = datetime.now().isoformat()
-        
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(state.to_dict(), f, ensure_ascii=False, indent=2)
+        atomic_write_json(state_file, state.to_dict(), create_dir=False)
         
         self._simulations[state.simulation_id] = state
     
@@ -170,32 +171,34 @@ class SimulationManager:
         sim_dir = self._get_simulation_dir(simulation_id, create=False)
         state_file = os.path.join(sim_dir, "state.json")
         
-        if not os.path.exists(state_file):
+        data = read_json_or_none(state_file, what=f"la simulación {simulation_id}")
+        if not isinstance(data, dict):
+            return None          # no existe, se borró mientras se leía o está ilegible (queda en el log)
+        
+        try:
+            state = SimulationState(
+                simulation_id=simulation_id,
+                project_id=data.get("project_id", ""),
+                graph_id=data.get("graph_id", ""),
+                enable_twitter=data.get("enable_twitter", True),
+                enable_reddit=data.get("enable_reddit", True),
+                status=SimulationStatus(data.get("status", "created")),
+                entities_count=data.get("entities_count", 0),
+                profiles_count=data.get("profiles_count", 0),
+                entity_types=data.get("entity_types", []),
+                config_generated=data.get("config_generated", False),
+                config_reasoning=data.get("config_reasoning", ""),
+                current_round=data.get("current_round", 0),
+                twitter_status=data.get("twitter_status", "not_started"),
+                reddit_status=data.get("reddit_status", "not_started"),
+                created_at=data.get("created_at", datetime.now().isoformat()),
+                updated_at=data.get("updated_at", datetime.now().isoformat()),
+                error=data.get("error"),
+                entity_filter=data.get("entity_filter"),
+            )
+        except (ValueError, TypeError) as exc:
+            logger.warning(f"[estado] La simulación {simulation_id} tiene un estado que no se entiende: {exc}")
             return None
-        
-        with open(state_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        state = SimulationState(
-            simulation_id=simulation_id,
-            project_id=data.get("project_id", ""),
-            graph_id=data.get("graph_id", ""),
-            enable_twitter=data.get("enable_twitter", True),
-            enable_reddit=data.get("enable_reddit", True),
-            status=SimulationStatus(data.get("status", "created")),
-            entities_count=data.get("entities_count", 0),
-            profiles_count=data.get("profiles_count", 0),
-            entity_types=data.get("entity_types", []),
-            config_generated=data.get("config_generated", False),
-            config_reasoning=data.get("config_reasoning", ""),
-            current_round=data.get("current_round", 0),
-            twitter_status=data.get("twitter_status", "not_started"),
-            reddit_status=data.get("reddit_status", "not_started"),
-            created_at=data.get("created_at", datetime.now().isoformat()),
-            updated_at=data.get("updated_at", datetime.now().isoformat()),
-            error=data.get("error"),
-            entity_filter=data.get("entity_filter"),
-        )
         
         self._simulations[simulation_id] = state
         return state
@@ -231,6 +234,7 @@ class SimulationManager:
             status=SimulationStatus.CREATED,
         )
         
+        self._get_simulation_dir(simulation_id)      # la carpeta nace aquí; los guardados posteriores no la crean
         self._save_simulation_state(state)
         logger.info(f"Simulación creada: {simulation_id}, project={project_id}, graph={graph_id}")
         
@@ -465,8 +469,7 @@ class SimulationManager:
             
             # 保存配置文件
             config_path = os.path.join(sim_dir, "simulation_config.json")
-            with open(config_path, 'w', encoding='utf-8') as f:
-                f.write(sim_params.to_json())
+            atomic_write_text(config_path, sim_params.to_json())
             
             state.config_generated = True
             state.config_reasoning = sim_params.generation_reasoning

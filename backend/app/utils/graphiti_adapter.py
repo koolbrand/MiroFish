@@ -850,9 +850,18 @@ def _neo4j_val(v):
     return v
 
 
+def _is_embedding_key(key) -> bool:
+    return str(key).endswith('_embedding')
+
+
 def _neo4j_props(props: dict) -> dict:
-    """Recursively sanitize a Neo4j property dict for JSON serialization."""
-    return {k: _neo4j_val(v) for k, v in props.items()}
+    """Recursively sanitize a Neo4j property dict for JSON serialization.
+
+    Los vectores de embedding (`name_embedding` en los nodos, `fact_embedding` en las relaciones; ~17 KB cada
+    uno) NO salen del adaptador: no sirven a nadie fuera de Graphiti y, si pasan, la pantalla recibe decenas
+    de MB por consulta del grafo y cada prompt de perfil lleva ~10.000 tokens de números.
+    """
+    return {k: _neo4j_val(v) for k, v in props.items() if not _is_embedding_key(k)}
 
 
 class GraphitiNodeClient:

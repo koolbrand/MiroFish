@@ -163,6 +163,16 @@ def create_app(config_class=Config):
         except Exception as exc:  # noqa: BLE001 — el arranque no debe caer por esto
             logger.warning(f"[boot-recovery] No se pudieron revisar los informes: {exc}")
 
+        # Simulaciones que estaban en marcha: su subproceso murió con el servidor. Sin esto se quedan «en
+        # marcha» para siempre y no se puede ni generar el informe con lo que ya hay ni reiniciarlas sin borrar.
+        try:
+            from .services.boot_recovery import recover_orphaned_simulations
+            orphaned_sims = recover_orphaned_simulations()
+            if orphaned_sims:
+                logger.warning(f"[boot-recovery] {orphaned_sims} simulación(es) en marcha marcadas como fallidas")
+        except Exception as exc:  # noqa: BLE001 — el arranque no debe caer por esto
+            logger.warning(f"[boot-recovery] No se pudieron revisar las simulaciones: {exc}")
+
         # Modo automático: los hilos que encadenaban las etapas murieron con
         # el proceso. Todo pipeline en `running` pasa a `interrupted`; no se
         # reanuda solo (cuesta dinero de LLM): lo decide el usuario.
