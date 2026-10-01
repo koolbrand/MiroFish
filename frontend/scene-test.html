@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>test escenas</title>
+<style>body{margin:0;background:#F2F1EF;font:12px sans-serif} .row{display:flex;gap:16px;padding:16px;flex-wrap:wrap} .cell{width:260px} .cell .cv{width:260px;height:160px;background:#fff;border:1px solid #ddd} h4{margin:0 0 6px}</style></head>
+<body><div id="app"></div>
+<script type="module">
+import { createApp, h } from 'vue'
+import BiankaScene from '/src/components/BiankaScene.vue'
+createApp({ render: () => h('div', { class: 'row' }, ['read', 'build', 'talk', 'report', 'chat'].map(s => h('div', { class: 'cell' }, [h('h4', s), h('div', { class: 'cv' }, [h(BiankaScene, { scene: s, active: true })])]))) }).mount('#app')
+</script></body></html>

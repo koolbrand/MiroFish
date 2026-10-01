@@ -1991,8 +1991,7 @@ def get_run_status_detail(simulation_id: str):
                     },
                     ...
                 ],
-                "twitter_actions": [...],  # Twitter 平台的所有动作
-                "reddit_actions": [...]    # Reddit 平台的所有动作
+                "recent_actions": [...]    # solo la ronda actual
             }
         }
     """
@@ -2008,9 +2007,7 @@ def get_run_status_detail(simulation_id: str):
                 "data": {
                     "simulation_id": simulation_id,
                     "runner_status": "idle",
-                    "all_actions": [],
-                    "twitter_actions": [],
-                    "reddit_actions": []
+                    "all_actions": []
                 }
             })
         
@@ -2020,20 +2017,16 @@ def get_run_status_detail(simulation_id: str):
             platform=platform_filter
         )
         
-        # 分平台 / 当前轮次: se derivan de la misma lectura. Antes se releía TODO el actions.jsonl cuatro veces
-        # por consulta (la pantalla pregunta cada 3 s) y con miles de acciones cada lectura cuesta cientos de ms
-        twitter_actions = [a for a in all_actions if a.platform == "twitter"] if not platform_filter or platform_filter == "twitter" else []
-        reddit_actions = [a for a in all_actions if a.platform == "reddit"] if not platform_filter or platform_filter == "reddit" else []
-        
-        # 获取当前轮次的动作（recent_actions 只展示最新一轮）
+        # 当前轮次: se deriva de la misma lectura. Antes se releía TODO el actions.jsonl cuatro veces por consulta (la
+        # pantalla pregunta cada 3 s) y con miles de acciones cada lectura cuesta cientos de ms
         current_round = run_state.current_round
         recent_actions = [a for a in all_actions if a.round_num == current_round] if current_round > 0 else []
         
         # 获取基础状态信息
         result = run_state.to_dict()
         result["all_actions"] = [a.to_dict() for a in all_actions]
-        result["twitter_actions"] = [a.to_dict() for a in twitter_actions]
-        result["reddit_actions"] = [a.to_dict() for a in reddit_actions]
+        # (`twitter_actions` / `reddit_actions` ya no se envían: eran las mismas acciones repartidas por plataforma, la
+        # pantalla solo usa `all_actions` y triplicaban el tamaño de cada respuesta)
         result["rounds_count"] = len(run_state.rounds)
         # recent_actions 只展示当前最新一轮两个平台的内容
         result["recent_actions"] = [a.to_dict() for a in recent_actions]

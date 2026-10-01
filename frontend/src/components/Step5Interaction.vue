@@ -372,7 +372,7 @@
               class="chat-input"
               :placeholder="$t('step5.chatInputPlaceholder')"
               :aria-label="$t('step5.chatInputPlaceholder')"
-              @keydown.enter.exact.prevent="sendMessage"
+              @keydown.enter.exact="onChatEnter"
               :disabled="isSending || (!selectedAgent && chatTarget === 'agent')"
               rows="1"
               ref="chatInputRef"
@@ -662,7 +662,8 @@ const toggleAgentDropdown = () => {
   showAgentDropdown.value = !showAgentDropdown.value
   if (showAgentDropdown.value) {
     activeTab.value = 'chat'
-    chatTarget.value = 'agent'
+    // NO se cambia `chatTarget` aquí: abrir el menú no es elegir a alguien. Antes se ponía 'agent' al abrirlo, y
+    // `selectAgent` guardaba entonces la conversación del agente de informes en la clave equivocada (o en ninguna)
     // Calcular posición del dropdown en coordenadas del viewport (fixed)
     nextTick(() => {
       if (agentPillRef.value) {
@@ -707,12 +708,35 @@ const formatTime = (timestamp) => {
 
 // El Markdown de las respuestas lo pinta MiniMarkdown (lib/miniMarkdown.js): sin v-html, el texto nunca se interpreta como HTML
 
+// Enter envía; con un método de entrada de texto (chino, japonés, coreano) Enter confirma la palabra que se está
+// componiendo y NO debe enviar el mensaje a medias
+const onChatEnter = (event) => {
+  if (event.isComposing || event.keyCode === 229) return
+  event.preventDefault()
+  sendMessage()
+}
+
 // Chat Methods
+// Cada conversación tiene su clave ('report_agent' o 'agent_<n>'). La respuesta llega segundos después y la persona
+// puede haber cambiado de interlocutor entretanto: se escribe en la conversación DE LA PREGUNTA, no en la que esté a la vista.
+const currentThreadKey = () => (
+  chatTarget.value === 'report_agent' ? 'report_agent'
+    : (selectedAgentIndex.value !== null ? `agent_${selectedAgentIndex.value}` : null)
+)
+const appendToThread = (key, message) => {
+  if (key === currentThreadKey()) {
+    chatHistory.value.push(message)
+  } else if (key) {
+    chatHistoryCache.value[key] = [...(chatHistoryCache.value[key] || []), message]
+  }
+}
+
 const sendMessage = async () => {
   if (!chatInput.value.trim() || isSending.value) return
   
   const message = chatInput.value.trim()
   chatInput.value = ''
+  const threadKey = currentThreadKey()
   
   // Add user message
   chatHistory.value.push({
@@ -726,14 +750,14 @@ const sendMessage = async () => {
   
   try {
     if (chatTarget.value === 'report_agent') {
-      await sendToReportAgent(message)
+      await sendToReportAgent(message, threadKey)
     } else {
-      await sendToAgent(message)
+      await sendToAgent(message, threadKey)
     }
   } catch (err) {
     addLog(t('log.sendFailed', { error: err.message }))
     // Frase clara para la persona; el texto del servidor va plegado como detalle técnico
-    chatHistory.value.push({
+    appendToThread(threadKey, {
       role: 'assistant',
       error: true,
       content: t('step5.chatFailed'),
@@ -748,7 +772,7 @@ const sendMessage = async () => {
   }
 }
 
-const sendToReportAgent = async (message) => {
+const sendToReportAgent = async (message, threadKey) => {
   addLog(t('log.sendToReportAgent', { message: message.substring(0, 50) }))
   
   // Build chat history for API
@@ -768,7 +792,7 @@ const sendToReportAgent = async (message) => {
   })
   
   if (res.success && res.data) {
-    chatHistory.value.push({
+    appendToThread(threadKey, {
       role: 'assistant',
       content: res.data.response || res.data.answer || t('step5.noResponse'),
       timestamp: new Date().toISOString()
@@ -779,12 +803,15 @@ const sendToReportAgent = async (message) => {
   }
 }
 
-const sendToAgent = async (message) => {
+const sendToAgent = async (message, threadKey) => {
   if (!selectedAgent.value || selectedAgentIndex.value === null) {
     throw new Error(t('step5.selectAgentFirst'))
   }
+  // A quién se preguntó, fijado ahora: tras la espera la persona puede haber elegido a otro
+  const agentName = selectedAgent.value.username
+  const agentId = selectedAgentIndex.value
   
-  addLog(t('log.sendToAgent', { name: selectedAgent.value.username, message: message.substring(0, 50) }))
+  addLog(t('log.sendToAgent', { name: agentName, message: message.substring(0, 50) }))
   
   // Build prompt with chat history
   let prompt = message
@@ -800,7 +827,7 @@ const sendToAgent = async (message) => {
   const res = await interviewAgents({
     simulation_id: props.simulationId,
     interviews: [{
-      agent_id: selectedAgentIndex.value,
+      agent_id: agentId,
       prompt: prompt
     }]
   })
@@ -813,7 +840,6 @@ const sendToAgent = async (message) => {
     
     // 将对象字典转换为数组，优先获取 reddit 平台的回复
     let responseContent = null
-    const agentId = selectedAgentIndex.value
     
     if (typeof resultsDict === 'object' && !Array.isArray(resultsDict)) {
       // 优先使用 reddit 平台回复，其次 twitter
@@ -829,12 +855,12 @@ const sendToAgent = async (message) => {
     }
     
     if (responseContent) {
-      chatHistory.value.push({
+      appendToThread(threadKey, {
         role: 'assistant',
         content: responseContent,
         timestamp: new Date().toISOString()
       })
-      addLog(t('log.agentReplied', { name: selectedAgent.value.username }))
+      addLog(t('log.agentReplied', { name: agentName }))
     } else {
       throw new Error(t('step5.noResponse'))
     }

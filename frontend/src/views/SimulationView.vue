@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <BrandLogo class="brand" @click="router.push('/')" />
+        <router-link to="/" class="brand-link" aria-label="Simuloo"><BrandLogo class="brand" /></router-link>
         <ProjectNameChip
           v-if="projectData?.project_id"
           :projectId="projectData.project_id"

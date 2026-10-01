@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <script>document.documentElement.lang = localStorage.getItem('locale') || 'es'</script>
+    <script>try { document.documentElement.lang = localStorage.getItem('locale') || 'es' } catch (e) { document.documentElement.lang = 'es' }</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@100..800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet">

@@ -1,6 +1,7 @@
 <template>
   <router-view />
   <TourOverlay />
+  <ConnectionBanner />
 </template>
 
 <script setup>
@@ -8,6 +9,7 @@ import { onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { refreshAuth } from './composables/useAuth'
 import TourOverlay from './components/TourOverlay.vue'
+import ConnectionBanner from './components/ConnectionBanner.vue'
 
 // El título y la descripción de la pestaña siguen al idioma elegido
 // (index.html trae los de español para quien no ejecuta JavaScript).

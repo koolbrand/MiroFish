@@ -55,7 +55,7 @@ def get(client, sid, query=""):
     return r.get_json()["data"]
 
 
-def test_detail_has_every_list_and_reads_the_actions_once(client, monkeypatch):
+def test_detail_reads_the_actions_once_and_derives_the_current_round(client, monkeypatch):
     sid = setup_sim()
     calls = []
     real = SimulationRunner.get_all_actions.__func__
@@ -68,8 +68,8 @@ def test_detail_has_every_list_and_reads_the_actions_once(client, monkeypatch):
     data = get(client, sid)
     assert len(calls) == 1                                                  # antes: 4 lecturas completas por consulta
     assert len(data["all_actions"]) == 5
-    assert {a["platform"] for a in data["twitter_actions"]} == {"twitter"} and len(data["twitter_actions"]) == 3
-    assert {a["platform"] for a in data["reddit_actions"]} == {"reddit"} and len(data["reddit_actions"]) == 2
+    assert "twitter_actions" not in data and "reddit_actions" not in data         # triplicaban el tamaño de la respuesta
+    assert {a["platform"] for a in data["all_actions"]} == {"twitter", "reddit"}
     assert sorted(a["agent_id"] for a in data["recent_actions"]) == [1, 2, 4]            # solo la ronda actual (2)
     assert all(a["round_num"] == 2 for a in data["recent_actions"])
 
@@ -77,5 +77,5 @@ def test_detail_has_every_list_and_reads_the_actions_once(client, monkeypatch):
 def test_the_platform_filter_still_applies(client):
     sid = setup_sim()
     data = get(client, sid, "?platform=twitter")
-    assert len(data["all_actions"]) == 3 and len(data["twitter_actions"]) == 3 and data["reddit_actions"] == []
+    assert len(data["all_actions"]) == 3 and {a["platform"] for a in data["all_actions"]} == {"twitter"}
     assert sorted(a["agent_id"] for a in data["recent_actions"]) == [1, 2]
