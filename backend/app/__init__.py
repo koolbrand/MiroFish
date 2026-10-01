@@ -151,6 +151,18 @@ def create_app(config_class=Config):
         except Exception as exc:  # noqa: BLE001 — boot must not abort on this
             logger.warning(f"[boot-recovery] Skipped orphan reconciliation: {exc}")
 
+        # Informes que se estaban escribiendo: su hilo murió con el proceso. Sin esto se quedan
+        # «generándose» para siempre y la pantalla del informe espera sin fin.
+        try:
+            from .services.report_agent import ReportManager
+            orphaned = ReportManager.fail_unfinished(
+                "El servidor se reinició mientras se escribía el informe. Genera el informe de nuevo."
+            )
+            if orphaned:
+                logger.warning(f"[boot-recovery] {orphaned} informe(s) sin terminar marcados como fallidos")
+        except Exception as exc:  # noqa: BLE001 — el arranque no debe caer por esto
+            logger.warning(f"[boot-recovery] No se pudieron revisar los informes: {exc}")
+
         # Modo automático: los hilos que encadenaban las etapas murieron con
         # el proceso. Todo pipeline en `running` pasa a `interrupted`; no se
         # reanuda solo (cuesta dinero de LLM): lo decide el usuario.
