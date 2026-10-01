@@ -241,6 +241,14 @@ def create_app(config_class=Config):
         ):
             return None
 
+        # Copia de seguridad: su propia credencial (X-Backup-Token), de solo lectura y válida SOLO aquí. Nada de lo
+        # demás (usuarios, clave de administrador) entra por esta ruta ni este token por las otras.
+        if request.path.startswith('/api/backup/'):
+            from .api.backup import BACKUP_PATH, check_backup_token
+            if request.path != BACKUP_PATH:
+                return {"success": False, "error": "Not found"}, 404
+            return check_backup_token()                  # None = token correcto; la ruta lo vuelve a comprobar
+
         # Quién hace la petición (aislamiento por usuario): ver utils/access.py
         if not Config.API_AUTH_REQUIRED:
             g.identity = ADMIN                      # desarrollo sin auth: ve todo
@@ -340,7 +348,7 @@ def create_app(config_class=Config):
         }, 400
 
     # 注册蓝图 + rate limit por blueprint (ver api_rate_limit).
-    from .api import graph_bp, simulation_bp, report_bp, brief_bp, pipeline_bp
+    from .api import graph_bp, simulation_bp, report_bp, brief_bp, pipeline_bp, backup_bp
     limiter.limit(api_rate_limit)(graph_bp)
     limiter.limit(api_rate_limit)(simulation_bp)
     limiter.limit(api_rate_limit)(report_bp)
@@ -351,6 +359,9 @@ def create_app(config_class=Config):
     app.register_blueprint(report_bp, url_prefix='/api/report')
     app.register_blueprint(brief_bp, url_prefix='/api/brief')
     app.register_blueprint(pipeline_bp, url_prefix='/api/pipeline')
+    # Copia de seguridad: una al día basta; el cupo evita que un token filtrado llene el disco o la CPU de empaquetar
+    limiter.limit('12 per hour')(backup_bp)
+    app.register_blueprint(backup_bp, url_prefix='/api/backup')
 
     # 健康检查 — público (lo usa Coolify para health probes).
     @app.route('/health')

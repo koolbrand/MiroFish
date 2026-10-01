@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Copia nocturna de Simuloo en el Mac mini. Instalación: ver «Copia automática» en COOLIFY_DEPLOYMENT.md.
+     Misma forma que com.koolbrand.criba-nocturna: script en ~/.koolbrand/bin, registros en ~/.koolbrand/logs. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.koolbrand.simuloo-backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/Bianka/.koolbrand/bin/simuloo-backup.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>SIMULOO_TOKEN_FILE</key><string>/Users/Bianka/.koolbrand/secrets/simuloo-backup-token</string>
+    <key>LOG</key><string>/Users/Bianka/.koolbrand/logs/simuloo-backup.log</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>15</integer></dict>
+  <key>StandardOutPath</key><string>/Users/Bianka/.koolbrand/logs/simuloo-backup.out</string>
+  <key>StandardErrorPath</key><string>/Users/Bianka/.koolbrand/logs/simuloo-backup.err</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
