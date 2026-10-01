@@ -1366,6 +1366,7 @@
     "sectionMaxIter": "La sección {title} alcanzó el máximo de iteraciones, forzando generación",
     "sectionForceFailed": "El LLM de finalización forzada de la sección {title} devolvió None, usando mensaje de error predeterminado",
     "sectionGenFailedContent": "(Esta sección no pudo generarse: el LLM devolvió una respuesta vacía, por favor reintenta más tarde)",
+    "sectionGenLeakContent": "(Esta sección no pudo redactarse: el modelo respondió con una llamada a herramienta en vez de texto. Vuelve a generar el informe.)",
     "outlineSavedToFile": "Esquema guardado en archivo: {reportId}/outline.json",
     "sectionSaved": "Sección guardada: {reportId}/section_{sectionNum}.md",
     "reportGenDone": "Generación del informe completada: {reportId}",

@@ -1366,6 +1366,7 @@
     "sectionMaxIter": "章节 {title} 达到最大迭代次数，强制生成",
     "sectionForceFailed": "章节 {title} 强制收尾时 LLM 返回 None，使用默认错误提示",
     "sectionGenFailedContent": "（本章节生成失败：LLM 返回空响应，请稍后重试）",
+    "sectionGenLeakContent": "（本章节未能撰写：模型返回的是工具调用而不是正文。请重新生成报告。）",
     "outlineSavedToFile": "大纲已保存到文件: {reportId}/outline.json",
     "sectionSaved": "章节已保存: {reportId}/section_{sectionNum}.md",
     "reportGenDone": "报告生成完成: {reportId}",
