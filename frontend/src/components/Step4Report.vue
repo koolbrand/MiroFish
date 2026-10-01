@@ -2432,7 +2432,7 @@ watch(() => props.reportId, (newId) => {
   margin: 0 0 16px 0;
   letter-spacing: -0.02em;
   text-wrap: balance;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .sub-title {
@@ -2443,6 +2443,7 @@ watch(() => props.reportId, (newId) => {
   margin: 0 0 32px 0;
   max-width: 56ch;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .header-divider {
@@ -2502,6 +2503,7 @@ watch(() => props.reportId, (newId) => {
   color: var(--kb-text);
   margin: 0;
   text-wrap: balance;
+  overflow-wrap: anywhere;
   transition: color 0.3s ease;
 }
 
@@ -2520,7 +2522,7 @@ watch(() => props.reportId, (newId) => {
   line-height: 1.6;
   color: var(--kb-text-2);
   max-width: 56ch;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .generated-content :deep(.md-p) { margin: 0 0 1em; }
@@ -2820,6 +2822,7 @@ watch(() => props.reportId, (newId) => {
   color: var(--kb-text);
   line-height: 1.35;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .wf-step-meta {
@@ -3158,6 +3161,7 @@ watch(() => props.reportId, (newId) => {
   font-weight: 500;
 }
 .final-answer-hint svg { flex-shrink: 0; }
+.final-answer-hint span { min-width: 0; overflow-wrap: anywhere; }
 
 .llm-content {
   margin-top: 10px;

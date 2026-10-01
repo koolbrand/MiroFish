@@ -547,7 +547,8 @@ const agentPillRef = ref(null)
 const dropdownGlobalStyle = ref({})
 const selectedAgentIndex = ref(null)
 const showFullProfile = ref(true)
-const showToolsDetail = ref(true)
+// En móvil la tarjeta de herramientas ocupaba ~400 px de 844 y la conversación se quedaba en ~100: arranca plegada (el chevron la abre)
+const showToolsDetail = ref(!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 700px)').matches))
 
 // Chat State
 const chatInput = ref('')
@@ -1147,6 +1148,7 @@ watch(() => props.simulationId, (newId) => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .sub-title {
@@ -1157,6 +1159,7 @@ watch(() => props.simulationId, (newId) => {
   line-height: 1.6;
   margin: 0 0 30px 0;
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
 .header-divider {
@@ -1238,6 +1241,7 @@ watch(() => props.simulationId, (newId) => {
   font-weight: 600;
   color: var(--kb-text);
   margin: 0;
+  overflow-wrap: anywhere;
   transition: color 0.3s ease;
 }
 
@@ -1270,6 +1274,7 @@ watch(() => props.simulationId, (newId) => {
   font-size: 14px;
   line-height: 1.8;
   color: var(--kb-text-2);
+  overflow-wrap: anywhere;
 }
 
 .generated-content :deep(p) {
@@ -2738,6 +2743,13 @@ watch(() => props.simulationId, (newId) => {
   .main-split-layout { flex-direction: column; overflow-y: auto; }
   .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 22px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
   .right-panel { flex: none; height: 82vh; min-height: 460px; }
+}
+
+/* Móvil: la barra de herramientas pasa a columna (título, luego botones en filas) y los separadores, que quedaban sueltos al partir la fila, se quitan */
+@media (max-width: 700px) {
+  .action-bar { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
+  .action-bar-tabs { justify-content: flex-start; flex: none; }
+  .tab-divider { display: none; }
 }
 
 /* Nombres de agente: los modelos los generan con guiones bajos y sin espacios («marca_que_busca_proyectar_modernidad_…»),

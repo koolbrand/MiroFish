@@ -469,6 +469,7 @@ onActivated(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
   padding: 22px 22px 18px;
   background: var(--kb-surface);
   /* contorno de tinta y sombra dura, como el resto de las tarjetas de la portada */
@@ -534,7 +535,7 @@ onActivated(() => {
 .sim-delete:hover:not(:disabled) { background: #FDECEC; color: var(--kb-danger); }
 .sim-delete:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.sim-title { margin: 4px 0 0; font-size: 1.15rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+.sim-title { margin: 4px 0 0; font-size: 1.15rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .sim-open {
   padding: 0;
   border: none;
@@ -544,6 +545,8 @@ onActivated(() => {
   text-align: start;
   cursor: pointer;
   text-wrap: balance;
+  max-width: 100%;
+  overflow-wrap: anywhere;   /* un nombre largo sin espacios (URL, hash) no ensancha la tarjeta */
 }
 .sim-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 .sim-open:focus-visible { outline: none; }
