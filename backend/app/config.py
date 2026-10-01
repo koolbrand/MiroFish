@@ -265,6 +265,9 @@ class Config:
     MAX_INTERVIEW_PROMPT_CHARS = 2000
     MAX_PARALLEL_PROFILES = 8
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
+    # Credencial de SOLO LECTURA para `GET /api/backup/export` (copia de seguridad que recoge otra máquina). Vacía o de
+    # menos de 32 caracteres = la ruta no existe (404). No es la clave de administrador y no vale para otras rutas.
+    BACKUP_TOKEN = os.environ.get('BACKUP_TOKEN', '').strip()
     # Por debajo de este espacio libre en el disco de datos `/health/ready` avisa (un disco lleno corta guardados a medias)
     MIN_FREE_DISK_MB = env_int('MIN_FREE_DISK_MB', 200, minimum=0)
     ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown', 'png', 'jpg', 'jpeg', 'webp', 'gif'}

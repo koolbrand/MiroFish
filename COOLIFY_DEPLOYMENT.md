@@ -152,12 +152,48 @@ completa), conserva las `--keep` más recientes y arranca Neo4j de nuevo pase lo
 del servidor** (cron: `0 4 * * * /ruta/ops/backup.sh ...`): una copia que nadie ejecuta no existe. Y una copia que
 vive en el mismo disco que los datos no protege del disco: súbela también a otro sitio (`rclone`, `rsync`, S3...).
 
+### Copia automática (cada noche, sin acceso al servidor)
+
+`ops/backup.sh` necesita estar en el servidor, y a ese servidor no se llega por SSH desde fuera. Por eso hay una
+segunda vía, que **tira** de la copia por HTTPS en vez de empujarla:
+
+```
+Mac mini (launchd, 04:15) ──GET /api/backup/export──▶ Simuloo ──▶ .tar.gz verificado ──ssh nas──▶ NAS
+        ops/backup_remoto.sh        X-Backup-Token                                   …/003 - Simuloo/_copias-automaticas/
+```
+
+- **Qué trae:** todo `uploads/` — proyectos **con sus documentos originales**, simulaciones (las bases SQLite, como
+  instantánea coherente con la API de respaldo de SQLite aunque estén escribiendo) e informes — más un
+  `MANIFIESTO.json` con el tamaño y el sha256 de cada fichero. **No trae el grafo de Neo4j**: se reconstruye desde
+  los documentos originales y Neo4j Community no tiene volcado en caliente (para eso, `ops/backup.sh --grafo` en el
+  servidor).
+- **Credencial:** `BACKUP_TOKEN` (variable de Coolify; ≥ 32 caracteres) en la cabecera `X-Backup-Token`. Es **solo
+  lectura y solo vale para esta ruta**: ni la clave de administrador ni un usuario de PocketBase pueden usarla, y este
+  token no abre ninguna otra ruta. Sin `BACKUP_TOKEN` la ruta no existe (404). Una exportación a la vez; 12 por hora.
+  Rotarla = nueva variable en Coolify + el mismo valor en `~/.koolbrand/secrets/simuloo-backup-token` del Mac mini.
+- **Qué comprueba el Mac mini antes de aceptar una copia:** HTTP 200, sha256 de la cabecera = lo descargado,
+  `gzip -t`, `MANIFIESTO.json` válido y, tras subirla, mismo tamaño en el NAS. Avisa si baja el nº de proyectos.
+  Conserva las 21 últimas (`KEEP`) y escribe `ULTIMA_COPIA.json` junto a ellas.
+- **Instalación en el Mac mini** (ya hecha el 1-oct-2026; para rehacerla):
+  ```bash
+  scp ops/backup_remoto.sh mac-mini:.koolbrand/bin/simuloo-backup.sh
+  ssh mac-mini 'umask 077; mkdir -p ~/.koolbrand/secrets; printf "X-Backup-Token: %s\n" "<token>" > ~/.koolbrand/secrets/simuloo-backup-token'
+  scp ops/com.koolbrand.simuloo-backup.plist mac-mini:Library/LaunchAgents/
+  ssh mac-mini 'launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.koolbrand.simuloo-backup.plist'
+  ```
+- **Comprobar que sigue funcionando:** `ssh mac-mini '~/.koolbrand/bin/simuloo-backup.sh --comprobar'` (error si la
+  última copia tiene más de 36 h). Registro: `~/.koolbrand/logs/simuloo-backup.log`. **Nadie recibe un aviso
+  automático si falla**: el vigilante de servicios de la casa (`vigilar-servicios`) es de Bianka y no se ha tocado;
+  enganchar `--comprobar` ahí es la forma de tener aviso.
+
 ### Restaurar
 
 ```bash
 # Ficheros: en un volumen vacío (o con la app parada, encima del existente)
 docker run --rm -v <uuid>_mirofish_uploads:/data -v /srv/copias-simuloo:/backup:ro alpine:3.20 \
   sh -c 'tar xzf /backup/simuloo-ficheros-AAAAMMDD-HHMMSS.tar.gz -C /data'
+
+# (Una copia automática del Mac mini sirve igual: mismo contenido; añade --exclude MANIFIESTO.json para no dejarlo en el volumen)
 
 # Grafo: con Neo4j PARADO. El volcado tiene que llamarse neo4j.dump y estar solo en su carpeta
 docker stop <contenedor-neo4j>
