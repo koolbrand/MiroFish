@@ -189,6 +189,10 @@ docker run -d \
 | `backend/app/services/report_pdf.py`, `backend/app/assets/fonts/` | PDF del informe con la marca de Simuloo (WeasyPrint + Markdown): portada con cifras, pie con página y fuentes Inter Tight / JetBrains Mono embebidas. Se pide con `GET /api/report/<id>/download?format=pdf` (sin `format`, sigue el `.md`) |
 | `frontend/src/components/ReportDownloads.vue` | Botones PDF (lima, con estado ocupado) y `.md` del informe, en los pasos 4 y 5; muestra el error que devuelve el servidor |
 
+### Al tocar el agente de informes (`report_agent.py`)
+
+- El modelo a veces escribe la llamada a herramienta sin el `<` inicial (`tool_call>`) o sin cerrar (medido el 1-oct-2026: 3 de 6 respuestas de una sección). `_parse_tool_calls` lo tolera y `_clean_section_text` decide si un texto vale como sección: **nada con restos de `tool_call` o con forma de llamada se guarda como contenido**; se pide de nuevo y, si el cierre forzado tampoco da texto, la sección sale como «no pudo redactarse» (`report.sectionGenLeakContent`) y queda en los avisos del informe. Tests en `backend/tests/test_report_tool_call.py`.
+
 ### Al tocar el PDF del informe
 
 - **Fuentes**: archivos `.ttf` en `backend/app/assets/fonts/` (subconjuntos latinos, licencia OFL en `LICENSE.txt`). Una familia de WeasyPrint por peso (`IT-400/500/700/800`, `JBM-400/500/700`): los nombres internos de los TTF no coinciden con sus pesos, y mezclarlos en una sola familia hacía caer a una fuente del sistema. Lo que no está en el subconjunto (→, ✓, ≥) cae a DejaVu y el chino a WenQuanYi (por eso están en el `Dockerfile`).

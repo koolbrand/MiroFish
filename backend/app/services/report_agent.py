@@ -837,7 +837,13 @@ REACT_TOOL_LIMIT_MSG = (
 
 REACT_UNUSED_TOOLS_HINT = "\nSugerencia: aún no has usado: {unused_list}. Se recomienda probar herramientas distintas para obtener múltiples ángulos."
 
-REACT_FORCE_FINAL_MSG = 'Se alcanzó el límite de llamadas a herramientas. Emite directamente "Final Answer:" seguido del contenido de la sección.'
+REACT_BAD_FINAL_MSG = (
+    "[Error de formato] Tu respuesta no contiene el texto de la sección: solo trae una llamada a herramienta "
+    "o restos de ella (por ejemplo «tool_call>»). Ahora NO llames a ninguna herramienta. "
+    'Con la información ya obtenida, empieza con "Final Answer:" y redacta el contenido de la sección.'
+)
+
+REACT_FORCE_FINAL_MSG ='Se alcanzó el límite de llamadas a herramientas. Emite directamente "Final Answer:" seguido del contenido de la sección.'
 
 # ── Chat prompt ──
 
@@ -1151,6 +1157,53 @@ class ReportAgent:
     # 合法的工具名称集合，用于裸 JSON 兜底解析时校验
     VALID_TOOL_NAMES = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
 
+    # Llamada a herramienta dentro del texto del modelo. Acepta la etiqueta completa, sin el «<»
+    # inicial («tool_call>») y sin cierre si el bloque llega al final de la respuesta.
+    _TOOL_CALL_BLOCK_RE = re.compile(
+        r'<?\s*tool_call\s*>\s*(\{.*?\})\s*(?:<?\s*/\s*tool_call\s*>|\Z)', re.DOTALL | re.IGNORECASE
+    )
+    # Cualquier marca de apertura o cierre, aunque el bloque no esté completo
+    _TOOL_CALL_MARK_RE = re.compile(r'<?\s*/?\s*tool_call\s*>', re.IGNORECASE)
+    # Inicio de un objeto JSON con forma de llamada: {"name": "<herramienta>" ...
+    _BARE_CALL_START_RE = re.compile(
+        r'\{\s*"(?:name|tool)"\s*:\s*"(?:' + '|'.join(sorted(VALID_TOOL_NAMES)) + r')"'
+    )
+    # Menos que esto (sin espacios) no es una sección: es un resto
+    MIN_SECTION_CHARS = 30
+
+    def _strip_tool_call_residue(self, text: str) -> str:
+        """Quita de un texto los bloques de llamada a herramienta y los JSON con forma de llamada."""
+        text = self._TOOL_CALL_BLOCK_RE.sub('', text)
+        decoder = json.JSONDecoder()
+        parts, pos = [], 0
+        for match in self._BARE_CALL_START_RE.finditer(text):
+            if match.start() < pos:
+                continue
+            try:
+                obj, end = decoder.raw_decode(text, match.start())
+            except ValueError:
+                continue
+            if isinstance(obj, dict) and self._is_valid_tool_call(obj):
+                parts.append(text[pos:match.start()])
+                pos = end
+        parts.append(text[pos:])
+        return ''.join(parts).strip()
+
+    def _clean_section_text(self, text: str) -> Optional[str]:
+        """
+        Texto de sección listo para guardar, o None si no lo es.
+
+        Un modelo a veces contesta con una llamada a herramienta mal escrita en vez de redactar.
+        Se quitan los bloques de llamada completos; si aun así quedan marcas sueltas o no queda
+        texto suficiente, NO se guarda como contenido (acabaría en el informe como basura).
+        """
+        cleaned = self._strip_tool_call_residue(text or '')
+        if self._TOOL_CALL_MARK_RE.search(cleaned) or self._BARE_CALL_START_RE.search(cleaned):
+            return None
+        if len(re.sub(r'\s+', '', cleaned)) < self.MIN_SECTION_CHARS:
+            return None
+        return cleaned
+
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:
         """
         从LLM响应中解析工具调用
@@ -1161,9 +1214,10 @@ class ReportAgent:
         """
         tool_calls = []
 
-        # 格式1: XML风格（标准格式）
-        xml_pattern = r'<tool_call>\s*(\{.*?\})\s*</tool_call>'
-        for match in re.finditer(xml_pattern, response, re.DOTALL):
+        # 格式1: XML风格（标准格式）. Tolerante con lo que el modelo escribe mal de verdad:
+        # sin el «<» inicial («tool_call>»), o sin la etiqueta de cierre al final del texto.
+        # Si no se reconociera, la llamada no se ejecutaría y su texto acabaría en el informe.
+        for match in self._TOOL_CALL_BLOCK_RE.finditer(response):
             try:
                 call_data = json.loads(match.group(1))
                 tool_calls.append(call_data)
@@ -1481,7 +1535,13 @@ class ReportAgent:
                     continue
 
                 # 正常结束
-                final_answer = response.split("Final Answer:")[-1].strip()
+                final_answer = self._clean_section_text(response.split("Final Answer:")[-1])
+                if final_answer is None:
+                    # Un «Final Answer:» con una llamada a herramienta dentro o casi vacío no es una sección
+                    logger.warning("Sección '%s': el Final Answer no trae texto válido, se pide de nuevo", section.title)
+                    messages.append({"role": "assistant", "content": response})
+                    messages.append({"role": "user", "content": REACT_BAD_FINAL_MSG})
+                    continue
                 logger.info(t('report.sectionGenDone', title=section.title, count=tool_calls_count))
 
                 if self.report_logger:
@@ -1602,8 +1662,13 @@ class ReportAgent:
 
             # 工具调用已足够，LLM 输出了内容但没带 "Final Answer:" 前缀
             # 直接将这段内容作为最终答案，不再空转
+            final_answer = self._clean_section_text(response)
+            if final_answer is None:
+                # Aquí se aceptaba cualquier cosa: una llamada a herramienta mal escrita acababa como texto del informe
+                logger.warning("Sección '%s': la respuesta sin «Final Answer:» no es texto de sección, se pide de nuevo", section.title)
+                messages.append({"role": "user", "content": REACT_BAD_FINAL_MSG})
+                continue
             logger.info(t('report.sectionNoPrefix', title=section.title, count=tool_calls_count))
-            final_answer = response.strip()
 
             if self.report_logger:
                 self.report_logger.log_section_content(
@@ -1639,10 +1704,20 @@ class ReportAgent:
         if response is None:
             logger.error(t('report.sectionForceFailed', title=section.title))
             final_answer = t('report.sectionGenFailedContent')
-        elif "Final Answer:" in response:
-            final_answer = response.split("Final Answer:")[-1].strip()
         else:
-            final_answer = response
+            final_answer = self._clean_section_text(response.split("Final Answer:")[-1])
+            if final_answer is None:
+                # Otra llamada a herramienta o restos de ella: un último intento pidiendo solo el texto
+                logger.warning("Sección '%s': el cierre forzado no trae texto válido, último intento", section.title)
+                messages.append({"role": "assistant", "content": response})
+                messages.append({"role": "user", "content": REACT_BAD_FINAL_MSG})
+                retry = self.llm.chat(messages=messages, temperature=0.5, max_tokens=4096)
+                if retry is not None:
+                    final_answer = self._clean_section_text(retry.split("Final Answer:")[-1])
+            if final_answer is None:
+                # Nunca se guarda una llamada a herramienta como si fuera el contenido del informe
+                logger.error("Sección '%s' sin texto válido tras el cierre forzado; se marca como no generada", section.title)
+                final_answer = t('report.sectionGenLeakContent')
 
         # 记录章节内容生成完成日志
         if self.report_logger:
