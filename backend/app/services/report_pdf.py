@@ -38,7 +38,7 @@ _SLOTS = threading.BoundedSemaphore(2)
 
 TEXTS = {
     "es": {
-        "kind": "Informe de predicción", "question": "Pregunta", "summary": "En pocas palabras",
+        "kind": "Informe de predicción", "brief_kind": "Brief inicial", "question": "Pregunta", "summary": "En pocas palabras",
         "people": "Personas simuladas", "rounds": "Rondas", "actions": "Acciones",
         "generated": "Generado el {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("Página ", " de ", ""),
@@ -50,7 +50,7 @@ TEXTS = {
         "date": "{d} de {month} de {y}",
     },
     "en": {
-        "kind": "Prediction report", "question": "Question", "summary": "In a nutshell",
+        "kind": "Prediction report", "brief_kind": "Initial brief", "question": "Question", "summary": "In a nutshell",
         "people": "Simulated people", "rounds": "Rounds", "actions": "Actions",
         "generated": "Generated on {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("Page ", " of ", ""),
@@ -62,7 +62,7 @@ TEXTS = {
         "date": "{month} {d}, {y}",
     },
     "zh": {
-        "kind": "预测报告", "question": "问题", "summary": "一句话概括",
+        "kind": "预测报告", "brief_kind": "初始简报", "question": "问题", "summary": "一句话概括",
         "people": "模拟人物", "rounds": "轮数", "actions": "行动",
         "generated": "生成于 {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("第 ", " 页 / 共 ", " 页"),
@@ -233,8 +233,9 @@ def _highlight_title(title: str) -> str:
 
 
 def build_html(*, title: str, summary: str, question: str, body_html: str, meta: Dict[str, Any], locale: str,
-               completed_at: str = "", created_at: str = "") -> str:
+               completed_at: str = "", created_at: str = "", kind: str = "", show_note: bool = True) -> str:
     t = _texts(locale)
+    kind = kind or t["kind"]
     date = _format_date(completed_at or created_at, t)
     stats = [(t["people"], meta.get("people")), (t["rounds"], meta.get("rounds")), (t["actions"], meta.get("actions"))]
     stats_html = "".join(
@@ -250,17 +251,17 @@ def build_html(*, title: str, summary: str, question: str, body_html: str, meta:
         if summary else ""
     )
     return f"""<!doctype html>
-<html lang="{html.escape((locale or 'es')[:2])}"><head><meta charset="utf-8"><title>{html.escape(title or t['kind'])}</title>
+<html lang="{html.escape((locale or 'es')[:2])}"><head><meta charset="utf-8"><title>{html.escape(title or kind)}</title>
 <style>{_css(locale)}</style></head>
 <body>
 <div id="running-logo">{_logo()}</div>
-<header class="cover-band">{_logo()}<div class="cover-tag">{html.escape(t['kind'])}</div></header>
-<h1 class="cover-title">{_highlight_title(title or t['kind'])}</h1>
+<header class="cover-band">{_logo()}<div class="cover-tag">{html.escape(kind)}</div></header>
+<h1 class="cover-title">{_highlight_title(title or kind)}</h1>
 <div class="cover-date">{html.escape(t['generated'].format(date=date)) if date else ''}</div>
 {('<div class="stats">' + stats_html + '</div>') if stats_html else ''}
 {question_html}{summary_html}
 <main class="body">{body_html}</main>
-<aside class="note"><div class="label">{html.escape(t['note_title'])}</div><p>{html.escape(t['note'])}</p></aside>
+{('<aside class="note"><div class="label">' + html.escape(t['note_title']) + '</div><p>' + html.escape(t['note']) + '</p></aside>') if show_note else ''}
 </body></html>"""
 
 
@@ -298,5 +299,20 @@ def render_report_pdf(*, markdown_text: str, question: str = "", meta: Optional[
     html_text = build_html(
         title=title, summary=summary, question=question, body_html=markdown_to_html(body),
         meta=meta or {}, locale=locale, completed_at=completed_at, created_at=created_at,
+    )
+    return render_pdf(html_text)
+
+
+def render_brief_pdf(*, markdown_text: str, locale: str = "es", created_at: str = "") -> bytes:
+    """PDF (bytes) de un brief: la misma maqueta de marca, con su propia etiqueta y sin la nota de «cómo leer el informe»."""
+    # Aquí NO se usa split_report: separa una cita inicial como «resumen» (cosa de informes), y en un brief esa cita son
+    # las notas de la plantilla, que se perderían. Solo el «# Título» sube a la portada; el resto es el cuerpo.
+    text = (markdown_text or "").replace("\r\n", "\n")
+    head = re.match(r"\A\s*#\s+([^\n]+)\n?", text)
+    title, body = (head.group(1).strip(), text[head.end():].strip()) if head else ("", text.strip())
+    html_text = build_html(
+        title=title, summary="", question="", body_html=markdown_to_html(body), meta={}, locale=locale,
+        created_at=created_at or datetime.now().isoformat(timespec="seconds"),
+        kind=_texts(locale)["brief_kind"], show_note=False,
     )
     return render_pdf(html_text)

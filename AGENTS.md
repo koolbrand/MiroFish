@@ -191,6 +191,7 @@ docker run -d \
 | `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
 | `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
 | `backend/app/services/report_pdf.py`, `backend/app/assets/fonts/` | PDF del informe con la marca de Simuloo (WeasyPrint + Markdown): portada con cifras, pie con página y fuentes Inter Tight / JetBrains Mono embebidas. Se pide con `GET /api/report/<id>/download?format=pdf` (sin `format`, sigue el `.md`) |
+| `backend/app/utils/docx_io.py`, `backend/scripts/generar_plantilla_docx.py`, `backend/app/assets/brief/` | **Word (.docx)**: leer (sin librería: zip + lxml; defensas contra bombas de descompresión y de entidades, XXE y zips raros; cambios sin aceptar: se lee lo insertado, no lo borrado; títulos → `#`, listas → `-`, tablas → `a \| b`) y escribir (`build_docx` desde Markdown básico: títulos reales de Word, viñetas, citas, negrita/cursiva). Sube `.docx` (`FileParser`, `Config.ALLOWED_EXTENSIONS`, firma en `security.py`, también en `/api/brief/check`); `POST /api/brief/draft-file` devuelve el borrador del brief en Word o PDF (`render_brief_pdf`: misma maqueta, etiqueta «Brief inicial» y sin la nota del informe). La plantilla de brief es `frontend/public/plantilla-brief-simuloo.docx`, **generada** desde `assets/brief/plantilla-brief-simuloo.md` (un test falla si se desincronizan). `.doc` antiguo y `.docx` con contraseña (contenedor OLE) → mensaje «guárdalo como .docx» (`api.docxOld`) |
 | `frontend/src/components/ReportDownloads.vue` | Botones PDF (lima, con estado ocupado) y `.md` del informe, en los pasos 4 y 5; muestra el error que devuelve el servidor |
 
 ### Aislamiento por usuario (`utils/access.py`)
@@ -292,6 +293,10 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 - Borde de campos y controles `--kb-control-line` (#858585, ≥ 3:1); foco visible de 2 px; objetivos ≥ 24 px; texto ≥ 12 px (rótulos mono de ≤ 12 caracteres, 11 px).
 - Antes → después medido con `probar-ui.js` en 12 pantallas: fallos de contraste 871 → 0, fallos 2.5.8 de 1 a 0, color de marca 85–95 % → 99–100 %. Medir de nuevo al tocar una pantalla.
 - Diálogos: `role="dialog"`/`alertdialog`, foco dentro al abrir, Tab atrapado, Escape cierra y el foco vuelve a quien lo abrió.
+
+### Lo que ve la gente: nada de «.md»
+- **Un `.md` no le dice nada a quien no es técnico** (lo señaló Adrián el 1-oct-2026). A la vista solo hay **PDF, Word (.docx), TXT e imágenes**; el backend sigue aceptando `.md`. El texto pegado se guarda como `texto-pegado.txt`; el borrador de la entrevista, como `brief-simuloo.txt` al añadirlo al material y Word/PDF al descargarlo; la plantilla, en Word. El botón del informe en texto dice «Descargar el texto del informe» (no «.md») y el PDF es el principal. **Sigue sin leerse PowerPoint** ni `.doc` antiguo: la app dice cómo arreglarlo (pegar el texto o exportar a PDF).
+- Al añadir un formato nuevo, tocar los CUATRO sitios: `FileParser.SUPPORTED_EXTENSIONS`, `Config.ALLOWED_EXTENSIONS`, la firma en `security._BINARY_MAGIC_SIGNATURES` y las listas del frontend (`Home.vue`: `accept` y `readable`; `BriefAssistant.vue`: `TEXT_EXT`), más `home.supportedFormats` en los tres idiomas.
 
 ### Al tocar las pantallas del proceso
 

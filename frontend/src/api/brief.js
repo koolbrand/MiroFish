@@ -1,4 +1,4 @@
-import service from './index'
+import service, { downloadFilePost } from './index'
 
 // Revisión del brief con Jev (solo se envían los archivos de texto)
 export const checkBrief = (files) => {
@@ -15,3 +15,7 @@ export const interviewNext = (data) => service.post('/api/brief/interview/next',
 
 // Entrevista: redactar el brief con la plantilla
 export const interviewCompose = (data) => service.post('/api/brief/interview/compose', data, { timeout: 180000 })
+
+// El borrador de la entrevista como documento: 'docx' (Word, editable) o 'pdf'
+export const downloadBriefDraft = (markdown, format = 'docx') =>
+  downloadFilePost('/api/brief/draft-file', { markdown, format }, `brief-simuloo.${format}`)

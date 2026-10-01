@@ -155,8 +155,8 @@ export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) 
 }
 
 // Descarga un archivo de la API con el token (window.open no manda Authorization)
-export const downloadFile = async (url, fallbackName = 'download') => {
-  const response = await service.get(url, { responseType: 'blob' })
+// Guarda en disco la respuesta de una descarga (el nombre sale de Content-Disposition)
+const saveBlobResponse = (response, fallbackName) => {
   const disposition = response.headers['content-disposition'] || ''
   const utf8Name = disposition.match(/filename\*=UTF-8''([^;]+)/i)
   const plainName = disposition.match(/filename="?([^";]+)"?/i)
@@ -170,6 +170,15 @@ export const downloadFile = async (url, fallbackName = 'download') => {
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
+export const downloadFile = async (url, fallbackName = 'download') => {
+  saveBlobResponse(await service.get(url, { responseType: 'blob' }), fallbackName)
+}
+
+// Igual, para los documentos que se maquetan a partir de un cuerpo (p. ej. el borrador del brief)
+export const downloadFilePost = async (url, body, fallbackName = 'download', timeout = 60000) => {
+  saveBlobResponse(await service.post(url, body, { responseType: 'blob', timeout }), fallbackName)
 }
 
 export default service
