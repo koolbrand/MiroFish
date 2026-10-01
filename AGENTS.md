@@ -182,12 +182,19 @@ docker run -d \
 | `frontend/src/composables/usePipeline.js`, `components/AutoPipelineBanner.vue` | Estado del automático compartido en pantalla y aviso en las cinco pantallas del proceso (detener, reanudar, seguir la etapa) |
 | `backend/app/services/web_research.py` | Investigación opcional en internet antes de la ontología (búsqueda web de MiniMax en servidor); fase 1 busca, fase 2 redacta con los resultados numerados por nosotros; toda viñeta sin referencia [n] se quita; si no encuentra nada o falla, el proyecto sigue sin ella |
 | `frontend/src/lib/exampleCases.js`, `components/ExampleTabs.vue` | Cinco ejemplos de la portada (pádel, B2B, precio, crisis, decisión pública): «La multitud» y el informe de ejemplo cambian a la vez; la multitud acaba donde dice el gráfico; textos en `home.cases.<id>.*` |
-| `frontend/src/components/GraphPanel.vue`, `lib/graphRender.js`, `GraphTypeSwatch.vue` | Panel del grafo en canvas 2D (d3-force): tipos por forma y tono de marca, pulsos en vivo, etiquetas sin cortar, teclado y lista accesible, «reducir movimiento» |
+| `frontend/src/components/GraphPanel.vue`, `lib/graphRender.js`, `GraphTypeSwatch.vue` | Panel del grafo en canvas 2D (d3-force): tipos por forma y tono de marca, etiquetas sin cortar, teclado y lista accesible, «reducir movimiento». **Tres capas en caché** (aristas, nodos, etiquetas) y, entre nodos y etiquetas, la **capa viva** que se pinta cada fotograma: flujo de partículas por cada relación, cometas con reacción en cadena (al llegar a un nodo destella y puede lanzar otros), latido de los nodos principales, centelleo y un barrido tipo sonar. Va POR DELANTE de los nodos (antes iba por detrás y los nodos opacos la tapaban) y por detrás del texto |
 | `frontend/src/lib/miniMarkdown.js` | Markdown mínimo SIN HTML para lo que escriben las personas simuladas y el modelo (posts, chat, encuestas). No uses `v-html` con texto de la API |
 | `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
 | `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
 | `backend/app/services/report_pdf.py`, `backend/app/assets/fonts/` | PDF del informe con la marca de Simuloo (WeasyPrint + Markdown): portada con cifras, pie con página y fuentes Inter Tight / JetBrains Mono embebidas. Se pide con `GET /api/report/<id>/download?format=pdf` (sin `format`, sigue el `.md`) |
 | `frontend/src/components/ReportDownloads.vue` | Botones PDF (lima, con estado ocupado) y `.md` del informe, en los pasos 4 y 5; muestra el error que devuelve el servidor |
+
+### Al tocar el grafo (`graphRender.js`)
+
+- **Orden de capas**: aristas → nodos → capa viva (`_flow`, `_bloom`, `_sweepFx`, `_pulses`, `_flashFx`) → etiquetas → anillos de selección. Lo que se mueva siempre va en la capa viva (dos `drawImage` + trazos baratos); nada animado dentro de las capas en caché, que se repintan enteras.
+- **Se autolimita**: `_fxAdapt` baja a la mitad de partículas si la animación cuesta > 6 ms de media, y `_flow` pone la mitad mientras se repinta la escena (arrastre, zoom, física). Con «reducir movimiento» no se pinta nada de la capa viva y el bucle se para (0 % de píxeles cambian).
+- **Probarlo**: banco con grafo sintético de N nodos en la sesión (`grafo/h.js`, `perf.js`, `secuencia.js`). Medido el 1-oct-2026 con 460 nodos / 610 aristas SIN GPU: 60 fps en reposo y 57–58 arrastrando (antes 46–51).
+- **Trampa que costó descubrir**: al cambiar de vista el panel se ensancha en ~0,7 s y `fit(true)` lanza una animación con el ancho de entonces; si termina después del último `resize`, pisa el ajuste bueno y el grafo queda descentrado a medio tamaño. `resize()` cancela esa animación (`zoomTween`) cuando el usuario no ha tocado nada. Comprobarlo: 10 cargas seguidas, centro del grafo = W/2 (`diag2.js`).
 
 ### Al tocar el agente de informes (`report_agent.py`)
 
