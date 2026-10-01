@@ -278,12 +278,19 @@ const selectAgent = async (idx) => {
 }
 
 const loadAgentActions = async (idx) => {
+  // Cada carga lleva su número (también las que salen de la caché): si la persona elige a otro mientras una carga
+  // responde, la respuesta tardía se guarda en la caché de SU agente pero no pisa lo que se está viendo (antes se
+  // leía «actividad del agente 0» con el 1 elegido)
+  const mySequence = ++actionsSequence
   if (!props.simulationId) {
     agentActions.value = []
+    activityLoading.value = false
     return
   }
   if (actionsCache.value[idx]) {
     agentActions.value = actionsCache.value[idx]
+    activityLoading.value = false
+    activityError.value = null
     return
   }
 
@@ -302,14 +309,17 @@ const loadAgentActions = async (idx) => {
     actions.sort((a, b) => (b.round_num || 0) - (a.round_num || 0))
     actionsCache.value[idx] = actions
     activityCounts.value[idx] = actions.length
-    agentActions.value = actions
+    if (mySequence === actionsSequence) agentActions.value = actions
   } catch (err) {
     // se guarda el texto técnico para el detalle plegado; la frase que se ve es step5.activityFailed
-    activityError.value = err?.response?.data?.error || err.message || t('common.unknownError')
+    if (mySequence === actionsSequence) {
+      activityError.value = err?.response?.data?.error || err.message || t('common.unknownError')
+    }
   } finally {
-    activityLoading.value = false
+    if (mySequence === actionsSequence) activityLoading.value = false
   }
 }
+let actionsSequence = 0
 
 // When profiles change (fresh load), reset selection
 watch(() => props.profiles.length, () => {

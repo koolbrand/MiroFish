@@ -88,7 +88,8 @@
     "deleting": "删除中…",
     "deleteFailed": "{count} 个项目删除失败。请查看控制台。",
     "openInteraction": "对话",
-    "errorService": "服务未响应。可删除后重试。"
+    "errorService": "服务未响应。可删除后重试。",
+    "selectOne": "选择“{name}”"
   },
   "home": {
     "tagline": "AI 舆论模拟",
@@ -132,6 +133,8 @@
     "projectNamePlaceholder": "例如：新应用发布",
     "heroCta": "开始模拟",
     "startHint": "请先上传至少一个文档，并写下你想预测的问题。",
+    "alreadyLaunching": "你之前的分析仍在提交中，完成后可在“项目”中查看。",
+    "alreadyLaunchingTitle": "你的材料正在分析中",
     "visStatAgents": "智能体",
     "visStatSteps": "步骤",
     "visStatPlatforms": "平台",
@@ -523,7 +526,8 @@
     "roundsUpTo": "最多 {n} 轮",
     "roundsTime": "约 {n} 分钟",
     "roundsHint": "轮数越多，观点越有时间变化。这只是对话本身的时间：前期分析和报告另计。",
-    "skipToForm": "跳到表单"
+    "skipToForm": "跳到表单",
+    "launchedElsewhere": "你的分析已创建，可在“项目”中查看。"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -769,7 +773,8 @@
       "UPVOTE_POST": "赞成",
       "DOWNVOTE_POST": "反对",
       "DO_NOTHING": "静默"
-    }
+    },
+    "showEarlier": "显示之前的 {n} 条"
   },
   "step4": {
     "generatingSection": "正在生成{title}...",
@@ -846,7 +851,11 @@
     "interviewer": "采访者",
     "showMore": "展开",
     "showLess": "收起",
-    "keyQuotes": "关键引言"
+    "keyQuotes": "关键引言",
+    "failedTitle": "报告未能完成",
+    "regenerate": "重新生成报告",
+    "regenerating": "生成中…",
+    "reportNotFound": "该报告已不存在，或你没有访问权限。"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -1584,7 +1593,8 @@
     "close": "关闭",
     "error": "错误：{error}",
     "cardTitle": "还没有简报？",
-    "cardBody": "我会用几分钟采访你，并按模板写好简报。好的简报最能提升模拟效果。"
+    "cardBody": "我会用几分钟采访你，并按模板写好简报。好的简报最能提升模拟效果。",
+    "retry": "重试"
   },
   "ui": {
     "predictionReport": "预测报告",
@@ -1642,6 +1652,21 @@
     "adjust": "调整",
     "agentsShowAll": "查看全部 {count} 个智能体",
     "agentsShowLess": "收起"
+  },
+  "errors": {
+    "offlineBanner": "与服务器的连接已中断，正在重试…",
+    "network": "无法连接到服务器，请检查网络。",
+    "timeout": "服务器响应超时，请重试。",
+    "http400": "请求无效。",
+    "http401": "登录已过期，请重新登录。",
+    "http403": "你没有权限执行此操作。",
+    "http404": "未找到所需内容。",
+    "http408": "服务器响应超时，请重试。",
+    "http409": "该操作已在进行中或内容已变化，请刷新页面。",
+    "http413": "上传内容过大。",
+    "http429": "请求过于频繁，请稍等几秒后重试。",
+    "http5xx": "服务器出现问题，请几分钟后重试。",
+    "unknown": "发生了意外错误。"
   },
   "auto": {
     "tag": "自动",

@@ -88,7 +88,8 @@
     "deleting": "Deleting…",
     "deleteFailed": "Failed to delete {count} project(s). Check the console.",
     "openInteraction": "Chat",
-    "errorService": "The service didn’t respond. You can delete it and retry."
+    "errorService": "The service didn’t respond. You can delete it and retry.",
+    "selectOne": "Select “{name}”"
   },
   "home": {
     "tagline": "AI-powered social opinion simulation",
@@ -132,6 +133,8 @@
     "projectNamePlaceholder": "e.g. New app launch",
     "heroCta": "Start a simulation",
     "startHint": "To start, upload at least one document and write what you want to predict.",
+    "alreadyLaunching": "Your previous analysis is still being sent. When it finishes you will find it in Projects.",
+    "alreadyLaunchingTitle": "Your material is already being analysed",
     "visStatAgents": "agents",
     "visStatSteps": "steps",
     "visStatPlatforms": "platforms",
@@ -523,7 +526,8 @@
     "roundsUpTo": "up to {n} rounds",
     "roundsTime": "≈ {n} min",
     "roundsHint": "More rounds give opinions more time to change. This is only the conversation itself: the analysis beforehand and the report come on top.",
-    "skipToForm": "Skip to the form"
+    "skipToForm": "Skip to the form",
+    "launchedElsewhere": "Your analysis has been created: you will find it in Projects."
   },
   "main": {
     "layoutGraph": "Graph",
@@ -769,7 +773,8 @@
       "UPVOTE_POST": "Upvote",
       "DOWNVOTE_POST": "Downvote",
       "DO_NOTHING": "Idle"
-    }
+    },
+    "showEarlier": "Show the {n} earlier ones"
   },
   "step4": {
     "generatingSection": "Generating {title}...",
@@ -846,7 +851,11 @@
     "interviewer": "Interviewer",
     "showMore": "Show more",
     "showLess": "Show less",
-    "keyQuotes": "Key quotes"
+    "keyQuotes": "Key quotes",
+    "failedTitle": "The report could not be finished",
+    "regenerate": "Generate the report again",
+    "regenerating": "Generating…",
+    "reportNotFound": "This report no longer exists or you do not have access to it."
   },
   "step5": {
     "interactiveTools": "Interactive Tools",
@@ -1584,7 +1593,8 @@
     "close": "Close",
     "error": "Error: {error}",
     "cardTitle": "No brief yet?",
-    "cardBody": "I’ll interview you for a few minutes and write it with the template. A good brief is what improves the simulation most."
+    "cardBody": "I’ll interview you for a few minutes and write it with the template. A good brief is what improves the simulation most.",
+    "retry": "Try again"
   },
   "ui": {
     "predictionReport": "Prediction Report",
@@ -1642,6 +1652,21 @@
     "adjust": "Adjust",
     "agentsShowAll": "Show all {count} agents",
     "agentsShowLess": "Show less"
+  },
+  "errors": {
+    "offlineBanner": "No connection to the server. Retrying…",
+    "network": "Could not reach the server. Check your connection.",
+    "timeout": "The server took too long to respond. Please try again.",
+    "http400": "The request is not valid.",
+    "http401": "Your session has expired. Please sign in again.",
+    "http403": "You do not have permission to do this.",
+    "http404": "We could not find what you were looking for.",
+    "http408": "The server took too long to respond. Please try again.",
+    "http409": "That is already in progress or has changed. Reload the page.",
+    "http413": "The upload is too large.",
+    "http429": "Too many requests in a row. Wait a few seconds and try again.",
+    "http5xx": "The server had a problem. Please try again in a few minutes.",
+    "unknown": "An unexpected error occurred."
   },
   "auto": {
     "tag": "Automatic",

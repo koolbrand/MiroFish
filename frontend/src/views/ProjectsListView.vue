@@ -93,6 +93,7 @@
             <input
               type="checkbox"
               :checked="selectedIds.has(p.project_id)"
+              :aria-label="$t('projects.selectOne', { name: p.name || shortId(p.project_id) })"
               @change="toggleOne(p.project_id)"
             />
           </div>

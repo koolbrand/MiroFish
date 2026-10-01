@@ -1,14 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '../views/Home.vue'
-import Process from '../views/MainView.vue'
-import SimulationView from '../views/SimulationView.vue'
-import SimulationRunView from '../views/SimulationRunView.vue'
-import ReportView from '../views/ReportView.vue'
-import InteractionView from '../views/InteractionView.vue'
-import LoginView from '../views/LoginView.vue'
-import ProjectsListView from '../views/ProjectsListView.vue'
 import { pb } from '../lib/pocketbase'
 import { safeRedirect } from '../lib/authRedirect'
+
+// Cada pantalla es su propio trozo de código y solo se descarga al entrar: el paquete único pesaba 941 kB (313 kB
+// comprimido) incluso para ver la portada. Medido: la portada baja a ~590 kB con solo esto.
+const Home = () => import('../views/Home.vue')
+const Process = () => import('../views/MainView.vue')
+const SimulationView = () => import('../views/SimulationView.vue')
+const SimulationRunView = () => import('../views/SimulationRunView.vue')
+const ReportView = () => import('../views/ReportView.vue')
+const InteractionView = () => import('../views/InteractionView.vue')
+const LoginView = () => import('../views/LoginView.vue')
+const ProjectsListView = () => import('../views/ProjectsListView.vue')
 
 const routes = [
   {
@@ -64,6 +67,11 @@ const routes = [
     name: 'ProjectsList',
     component: ProjectsListView,
     meta: { requiresAuth: true }
+  },
+  // Una dirección que no existe lleva a la portada (antes: pantalla en blanco, sin ningún enlace)
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 
@@ -83,6 +91,19 @@ router.beforeEach((to) => {
   if (to.path === '/login' && isAuthenticated) {
     return safeRedirect(to.query.redirect)
   }
+})
+
+// Tras un despliegue los trozos de código tienen otro nombre: quien tenía la app abierta pide uno que ya no existe y la
+// navegación falla. Se recarga la página una vez para coger la versión nueva (con tope, para no entrar en bucle).
+router.onError((error, to) => {
+  const stale = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+  if (!stale.test(String(error?.message || error))) return
+  const key = 'simuloo_reload_after_deploy'
+  try {
+    if (sessionStorage.getItem(key) === to.fullPath) return          // ya se intentó con esta dirección
+    sessionStorage.setItem(key, to.fullPath)
+  } catch (_) { /* sin almacenamiento: se recarga igualmente una vez */ }
+  window.location.assign(to.fullPath)
 })
 
 export default router

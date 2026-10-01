@@ -88,7 +88,8 @@
     "deleting": "Eliminando…",
     "deleteFailed": "Falló la eliminación de {count} proyecto(s). Revisa la consola.",
     "openInteraction": "Conversar",
-    "errorService": "El servicio no respondió. Puedes borrarlo y reintentar."
+    "errorService": "El servicio no respondió. Puedes borrarlo y reintentar.",
+    "selectOne": "Seleccionar «{name}»"
   },
   "home": {
     "tagline": "Simulación de opinión pública con IA",
@@ -132,6 +133,8 @@
     "projectNamePlaceholder": "Ej.: Lanzamiento de la app",
     "heroCta": "Empezar una simulación",
     "startHint": "Para empezar, sube al menos un documento y escribe qué quieres predecir.",
+    "alreadyLaunching": "Tu análisis anterior sigue enviándose. Cuando termine, lo verás en Proyectos.",
+    "alreadyLaunchingTitle": "Ya se está analizando tu material",
     "visStatAgents": "agentes",
     "visStatSteps": "pasos",
     "visStatPlatforms": "plataformas",
@@ -523,7 +526,8 @@
     "roundsUpTo": "hasta {n} rondas",
     "roundsTime": "≈ {n} min",
     "roundsHint": "Más rondas dan más tiempo a que las opiniones cambien. Es solo la parte de la conversación: el análisis previo y el informe se suman.",
-    "skipToForm": "Saltar al formulario"
+    "skipToForm": "Saltar al formulario",
+    "launchedElsewhere": "Tu análisis ya está creado: lo encontrarás en Proyectos."
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -769,7 +773,8 @@
       "UPVOTE_POST": "A favor",
       "DOWNVOTE_POST": "En contra",
       "DO_NOTHING": "Sin acción"
-    }
+    },
+    "showEarlier": "Mostrar las {n} anteriores"
   },
   "step4": {
     "generatingSection": "Generando {title}...",
@@ -846,7 +851,11 @@
     "interviewer": "Entrevistador",
     "showMore": "Ver más",
     "showLess": "Ver menos",
-    "keyQuotes": "Citas clave"
+    "keyQuotes": "Citas clave",
+    "failedTitle": "El informe no se ha podido terminar",
+    "regenerate": "Volver a generar el informe",
+    "regenerating": "Generando…",
+    "reportNotFound": "Este informe ya no existe o no tienes acceso a él."
   },
   "step5": {
     "interactiveTools": "Herramientas interactivas",
@@ -1584,7 +1593,8 @@
     "close": "Cerrar",
     "error": "Error: {error}",
     "cardTitle": "¿No tienes el brief listo?",
-    "cardBody": "Te entrevisto en unos minutos y lo redacto con la plantilla. Un buen brief es lo que más mejora la simulación."
+    "cardBody": "Te entrevisto en unos minutos y lo redacto con la plantilla. Un buen brief es lo que más mejora la simulación.",
+    "retry": "Reintentar"
   },
   "ui": {
     "predictionReport": "Informe de predicción",
@@ -1642,6 +1652,21 @@
     "adjust": "Ajustar",
     "agentsShowAll": "Ver los {count} agentes",
     "agentsShowLess": "Ver menos"
+  },
+  "errors": {
+    "offlineBanner": "Sin conexión con el servidor. Reintentando…",
+    "network": "No se ha podido conectar con el servidor. Comprueba tu conexión.",
+    "timeout": "El servidor ha tardado demasiado en responder. Inténtalo de nuevo.",
+    "http400": "La petición no es válida.",
+    "http401": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+    "http403": "No tienes permiso para hacer esto.",
+    "http404": "No se ha encontrado lo que buscas.",
+    "http408": "El servidor ha tardado demasiado en responder. Inténtalo de nuevo.",
+    "http409": "Eso ya está en marcha o ha cambiado. Recarga la pantalla.",
+    "http413": "El envío es demasiado grande.",
+    "http429": "Demasiadas peticiones seguidas. Espera unos segundos y vuelve a intentarlo.",
+    "http5xx": "El servidor ha tenido un problema. Inténtalo de nuevo en unos minutos.",
+    "unknown": "Ha ocurrido un error inesperado."
   },
   "auto": {
     "tag": "Automático",

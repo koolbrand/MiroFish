@@ -232,9 +232,12 @@
       <div class="timeline-feed">
         <div class="timeline-axis"></div>
         
+        <button v-if="hiddenActionsCount > 0" type="button" class="feed-earlier" @click="showAllActions = true">
+          {{ $t('step3.showEarlier', { n: hiddenActionsCount }) }}
+        </button>
         <TransitionGroup name="timeline-item">
           <div 
-            v-for="action in chronologicalActions" 
+            v-for="action in visibleActions" 
             :key="action._uniqueId || action.id || `${action.timestamp}-${action.agent_id}`" 
             class="timeline-item"
             :class="action.platform"
@@ -530,6 +533,16 @@ const redditActionsCount = computed(() => {
 
 // 当过滤器生效时，显示的数量
 const filteredActionsCount = computed(() => chronologicalActions.value.length)
+
+// Pintar miles de tarjetas a la vez (con 3.000 acciones eran ~75.000 nodos y 2,7 s de hilo bloqueado en 14 s) es lo
+// que hacía lenta la pantalla en simulaciones largas: se pintan las últimas y el resto, a un clic
+const FEED_LIMIT = 300
+const showAllActions = ref(false)
+const visibleActions = computed(() => {
+  const all = chronologicalActions.value
+  return showAllActions.value || all.length <= FEED_LIMIT ? all : all.slice(-FEED_LIMIT)
+})
+const hiddenActionsCount = computed(() => chronologicalActions.value.length - visibleActions.value.length)
 const hasActiveFilters = computed(() => {
   const { platform, actionGroup, query } = feedFilters.value
   return platform !== 'all' || actionGroup !== 'all' || query.trim() !== ''
@@ -810,20 +823,21 @@ const fetchRunStatusDetail = async () => {
       const serverActions = res.data.all_actions || []
       
       // 增量添加新动作（去重）
-      let newActionsAdded = 0
+      // El servidor las devuelve de la más nueva a la más antigua; la línea de tiempo se lee de arriba abajo, así que lo
+      // nuevo se ordena (ronda y hora) ANTES de añadirlo. Antes salían cruzadas: R3, R2, R1, R5, R4.
+      const fresh = []
       serverActions.forEach(action => {
         // 生成唯一ID
         const actionId = action.id || `${action.timestamp}-${action.platform}-${action.agent_id}-${action.action_type}`
         
         if (!actionIds.value.has(actionId)) {
           actionIds.value.add(actionId)
-          allActions.value.push({
-            ...action,
-            _uniqueId: actionId
-          })
-          newActionsAdded++
+          fresh.push({ ...action, _uniqueId: actionId })
         }
       })
+      fresh.sort((a, b) =>
+        (a.round_num || 0) - (b.round_num || 0) || (Date.parse(a.timestamp) || 0) - (Date.parse(b.timestamp) || 0))
+      if (fresh.length) allActions.value.push(...fresh)
       
       // 不自动滚动，让用户自由查看时间轴
       // 新动作会在底部追加
@@ -1966,4 +1980,18 @@ onUnmounted(() => {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+
+.feed-earlier {
+  display: block;
+  margin: 0 auto 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--kb-control-line);
+  border-radius: 8px;
+  background: var(--kb-surface, #fff);
+  color: var(--kb-text-2);
+  font: 600 0.82rem/1 var(--kb-font-sans);
+  cursor: pointer;
+}
+.feed-earlier:hover { border-color: var(--ink-950); color: var(--ink-950); }
+.feed-earlier:focus-visible { outline: 2px solid var(--ink-950); outline-offset: 2px; }
 </style>
