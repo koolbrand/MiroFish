@@ -16,6 +16,15 @@ from .logger import get_logger
 
 logger = get_logger('mirofish.zep_paging')
 
+# Errores pasajeros de Neo4j (un reinicio de unos segundos, un fallo de leader): NO heredan de OSError, así que
+# el reintento no los cubría y «preparar» fallaba al primer tropiezo
+try:
+    from neo4j.exceptions import ServiceUnavailable, SessionExpired, TransientError
+    _NEO4J_TRANSIENT: tuple = (ServiceUnavailable, SessionExpired, TransientError)
+except ImportError:  # pragma: no cover — neo4j siempre está en producción
+    _NEO4J_TRANSIENT = ()
+_TRANSIENT = (ConnectionError, TimeoutError, OSError) + _NEO4J_TRANSIENT
+
 _DEFAULT_PAGE_SIZE = 100
 _MAX_NODES = 2000
 _DEFAULT_MAX_RETRIES = 3
@@ -40,7 +49,7 @@ def _fetch_page_with_retry(
     for attempt in range(max_retries):
         try:
             return api_call(*args, **kwargs)
-        except (ConnectionError, TimeoutError, OSError) as e:
+        except _TRANSIENT as e:
             last_exception = e
             if attempt < max_retries - 1:
                 logger.warning(

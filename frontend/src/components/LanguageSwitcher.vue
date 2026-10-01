@@ -21,7 +21,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { availableLocales } from '@/i18n/index.js'
+import { availableLocales, setLocale } from '@/i18n/index.js'
 
 defineProps({
   // solo el código del idioma (ES ▾): para cabeceras con poco sitio
@@ -43,11 +43,15 @@ const toggleDropdown = () => {
   open.value = !open.value
 }
 
-const switchLocale = (key) => {
-  locale.value = key
-  localStorage.setItem('locale', key)
-  document.documentElement.lang = key
+const switchLocale = async (key) => {
   open.value = false
+  try {
+    if (!(await setLocale(key))) return       // si el archivo del idioma no se pudo descargar, se queda en el actual
+  } catch (_) {
+    return
+  }
+  try { localStorage.setItem('locale', key) } catch (_) { /* almacenamiento bloqueado: vale para esta visita */ }
+  document.documentElement.lang = key
 }
 
 const onClickOutside = (e) => {

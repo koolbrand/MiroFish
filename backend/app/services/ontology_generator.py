@@ -4,13 +4,13 @@
 """
 
 import json
-import logging
 import re
 from typing import Dict, Any, List, Optional
 from ..utils.llm_client import LLMClient
 from ..utils.locale import get_language_instruction
+from ..utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger('mirofish.ontology_generator')
 
 
 def _to_pascal_case(name: str) -> str:

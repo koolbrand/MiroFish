@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <BrandLogo class="brand" @click="router.push('/')" />
+        <router-link to="/" class="brand-link" aria-label="Simuloo"><BrandLogo class="brand" /></router-link>
         <ProjectNameChip
           v-if="currentProjectId && currentProjectId !== 'new'"
           :projectId="currentProjectId"
@@ -117,7 +117,7 @@ import AutoPipelineBanner from '../components/AutoPipelineBanner.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
 import { startAutoPipeline } from '../api/pipeline'
 import { usePipeline } from '../composables/usePipeline'
-import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
+import { getPendingUpload, clearPendingUpload, setLaunching } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import AppVersion from '../components/AppVersion.vue'
 import BrandLogo from '../components/BrandLogo.vue'
@@ -162,6 +162,8 @@ const systemLogs = ref([])
 // Polling timers
 let pollTimer = null
 let graphPollTimer = null
+// Se pone al salir de la pantalla: tras cada `await` largo se mira para no seguir actuando (navegar, abrir sondeos) en una pantalla ya cerrada
+let unmounted = false
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -261,6 +263,7 @@ const handleNewProject = async () => {
     addLog(t('log.noPendingFilesLog'))
     return
   }
+  setLaunching(true)
   
   try {
     loading.value = true
@@ -283,6 +286,8 @@ const handleNewProject = async () => {
     if (pending.mode === 'auto') {
       const autoRes = await startAutoPipeline(formData)
       clearPendingUpload()
+      // La persona se fue mientras se enviaba: el proyecto ya existe (está en Proyectos); no se la "teletransporta"
+      if (unmounted) return
       currentProjectId.value = autoRes.data.project_id
       router.replace({ name: 'Process', params: { projectId: autoRes.data.project_id } })
       addLog(t('log.autoStarted', { id: autoRes.data.project_id }))
@@ -294,6 +299,7 @@ const handleNewProject = async () => {
     const res = await generateOntology(formData, pending.webResearch ? { timeout: 600000 } : {})
     if (res.success) {
       clearPendingUpload()
+      if (unmounted) return           // el proyecto queda creado; al abrirlo se retoma (ontología hecha → grafo)
       currentProjectId.value = res.data.project_id
       projectData.value = res.data
       
@@ -313,6 +319,7 @@ const handleNewProject = async () => {
     ontologyProgress.value = null
     currentPhase.value = -1
   } finally {
+    setLaunching(false)
     loading.value = false
   }
 }
@@ -385,11 +392,14 @@ const autoInCharge = async () => {
 // Mientras el servidor lee el material y arranca el grafo: consultar el proyecto hasta que haya grafo en marcha
 let autoWatchTimer = null
 const watchAutoProject = () => {
+  if (unmounted) return
   clearTimeout(autoWatchTimer)
   if (!ontologyProgress.value) ontologyProgress.value = { message: t('log.ontologyStart') }
   autoWatchTimer = setTimeout(async () => {
+    if (unmounted) return
     try {
       const res = await getProject(currentProjectId.value)
+      if (unmounted) return
       if (!res.success) return watchAutoProject()
       projectData.value = res.data
       updatePhaseByStatus(res.data.status)
@@ -445,6 +455,8 @@ const startBuildGraph = async () => {
 }
 
 const startGraphPolling = () => {
+  if (unmounted) return
+  stopGraphPolling()              // «Reintentar» abría un segundo intervalo y dejaba el primero sin referencia
   addLog(t('log.pollingStarted'))
   fetchGraphData()
   graphPollTimer = setInterval(fetchGraphData, 10000)
@@ -469,6 +481,8 @@ const fetchGraphData = async () => {
 }
 
 const startPollingTask = (taskId) => {
+  if (unmounted) return
+  stopPolling()
   pollTaskStatus(taskId)
   pollTimer = setInterval(() => pollTaskStatus(taskId), 2000)
 }
@@ -500,6 +514,7 @@ const pollTaskStatus = async (taskId) => {
         }
       } else if (task.status === 'failed') {
         stopPolling()
+        stopGraphPolling()           // el sondeo del grafo (10 s) seguía para siempre tras un fallo
         error.value = task.error
         addLog(t('log.graphBuildTaskFailed', { error: task.error }))
       }
@@ -566,6 +581,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  unmounted = true
   clearTimeout(autoWatchTimer)
   stopPolling()
   stopGraphPolling()

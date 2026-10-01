@@ -183,7 +183,7 @@
                 <p class="composer-status" :class="{ ready: canSubmit }" aria-live="polite">
                   {{ statusText }}
                 </p>
-                <p v-if="canSubmit" class="composer-note">{{ readyNote }}</p>
+                <p v-if="canSubmit || launching" class="composer-note">{{ readyNote }}</p>
               </div>
             </div>
             <!-- Solo en automático: cuánto dura la conversación simulada (paso a paso lo eliges en el paso 2) -->
@@ -223,7 +223,7 @@
               <button
                 class="launch-btn"
                 data-tour="home-start"
-                :disabled="!canSubmit || loading"
+                :disabled="!canSubmit || loading || launching"
                 @click="startSimulation"
               >
                 {{ loading ? $t('home.initializing') : $t('home.startEngine') }}
@@ -359,7 +359,7 @@ import ExampleTabs from '../components/ExampleTabs.vue'
 import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
-import { getPendingUpload, setPendingUpload, clearPendingUpload } from '../store/pendingUpload'
+import { getPendingUpload, setPendingUpload, clearPendingUpload, isLaunching } from '../store/pendingUpload'
 import BiankaScene from '../components/BiankaScene.vue'
 import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
@@ -594,13 +594,22 @@ const canSubmit = computed(() =>
   formData.value.simulationRequirement.trim() !== '' && docCount.value > 0
 )
 
+// Hay un envío en vuelo desde la pantalla del proceso (la persona volvió atrás mientras se analizaba el material)
+const launching = computed(() => isLaunching())
+// Cuando ese envío termina con la persona ya en la portada, el proyecto existe: se vacía el formulario (si no, un segundo
+// «Iniciar» crearía un duplicado) y se dice dónde está
+const launchedElsewhere = ref(false)
+
 const readyNote = computed(() => {
+  if (launching.value) return t('home.alreadyLaunching')
   const auto = runMode.value === 'auto'
   if (isAuth.value) return auto ? t('home.readyNoteAuto') : t('home.readyNote')
   return auto ? t('home.readyNoteAutoGuest') : t('home.readyNoteGuest')
 })
 
 const statusText = computed(() => {
+  if (launching.value) return t('home.alreadyLaunchingTitle')
+  if (launchedElsewhere.value) return t('home.launchedElsewhere')
   if (canSubmit.value) {
     return docCount.value === 1
       ? t('home.readyOne')
@@ -636,6 +645,19 @@ const handleDrop = (e) => {
 // Los archivos que no se pueden leer (un Word, un PowerPoint…) no se descartan en silencio: se avisa de cuáles y qué hacer.
 const pasteOpen = ref(false)
 const pasteText = ref('')
+
+// (después de `pasteOpen`: `canSubmit` depende de él y `watch` lo evalúa al registrarse)
+watch(launching, (now, before) => {
+  if (before && !now) {
+    files.value = []
+    formData.value.simulationRequirement = ''
+    formData.value.projectName = ''
+    pasteText.value = ''
+    pasteOpen.value = false
+    launchedElsewhere.value = true
+  }
+})
+watch(canSubmit, (can) => { if (can) launchedElsewhere.value = false })
 const pasteEl = ref(null)
 const openPaste = () => {
   pasteOpen.value = true
@@ -715,7 +737,7 @@ const goToLogin = (reason) => {
 
 // Pasa al asistente: la subida y la llamada a la API se hacen en Process.
 const startSimulation = () => {
-  if (!canSubmit.value || loading.value) return
+  if (!canSubmit.value || loading.value || launching.value) return
   if (hasPasted.value) addPasted()   // lo pegado y sin añadir se añade solo al lanzar
 
   if (!isAuth.value) return goToLogin('launch')

@@ -31,6 +31,7 @@ OASIS 双平台并行模拟预设脚本
 # ============================================================
 import sys
 import os
+import time
 
 if sys.platform == 'win32':
     # 设置 Python 默认 I/O 编码为 UTF-8
@@ -239,6 +240,7 @@ class ParallelIPCHandler:
         self.twitter_agent_graph = twitter_agent_graph
         self.reddit_env = reddit_env
         self.reddit_agent_graph = reddit_agent_graph
+        self.last_command_at = time.monotonic()      # para el tiempo máximo de espera sin órdenes
         
         self.commands_dir = os.path.join(simulation_dir, IPC_COMMANDS_DIR)
         self.responses_dir = os.path.join(simulation_dir, IPC_RESPONSES_DIR)
@@ -625,6 +627,7 @@ class ParallelIPCHandler:
         command = self.poll_command()
         if not command:
             return True
+        self.last_command_at = time.monotonic()
         
         command_id = command.get("command_id")
         command_type = command.get("command_type")
@@ -1668,11 +1671,24 @@ async def main():
         )
         ipc_handler.update_status("alive")
         
+        # Tiempo máximo sin órdenes: el entorno (BERT + agentes, ~1 GB) se quedaba vivo hasta que alguien lo
+        # cerrara y nadie lo hacía; con varias simulaciones acababa agotando la memoria del contenedor.
+        # Las entrevistas posteriores caen al modelo sin entorno. 0 = sin límite.
+        try:
+            idle_limit = float(os.environ.get('SIM_IDLE_TIMEOUT_SECONDS') or '1200')
+        except ValueError:                                  # un typo no debe tumbar el entorno ya levantado
+            idle_limit = 1200.0
+        if idle_limit > 0:
+            log_manager.info(f"El entorno se cerrará solo tras {idle_limit / 60:.0f} min sin entrevistas")
+
         # 等待命令循环（使用全局 _shutdown_event）
         try:
             while not _shutdown_event.is_set():
                 should_continue = await ipc_handler.process_commands()
                 if not should_continue:
+                    break
+                if idle_limit > 0 and time.monotonic() - ipc_handler.last_command_at > idle_limit:
+                    log_manager.info("Sin órdenes durante demasiado tiempo: se cierra el entorno")
                     break
                 # 使用 wait_for 替代 sleep，这样可以响应 shutdown_event
                 try:

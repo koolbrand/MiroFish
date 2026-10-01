@@ -1366,6 +1366,29 @@ class ReportAgent:
                 ]
             )
     
+    SECTION_ATTEMPTS = 3
+    SECTION_BACKOFF_SECONDS = (15, 45)       # espera antes del 2.º y del 3.er intento
+
+    def _generate_section_with_retries(self, **kwargs) -> str:
+        """Genera una sección reintentando ante fallos del proveedor (red, 429, 5xx, respuesta vacía)."""
+        last_error: Optional[Exception] = None
+        for attempt in range(self.SECTION_ATTEMPTS):
+            try:
+                return self._generate_section_react(**kwargs)
+            except FileNotFoundError:
+                raise                       # el informe se borró mientras se escribía: no hay nada que reintentar
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                title = getattr(kwargs.get('section'), 'title', '?')
+                if attempt + 1 >= self.SECTION_ATTEMPTS:
+                    break
+                wait = self.SECTION_BACKOFF_SECONDS[min(attempt, len(self.SECTION_BACKOFF_SECONDS) - 1)]
+                logger.warning(f"Fallo al escribir la sección «{title}» (intento {attempt + 1}/{self.SECTION_ATTEMPTS}): "
+                               f"{exc}. Se reintenta en {wait} s")
+                time.sleep(wait)
+        assert last_error is not None
+        raise last_error
+
     def _generate_section_react(
         self, 
         section: ReportSection,
@@ -1980,8 +2003,9 @@ class ReportAgent:
                         t('progress.generatingSection', title=section.title, current=section_num, total=total_sections)
                     )
                 
-                # 生成主章节内容
-                section_content = self._generate_section_react(
+                # 生成主章节内容 (con reintentos: un 503/429 pasajero del proveedor en la sección 4 tiraba el informe
+                # entero, con las tres primeras ya escritas y sin forma de continuar)
+                section_content = self._generate_section_with_retries(
                     section=section,
                     outline=outline,
                     previous_sections=generated_sections,

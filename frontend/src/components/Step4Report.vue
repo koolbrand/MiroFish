@@ -90,6 +90,19 @@
 
       <!-- RIGHT PANEL: Workflow Timeline -->
       <div class="right-panel" ref="rightPanel" data-tour="rep-workflow">
+        <!-- El informe falló o no existe: se dice, con el motivo, y se puede volver a generar -->
+        <div v-if="reportError" class="report-failed" role="alert">
+          <strong class="report-failed-title">{{ $t('step4.failedTitle') }}</strong>
+          <p class="report-failed-text">{{ reportError }}</p>
+          <button
+            v-if="simulationId"
+            type="button"
+            class="report-failed-btn"
+            :disabled="regenerating"
+            @click="regenerate"
+          >{{ regenerating ? $t('step4.regenerating') : $t('step4.regenerate') }}</button>
+          <p v-if="regenerateError" class="report-failed-text">{{ regenerateError }}</p>
+        </div>
         <div class="panel-header" :class="`panel-header--${activeStep.status}`" v-if="!isComplete">
           <span class="header-dot" v-if="activeStep.status === 'active'"></span>
           <span class="header-index mono">{{ activeStep.noLabel }}</span>
@@ -418,7 +431,7 @@ import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getAgentLog, getConsoleLog } from '../api/report'
+import { getAgentLog, getConsoleLog, getReport, generateReport } from '../api/report'
 import ReportDownloads from './ReportDownloads.vue'
 
 const router = useRouter()
@@ -469,6 +482,8 @@ const expandedLogs = ref(new Set())
 const collapsedSections = ref(new Set())
 const isComplete = ref(false)
 const reportError = ref(null)
+const regenerating = ref(false)
+const regenerateError = ref('')
 const startTime = ref(null)
 const leftPanel = ref(null)
 const rightPanel = ref(null)
@@ -2019,7 +2034,9 @@ const fetchAgentLog = async () => {
           }
 
           // report_failed - 后端生成报告时崩溃/异常，停止轮询避免无限转菊花
-          if (log.action === 'report_failed' || log.action === 'report_error') {
+          // El servidor escribe la acción `error` cuando la generación se cae; antes solo se reconocían
+          // `report_failed`/`report_error` (que nadie escribe) y la pantalla se quedaba en «Generando…» para siempre
+          if (log.action === 'report_failed' || log.action === 'report_error' || log.action === 'error') {
             currentSectionIndex.value = null
             reportError.value = log.details?.error || log.message || t('common.unknownError')
             emit('add-log', { level: 'error', message: t('step4.reportFailed', { error: reportError.value }) })
@@ -2046,8 +2063,57 @@ const fetchAgentLog = async () => {
         })
       }
     }
+    pollFailures = 0
   } catch (err) {
     console.warn('Failed to fetch agent log:', err)
+    pollFailures += 1
+    // Un informe borrado o ajeno responde 404: no se queda esperando para siempre
+    if (err?.response?.status === 404 && pollFailures >= 2) {
+      failReport(t('step4.reportNotFound'))
+    }
+  }
+  // Cada ~10 s se mira el estado del propio informe: un informe que quedó fallido (p. ej. por un reinicio del servidor)
+  // no escribe nada más en el registro y sin esto la pantalla no se enteraba
+  pollsSinceStatusCheck += 1
+  if (pollsSinceStatusCheck >= 5 && !isComplete.value && !reportError.value) {
+    pollsSinceStatusCheck = 0
+    checkReportStatus()
+  }
+}
+
+let pollFailures = 0
+let pollsSinceStatusCheck = 0
+
+const failReport = (message) => {
+  currentSectionIndex.value = null
+  reportError.value = String(message || t('common.unknownError')).slice(0, 400)
+  emit('add-log', { level: 'error', message: t('step4.reportFailed', { error: reportError.value }) })
+  emit('update-status', 'error')
+  stopPolling()
+}
+
+const checkReportStatus = async () => {
+  try {
+    const res = await getReport(props.reportId)
+    const report = res?.data
+    if (report?.status === 'failed') failReport(report.error)
+  } catch (err) {
+    if (err?.response?.status === 404) failReport(t('step4.reportNotFound'))
+  }
+}
+
+const regenerate = async () => {
+  if (regenerating.value || !props.simulationId) return
+  regenerating.value = true
+  regenerateError.value = ''
+  try {
+    const res = await generateReport({ simulation_id: props.simulationId, force_regenerate: true })
+    const newId = res?.data?.report_id
+    if (newId) router.push({ name: 'Report', params: { reportId: newId } })
+  } catch (err) {
+    regenerateError.value = err?.message || t('common.unknownError')
+  } finally {
+    regenerating.value = false
   }
 }
 
@@ -2126,6 +2192,7 @@ const startPolling = () => {
   
   fetchAgentLog()
   fetchConsoleLog()
+  checkReportStatus()       // ya al abrir: un informe fallido o inexistente no genera registro y no hay que esperar 10 s a saberlo
   
   agentLogTimer = setInterval(fetchAgentLog, 2000)
   consoleLogTimer = setInterval(fetchConsoleLog, 1500)
@@ -2167,6 +2234,10 @@ watch(() => props.reportId, (newId) => {
     expandedLogs.value = new Set()
     collapsedSections.value = new Set()
     isComplete.value = false
+    reportError.value = null
+    regenerateError.value = ''
+    pollFailures = 0
+    pollsSinceStatusCheck = 0
     startTime.value = null
     
     startPolling()
@@ -3864,4 +3935,29 @@ watch(() => props.reportId, (newId) => {
 html[lang="en"] .report-header-block .main-title {
   font-size: 28px;
 }
+
+/* El informe falló o no existe */
+.report-failed {
+  margin: 16px 20px 0;
+  padding: 14px 16px;
+  border: 2px solid var(--ink-950);
+  border-radius: 10px;
+  background: var(--kb-surface, #fff);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.12);
+}
+.report-failed-title { display: block; font: 700 0.98rem/1.3 var(--kb-font-sans); color: var(--ink-950); }
+.report-failed-text { margin: 6px 0 0; font: 400 0.88rem/1.5 var(--kb-font-sans); color: var(--kb-text-2); overflow-wrap: anywhere; }
+.report-failed-btn {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--lime-500, #cce673);
+  color: var(--ink-950);
+  font: 700 0.9rem/1 var(--kb-font-sans);
+  cursor: pointer;
+}
+.report-failed-btn:hover:not(:disabled) { background: var(--lime-600, #b8d45a); }
+.report-failed-btn:disabled { opacity: 0.6; cursor: wait; }
+.report-failed-btn:focus-visible { outline: 2px solid var(--ink-950); outline-offset: 2px; }
 </style>

@@ -105,3 +105,8 @@ body:not(.show-tech) .tech-only { display: none !important; }
   padding: 3px 8px; min-height: 24px; border-radius: 4px; cursor: pointer;
 }
 .log-toggle:hover { border-color: var(--kb-accent-solid); color: var(--kb-accent-solid); }
+
+/* El logotipo de la cabecera de las pantallas del proceso es un enlace a la portada (antes un <span> con clic: no se
+   alcanzaba con el teclado ni lo anunciaban los lectores de pantalla) */
+.brand-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; border-radius: 6px; }
+.brand-link:focus-visible { outline: 2px solid var(--ink-950, #111); outline-offset: 4px; }

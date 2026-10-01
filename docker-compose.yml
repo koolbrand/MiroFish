@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   neo4j:
     image: neo4j:5.26.2
@@ -17,6 +15,17 @@ services:
     # Heap is 1g max + ~512m for page cache and overhead → 2g is safe.
     mem_limit: 2g
     mem_reservation: 1g
+    # Con 10 s (lo de por defecto) un redespliegue puede cortar a Neo4j a mitad de un checkpoint
+    stop_grace_period: 60s
+    # Solo para que `docker ps`/Coolify enseñen si está sano. A propósito el servicio de la app NO espera a esto
+    # con `depends_on: service_healthy`: con Neo4j caído, un redespliegue dejaría fuera TAMBIÉN el inicio de
+    # sesión, los proyectos y los informes ya hechos, que no lo necesitan. Para eso está /health/ready.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   mirofish:
     build:
@@ -25,6 +34,11 @@ services:
     expose:
       - "8000"
     restart: unless-stopped
+    # PID 1 propio (tini): recoge procesos huérfanos (cada simulación es un proceso aparte) y reenvía SIGTERM
+    init: true
+    # Al apagar, la app termina las simulaciones vivas y vuelca la memoria del grafo (varios segundos). Con los 10 s
+    # de por defecto Docker la mataba a medias; lo que quede en «running» lo marca como fallido el arranque siguiente.
+    stop_grace_period: 60s
     depends_on:
       - neo4j
     environment:
@@ -59,7 +73,6 @@ services:
       - VISION_LLM_API_KEY=${VISION_LLM_API_KEY:-}
       - VISION_LLM_BASE_URL=${VISION_LLM_BASE_URL:-}
       - VISION_LLM_MODEL_NAME=${VISION_LLM_MODEL_NAME:-}
-      - FLASK_PORT=8000
     volumes:
       - mirofish_uploads:/app/backend/uploads
       - mirofish_logs:/app/backend/logs

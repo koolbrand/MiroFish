@@ -4,6 +4,8 @@ Simuloo Backend - Flask应用工厂
 
 import json
 import os
+import re
+import uuid
 import warnings
 
 # 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
@@ -18,6 +20,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
+from .utils.locale import t
 from .utils.security import identify_bearer, is_valid_storage_id, is_internal_request
 from .utils.access import ADMIN, INTERNAL, user_identity, authorize_request
 
@@ -190,23 +193,46 @@ def create_app(config_class=Config):
         'authorization', 'key'
     }
 
-    def _sanitize_body(body: dict) -> dict:
-        """Redacta campos sensibles antes de loguear el cuerpo de la petición."""
+    _ID_VALUE = re.compile(r'^(proj|sim|report|task)_[0-9a-f-]{6,64}$')
+
+    def _describe_body(body) -> dict:
+        """
+        Forma del cuerpo de la petición para el log: claves, tipos y tamaños; los ids sí, el resto NO.
+        Antes se volcaba el cuerpo entero (briefs, mensajes de chat, prompts) al archivo de log, y sin autenticar.
+        """
         if not isinstance(body, dict):
-            return body
-        return {
-            k: '***' if k.lower() in _SENSITIVE_KEYS else v
-            for k, v in body.items()
-        }
+            return {"tipo": type(body).__name__}
+        out = {}
+        for key, value in body.items():
+            if key.lower() in _SENSITIVE_KEYS:
+                out[key] = '***'
+            elif isinstance(value, str) and _ID_VALUE.match(value):
+                out[key] = value
+            elif isinstance(value, (str, list, dict)):
+                out[key] = f"{type(value).__name__}[{len(value)}]"
+            else:
+                out[key] = value if isinstance(value, (bool, int, float)) or value is None else type(value).__name__
+        return out
+
+    _INTERNAL_PATTERNS = (
+        re.compile(r'(/[\w.\-]+){2,}'),                  # rutas y URLs: /app/backend/app/x.py, https://api.…/v1
+        re.compile(r'\b[\w.\-]+:\d{2,5}\b'),             # host:puerto (neo4j:7687)
+        re.compile(r'Traceback|File "|\bline \d+\b'),     # trazas de Python
+    )
+
+    def _looks_internal(message: str) -> bool:
+        return any(p.search(message) for p in _INTERNAL_PATTERNS)
+
+    # Rutas que reciben archivos: son las únicas con el tope de 50 MB; el resto, MAX_BODY_BYTES (1 MB)
+    UPLOAD_PATHS = {'/api/graph/ontology/generate', '/api/pipeline/auto', '/api/brief/check'}
 
     @app.before_request
     def log_and_gate_request():
         req_logger = get_logger('mirofish.request')
+        # Antes de leer NADA del cuerpo: el tope depende de la ruta
+        if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            request.max_content_length = Config.MAX_CONTENT_LENGTH if request.path in UPLOAD_PATHS else Config.MAX_BODY_BYTES
         req_logger.debug(f"Petición: {request.method} {request.path}")
-        if request.content_type and 'json' in request.content_type:
-            body = request.get_json(silent=True)
-            if body:
-                req_logger.debug(f"Cuerpo de la petición: {_sanitize_body(body)}")
 
         if not (
             request.path.startswith('/api/')
@@ -233,6 +259,12 @@ def create_app(config_class=Config):
             kind, user_id = who
             g.identity = user_identity(user_id) if kind == 'user' else ADMIN
 
+        # Ya autenticado: ahora sí, la forma del cuerpo (nunca los valores) en el log
+        if request.content_type and 'json' in request.content_type:
+            body = request.get_json(silent=True)
+            if body:
+                req_logger.debug(f"Cuerpo de la petición: {_describe_body(body)}")
+
         # Lo que la petición nombra (proyecto, simulación, informe, grafo, tarea) debe poder verlo su identidad
         return authorize_request()
 
@@ -240,7 +272,43 @@ def create_app(config_class=Config):
     def log_response(response):
         req_logger = get_logger('mirofish.request')
         req_logger.debug(f"Respuesta: {response.status_code}")
+
+        # Cabeceras de seguridad básicas (sin CSP: la app usa estilos en línea y fuentes de Google)
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        if request.path.startswith('/api/'):
+            response.headers.setdefault('Cache-Control', 'no-store')       # datos de cada usuario: nada en cachés compartidas
+
+        # Un 500 no cuenta al cliente cómo es el servidor por dentro (`Cannot resolve address neo4j:7687`, rutas,
+        # trazas). Los mensajes pensados para la persona («El modelo no respondió») se respetan; los que parecen
+        # internos se cambian por uno general con una referencia, y el original queda en el log con esa referencia.
+        if response.status_code == 500 and response.is_json and not Config.DEBUG:
+            try:
+                data = response.get_json(silent=True)
+                if isinstance(data, dict) and 'error' in data:
+                    data.pop('traceback', None)
+                    if _looks_internal(str(data.get('error'))):
+                        ref = uuid.uuid4().hex[:8]
+                        req_logger.error(f"500 en {request.method} {request.path} [ref {ref}]: {str(data.get('error'))[:500]}")
+                        data['error'] = f"{t('api.internalError')} (ref {ref})"
+                    response.set_data(json.dumps(data, ensure_ascii=False))
+            except Exception:  # noqa: BLE001 — esto nunca debe romper la respuesta
+                pass
         return response
+
+    @app.errorhandler(413)
+    def handle_too_large(error):
+        return {"success": False, "error": t('api.payloadTooLarge')}, 413
+
+    # Una ruta /api/* que no existe responde JSON siempre. Antes solo lo hacía la ruta comodín del frontend, que
+    # existe únicamente si hay `frontend/dist`: sin esa carpeta (desarrollo solo con la API, CI) devolvía el 404 HTML
+    # de Flask y el cliente no podía leer el error.
+    @app.errorhandler(404)
+    def handle_not_found(error):
+        if request.path == '/api' or request.path.startswith('/api/'):
+            return {"success": False, "error": "Not found"}, 404
+        return error
 
     # IDs de almacenamiento en la URL: se validan antes de entrar en la ruta,
     # así un ID manipulado da 400 y no un 500 desde el try/except de cada vista.
@@ -289,6 +357,15 @@ def create_app(config_class=Config):
     @app.route('/api/health')
     def health():
         return {'status': 'ok', 'service': 'Simuloo Backend'}
+
+    # «Listo para trabajar»: además de que Flask responda, Neo4j contesta y el disco de datos se puede escribir.
+    # Aparte de /health a propósito: si Coolify reiniciara el contenedor cada vez que Neo4j tarda en arrancar,
+    # el remedio sería peor que el fallo. Esta es para un monitor externo; /health sigue siendo la del contenedor.
+    @app.route('/health/ready')
+    def health_ready():
+        from .utils.health import readiness
+        ready, checks = readiness()
+        return {'status': 'ok' if ready else 'degraded', 'checks': checks}, (200 if ready else 503)
 
     # Servir el frontend compilado en producción
     frontend_dist = os.path.join(os.path.dirname(__file__), '../../frontend/dist')

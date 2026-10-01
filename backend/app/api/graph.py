@@ -313,6 +313,7 @@ def delete_project(project_id: str):
                 run_state = SimulationRunner.get_run_state(sid)
                 if run_state and run_state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
                     SimulationRunner.stop_simulation(sid)
+                SimulationRunner.terminate_if_alive(sid, finished=True)      # también la ya terminada que espera entrevistas
             except Exception as stop_err:
                 logger.warning(f"Fallo al detener la simulación en cascada: {sid}: {stop_err}")
             for rep in ReportManager.list_reports(simulation_id=sid):
@@ -434,6 +435,14 @@ def read_ontology_form(form, files):
     if not uploaded_files or all(not f.filename for f in uploaded_files):
         raise OntologyUploadError(t('api.requireFileUpload'))
 
+    # Topes por petición: 990 imágenes de 75 bytes eran 990 llamadas al modelo de visión en una sola petición
+    named = [f for f in uploaded_files if f and f.filename]
+    if len(named) > Config.MAX_UPLOAD_FILES:
+        raise OntologyUploadError(t('api.tooManyFiles', max=Config.MAX_UPLOAD_FILES), 413)
+    images = [f for f in named if os.path.splitext(f.filename)[1].lower() in FileParser.IMAGE_EXTENSIONS]
+    if len(images) > Config.MAX_UPLOAD_IMAGES:
+        raise OntologyUploadError(t('api.tooManyImages', max=Config.MAX_UPLOAD_IMAGES), 413)
+
     return simulation_requirement, project_name, additional_context, uploaded_files
 
 
@@ -492,10 +501,18 @@ def create_project_from_upload(simulation_requirement: str, project_name: str, u
             })
 
             # 提取文本
-            text = FileParser.extract_text(file_info["path"])
+            try:
+                text = FileParser.extract_text(file_info["path"])
+            except ValueError as exc:
+                # El parser rechaza el archivo por una razón que la persona puede entender (imagen enorme...): 400
+                raise OntologyUploadError(str(exc), 400)
             text = TextProcessor.preprocess_text(text)
             document_texts.append(text)
             all_text += f"\n\n=== {file_info['original_filename']} ===\n{text}"
+            if len(all_text) > Config.MAX_TOTAL_TEXT_CHARS:
+                # El grafo gasta un episodio (varias llamadas al modelo) por cada ~500 caracteres: 50 MB de texto
+                # eran unos 130.000 episodios desde una sola petición
+                raise OntologyUploadError(t('api.textTooLong', max=f"{Config.MAX_TOTAL_TEXT_CHARS:,}".replace(",", ".")), 413)
 
         if not document_texts:
             raise OntologyUploadError(t('api.noDocProcessed'))

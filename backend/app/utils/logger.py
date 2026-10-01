@@ -23,6 +23,9 @@ def _ensure_utf8_stdout():
             sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 
+# Logger principal: del que cuelgan todos los de la aplicación (`mirofish.*`)
+ROOT_LOGGER = 'mirofish'
+
 # 日志目录
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
 
@@ -33,7 +36,7 @@ def _cleanup_old_logs(max_days: int = 30) -> None:
         return
     cutoff = datetime.now() - timedelta(days=max_days)
     for fname in os.listdir(LOG_DIR):
-        if not fname.endswith('.log'):
+        if not (fname.endswith('.log') or '.log.' in fname):       # también los rotados (.log.1 … .log.5, 10 MB cada uno)
             continue
         fpath = os.path.join(LOG_DIR, fname)
         try:
@@ -55,6 +58,17 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     Returns:
         配置好的日志器
     """
+    # Los módulos (`mirofish.simulation`, `mirofish.fs`...) NO abren manejadores propios: cada uno abría un
+    # RotatingFileHandler sobre el MISMO archivo (26 a la vez) y, al rotar, se pisaban entre ellos y se perdían
+    # líneas. Escriben en el logger principal, que tiene el único manejador de archivo y el de consola.
+    if name.startswith(ROOT_LOGGER + '.'):
+        if not logging.getLogger(ROOT_LOGGER).handlers:
+            setup_logger(ROOT_LOGGER)
+        child = logging.getLogger(name)
+        child.setLevel(level)
+        child.propagate = True
+        return child
+
     # 确保日志目录存在
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -65,7 +79,7 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     # 创建日志器
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    
+
     # 阻止日志向上传播到根 logger，避免重复输出
     logger.propagate = False
     

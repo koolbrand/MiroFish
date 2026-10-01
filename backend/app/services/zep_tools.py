@@ -1392,9 +1392,9 @@ Devuelve la lista de subpreguntas en formato JSON."""
                         timeout=180.0   # 双平台需要更长超时
                     )
                     logger.info(t("console.interviewApiReturned", count=api_result.get('interviews_count', 0), success=api_result.get('success')))
-                except ValueError as batch_err:
-                    # Entorno muerto durante el batch — caer al fallback LLM.
-                    logger.warning(f"interview_agents_batch ValueError ({batch_err}); cayendo al fallback LLM")
+                except (ValueError, TimeoutError) as batch_err:
+                    # Entorno muerto durante el batch (o sin respuesta tras el plazo) — caer al fallback LLM.
+                    logger.warning(f"interview_agents_batch {type(batch_err).__name__} ({batch_err}); cayendo al fallback LLM")
                     api_result = {"success": False, "error": str(batch_err)}
             else:
                 logger.warning("Entorno OASIS no está vivo — usando fallback LLM directamente")
