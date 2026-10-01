@@ -276,6 +276,8 @@ const handleNewProject = async () => {
     }
 
     if (pending.webResearch) formData.append('web_research', 'true')
+    // Rondas de la simulación: solo el automático las fija desde la portada (el manual las elige en el paso 2)
+    if (pending.mode === 'auto') formData.append('max_rounds', String(pending.rounds))
 
     // Automático: el servidor lee el material y sigue solo hasta el informe; esta pantalla solo observa
     if (pending.mode === 'auto') {

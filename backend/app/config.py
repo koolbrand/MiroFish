@@ -170,6 +170,10 @@ class Config:
     
     # OASIS模拟配置
     OASIS_DEFAULT_MAX_ROUNDS = int(os.environ.get('OASIS_DEFAULT_MAX_ROUNDS', '10'))
+    # Rondas por simulación: el servidor nunca arranca más (la configuración automática puede
+    # proponer hasta 336 y cada ronda cuesta memoria y dinero de LLM). Mínimo = el de la pantalla.
+    SIMULATION_MIN_ROUNDS = 10
+    SIMULATION_MAX_ROUNDS = int(os.environ.get('SIMULATION_MAX_ROUNDS', '100'))
     OASIS_SIMULATION_DATA_DIR = os.path.join(os.path.dirname(__file__), '../uploads/simulations')
     
     # OASIS平台可用动作配置
