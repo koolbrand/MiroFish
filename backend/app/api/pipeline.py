@@ -25,6 +25,7 @@ from ..config import Config
 from ..models.project import ProjectManager
 from ..services.auto_pipeline import (
     PipelineConflict,
+    active_pipeline_counts,
     cancel_pipeline,
     get_pipeline_state,
     start_pipeline,
@@ -50,6 +51,18 @@ def _internal_error(exc: Exception):
         "error": str(exc),
         **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
     }), 500
+
+
+def _pipeline_limit_error():
+    """Mensaje si ya hay demasiados pipelines vivos (globales o de este usuario); None si cabe otro."""
+    from ..utils.access import current_owner_id
+    owner = current_owner_id()
+    total, mine = active_pipeline_counts(owner)
+    if total >= Config.MAX_ACTIVE_PIPELINES:
+        return t('api.tooManyPipelines')
+    if owner and mine >= Config.MAX_ACTIVE_PIPELINES_PER_USER:
+        return t('api.tooManyPipelinesYours', max=Config.MAX_ACTIVE_PIPELINES_PER_USER)
+    return None
 
 
 def _read_max_rounds(form):
@@ -87,6 +100,12 @@ def start_auto_pipeline():
     max_rounds, rounds_error = _read_max_rounds(request.form)
     if rounds_error:
         return jsonify({"success": False, "error": rounds_error}), 400
+
+    # Cada pipeline son horas de modelo y una simulación de ~1 GB: sin tope, una sola persona (o un script con
+    # 30 peticiones por minuto) podía lanzar decenas y reventar el contenedor de todos
+    too_many = _pipeline_limit_error()
+    if too_many:
+        return jsonify({"success": False, "error": too_many}), 429
 
     try:
         simulation_requirement, project_name, additional_context, uploaded_files = \
@@ -160,6 +179,9 @@ def resume_auto_pipeline(project_id: str):
     """
     if not ProjectManager.get_project(project_id):
         return _project_not_found(project_id)
+    too_many = _pipeline_limit_error()
+    if too_many:
+        return jsonify({"success": False, "error": too_many}), 429
     try:
         state = start_pipeline(current_app._get_current_object(), project_id, locale=get_locale())
     except PipelineConflict:

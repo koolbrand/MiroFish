@@ -269,6 +269,19 @@ def _is_run_alive(project_id: str, run_id: Optional[str]) -> bool:
         return bool(runner and run_id and runner.run_id == run_id)
 
 
+def active_pipeline_counts(owner_id: Optional[str]) -> Tuple[int, int]:
+    """(pipelines vivos en total, pipelines vivos de ese dueño). Sin dueño (admin) el segundo es 0."""
+    with _ACTIVE_LOCK:
+        project_ids = list(_ACTIVE_RUNS)
+    mine = 0
+    if owner_id:
+        for project_id in project_ids:
+            project = ProjectManager.get_project(project_id)
+            if project is not None and project.owner_id == owner_id:
+                mine += 1
+    return len(project_ids), mine
+
+
 def active_runner(project_id: str) -> Optional["AutoPipelineRunner"]:
     with _ACTIVE_LOCK:
         return _ACTIVE_RUNS.get(project_id)

@@ -649,6 +649,20 @@ def delete_report(report_id: str):
 
 # ============== Report Agent对话接口 ==============
 
+def sanitize_chat_history(history) -> list:
+    """Historial de chat seguro para enviar al modelo: solo `user`/`assistant`, texto acotado, últimos turnos."""
+    if not isinstance(history, list):
+        return []
+    clean = []
+    for turn in history:
+        if not isinstance(turn, dict) or turn.get('role') not in ('user', 'assistant'):
+            continue
+        content = turn.get('content')
+        if isinstance(content, str) and content.strip():
+            clean.append({"role": turn['role'], "content": content[:Config.MAX_CHAT_MESSAGE_CHARS]})
+    return clean[-Config.MAX_CHAT_HISTORY_TURNS:]
+
+
 @report_bp.route('/chat', methods=['POST'])
 def chat_with_report_agent():
     """
@@ -689,11 +703,15 @@ def chat_with_report_agent():
                 "error": t('api.requireSimulationId')
             }), 400
 
-        if not message:
+        if not message or not isinstance(message, str):
             return jsonify({
                 "success": False,
                 "error": t('api.requireMessage')
             }), 400
+        message = message[:Config.MAX_CHAT_MESSAGE_CHARS]
+        # El historial lo manda el cliente y entra tal cual al modelo: solo roles de conversación (sin `system`),
+        # texto acotado y los últimos turnos
+        chat_history = sanitize_chat_history(chat_history)
         
         # 获取模拟和项目信息
         manager = SimulationManager()

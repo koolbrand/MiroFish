@@ -366,6 +366,15 @@ class ZepEntityReader:
             EntityNode或None
         """
         try:
+            # El nodo debe ser DE ESTE grafo: el uuid solo se busca en toda la base y el control de acceso mira el
+            # graph_id de la ruta, no este uuid
+            in_graph = getattr(self.client.graph.node, 'in_graph', None)
+            if in_graph is not None and not self._call_with_retry(
+                func=lambda: in_graph(entity_uuid, graph_id),
+                operation_name=f"comprobar que el nodo {entity_uuid[:8]}... es del grafo"
+            ):
+                return None
+
             # 使用重试机制获取节点
             node = self._call_with_retry(
                 func=lambda: self.client.graph.node.get(uuid_=entity_uuid),

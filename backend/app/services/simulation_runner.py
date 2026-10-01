@@ -324,6 +324,17 @@ class SimulationRunner:
         
         cls._run_states[state.simulation_id] = state
     
+    # Secretos del servidor que el script de simulación NO usa (solo necesita las claves del modelo): no se le pasan.
+    # Así un fallo en un script o una librería de terceros no puede filtrar la clave de administrador ni la de Neo4j.
+    _SERVER_ONLY_SECRETS = ('API_AUTH_TOKEN', 'SECRET_KEY', 'NEO4J_PASSWORD', 'NEO4J_AUTH')
+
+    @classmethod
+    def _subprocess_env(cls) -> Dict[str, str]:
+        env = os.environ.copy()
+        for name in cls._SERVER_ONLY_SECRETS:
+            env.pop(name, None)
+        return env
+
     @classmethod
     def _start_lock(cls, simulation_id: str) -> threading.Lock:
         with cls._start_locks_guard:
@@ -560,7 +571,7 @@ class SimulationRunner:
             
             # 设置子进程环境变量，确保 Windows 上使用 UTF-8 编码
             # 这可以修复第三方库（如 OASIS）读取文件时未指定编码的问题
-            env = os.environ.copy()
+            env = cls._subprocess_env()
             env['PYTHONUTF8'] = '1'  # Python 3.7+ 支持，让所有 open() 默认使用 UTF-8
             env['PYTHONIOENCODING'] = 'utf-8'  # 确保 stdout/stderr 使用 UTF-8
             

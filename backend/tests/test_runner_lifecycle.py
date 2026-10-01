@@ -271,3 +271,13 @@ def test_interview_responses_are_removed_even_if_the_command_file_is_already_gon
     thread.join()
     assert response.status.value == "completed"
     assert list((tmp_path / "ipc_responses").glob("*.json")) == []        # antes se quedaba ahí para siempre
+
+
+def test_the_simulation_process_does_not_inherit_the_servers_own_secrets(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "clave-de-administrador")
+    monkeypatch.setenv("NEO4J_PASSWORD", "clave-de-neo4j")
+    monkeypatch.setenv("SECRET_KEY", "clave-flask")
+    monkeypatch.setenv("LLM_API_KEY", "clave-del-modelo")
+    env = SimulationRunner._subprocess_env()
+    assert not {"API_AUTH_TOKEN", "NEO4J_PASSWORD", "SECRET_KEY"} & set(env)
+    assert env["LLM_API_KEY"] == "clave-del-modelo"                      # lo que el script sí necesita

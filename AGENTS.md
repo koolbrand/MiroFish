@@ -225,6 +225,17 @@ Auditoría del 1-oct-2026 (cinco revisores en paralelo; cada hallazgo se reprodu
 - `TaskManager` se limpia solo (cada 30 min al crear tareas) y también los registros rotados `.log.N`.
 - **No resuelto (propuesto)**: una caída del proveedor durante la simulación produce rondas sin acciones y la simulación «completa» (OASIS captura el error de cada agente); `plan_outline` cae a un índice genérico sin avisar; no hay reanudación de un informe a medias.
 
+### Al tocar la superficie HTTP (`app/__init__.py`, rutas de `api/`)
+
+- **Topes de cuerpo por ruta**: `MAX_BODY_BYTES` (1 MB) para todo; solo `UPLOAD_PATHS` (`/api/graph/ontology/generate`, `/api/pipeline/auto`, `/api/brief/check`) admiten 50 MB. Se fija en el `before_request` **antes de leer nada**. Con 50 MB para todo, 20 POST anónimos de 42 MB agotaban los 4 GB del contenedor.
+- **Primero se autentica, luego se mira el cuerpo**: antes se parseaba y volcaba al log (DEBUG) el cuerpo JSON de cualquier POST, también anónimo y a rutas inexistentes. Ahora el log solo lleva la **forma** (`message: str[120]`) y los ids, nunca el contenido (briefs, chats y prompts quedaban en `backend/logs`).
+- **Errores 500**: el cliente no recibe rutas, hosts ni trazas. `_looks_internal` detecta mensajes con rutas/URLs, `host:puerto` o trazas y los sustituye por «Ha ocurrido un error en el servidor (ref xxxx)» (el original queda en el log con la misma ref); los mensajes pensados para la persona («El LLM no respondió») se respetan. La tarea de construcción del grafo ya no guarda el traceback. Cabeceras `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy` y `Cache-Control: no-store` en `/api/*` (sin CSP: la app usa estilos en línea y fuentes de Google).
+- **`API_AUTH_REQUIRED` es estricto** (`env_flag_on_by_default`): solo `false/0/no/off` lo apagan. Con `== 'true'`, un `1`, `yes` o ` true` dejaba la API **abierta** (todos admin) sin avisar.
+- **Topes de coste de UNA petición** (el límite de tasa cuenta peticiones, no llamadas al modelo): ≤10 archivos, ≤3 imágenes (cada una es una llamada al modelo de visión), ≤1.000.000 caracteres de texto en total (el grafo gasta un episodio por ~500), imágenes ≤25 Mpx (una «bomba» de 140 KB declaraba 12.000 × 12.000), ≤20 entrevistas de ≤2.000 caracteres, plazos de las órdenes al entorno de 5–120 s, ≤8 perfiles en paralelo, mensaje y historial del chat acotados y **sin rol `system`** (el cliente mandaba el historial tal cual al modelo), y como mucho 3 pipelines automáticos vivos (2 por persona) → 429.
+- Un nodo solo se lee desde SU grafo (`GraphitiNodeClient.in_graph`): `get_entity_with_context` buscaba el uuid en toda la base y el control de acceso solo mira el `graph_id` de la ruta.
+- El proceso de simulación no hereda `API_AUTH_TOKEN`, `SECRET_KEY` ni `NEO4J_PASSWORD` (solo necesita las claves del modelo).
+- Sin resolver (propuesto): límite de tasa por usuario y no solo por IP; cuota de disco por persona; servidor de producción (hoy `app.run(threaded=True)` de Werkzeug; el estado vive en memoria, así que tendría que seguir siendo un solo proceso: waitress/gunicorn `gthread` con 1 worker).
+
 ### Al tocar el grafo (`graphRender.js`)
 
 - **Orden de capas**: aristas → nodos → capa viva (`_flow`, `_bloom`, `_sweepFx`, `_pulses`, `_flashFx`) → etiquetas → anillos de selección. Lo que se mueva siempre va en la capa viva (dos `drawImage` + trazos baratos); nada animado dentro de las capas en caché, que se repintan enteras.
