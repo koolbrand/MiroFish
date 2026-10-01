@@ -1139,6 +1139,7 @@
     "tooManyImages": "Se pueden subir como máximo {max} imágenes a la vez",
     "textTooLong": "El material es demasiado largo (máximo {max} caracteres en total). Sube solo lo esencial.",
     "imageTooLarge": "La imagen es demasiado grande",
+    "imageUnreadable": "No se pudo leer la imagen: puede estar dañada o no ser un PNG, JPG, WEBP o GIF",
     "tooManyInterviews": "Se pueden hacer como máximo {max} entrevistas por petición",
     "interviewPromptTooLong": "Cada pregunta puede tener como máximo {max} caracteres",
     "simConfigMissing": "No se encontró la configuración de simulación. Llama primero al endpoint /prepare.",

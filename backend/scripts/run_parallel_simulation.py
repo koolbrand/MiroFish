@@ -1674,7 +1674,10 @@ async def main():
         # Tiempo máximo sin órdenes: el entorno (BERT + agentes, ~1 GB) se quedaba vivo hasta que alguien lo
         # cerrara y nadie lo hacía; con varias simulaciones acababa agotando la memoria del contenedor.
         # Las entrevistas posteriores caen al modelo sin entorno. 0 = sin límite.
-        idle_limit = float(os.environ.get('SIM_IDLE_TIMEOUT_SECONDS', '1200'))
+        try:
+            idle_limit = float(os.environ.get('SIM_IDLE_TIMEOUT_SECONDS') or '1200')
+        except ValueError:                                  # un typo no debe tumbar el entorno ya levantado
+            idle_limit = 1200.0
         if idle_limit > 0:
             log_manager.info(f"El entorno se cerrará solo tras {idle_limit / 60:.0f} min sin entrevistas")
 

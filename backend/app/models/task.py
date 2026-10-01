@@ -116,7 +116,10 @@ class TaskManager:
     def _maybe_cleanup(self) -> None:
         import time
         now = time.monotonic()
-        if now - getattr(self, '_last_cleanup', 0.0) < self.CLEANUP_EVERY_SECONDS:
+        last = getattr(self, '_last_cleanup', None)
+        # `None` = todavía no se ha limpiado nunca. Con 0.0, en una máquina recién arrancada (monotonic() < 1800 s: un
+        # runner de CI, un contenedor tras reiniciar el host) la primera limpieza se saltaba hasta pasada media hora.
+        if last is not None and now - last < self.CLEANUP_EVERY_SECONDS:
             return
         self._last_cleanup = now
         try:

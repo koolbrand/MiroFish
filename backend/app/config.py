@@ -5,6 +5,9 @@
 
 import os
 import secrets
+import sys
+from typing import Optional
+
 from dotenv import load_dotenv
 
 # 加载项目根目录的 .env 文件
@@ -19,6 +22,79 @@ else:
     load_dotenv(override=False)
 
 
+# ---- Lectura tolerante de variables de entorno ----
+# `int(os.environ.get('X', '60'))` tumba la app ENTERA al importar si X vale '' (Coolify/compose pasan vacías las
+# que no tienen valor) o '30s' (un typo): el contenedor entra en bucle de reinicios sin llegar a servir nada. Aquí
+# lo vacío cuenta como «sin definir» y lo inválido o fuera de rango se avisa por stderr y se usa el valor por defecto.
+
+def _warn(name: str, raw: str, default, why: str) -> None:
+    sys.stderr.write(f"[config] {name}={raw!r} {why}; se usa el valor por defecto ({default})\n")
+
+
+def _env_raw(name: str):
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    return raw.strip()
+
+
+def env_str(name: str, default: str) -> str:
+    """Texto; vacío = el valor por defecto (compose pasa `VAR=` vacía cuando no se ha definido)."""
+    raw = _env_raw(name)
+    return default if raw is None else raw
+
+
+def env_int(name: str, default: int, minimum: Optional[int] = None, maximum: Optional[int] = None) -> int:
+    raw = _env_raw(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        _warn(name, raw, default, "no es un número entero")
+        return default
+    if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+        _warn(name, raw, default, "está fuera de rango")
+        return default
+    return value
+
+
+def env_float(name: str, default: float, minimum: Optional[float] = None, maximum: Optional[float] = None) -> float:
+    raw = _env_raw(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        _warn(name, raw, default, "no es un número")
+        return default
+    if value != value or value in (float('inf'), float('-inf')):          # NaN / infinito
+        _warn(name, raw, default, "no es un número finito")
+        return default
+    if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+        _warn(name, raw, default, "está fuera de rango")
+        return default
+    return value
+
+
+_TRUE = ('true', '1', 'yes', 'on')
+_FALSE = ('false', '0', 'no', 'off')
+
+
+def env_bool(name: str, default: bool) -> bool:
+    """Interruptor: acepta true/1/yes/on y false/0/no/off; vacío o raro = el valor por defecto."""
+    raw = _env_raw(name)
+    if raw is None:
+        return default
+    low = raw.lower()
+    if low in _TRUE:
+        return True
+    if low in _FALSE:
+        return False
+    _warn(name, raw, default, "no es un interruptor (true/false)")
+    return default
+
+
 def env_flag_on_by_default(name: str) -> bool:
     """
     Interruptor que está ENCENDIDO salvo que se apague de forma explícita (`false`, `0`, `no`, `off`).
@@ -31,7 +107,7 @@ class Config:
     """Flask配置类"""
     
     # Flask配置
-    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    DEBUG = env_bool('FLASK_DEBUG', False)
     SECRET_KEY = os.environ.get('SECRET_KEY') or (secrets.token_urlsafe(32) if DEBUG else None)
     # Estricto: con `== 'true'`, valores como `1`, `yes`, `on` o ` true` dejaban la API ABIERTA (todos admin) sin avisar.
     # Solo se desactiva con un valor explícito de «apagado».
@@ -44,10 +120,10 @@ class Config:
         'VITE_POCKETBASE_URL',
         'https://pocketbase.koolgrowth.com'
     )
-    API_READ_RATE_LIMIT = os.environ.get('API_READ_RATE_LIMIT', '600 per minute')
-    API_WRITE_RATE_LIMIT = os.environ.get('API_WRITE_RATE_LIMIT', '30 per minute')
+    API_READ_RATE_LIMIT = env_str('API_READ_RATE_LIMIT', '600 per minute')
+    API_WRITE_RATE_LIMIT = env_str('API_WRITE_RATE_LIMIT', '30 per minute')
     # Nº de proxies inversos delante (Coolify/Traefik = 1). 0 si se expone directo.
-    TRUSTED_PROXIES = int(os.environ.get('TRUSTED_PROXIES', '1'))
+    TRUSTED_PROXIES = env_int('TRUSTED_PROXIES', 1, minimum=0)
     CORS_ORIGINS = [
         origin.strip()
         for origin in os.environ.get(
@@ -65,25 +141,25 @@ class Config:
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
     # Tope de max_tokens al reintentar respuestas cortadas (modelos de razonamiento)
-    LLM_MAX_TOKENS_CAP = int(os.environ.get('LLM_MAX_TOKENS_CAP', '32768'))
+    LLM_MAX_TOKENS_CAP = env_int('LLM_MAX_TOKENS_CAP', 32768, minimum=256)
     # Plazo por llamada al modelo y reintentos del SDK. Sin plazo propio valían 600 s × 3 intentos = 30 min por
     # llamada, y un proveedor colgado dejaba un informe de 20 minutos esperando media hora en una sola sección.
-    LLM_TIMEOUT_SECONDS = float(os.environ.get('LLM_TIMEOUT_SECONDS', '240'))
-    LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '2'))
+    LLM_TIMEOUT_SECONDS = env_float('LLM_TIMEOUT_SECONDS', 240.0, minimum=5)
+    LLM_MAX_RETRIES = env_int('LLM_MAX_RETRIES', 2, minimum=0, maximum=10)
     # Construcción del grafo: tope por llamada al LLM/embeddings y por fragmento
-    GRAPH_LLM_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_LLM_TIMEOUT_SECONDS', '180'))
-    GRAPH_EPISODE_TIMEOUT_SECONDS = float(os.environ.get('GRAPH_EPISODE_TIMEOUT_SECONDS', '900'))
+    GRAPH_LLM_TIMEOUT_SECONDS = env_float('GRAPH_LLM_TIMEOUT_SECONDS', 180.0, minimum=5)
+    GRAPH_EPISODE_TIMEOUT_SECONDS = env_float('GRAPH_EPISODE_TIMEOUT_SECONDS', 900.0, minimum=5)
     # Jev (TypeSafe): filtro de entidades antes de crear agentes
     TYPESAFE_API_KEY = os.environ.get('TYPESAFE_API_KEY')
-    TYPESAFE_API_URL = os.environ.get('TYPESAFE_API_URL', 'https://api.typesafe.ai/v1/systemone')
-    JEV_MODEL = os.environ.get('JEV_MODEL', 'jev-latest')
-    JEV_ENTITY_FILTER = os.environ.get('JEV_ENTITY_FILTER', 'true').lower() == 'true'
-    JEV_DROP_CONFIDENCE = float(os.environ.get('JEV_DROP_CONFIDENCE', '0.8'))
-    JEV_MIN_AUDIENCE_RATIO = float(os.environ.get('JEV_MIN_AUDIENCE_RATIO', '0.4'))
+    TYPESAFE_API_URL = env_str('TYPESAFE_API_URL', 'https://api.typesafe.ai/v1/systemone')
+    JEV_MODEL = env_str('JEV_MODEL', 'jev-latest')
+    JEV_ENTITY_FILTER = env_bool('JEV_ENTITY_FILTER', True)
+    JEV_DROP_CONFIDENCE = env_float('JEV_DROP_CONFIDENCE', 0.8, minimum=0, maximum=1)
+    JEV_MIN_AUDIENCE_RATIO = env_float('JEV_MIN_AUDIENCE_RATIO', 0.4, minimum=0, maximum=1)
     # Ampliar la audiencia (desdoblar grupos en personas) si queda por debajo del mínimo
-    AUDIENCE_EXPANSION = os.environ.get('AUDIENCE_EXPANSION', 'true').lower() == 'true'
-    AUDIENCE_MAX_EXTRA = int(os.environ.get('AUDIENCE_MAX_EXTRA', '20'))
-    AUDIENCE_MAX_VARIANTS = int(os.environ.get('AUDIENCE_MAX_VARIANTS', '4'))
+    AUDIENCE_EXPANSION = env_bool('AUDIENCE_EXPANSION', True)
+    AUDIENCE_MAX_EXTRA = env_int('AUDIENCE_MAX_EXTRA', 20, minimum=0)
+    AUDIENCE_MAX_VARIANTS = env_int('AUDIENCE_MAX_VARIANTS', 4, minimum=1)
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph
@@ -113,14 +189,14 @@ class Config:
     # No default password is provided on purpose: a fallback like the previous
     # 'mirofish2026' was a footgun. In DEBUG (local dev) `validate()` skips the
     # check, but the env var is still required to actually reach Neo4j.
-    NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://neo4j:7687')
-    NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
+    NEO4J_URI = env_str('NEO4J_URI', 'bolt://neo4j:7687')
+    NEO4J_USER = env_str('NEO4J_USER', 'neo4j')
     NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD')
 
     # Embedding配置（Graphiti用）
     # Can use a different provider than the LLM (e.g. OpenAI or Aliyun for embeddings,
     # MiniMax for LLM). Falls back to LLM credentials if not explicitly set.
-    EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'text-embedding-3-small')
+    EMBEDDING_MODEL = env_str('EMBEDDING_MODEL', 'text-embedding-3-small')
     EMBEDDING_API_KEY = os.environ.get('EMBEDDING_API_KEY') or os.environ.get('LLM_API_KEY')
     EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL') or os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     
@@ -152,7 +228,7 @@ class Config:
     # el usuario). Búsqueda web en el servidor del proveedor con su API
     # compatible con Anthropic: POST {base}/anthropic/v1/messages. La base se
     # deriva de LLM_BASE_URL quitando un /v1 final (MiniMax: api.minimax.io).
-    WEB_RESEARCH_ENABLED = os.environ.get('WEB_RESEARCH_ENABLED', 'true').lower() == 'true'
+    WEB_RESEARCH_ENABLED = env_bool('WEB_RESEARCH_ENABLED', True)
     WEB_RESEARCH_MODEL = (
         os.environ.get('WEB_RESEARCH_MODEL')
         or os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
@@ -165,30 +241,32 @@ class Config:
         os.environ.get('WEB_RESEARCH_API_KEY')
         or os.environ.get('LLM_API_KEY')
     )
-    WEB_RESEARCH_MAX_TOKENS = int(os.environ.get('WEB_RESEARCH_MAX_TOKENS', '4000'))
-    WEB_RESEARCH_TIMEOUT = float(os.environ.get('WEB_RESEARCH_TIMEOUT', '240'))
+    WEB_RESEARCH_MAX_TOKENS = env_int('WEB_RESEARCH_MAX_TOKENS', 4000, minimum=256)
+    WEB_RESEARCH_TIMEOUT = env_float('WEB_RESEARCH_TIMEOUT', 240.0, minimum=10)
     # tool_choice=any: el modelo tiene que buscar al menos una vez. Sin él,
     # MiniMax-M3 puede contestar de memoria con citas [n] que no respalda nada
     # (medido el 1-oct-2026: 0 búsquedas y 11 citas sin fuente).
-    WEB_RESEARCH_FORCE_SEARCH = os.environ.get('WEB_RESEARCH_FORCE_SEARCH', 'true').lower() == 'true'
+    WEB_RESEARCH_FORCE_SEARCH = env_bool('WEB_RESEARCH_FORCE_SEARCH', True)
 
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB — solo las rutas de subida de archivos (ver UPLOAD_PATHS en app/__init__.py)
     # Cualquier otra petición: 1 MB. Con 50 MB para todo, 20 POST anónimos de 42 MB agotaban los 4 GB del contenedor
-    MAX_BODY_BYTES = int(os.environ.get('MAX_BODY_BYTES', str(1024 * 1024)))
+    MAX_BODY_BYTES = env_int('MAX_BODY_BYTES', 1024 * 1024, minimum=1024)
     # Topes de coste de una sola petición (el límite de tasa cuenta peticiones, no llamadas al modelo)
-    MAX_UPLOAD_FILES = int(os.environ.get('MAX_UPLOAD_FILES', '10'))
-    MAX_UPLOAD_IMAGES = int(os.environ.get('MAX_UPLOAD_IMAGES', '3'))            # cada imagen = una llamada al modelo de visión
-    MAX_TOTAL_TEXT_CHARS = int(os.environ.get('MAX_TOTAL_TEXT_CHARS', '1000000'))  # ~10 libros; el grafo gasta un episodio por ~500 caracteres
+    MAX_UPLOAD_FILES = env_int('MAX_UPLOAD_FILES', 10, minimum=1)
+    MAX_UPLOAD_IMAGES = env_int('MAX_UPLOAD_IMAGES', 3, minimum=0)            # cada imagen = una llamada al modelo de visión
+    MAX_TOTAL_TEXT_CHARS = env_int('MAX_TOTAL_TEXT_CHARS', 1000000, minimum=1000)  # ~10 libros; el grafo gasta un episodio por ~500 caracteres
     MAX_INTERVIEWS_PER_REQUEST = 20
     MAX_CHAT_MESSAGE_CHARS = 4000
     MAX_CHAT_HISTORY_TURNS = 20
     # Pipelines automáticos vivos a la vez: cada uno son horas de modelo y una simulación de ~1 GB
-    MAX_ACTIVE_PIPELINES = int(os.environ.get('MAX_ACTIVE_PIPELINES', '3'))
-    MAX_ACTIVE_PIPELINES_PER_USER = int(os.environ.get('MAX_ACTIVE_PIPELINES_PER_USER', '2'))
+    MAX_ACTIVE_PIPELINES = env_int('MAX_ACTIVE_PIPELINES', 3, minimum=1)
+    MAX_ACTIVE_PIPELINES_PER_USER = env_int('MAX_ACTIVE_PIPELINES_PER_USER', 2, minimum=1)
     MAX_INTERVIEW_PROMPT_CHARS = 2000
     MAX_PARALLEL_PROFILES = 8
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
+    # Por debajo de este espacio libre en el disco de datos `/health/ready` avisa (un disco lleno corta guardados a medias)
+    MIN_FREE_DISK_MB = env_int('MIN_FREE_DISK_MB', 200, minimum=0)
     ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown', 'png', 'jpg', 'jpeg', 'webp', 'gif'}
     IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
     
@@ -197,14 +275,14 @@ class Config:
     DEFAULT_CHUNK_OVERLAP = 50  # 默认重叠大小
     
     # OASIS模拟配置
-    OASIS_DEFAULT_MAX_ROUNDS = int(os.environ.get('OASIS_DEFAULT_MAX_ROUNDS', '10'))
+    OASIS_DEFAULT_MAX_ROUNDS = env_int('OASIS_DEFAULT_MAX_ROUNDS', 10, minimum=1)
     # Rondas por simulación: el servidor nunca arranca más (la configuración automática puede
     # proponer hasta 336 y cada ronda cuesta memoria y dinero de LLM). Mínimo = el de la pantalla.
     SIMULATION_MIN_ROUNDS = 10
     # Simulaciones con proceso vivo a la vez (cada una ocupa ~1 GB y el contenedor tiene 4); incluye las ya
     # terminadas que esperan entrevistas: esas se cierran solas para dejar sitio
-    MAX_CONCURRENT_SIMULATIONS = int(os.environ.get('MAX_CONCURRENT_SIMULATIONS', '2'))
-    SIMULATION_MAX_ROUNDS = int(os.environ.get('SIMULATION_MAX_ROUNDS', '100'))
+    MAX_CONCURRENT_SIMULATIONS = env_int('MAX_CONCURRENT_SIMULATIONS', 2, minimum=1)
+    SIMULATION_MAX_ROUNDS = env_int('SIMULATION_MAX_ROUNDS', 100, minimum=SIMULATION_MIN_ROUNDS)
     OASIS_SIMULATION_DATA_DIR = os.path.join(os.path.dirname(__file__), '../uploads/simulations')
     
     # OASIS平台可用动作配置
@@ -218,9 +296,9 @@ class Config:
     ]
     
     # Report Agent配置
-    REPORT_AGENT_MAX_TOOL_CALLS = int(os.environ.get('REPORT_AGENT_MAX_TOOL_CALLS', '5'))
-    REPORT_AGENT_MAX_REFLECTION_ROUNDS = int(os.environ.get('REPORT_AGENT_MAX_REFLECTION_ROUNDS', '2'))
-    REPORT_AGENT_TEMPERATURE = float(os.environ.get('REPORT_AGENT_TEMPERATURE', '0.5'))
+    REPORT_AGENT_MAX_TOOL_CALLS = env_int('REPORT_AGENT_MAX_TOOL_CALLS', 5, minimum=1)
+    REPORT_AGENT_MAX_REFLECTION_ROUNDS = env_int('REPORT_AGENT_MAX_REFLECTION_ROUNDS', 2, minimum=0)
+    REPORT_AGENT_TEMPERATURE = env_float('REPORT_AGENT_TEMPERATURE', 0.5, minimum=0, maximum=2)
     
     @classmethod
     def validate(cls):

@@ -141,8 +141,9 @@ docker run -d \
 
 - See: `COOLIFY_DEPLOYMENT.md` for detailed instructions
 - Configuration: `coolify.json` contains Coolify metadata
-- Health endpoint: `/health`
+- Health endpoint: `/health` (contenedor) y `/health/ready` (monitor externo: Neo4j + disco; 503 si falla)
 - Internal port: `8000`
+- Copias de seguridad: `ops/backup.sh` (ver «Copias de seguridad» en `COOLIFY_DEPLOYMENT.md`)
 
 ## 📊 Available Scripts
 
@@ -249,6 +250,21 @@ Auditoría del 1-oct-2026 (cinco revisores en paralelo; cada hallazgo se reprodu
 - **Almacenamiento bloqueado** (navegación privada, política del equipo): `i18n`, `index.html` y el almacén de sesión de PocketBase (`lib/pocketbase.js` usa uno en memoria) ya no tiran la app. **Todo acceso a `localStorage`/`sessionStorage` va en `try/catch`.**
 - Logotipo de las pantallas del proceso = enlace real a `/` (`.brand-link`); casillas de `/projects` con nombre accesible; Enter con un método de entrada de texto (IME) no envía el chat; el login distingue «credenciales incorrectas» de «sin conexión» y de «demasiados intentos».
 - **Sin resolver (propuesto)**: un `usePolling` común con backoff, pausa con la pestaña oculta y plazo corto (los sondeos comparten el plazo de 5 min de las peticiones largas); reanudar un informe a medias en vez de empezar de cero; reiniciar el estado de las vistas al cambiar solo el parámetro de la ruta.
+
+### Al tocar la operación: despliegue, configuración, logs y CI (`Dockerfile`, `docker-compose.yml`, `config.py`, `utils/logger.py`, `.github/`)
+
+Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
+
+- **Las variables de entorno se leen con `env_int/env_float/env_bool/env_str`** (`config.py`), nunca con `int(os.environ.get(...))`: una variable **vacía** (compose pasa `VAR=` cuando no está definida; Coolify también) o con un typo (`30s`) tumbaba la app al importar y el contenedor entraba en bucle de reinicios. Vacío = «sin definir»; inválido o fuera de rango = aviso por stderr y valor por defecto. Fuera de `config.py` (scripts de la simulación, `run.py`) lo mismo, con una función local. Test: `test_config_env.py` (importa `Config` en un proceso limpio con valores basura).
+- **Coolify reescribe el compose y añade `env_file: .env` a los dos servicios** (comprobado con la API el 1-oct-2026): cualquier variable definida en su panel llega al contenedor aunque no esté en `docker-compose.yml`. El informe de operación decía «el compose no pasa 16 variables»: con Coolify no es cierto, no se han añadido. Sin Coolify (`docker compose up` a pelo) sí hay que listarlas. Coolify usa **`docker-compose.yml`** (`docker_compose_location`); el `.yaml` era un duplicado idéntico y se borró.
+- **Salud en dos niveles, a propósito separados**: `/health` (Flask vivo; la sonda del contenedor) y `/health/ready` (`utils/health.py`: Neo4j con `verify_connectivity` + escritura/espacio en el disco de datos, `MIN_FREE_DISK_MB`; caché de 10 s; solo booleanos). El servicio de la app **no** espera `depends_on: service_healthy` de Neo4j: con Neo4j caído, un redespliegue dejaría sin servicio también el login y los informes ya hechos. El healthcheck de Neo4j (`wget` al 7474) solo informa.
+- **Apagado**: `init: true` (tini recoge los procesos de simulación huérfanos) y `stop_grace_period: 60s` en la app y en Neo4j. El manejador de SIGTERM ya existía (`register_cleanup`: para los actualizadores de memoria y termina los procesos); con los 10 s por defecto Docker la mataba a medias. Lo que quede en «running» lo marca fallido `boot_recovery` al arrancar.
+- **Un solo manejador de archivo de log**: cada `get_logger('mirofish.x')` abría su propio `RotatingFileHandler` sobre el mismo archivo (26 a la vez) y al rotar se pisaban. Ahora los `mirofish.*` no tienen manejadores y propagan al principal (`mirofish`); un logger nuevo debe llamarse `mirofish.<algo>` o no escribirá en el archivo. Test: `test_logging_setup.py`.
+- **Dependencias**: `pip-audit` daba **317 avisos en ~30 paquetes** y `npm audit` 4 altos. Se subió lo que se podía sin romper nada (Flask 3.1.3, Werkzeug 3.1.9, urllib3 2.8, requests, cryptography, pyjwt, pypdf, python-multipart, starlette...; frontend `npm audit fix` → 0) y **Pillow se fuerza a ≥12.3** (`override-dependencies`: camel-ai pedía `<11`; Pillow lee imágenes de usuarios). `Image.open(..., formats=[PNG,JPEG,WEBP,GIF])` y una imagen truncada da un 400 claro (`api.imageUnreadable`), antes un 500. **Sigue sin resolverse** lo que bloquean camel-ai/OASIS: `graphiti-core 0.11.6` (`pip-audit` lo da por corregido en 0.28.2; no se sube porque 0.28.2 exige `neo4j>=5.26` y `camel-oasis 0.2.5` fija `neo4j==5.23.0`, comprobado en los metadatos de PyPI el 1-oct-2026), `transformers 4.57`, `unstructured 0.13`, `nltk`. Se revisa con el job `audit` de CI (informativo).
+- **PyTorch solo CPU en Linux**: la imagen llevaba `torch 2.9.1+cu128` con `nvidia/` (4,3 GB) y `triton` (0,6 GB) en un servidor sin GPU. El `torch-backend = "cpu"` que había en `pyproject.toml` solo vale para `uv pip`, no para `uv sync`. Ahora `torch==2.9.1` es dependencia **directa** (uv solo aplica `[tool.uv.sources]` a las directas) con el índice CPU de PyTorch solo para Linux (en macOS PyPI ya da CPU/MPS). `uv sync --frozen --no-editable --no-dev` en el Dockerfile (`pytest` queda dentro igualmente: lo exige `camel-oasis`). Resultado medido: imagen de **4,33 GB → 430 MB**, `torch 2.9.1+cpu`, sin `nvidia/` ni `triton`.
+- **CI** (`.github/workflows/ci.yml`): pytest en Python 3.11 con las librerías del PDF (WeasyPrint) instaladas, `uv lock --check`, build del frontend, `docker compose config` + build de la imagen sin publicar, y un job `audit` informativo. `docker-image.yml` lo exige (`needs: ci`) antes de publicar `latest`. `test_locales_parity.py` compara claves y `{variables}` de es/en/zh.
+- **Copias**: `ops/backup.sh` (ficheros en caliente; grafo parando Neo4j unos segundos) y restauración probadas de punta a punta con volúmenes de prueba. **Programarlo en el servidor y copiarlo fuera de ese disco no está hecho**: es cosa de quien tiene acceso al servidor.
+- **Sin resolver (propuesto)**: servidor de producción (hoy el de desarrollo de Werkzeug; el estado vive en memoria, así que sería gunicorn/waitress con **1 worker** y varios hilos); usuario no root en el contenedor (los volúmenes existentes son de root: haría falta un `chown` único); `pids_limit`/`cpus`; alertas (nadie mira `/health/ready` todavía); fijar la revisión del modelo de HuggingFace en `recsys_prewarm.py` (hoy se baja sin fijarla).
 
 ### Al tocar el grafo (`graphRender.js`)
 
