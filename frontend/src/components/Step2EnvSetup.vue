@@ -1,6 +1,16 @@
 <template>
   <div class="env-setup-panel">
     <div class="scroll-container">
+      <!-- Si la preparación falla: una frase clara arriba; el detalle técnico, plegado (antes solo salía en el registro) -->
+      <div v-if="prepareError" class="prepare-error" role="alert">
+        <p class="prepare-error-title">{{ $t('step2.prepareErrorTitle') }}</p>
+        <p class="prepare-error-text">{{ $t('step2.prepareErrorBody') }}</p>
+        <details class="prepare-error-details">
+          <summary>{{ $t('main.failDetails') }}</summary>
+          <code>{{ prepareError }}</code>
+        </details>
+      </div>
+
       <!-- Step 01: 模拟实例 -->
       <div class="step-card" :class="{ 'active': phase === 0, 'completed': phase > 0 }">
         <div class="card-header">
@@ -50,6 +60,7 @@
           </div>
           <div class="step-status">
             <span v-if="phase > 1" class="badge success">{{ $t('common.completed') }}</span>
+            <span v-else-if="phase === 1 && prepareError" class="badge error">{{ $t('common.failed') }}</span>
             <span v-else-if="phase === 1" class="badge processing">{{ prepareProgress }}%</span>
             <span v-else class="badge pending">{{ $t('common.pending') }}</span>
           </div>
@@ -90,26 +101,30 @@
             <!-- Resumen demográfico (para demos con clientes) -->
             <div class="demographics-summary">
               <div v-if="demographics.genderBreakdown.length" class="demo-chips">
-                <span
+                <button
                   v-for="g in demographics.genderBreakdown"
                   :key="g.label"
+                  type="button"
                   class="demo-chip"
                   :class="{ active: filters.gender === g.key }"
+                  :aria-pressed="filters.gender === g.key"
                   @click="toggleGenderFilter(g.key)"
                 >
                   {{ g.label }} · {{ g.count }}
-                </span>
+                </button>
               </div>
               <div v-if="demographics.topProfessions.length" class="demo-chips">
-                <span
+                <button
                   v-for="p in demographics.topProfessions"
                   :key="p"
+                  type="button"
                   class="demo-chip subtle"
                   :class="{ active: filters.profession === p }"
+                  :aria-pressed="filters.profession === p"
                   @click="toggleProfessionFilter(p)"
                 >
                   {{ p }}
-                </span>
+                </button>
               </div>
             </div>
 
@@ -122,16 +137,18 @@
                   type="text"
                   class="profiles-search"
                   :placeholder="$t('step2.searchProfilesPlaceholder')"
+                  :aria-label="$t('step2.searchProfilesPlaceholder')"
                 />
                 <button
                   v-if="filters.query || filters.gender || filters.profession"
                   type="button"
                   class="clear-btn"
                   :title="$t('step2.clearFilters')"
+                  :aria-label="$t('step2.clearFilters')"
                   @click="clearFilters"
                 >×</button>
               </div>
-              <select v-model="filters.sort" class="profiles-sort">
+              <select v-model="filters.sort" class="profiles-sort" :aria-label="$t('step2.sortLabel')">
                 <option value="default">{{ $t('step2.sortDefault') }}</option>
                 <option value="name">{{ $t('step2.sortByName') }}</option>
                 <option value="profession">{{ $t('step2.sortByProfession') }}</option>
@@ -148,16 +165,21 @@
                 v-for="profile in filteredProfiles"
                 :key="profile._idx"
                 class="profile-card"
+                role="button"
+                tabindex="0"
                 @click="selectProfile(profile)"
+                @keydown.enter.prevent="selectProfile(profile)"
+                @keydown.space.prevent="selectProfile(profile)"
               >
                 <div class="profile-header">
-                  <span class="profile-realname">{{ profile.username || 'Unknown' }}</span>
+                  <span class="profile-realname">{{ profile.username || $t('common.unknown') }}</span>
                   <span class="profile-username">@{{ profile.name || `agent_${profile._idx}` }}</span>
                 </div>
                 <div class="profile-meta">
                   <span class="profile-profession">{{ profile.profession || $t('step2.unknownProfession') }}</span>
                 </div>
-                <p class="profile-bio">{{ profile.bio || $t('step2.noBio') }}</p>
+                <MiniMarkdown v-if="profile.bio" tag="p" inline class="profile-bio" :text="profile.bio" />
+                <p v-else class="profile-bio">{{ $t('step2.noBio') }}</p>
                 <div v-if="profile.interested_topics?.length" class="profile-topics">
                   <span
                     v-for="topic in profile.interested_topics.slice(0, 3)"
@@ -255,12 +277,12 @@
                   <!-- 卡片头部 -->
                   <div class="agent-card-header">
                     <div class="agent-identity">
-                      <span class="agent-id">Agent {{ agent.agent_id }}</span>
+                      <span class="agent-id">{{ $t('step2.agentNumber', { id: agent.agent_id }) }}</span>
                       <span class="agent-name">{{ agent.entity_name }}</span>
                     </div>
                     <div class="agent-tags">
                       <span class="agent-type">{{ agent.entity_type }}</span>
-                      <span class="agent-stance" :class="'stance-' + agent.stance">{{ agent.stance }}</span>
+                      <span class="agent-stance" :class="'stance-' + agent.stance">{{ stanceLabel(agent.stance) }}</span>
                     </div>
                   </div>
                   
@@ -439,19 +461,14 @@
             <!-- 叙事方向 -->
             <div class="narrative-box">
               <span class="box-label narrative-label">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="special-icon">
-                  <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="url(#paint0_linear)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M16.24 7.76L14.12 14.12L7.76 16.24L9.88 9.88L16.24 7.76Z" fill="url(#paint0_linear)" stroke="url(#paint0_linear)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  <defs>
-                    <linearGradient id="paint0_linear" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                      <stop stop-color="#FF5722"/>
-                      <stop offset="1" stop-color="#FF9800"/>
-                    </linearGradient>
-                  </defs>
+                <!-- brújula en tinta (antes, degradado naranja ajeno a la marca) -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="special-icon" aria-hidden="true">
+                  <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M16.24 7.76L14.12 14.12L7.76 16.24L9.88 9.88L16.24 7.76Z" fill="var(--kb-accent-solid)" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 {{ $t('step2.narrativeDirection') }}
               </span>
-              <p class="narrative-text">{{ simulationConfig.event_config.narrative_direction }}</p>
+              <MiniMarkdown class="narrative-text" :text="simulationConfig.event_config.narrative_direction" />
             </div>
 
             <!-- 热点话题 -->
@@ -474,11 +491,11 @@
                     <div class="post-header">
                       <span class="post-role">{{ post.poster_type }}</span>
                       <span class="post-agent-info">
-                        <span class="post-id">Agent {{ post.poster_agent_id }}</span>
+                        <span class="post-id">{{ $t('step2.agentNumber', { id: post.poster_agent_id }) }}</span>
                         <span class="post-username">@{{ getAgentUsername(post.poster_agent_id) }}</span>
                       </span>
                     </div>
-                    <p class="post-text">{{ post.content }}</p>
+                    <MiniMarkdown class="post-text" :text="post.content" />
                   </div>
                 </div>
               </div>
@@ -495,7 +512,8 @@
             <span class="step-title">{{ $t('step2.setupComplete') }}</span>
           </div>
           <div class="step-status">
-            <span v-if="phase >= 4" class="badge processing">{{ $t('step1.inProgress') }}</span>
+            <span v-if="phase >= 4 && alreadyRun" class="badge success">{{ $t('common.completed') }}</span>
+            <span v-else-if="phase >= 4" class="badge processing">{{ $t('step1.inProgress') }}</span>
             <span v-else class="badge pending">{{ $t('common.pending') }}</span>
           </div>
         </div>
@@ -512,8 +530,8 @@
                 <span class="section-desc">{{ $t('step2.roundsConfigDesc', { hours: simulationConfig?.time_config?.total_simulation_hours || '-', minutesPerRound: simulationConfig?.time_config?.minutes_per_round || '-' }) }}</span>
               </div>
               <label class="switch-control">
-                <input type="checkbox" v-model="useCustomRounds">
-                <span class="switch-track"></span>
+                <input type="checkbox" class="switch-input" v-model="useCustomRounds">
+                <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-label">{{ $t('step2.customToggle') }}</span>
               </label>
             </div>
@@ -542,12 +560,13 @@
                   />
                   <div class="range-marks">
                     <span>10</span>
-                    <span 
-                      class="mark-recommend" 
+                    <button
+                      type="button"
+                      class="mark-recommend"
                       :class="{ active: customMaxRounds === 40 }"
                       @click="customMaxRounds = 40"
                       :style="{ position: 'absolute', left: `calc(${(40 - 10) / (autoGeneratedRounds - 10) * 100}% - 30px)` }"
-                    >{{ $t('step2.recommendedRounds', { rounds: 40 }) }}</span>
+                    >{{ $t('step2.recommendedRounds', { rounds: 40 }) }}</button>
                     <span>{{ autoGeneratedRounds }}</span>
                   </div>
                 </div>
@@ -562,7 +581,7 @@
                   <div class="auto-content">
                     <div class="auto-meta-row">
                       <span class="duration-badge">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                           <circle cx="12" cy="12" r="10"></circle>
                           <polyline points="12 6 12 12 16 14"></polyline>
                         </svg>
@@ -570,7 +589,7 @@
                       </span>
                     </div>
                     <div class="auto-desc">
-                      <p class="highlight-tip" @click="useCustomRounds = true">{{ $t('step2.customTip') }} ➝</p>
+                      <button type="button" class="highlight-tip" @click="useCustomRounds = true">{{ $t('step2.customTip') }} ➝</button>
                     </div>
                   </div>
                 </div>
@@ -588,16 +607,19 @@
             >
               ← {{ $t('step2.backToGraphBuild') }}
             </button>
+            <!-- Con la barra fija a la vista, su botón es el único relleno; este repite la acción en contorno -->
             <button
               v-if="alreadyRun"
-              class="action-btn primary"
+              class="action-btn"
+              :class="hasActionBar ? 'outline' : 'primary'"
               @click="openRun"
             >
               {{ $t('step2.viewSimulation') }} ➝
             </button>
             <button
               v-else-if="!autoRunning"
-              class="action-btn primary"
+              class="action-btn"
+              :class="hasActionBar ? 'outline' : 'primary'"
               :disabled="phase < 4"
               @click="handleStartSimulation"
             >
@@ -632,7 +654,7 @@
     <!-- Profile Detail Modal -->
     <Transition name="modal">
       <div v-if="selectedProfile" class="profile-modal-overlay" @click.self="selectedProfile = null">
-        <div class="profile-modal">
+        <div class="profile-modal" role="dialog" aria-modal="true" :aria-label="selectedProfile.username || selectedProfile.name">
           <div class="modal-header">
           <div class="modal-header-info">
             <div class="modal-name-row">
@@ -641,7 +663,7 @@
             </div>
             <span class="modal-profession">{{ selectedProfile.profession }}</span>
           </div>
-          <button class="close-btn" @click="selectedProfile = null">×</button>
+          <button type="button" class="close-btn" :aria-label="$t('common.close')" :title="$t('common.close')" @click="selectedProfile = null">×</button>
         </div>
         
         <div class="modal-body">
@@ -668,7 +690,8 @@
           <!-- 简介 -->
           <div class="modal-section">
             <span class="section-label">{{ $t('step2.profileModalBio') }}</span>
-            <p class="section-bio">{{ selectedProfile.bio || $t('step2.noBio') }}</p>
+            <MiniMarkdown v-if="selectedProfile.bio" class="section-bio" :text="selectedProfile.bio" />
+            <p v-else class="section-bio">{{ $t('step2.noBio') }}</p>
           </div>
 
           <!-- 关注话题 -->
@@ -708,7 +731,7 @@
             </div>
 
             <div class="persona-content">
-              <p class="section-persona">{{ selectedProfile.persona }}</p>
+              <MiniMarkdown class="section-persona" :text="selectedProfile.persona" />
             </div>
           </div>
         </div>
@@ -748,8 +771,9 @@ import {
   getRunStatus
 } from '../api/simulation'
 import { usePipeline } from '../composables/usePipeline'
+import { MiniMarkdown } from '../lib/miniMarkdown'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const props = defineProps({
   simulationId: String,  // 从父组件传入
@@ -785,6 +809,14 @@ const loadRunStatus = async () => {
 watch(() => pipelineState.value?.stage_index, (i) => { if (i >= 3) loadRunStatus() })
 const openRun = () => emit('next-step', {})
 
+// Error de preparación para la pantalla: frase clara arriba y el texto del servidor plegado como detalle
+const prepareError = ref('')
+const setPrepareError = (detail, hint) => {
+  prepareError.value = [detail || t('common.unknownError'), hint].filter(Boolean).join('\n')
+}
+// Postura de cada agente traducida (el motor la da en inglés: supportive, opposing, neutral, observer)
+const stanceLabel = (s) => (s && te(`step2.stance.${s}`) ? t(`step2.stance.${s}`) : (s || ''))
+
 // State
 const phase = ref(0) // 0: 初始化, 1: 生成人设, 2: 生成配置, 3: 完成
 const taskId = ref(null)
@@ -812,6 +844,8 @@ const AGENTS_PREVIEW = 6
 const showAllAgents = ref(false)
 const roundsSection = ref(null)
 const scrollToRounds = () => roundsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+// La barra fija de abajo sale en estos dos casos (mismas condiciones que su v-if)
+const hasActionBar = computed(() => phase.value >= 4 && (alreadyRun.value || !autoRunning.value))
 
 // Watch stage to update phase
 watch(currentStage, (newStage) => {
@@ -1114,10 +1148,12 @@ const startPrepareSimulation = async () => {
       if (hint) {
         addLog(t('log.prepareFailedHint', { hint }))
       }
+      setPrepareError(backendError, hint)
       emit('update-status', 'error')
     }
   } catch (err) {
     addLog(t('log.prepareException', { error: err.message }))
+    setPrepareError(err?.response?.data?.error || err.message, err?.response?.data?.data?.hint)
     emit('update-status', 'error')
   }
 }
@@ -1202,6 +1238,7 @@ const pollPrepareStatus = async () => {
         await loadPreparedData()
       } else if (data.status === 'failed') {
         addLog(t('log.prepareFailedWithError', { error: data.error || t('common.unknownError') }))
+        setPrepareError(data.error)
         stopPolling()
         stopProfilesPolling()
       }
@@ -1281,6 +1318,7 @@ const checkSimulationFailed = async () => {
       _simFailedDetected = true
       const errText = res.data.error || t('common.unknownError')
       addLog(t('log.simulationFailed', { error: errText }))
+      setPrepareError(errText)
       stopPolling()
       stopProfilesPolling()
       stopConfigPolling()
@@ -1387,6 +1425,7 @@ const loadPreparedData = async () => {
     }
   } catch (err) {
     addLog(t('log.loadConfigFailed', { error: err.message }))
+    setPrepareError(err?.response?.data?.error || err.message)
     emit('update-status', 'error')
   }
 }
@@ -1401,7 +1440,11 @@ watch(() => props.systemLogs?.length, () => {
   })
 })
 
+// La ficha de una persona se cierra también con Esc
+const onKeydown = (e) => { if (e.key === 'Escape' && selectedProfile.value) selectedProfile.value = null }
+
 onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
   // 自动开始准备流程
   if (props.simulationId) {
     addLog(t('log.step2Init'))
@@ -1411,6 +1454,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown)
   stopPolling()
   stopProfilesPolling()
   stopConfigPolling()
@@ -1450,8 +1494,26 @@ onUnmounted(() => {
 .action-bar-label { font: 500 11px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--kb-muted); }
 .action-bar-rounds strong { font-size: 18px; font-weight: 800; }
 .action-bar-adjust {
-  background: none; border: none; padding: 0; cursor: pointer;
+  background: none; border: none; padding: 0 4px; cursor: pointer; min-height: 24px;
   font: 500 13px var(--kb-font-sans); color: var(--kb-accent-text); text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* Error de preparación: claro, arriba, con el detalle técnico plegado */
+.prepare-error {
+  padding: 14px 16px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-danger-line);
+  border-left-width: 4px;
+  border-radius: 8px;
+}
+.prepare-error-title { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: var(--kb-text); }
+.prepare-error-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--kb-text-2); }
+.prepare-error-details { margin-top: 8px; font-size: 12px; color: var(--kb-muted); }
+.prepare-error-details summary { cursor: pointer; }
+.prepare-error-details code {
+  display: block; margin-top: 6px; padding: 8px 10px; white-space: pre-wrap;
+  background: var(--kb-surface-2); border: 1px solid var(--kb-line); border-radius: 6px;
+  font-family: var(--kb-font-mono); font-size: 12px; color: var(--kb-text-2); overflow-wrap: anywhere;
 }
 .action-bar-start { width: auto; padding-left: 20px; padding-right: 20px; }
 
@@ -1493,11 +1555,12 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+/* Número de los pasos pendientes: --kb-control-line (3,69:1, texto grande en negrita ≥ 3:1); el #DDD daba 1,36:1 */
 .step-num {
   font-family: var(--kb-font-mono);
   font-size: 20px;
   font-weight: 700;
-  color: var(--kb-line);
+  color: var(--kb-control-line);
 }
 
 .step-card.active .step-num,
@@ -1511,18 +1574,22 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
+/* Estados: rótulo mono corto en mayúsculas (11 px) y colores de la marca; el texto ya dice el estado */
 .badge {
-  font-size: 10px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
-.badge.success { background: #E8F5E9; color: #2E7D32; }
+.badge.success { background: var(--kb-ok-bg); color: var(--kb-ok-text); }
 .badge.processing { background: var(--kb-accent-solid); color: var(--kb-accent-on); }
-.badge.pending { background: var(--kb-soft); color: var(--kb-subtle); }
-.badge.accent { background: #E3F2FD; color: #1565C0; }
+.badge.pending { background: var(--kb-soft); color: var(--kb-text-on-soft); }
+.badge.error { background: var(--kb-surface); color: var(--kb-danger-text); border: 1px solid var(--kb-danger-line); padding: 3px 7px; }
 
 .card-content {
   /* No extra padding - uses step-card's padding */
@@ -1530,7 +1597,7 @@ onUnmounted(() => {
 
 .api-note {
   font-family: var(--kb-font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
   margin-bottom: 8px;
 }
@@ -1576,6 +1643,18 @@ onUnmounted(() => {
 
 .action-btn.secondary:hover:not(:disabled) {
   background: var(--kb-line);
+}
+
+/* La misma acción que la barra fija, en contorno: un solo botón relleno a la vista */
+.action-btn.outline {
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  border: 1px solid var(--kb-control-line);
+  padding: 11px 23px;
+}
+
+.action-btn.outline:hover:not(:disabled) {
+  border-color: var(--kb-text);
 }
 
 .action-btn:disabled {
@@ -1656,9 +1735,8 @@ onUnmounted(() => {
 }
 
 .stat-label {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--kb-subtle);
-  text-transform: uppercase;
   margin-top: 4px;
   display: block;
 }
@@ -1706,17 +1784,21 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+/* Chips de filtro: botones de verdad (teclado), borde de control (≥ 3:1) y 24 px de alto como mínimo */
 .demo-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 24px;
   padding: 3px 10px;
-  border: 1px solid #D0D0D0;
+  border: 1px solid var(--kb-control-line);
   border-radius: 999px;
   background: #FFF;
   color: var(--kb-text-2);
-  font-size: 11px;
+  font-family: inherit;
+  font-size: 12px;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
@@ -1735,8 +1817,8 @@ onUnmounted(() => {
 
 .demo-chip.subtle {
   background: var(--kb-soft);
-  border-color: var(--kb-line);
-  color: var(--kb-text-2);
+  border-color: var(--kb-control-line);
+  color: var(--kb-text-on-soft);
 }
 
 .demo-chip.subtle.active {
@@ -1769,15 +1851,15 @@ onUnmounted(() => {
 
 .profiles-search {
   width: 100%;
-  padding: 7px 30px 7px 30px;
-  border: 1px solid var(--kb-line);
+  min-height: 32px;
+  padding: 7px 34px 7px 30px;
+  border: 1px solid var(--kb-control-line);
   border-radius: 6px;
   background: #FFF;
   font-family: inherit;
   font-size: 12px;
   color: var(--kb-text);
   outline: none;
-  transition: border-color 0.15s ease;
   box-sizing: border-box;
 }
 
@@ -1785,15 +1867,20 @@ onUnmounted(() => {
   border-color: var(--kb-text);
 }
 
+.profiles-search:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 1px;
+}
+
 .profiles-search::placeholder {
-  color: #BBB;
+  color: var(--kb-subtle);
 }
 
 .clear-btn {
   position: absolute;
-  right: 6px;
-  width: 18px;
-  height: 18px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
   background: var(--kb-line);
@@ -1813,8 +1900,9 @@ onUnmounted(() => {
 }
 
 .profiles-sort {
+  min-height: 32px;
   padding: 7px 10px;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 6px;
   background: #FFF;
   font-family: inherit;
@@ -1822,12 +1910,16 @@ onUnmounted(() => {
   color: var(--kb-text-2);
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s ease;
 }
 
 .profiles-sort:hover,
 .profiles-sort:focus {
   border-color: var(--kb-text);
+}
+
+.profiles-sort:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 1px;
 }
 
 .profiles-empty {
@@ -1877,6 +1969,12 @@ onUnmounted(() => {
   background: #FFF;
 }
 
+.profile-card:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
+  background: #FFF;
+}
+
 .profile-header {
   display: flex;
   align-items: baseline;
@@ -1892,8 +1990,9 @@ onUnmounted(() => {
 
 .profile-username {
   font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
+  overflow-wrap: anywhere;
 }
 
 .profile-meta {
@@ -1901,8 +2000,8 @@ onUnmounted(() => {
 }
 
 .profile-profession {
-  font-size: 11px;
-  color: var(--kb-muted);
+  font-size: 12px;
+  color: var(--kb-text-on-soft);
   background: var(--kb-soft);
   padding: 2px 8px;
   border-radius: 3px;
@@ -1925,16 +2024,17 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+/* Temas: lima muy claro con texto oliva (5,3:1), no el azul de antes, ajeno a la marca */
 .topic-tag {
-  font-size: 10px;
-  color: #1565C0;
-  background: #E3F2FD;
+  font-size: 12px;
+  color: var(--kb-accent-text);
+  background: var(--kb-accent-subtle);
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .topic-more {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
   padding: 2px 6px;
 }
@@ -1974,9 +2074,9 @@ onUnmounted(() => {
 
 .config-block-badge {
   font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   background: var(--kb-soft);
-  color: var(--kb-text-2);
+  color: var(--kb-text-on-soft);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -1998,7 +2098,7 @@ onUnmounted(() => {
 }
 
 .config-item-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
 }
 
@@ -2035,7 +2135,7 @@ onUnmounted(() => {
 
 .period-hours {
   font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-text-2);
   flex: 1;
 }
@@ -2114,7 +2214,7 @@ onUnmounted(() => {
 
 .agent-id {
   font-family: var(--kb-font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
 }
 
@@ -2129,40 +2229,53 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+.agent-tags {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .agent-type {
-  font-size: 10px;
-  color: var(--kb-muted);
+  font-size: 12px;
+  color: var(--kb-text-on-soft);
   background: var(--kb-soft);
   padding: 2px 8px;
   border-radius: 4px;
 }
 
+/* Postura: el texto (traducido) dice cuál es; el color de marca solo acompaña */
 .agent-stance {
-  font-size: 10px;
-  font-weight: 500;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  padding: 2px 8px;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
   border-radius: 4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .stance-neutral {
   background: var(--kb-soft);
-  color: var(--kb-muted);
+  color: var(--kb-text-on-soft);
 }
 
 .stance-supportive {
-  background: #DCFCE7;
-  color: #16A34A;
+  background: var(--kb-ok-bg);
+  color: var(--kb-ok-text);
+  border-color: var(--kb-ok-line);
 }
 
 .stance-opposing {
-  background: #FEE2E2;
-  color: #DC2626;
+  background: var(--kb-surface);
+  color: var(--kb-danger-text);
+  border-color: var(--kb-danger-line);
 }
 
 .stance-observer {
-  background: #FEF3C7;
-  color: #D97706;
+  background: var(--kb-surface);
+  color: var(--kb-text-2);
+  border: 1px dashed var(--kb-control-line);
 }
 
 /* Agent Timeline */
@@ -2172,7 +2285,7 @@ onUnmounted(() => {
 
 .timeline-label {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -2204,7 +2317,7 @@ onUnmounted(() => {
   justify-content: space-between;
   margin-top: 4px;
   font-family: var(--kb-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   color: var(--kb-subtle);
 }
 
@@ -2228,7 +2341,7 @@ onUnmounted(() => {
 }
 
 .param-item .param-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
 }
 
@@ -2253,12 +2366,13 @@ onUnmounted(() => {
   max-width: 40px;
 }
 
+/* el signo (+/−) ya dice el sentido; el color de marca lo acompaña */
 .param-value.positive {
-  color: #16A34A;
+  color: var(--kb-ok-text);
 }
 
 .param-value.negative {
-  color: #DC2626;
+  color: var(--kb-danger-text);
 }
 
 .param-value.neutral {
@@ -2408,11 +2522,11 @@ onUnmounted(() => {
 }
 
 .close-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: none;
-  color: var(--kb-subtle);
+  color: var(--kb-text-2);
   border-radius: 50%;
   font-size: 24px;
   cursor: pointer;
@@ -2452,7 +2566,7 @@ onUnmounted(() => {
 }
 
 .info-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-subtle);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2477,7 +2591,7 @@ onUnmounted(() => {
 
 .section-label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--kb-subtle);
   text-transform: uppercase;
@@ -2504,18 +2618,12 @@ onUnmounted(() => {
 }
 
 .topic-item {
-  font-size: 11px;
-  color: #1565C0;
-  background: #E3F2FD;
+  font-size: 12px;
+  color: var(--kb-accent-text);
+  background: var(--kb-accent-subtle);
   padding: 4px 10px;
   border-radius: 12px;
-  transition: all 0.2s;
   border: none;
-}
-
-.topic-item:hover {
-  background: #BBDEFB;
-  color: #0D47A1;
 }
 
 /* 详细人设 */
@@ -2549,7 +2657,7 @@ onUnmounted(() => {
 
 .dim-desc {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-subtle);
   line-height: 1.4;
 }
@@ -2593,12 +2701,18 @@ onUnmounted(() => {
 .log-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   border-bottom: 1px solid var(--kb-text-2);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  font-size: 10px;
-  color: var(--kb-subtle);
+  font-size: 12px;
+  color: var(--kb-muted-on-dark);
 }
+
+/* Sobre tinta, el gris de texto da 3,7:1: el rótulo va en --kb-muted-on-dark (5,5:1) */
+.log-title { color: var(--kb-muted-on-dark); font-size: 12px; flex-shrink: 0; }
+/* el botón global medía 22 px de alto: el mínimo táctil es 24 (WCAG 2.5.8) */
+.log-toggle { min-height: 24px; }
 
 .log-content {
   display: flex;
@@ -2619,14 +2733,14 @@ onUnmounted(() => {
 }
 
 .log-line {
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   gap: 12px;
   line-height: 1.5;
 }
 
 .log-time {
-  color: var(--kb-muted);
+  color: var(--kb-muted-on-dark);
   min-width: 75px;
 }
 
@@ -2670,10 +2784,12 @@ onUnmounted(() => {
   background: #FFFFFF;
   padding: 20px 24px;
   border-radius: 12px;
-  border: 1px solid #EEF2F6;
+  border: 1px solid var(--kb-line);
   box-shadow: 0 4px 24px rgba(0,0,0,0.03);
   transition: all 0.3s ease;
 }
+
+.narrative-box .special-icon { color: var(--kb-text); }
 
 .narrative-box .box-label {
   display: flex;
@@ -2701,9 +2817,24 @@ onUnmounted(() => {
   color: var(--kb-text-2);
   line-height: 1.8;
   margin: 0;
-  text-align: justify;
   letter-spacing: 0.01em;
 }
+
+/* Markdown (MiniMarkdown) dentro de los textos que escribe el modelo */
+.narrative-text :deep(.md-p),
+.post-text :deep(.md-p),
+.section-bio :deep(.md-p),
+.section-persona :deep(.md-p) { margin: 0 0 8px; }
+.narrative-text :deep(.md-p:last-child),
+.post-text :deep(.md-p:last-child),
+.section-bio :deep(.md-p:last-child),
+.section-persona :deep(.md-p:last-child) { margin-bottom: 0; }
+.narrative-text :deep(.md-ul), .narrative-text :deep(.md-ol),
+.post-text :deep(.md-ul), .post-text :deep(.md-ol),
+.section-persona :deep(.md-ul), .section-persona :deep(.md-ol) { margin: 0 0 8px; padding-left: 20px; }
+.narrative-text :deep(strong), .post-text :deep(strong),
+.section-bio :deep(strong), .section-persona :deep(strong), .profile-bio :deep(strong) { font-weight: 700; color: var(--kb-text); }
+.post-text :deep(.md-quote), .section-persona :deep(.md-quote) { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--kb-line-strong); }
 
 .topics-section {
   background: #FFF;
@@ -2717,8 +2848,8 @@ onUnmounted(() => {
 
 .hot-topic-tag {
   font-size: 12px;
-  color:rgba(255, 86, 34, 0.88);
-  background: #FFF3E0;
+  color: var(--kb-accent-text);
+  background: var(--kb-accent-subtle);
   padding: 4px 10px;
   border-radius: 12px;
   font-weight: 500;
@@ -2768,11 +2899,13 @@ onUnmounted(() => {
 .post-header {
   display: flex;
   justify-content: space-between;
+  gap: 4px 12px;
+  flex-wrap: wrap;
   margin-bottom: 6px;
 }
 
 .post-role {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--kb-text-2);
   text-transform: uppercase;
@@ -2782,23 +2915,25 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .post-id,
 .post-username {
   font-family: var(--kb-font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-muted);
-  line-height: 1;
+  line-height: 1.3;
   vertical-align: baseline;
 }
 
 .post-username {
   margin-right: 6px;
+  overflow-wrap: anywhere;
 }
 
 .post-text {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--kb-text-2);
   line-height: 1.5;
   margin: 0;
@@ -2860,8 +2995,22 @@ onUnmounted(() => {
   background: var(--kb-surface-2);
 }
 
-.switch-control input {
-  display: none;
+/* El interruptor sigue siendo un checkbox de verdad (se enfoca con Tab), solo que invisible: con display:none no había teclado */
+.switch-control {
+  position: relative;
+}
+
+.switch-control .switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.switch-control .switch-input:focus-visible + .switch-track {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
 }
 
 .switch-track {
@@ -2937,8 +3086,8 @@ onUnmounted(() => {
 
 .slider-meta-info {
   font-family: var(--kb-font-mono);
-  font-size: 11px;
-  color: var(--kb-muted);
+  font-size: 12px;
+  color: var(--kb-text-on-soft);
   background: var(--kb-soft);
   padding: 4px 8px;
   border-radius: 4px;
@@ -2989,7 +3138,7 @@ onUnmounted(() => {
   justify-content: space-between;
   margin-top: 8px;
   font-family: var(--kb-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--kb-subtle);
   position: relative;
 }
@@ -2998,6 +3147,15 @@ onUnmounted(() => {
   cursor: pointer;
   transition: color 0.2s;
   position: relative;
+  min-height: 24px;
+  padding: 0 4px;
+  margin-top: -4px;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--kb-subtle);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .mark-recommend:hover {
@@ -3057,7 +3215,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 5px;
   font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--kb-muted);
   background: #FFFFFF;
@@ -3081,10 +3239,13 @@ onUnmounted(() => {
 }
 
 .highlight-tip {
-  margin-top: 4px !important;
-  font-size: 12px !important;
-  color: var(--kb-text) !important;
-  font-weight: 500;
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  font: 500 12px/1.5 var(--kb-font-sans);
+  color: var(--kb-text);
   cursor: pointer;
 }
 

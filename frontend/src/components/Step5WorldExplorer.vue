@@ -3,7 +3,7 @@
     <!-- Header with search + filters -->
     <div class="explorer-header">
       <div class="search-wrapper">
-        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <input
           type="text"
           v-model="filters.query"
@@ -15,14 +15,16 @@
         <button
           v-for="opt in platformOptions"
           :key="opt.key"
+          type="button"
           class="chip"
           :class="{ active: filters.platform === opt.key }"
+          :aria-pressed="filters.platform === opt.key"
           @click="filters.platform = opt.key"
         >
           {{ opt.label }}
         </button>
       </div>
-      <select v-model="filters.sort" class="sort-select" :aria-label="$t('step2.sortDefault')">
+      <select v-model="filters.sort" class="sort-select" :aria-label="$t('step2.sortLabel')">
         <option value="default">{{ $t('step2.sortDefault') }}</option>
         <option value="name">{{ $t('step2.sortByName') }}</option>
         <option value="profession">{{ $t('step2.sortByProfession') }}</option>
@@ -38,29 +40,32 @@
           <span class="col-count mono">{{ filteredAgents.length }}/{{ profiles.length }}</span>
         </div>
 
-        <div v-if="filteredAgents.length === 0" class="empty-list">
+        <div v-if="filteredAgents.length === 0" class="empty-list" role="status">
           {{ $t('step2.noProfilesMatch') }}
         </div>
 
         <ul v-else class="agent-list">
-          <li
-            v-for="item in filteredAgents"
-            :key="item.__idx"
-            class="agent-row"
-            :class="{ active: selectedIdx === item.__idx }"
-            @click="selectAgent(item.__idx)"
-          >
-            <div class="agent-avatar">{{ (item.username || 'A')[0] }}</div>
-            <div class="agent-meta">
-              <span class="agent-name">{{ item.username || `agent_${item.__idx}` }}</span>
-              <span class="agent-sub">
-                {{ item.profession || $t('step2.unknownProfession') }}
-                <template v-if="item.age">· {{ item.age }}</template>
+          <!-- cada fila es un botón: se recorre con Tab y se elige con Intro (antes, un <li> con clic) -->
+          <li v-for="item in filteredAgents" :key="item.__idx">
+            <button
+              type="button"
+              class="agent-row"
+              :class="{ active: selectedIdx === item.__idx }"
+              :aria-pressed="selectedIdx === item.__idx"
+              @click="selectAgent(item.__idx)"
+            >
+              <span class="agent-avatar" aria-hidden="true">{{ (item.username || 'A')[0] }}</span>
+              <span class="agent-meta">
+                <span class="agent-name">{{ item.username || `agent_${item.__idx}` }}</span>
+                <span class="agent-sub">
+                  {{ item.profession || $t('step2.unknownProfession') }}
+                  <template v-if="item.age">· {{ item.age }}</template>
+                </span>
               </span>
-            </div>
-            <span v-if="activityCounts[item.__idx]" class="agent-badge mono">
-              {{ activityCounts[item.__idx] }}
-            </span>
+              <span v-if="activityCounts[item.__idx]" class="agent-badge mono" :title="$t('step5.statTotalActions')">
+                {{ activityCounts[item.__idx] }}
+              </span>
+            </button>
           </li>
         </ul>
       </aside>
@@ -68,7 +73,7 @@
       <!-- Right: selected agent detail -->
       <section class="detail-column">
         <div v-if="!selectedAgent" class="detail-empty">
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <circle cx="12" cy="8" r="4"></circle>
             <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
           </svg>
@@ -77,18 +82,18 @@
 
         <template v-else>
           <header class="detail-header">
-            <div class="detail-avatar">{{ (selectedAgent.username || 'A')[0] }}</div>
+            <div class="detail-avatar" aria-hidden="true">{{ (selectedAgent.username || 'A')[0] }}</div>
             <div class="detail-id">
               <h3 class="detail-name">{{ selectedAgent.username || `agent_${selectedIdx}` }}</h3>
               <div class="detail-meta-row">
                 <span v-if="selectedAgent.name" class="detail-handle">@{{ selectedAgent.name }}</span>
                 <span class="detail-profession">{{ selectedAgent.profession || $t('step2.unknownProfession') }}</span>
                 <span v-if="selectedAgent.age" class="detail-age">· {{ selectedAgent.age }}</span>
-                <span v-if="selectedAgent.gender" class="detail-gender">· {{ selectedAgent.gender }}</span>
+                <span v-if="selectedAgent.gender" class="detail-gender">· {{ genderLabel(selectedAgent.gender) }}</span>
               </div>
             </div>
-            <button class="chat-cta" @click="$emit('chat-with-agent', selectedIdx)">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <button type="button" class="chat-cta" @click="$emit('chat-with-agent', selectedIdx)">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
               {{ $t('step5.chatWithThisAgent') }}
@@ -97,7 +102,7 @@
 
           <div v-if="selectedAgent.bio" class="detail-bio">
             <div class="block-label">{{ $t('step5.profileBio') }}</div>
-            <p>{{ selectedAgent.bio }}</p>
+            <MiniMarkdown class="bio-text" :text="selectedAgent.bio" />
           </div>
 
           <!-- Stats strip -->
@@ -124,16 +129,21 @@
           <div class="activity-section">
             <div class="block-label">{{ $t('step5.activityTimeline') }}</div>
 
-            <div v-if="activityLoading" class="activity-loading">
-              <span class="loading-spinner"></span>
+            <div v-if="activityLoading" class="activity-loading" role="status">
+              <span class="loading-spinner" aria-hidden="true"></span>
               {{ $t('step5.loadingActivity') }}
             </div>
 
-            <div v-else-if="activityError" class="activity-error">
-              {{ activityError }}
+            <!-- error: frase clara y el texto técnico plegado -->
+            <div v-else-if="activityError" class="activity-error" role="alert">
+              <p class="activity-error-title">{{ $t('step5.activityFailed') }}</p>
+              <details class="notice-details">
+                <summary>{{ $t('main.failDetails') }}</summary>
+                <code>{{ activityError }}</code>
+              </details>
             </div>
 
-            <div v-else-if="agentActions.length === 0" class="activity-empty">
+            <div v-else-if="agentActions.length === 0" class="activity-empty" role="status">
               {{ $t('step5.noActivity') }}
             </div>
 
@@ -145,15 +155,16 @@
                 :class="act.platform"
               >
                 <div class="act-meta-col">
-                  <span class="act-round mono">R{{ act.round_num }}</span>
+                  <span class="act-round mono">{{ $t('step3.roundShort', { n: act.round_num }) }}</span>
                   <span class="act-time mono">{{ formatTime(act.timestamp) }}</span>
-                  <span class="act-platform" :class="act.platform">{{ platformShort(act.platform) }}</span>
+                  <span class="act-platform" :class="act.platform" :title="platformLong(act.platform)">{{ platformShort(act.platform) }}</span>
                 </div>
                 <div class="act-body">
                   <span class="act-badge" :class="actionClass(act.action_type)">
                     {{ actionLabel(act.action_type) }}
                   </span>
-                  <div class="act-content">{{ describeAction(act) }}</div>
+                  <MiniMarkdown v-if="hasOwnText(act)" class="act-content" :text="describeAction(act)" />
+                  <div v-else class="act-content">{{ describeAction(act) }}</div>
                 </div>
               </li>
             </ul>
@@ -168,8 +179,9 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSimulationActions } from '../api/simulation'
+import { MiniMarkdown, stripMarkdown } from '../lib/miniMarkdown'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const props = defineProps({
   simulationId: { type: String, default: null },
@@ -285,6 +297,7 @@ const loadAgentActions = async (idx) => {
     activityCounts.value[idx] = actions.length
     agentActions.value = actions
   } catch (err) {
+    // se guarda el texto técnico para el detalle plegado; la frase que se ve es step5.activityFailed
     activityError.value = err?.response?.data?.error || err.message || t('common.unknownError')
   } finally {
     activityLoading.value = false
@@ -309,27 +322,21 @@ const formatTime = (ts) => {
   }
 }
 
+// Plataforma con el nombre que usa la app («Plaza», «Comunidad»), no «TW»/«RD»
 const platformShort = (p) => {
-  if (p === 'twitter') return 'TW'
-  if (p === 'reddit') return 'RD'
+  if (p === 'twitter') return t('step5.platformShortTwitter')
+  if (p === 'reddit') return t('step5.platformShortReddit')
   return (p || '??').toUpperCase().slice(0, 2)
 }
+const platformLong = (p) => (p === 'twitter' ? t('step3.platformTwitter') : p === 'reddit' ? t('step3.platformReddit') : (p || ''))
 
-const ACTION_LABELS = {
-  CREATE_POST: 'POST',
-  QUOTE_POST: 'QUOTE',
-  REPOST: 'REPOST',
-  LIKE_POST: 'LIKE',
-  LIKE_COMMENT: 'LIKE',
-  UPVOTE_POST: 'UPVOTE',
-  DOWNVOTE_POST: 'DOWNVOTE',
-  CREATE_COMMENT: 'COMMENT',
-  FOLLOW: 'FOLLOW',
-  SEARCH_POSTS: 'SEARCH',
-  DO_NOTHING: 'IDLE'
-}
+// Mismos rótulos que el paso 3 (step3.actions.*)
+const actionLabel = (type) => (type && te(`step3.actions.${type}`) ? t(`step3.actions.${type}`) : (type || t('common.unknown')))
 
-const actionLabel = (type) => ACTION_LABELS[type] || (type || 'UNKNOWN')
+const genderLabel = (g) => ({ male: t('step2.genderMale'), female: t('step2.genderFemale'), other: t('step2.genderOther') }[String(g || '').toLowerCase()] || g)
+
+// Lo que escribió la propia persona (post, comentario, cita) se pinta con Markdown; el resto es una frase hecha
+const hasOwnText = (act) => ['CREATE_POST', 'QUOTE_POST', 'CREATE_COMMENT'].includes(act.action_type)
 
 const actionClass = (type) => {
   if (POST_TYPES.includes(type)) return 'badge-post'
@@ -367,9 +374,11 @@ const describeAction = (act) => {
   }
 }
 
+// sin marcas de Markdown antes de recortar (si no, quedan «**» sueltos)
 const truncate = (s, n) => {
   if (!s) return ''
-  return s.length > n ? s.slice(0, n) + '…' : s
+  const plain = stripMarkdown(s).replace(/\s+/g, ' ').trim()
+  return plain.length > n ? plain.slice(0, n) + '…' : plain
 }
 
 defineExpose({ selectAgent })
@@ -404,8 +413,10 @@ defineExpose({ selectAgent })
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 30px;
+  box-sizing: border-box;
   padding: 4px 10px;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 999px;
   background: #FFF;
   flex: 1 1 180px;
@@ -414,6 +425,7 @@ defineExpose({ selectAgent })
 
 .search-wrapper:focus-within {
   border-color: var(--kb-text);
+  box-shadow: 0 0 0 1px var(--kb-text);
 }
 
 .search-wrapper .search-icon {
@@ -442,10 +454,12 @@ defineExpose({ selectAgent })
 
 .chip {
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 4px 10px;
-  border: 1px solid var(--kb-line);
+  min-height: 24px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  border: 1px solid var(--kb-control-line);
   background: #FFF;
   color: var(--kb-muted);
   border-radius: 999px;
@@ -456,7 +470,7 @@ defineExpose({ selectAgent })
 
 .chip:hover {
   color: var(--kb-text);
-  border-color: var(--kb-line-strong);
+  border-color: var(--kb-text);
 }
 
 .chip.active {
@@ -467,9 +481,10 @@ defineExpose({ selectAgent })
 
 .sort-select {
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
+  min-height: 30px;
   padding: 4px 8px;
-  border: 1px solid var(--kb-line);
+  border: 1px solid var(--kb-control-line);
   border-radius: 4px;
   background: #FFF;
   color: var(--kb-text-2);
@@ -501,15 +516,16 @@ defineExpose({ selectAgent })
 }
 
 .col-label {
-  font-size: 10px;
-  font-weight: 700;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  font-weight: 600;
   color: var(--kb-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .col-count {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--kb-subtle);
 }
 
@@ -532,10 +548,21 @@ defineExpose({ selectAgent })
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 8px 10px;
+  border: 0;
   border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: var(--kb-text);
+  text-align: left;
   cursor: pointer;
   transition: background 0.15s ease;
+}
+
+.agent-row:focus-visible {
+  outline: 2px solid var(--kb-text);
+  outline-offset: -2px;
 }
 
 .agent-row:hover {
@@ -552,7 +579,7 @@ defineExpose({ selectAgent })
 }
 
 .agent-row.active .agent-badge {
-  background: rgba(255,255,255,0.15);
+  background: var(--kb-text-2);
   color: #FFF;
   border-color: transparent;
 }
@@ -593,7 +620,7 @@ defineExpose({ selectAgent })
 }
 
 .agent-sub {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--kb-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -601,7 +628,7 @@ defineExpose({ selectAgent })
 }
 
 .agent-badge {
-  font-size: 10px;
+  font-size: 11px;
   padding: 2px 6px;
   border: 1px solid var(--kb-line);
   border-radius: 999px;
@@ -678,8 +705,9 @@ defineExpose({ selectAgent })
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 7px 12px;
   background: var(--kb-text);
@@ -692,11 +720,11 @@ defineExpose({ selectAgent })
 }
 
 .chat-cta:hover {
-  background: var(--kb-text);
+  background: var(--kb-text-2);
 }
 
 .block-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -708,13 +736,18 @@ defineExpose({ selectAgent })
   margin-bottom: 18px;
 }
 
-.detail-bio p {
+.bio-text {
   font-size: 13px;
   color: var(--kb-text-2);
   line-height: 1.55;
-  margin: 0;
-  white-space: pre-wrap;
 }
+.bio-text :deep(.md-p) { margin: 0 0 6px; }
+.bio-text :deep(.md-p:last-child) { margin-bottom: 0; }
+.bio-text :deep(strong), .act-content :deep(strong) { font-weight: 700; color: var(--kb-text); }
+.act-content :deep(.md-p) { margin: 0 0 6px; }
+.act-content :deep(.md-p:last-child) { margin-bottom: 0; }
+.act-content :deep(.md-ul), .act-content :deep(.md-ol) { margin: 0 0 6px; padding-left: 18px; }
+.act-content :deep(.md-quote) { margin: 0 0 6px; padding-left: 10px; border-left: 2px solid var(--kb-line-strong); }
 
 /* Stats */
 .stats-strip {
@@ -741,7 +774,7 @@ defineExpose({ selectAgent })
 }
 
 .stat-lbl {
-  font-size: 9px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--kb-muted);
@@ -766,7 +799,23 @@ defineExpose({ selectAgent })
 }
 
 .activity-error {
-  color: #B91C1C;
+  display: block;
+  margin-top: 4px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--kb-text-2);
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-danger-line);
+  border-left-width: 4px;
+  border-radius: 4px;
+}
+.activity-error-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--kb-text); }
+.notice-details { margin-top: 6px; font-size: 12px; color: var(--kb-muted); }
+.notice-details summary { cursor: pointer; }
+.notice-details code {
+  display: block; margin-top: 6px; padding: 8px 10px; white-space: pre-wrap;
+  background: var(--kb-surface-2); border: 1px solid var(--kb-line); border-radius: 4px;
+  font-family: var(--kb-font-mono); font-size: 12px; color: var(--kb-text-2); overflow-wrap: anywhere;
 }
 
 .loading-spinner {
@@ -829,12 +878,14 @@ defineExpose({ selectAgent })
 }
 
 .act-time {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--kb-subtle);
 }
 
 .act-platform {
-  font-size: 9px;
+  font-family: var(--kb-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
   padding: 1px 5px;
   border-radius: 2px;
   letter-spacing: 0.05em;
@@ -860,16 +911,19 @@ defineExpose({ selectAgent })
 
 .act-badge {
   align-self: flex-start;
-  font-size: 9px;
+  font-family: var(--kb-font-mono);
+  text-transform: uppercase;
+  font-size: 11px;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 2px;
   letter-spacing: 0.06em;
 }
 
-.badge-post { background: #FEF3C7; color: #92400E; }
-.badge-comment { background: #DBEAFE; color: #1E40AF; }
-.badge-action { background: var(--kb-soft); color: var(--kb-text-2); }
+/* Tipos de acción: el rótulo dice cuál es; el fondo, de la marca (antes ámbar y azul ajenos) */
+.badge-post { background: var(--kb-accent-subtle); color: var(--kb-accent-text); }
+.badge-comment { background: var(--kb-soft); color: var(--kb-text-on-soft); }
+.badge-action { background: var(--kb-surface-2); color: var(--kb-text-2); }
 .badge-idle { background: var(--kb-surface-2); color: var(--kb-subtle); }
 
 .act-content {
