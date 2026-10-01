@@ -31,31 +31,42 @@
               <div class="section-header-row" @click="toggleSectionCollapse(idx)" :class="{ 'clickable': isSectionCompleted(idx + 1) }">
                 <span class="section-number">{{ String(idx + 1).padStart(2, '0') }}</span>
                 <h3 class="section-title">{{ section.title }}</h3>
-                <svg 
-                  v-if="isSectionCompleted(idx + 1)" 
-                  class="collapse-icon" 
-                  :class="{ 'is-collapsed': collapsedSections.has(idx) }"
-                  viewBox="0 0 24 24" 
-                  width="20" 
-                  height="20" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  stroke-width="2"
+                <!-- El plegado se maneja con teclado desde este botón; la fila entera sigue respondiendo al clic -->
+                <button
+                  v-if="isSectionCompleted(idx + 1)"
+                  type="button"
+                  class="r4-icon-btn collapse-btn"
+                  :aria-expanded="String(!collapsedSections.has(idx))"
+                  :aria-controls="`r4-section-${idx}`"
+                  :aria-label="collapsedSections.has(idx) ? $t('step4.expandSection', { title: section.title }) : $t('step4.collapseSection', { title: section.title })"
+                  @click.stop="toggleSectionCollapse(idx)"
                 >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                  <svg
+                    class="collapse-icon"
+                    :class="{ 'is-collapsed': collapsedSections.has(idx) }"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
               </div>
-              
-              <div class="section-body" v-show="!collapsedSections.has(idx)">
+
+              <div class="section-body" :id="`r4-section-${idx}`" v-show="!collapsedSections.has(idx)">
                 <!-- Completed Content -->
                 <div v-if="generatedSections[idx + 1]" class="generated-content" v-html="renderMarkdown(generatedSections[idx + 1])"></div>
-                
+
                 <!-- Loading State -->
                 <div v-else-if="currentSectionIndex === idx + 1" class="loading-state">
-                  <div class="loading-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <circle cx="12" cy="12" r="10" stroke-width="4" stroke="#E5E7EB"></circle>
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke-width="4" stroke="#4B5563" stroke-linecap="round"></path>
+                  <div class="loading-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <circle class="spin-track" cx="12" cy="12" r="10" stroke-width="4"></circle>
+                      <path class="spin-head" d="M12 2a10 10 0 0 1 10 10" stroke-width="4" stroke-linecap="round"></path>
                     </svg>
                   </div>
                   <span class="loading-text">{{ $t('step4.generatingSection', { title: section.title }) }}</span>
@@ -67,12 +78,12 @@
 
         <!-- Waiting State -->
         <div v-if="!reportOutline" class="waiting-placeholder">
-          <div class="waiting-animation">
+          <div class="waiting-animation" aria-hidden="true">
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
             <div class="waiting-ring"></div>
           </div>
-          <span class="waiting-text">Waiting for Report Agent...</span>
+          <span class="waiting-text">{{ $t('step4.waitingForReportAgent') }}</span>
         </div>
       </div>
 
@@ -112,8 +123,13 @@
               class="wf-step"
               :class="`wf-step--${step.status}`"
             >
-              <div class="wf-step-connector">
-                <div class="wf-step-dot"></div>
+              <!-- Estado por forma: aro vacío (pendiente), punto tinta (en curso), punto lima con marca (hecho) -->
+              <div class="wf-step-connector" aria-hidden="true">
+                <div class="wf-step-dot">
+                  <svg v-if="step.status === 'done'" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
                 <div class="wf-step-line" v-if="sidx < workflowSteps.length - 1"></div>
               </div>
 
@@ -128,9 +144,9 @@
           </div>
 
           <!-- Next Step Button - 在完成后显示 -->
-          <button v-if="isComplete" class="next-step-btn" @click="goToInteraction">
+          <button v-if="isComplete" type="button" class="next-step-btn" @click="goToInteraction">
             <span>{{ $t('step4.goToInteraction') }}</span>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
             </svg>
@@ -148,7 +164,7 @@
               :class="getTimelineItemClass(log, idx, displayLogs.length)"
             >
               <!-- Timeline Connector -->
-              <div class="timeline-connector">
+              <div class="timeline-connector" aria-hidden="true">
                 <div class="connector-dot" :class="getConnectorClass(log, idx, displayLogs.length)"></div>
                 <div class="connector-line" v-if="idx < displayLogs.length - 1"></div>
               </div>
@@ -182,7 +198,7 @@
                   <template v-if="log.action === 'planning_complete'">
                     <div class="status-message success">{{ log.details?.message }}</div>
                     <div class="outline-badge" v-if="log.details?.outline">
-                      {{ log.details.outline.sections?.length || 0 }} sections planned
+                      {{ $t('step4.sectionsPlanned', { count: log.details.outline.sections?.length || 0 }) }}
                     </div>
                   </template>
 
@@ -197,7 +213,7 @@
                   <!-- Section Content Generated (内容生成完成，但整个章节可能还没完成) -->
                   <template v-if="log.action === 'section_content'">
                     <div class="section-tag content-ready">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M12 20h9"></path>
                         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                       </svg>
@@ -208,7 +224,7 @@
                   <!-- Section Complete (章节生成完成) -->
                   <template v-if="log.action === 'section_complete'">
                     <div class="section-tag completed">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
                       <span class="tag-title">{{ log.section_title }}</span>
@@ -217,7 +233,9 @@
 
                   <!-- Tool Call -->
                   <template v-if="log.action === 'tool_call'">
-                    <div class="tool-badge" :class="'tool-' + getToolColor(log.details?.tool_name)">
+                    <!-- Cada herramienta se reconoce por su icono y su nombre, no por un color propio -->
+                    <div class="tool-badge">
+                      <span class="tool-tile" aria-hidden="true">
                       <!-- Deep Insight - Lightbulb -->
                       <svg v-if="getToolIcon(log.details?.tool_name) === 'lightbulb'" class="tool-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.5V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.5A7 7 0 0 0 12 2z"></path>
@@ -253,7 +271,8 @@
                       <svg v-else class="tool-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
                       </svg>
-                      {{ getToolDisplayName(log.details?.tool_name) }}
+                      </span>
+                      <span class="tool-name">{{ getToolDisplayName(log.details?.tool_name) }}</span>
                     </div>
                     <div v-if="log.details?.parameters && expandedLogs.has(log.timestamp)" class="tool-params">
                       <pre>{{ formatParams(log.details.parameters) }}</pre>
@@ -306,21 +325,22 @@
 
                   <!-- LLM Response -->
                   <template v-if="log.action === 'llm_response'">
+                    <!-- «Sí» y «no» se distinguen por el relleno (gris suave frente a solo contorno), no por un tono -->
                     <div class="llm-meta">
-                      <span class="meta-tag">Iteration {{ log.details?.iteration }}</span>
+                      <span class="meta-tag">{{ $t('step4.iteration', { n: log.details?.iteration }) }}</span>
                       <span class="meta-tag" :class="{ active: log.details?.has_tool_calls }">
                         {{ log.details?.has_tool_calls ? $t('ui.toolsYes') : $t('ui.toolsNo') }}
                       </span>
                       <span class="meta-tag" :class="{ active: log.details?.has_final_answer, 'final-answer': log.details?.has_final_answer }">
-                        Final: {{ log.details?.has_final_answer ? 'Yes' : 'No' }}
+                        {{ log.details?.has_final_answer ? $t('step4.finalAnswerYes') : $t('step4.finalAnswerNo') }}
                       </span>
                     </div>
                     <!-- 当是最终答案时，显示特殊提示 -->
                     <div v-if="log.details?.has_final_answer" class="final-answer-hint">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12"></polyline>
                       </svg>
-                      <span>Section "{{ log.section_title }}" content generated</span>
+                      <span>{{ $t('step4.sectionContentGenerated', { title: log.section_title }) }}</span>
                     </div>
                     <div v-if="expandedLogs.has(log.timestamp) && log.details?.response" class="llm-content">
                       <pre>{{ log.details.response }}</pre>
@@ -330,7 +350,7 @@
                   <!-- Report Complete -->
                   <template v-if="log.action === 'report_complete'">
                     <div class="complete-banner">
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                       </svg>
@@ -346,17 +366,17 @@
                   
                   <div class="footer-actions">
                     <!-- Tool Call: Show/Hide Params -->
-                    <button v-if="log.action === 'tool_call' && log.details?.parameters" class="action-btn" @click.stop="toggleLogExpand(log)">
-                      {{ expandedLogs.has(log.timestamp) ? 'Hide Params' : 'Show Params' }}
+                    <button v-if="log.action === 'tool_call' && log.details?.parameters" type="button" class="r4-btn action-btn" :aria-expanded="String(expandedLogs.has(log.timestamp))" @click.stop="toggleLogExpand(log)">
+                      {{ expandedLogs.has(log.timestamp) ? $t('step4.hideParams') : $t('step4.showParams') }}
                     </button>
-                    
+
                     <!-- Tool Result: Raw/Structured View -->
-                    <button v-if="log.action === 'tool_result'" class="action-btn" @click.stop="toggleRawResult(log.timestamp, $event)">
+                    <button v-if="log.action === 'tool_result'" type="button" class="r4-btn action-btn" @click.stop="toggleRawResult(log.timestamp, $event)">
                       {{ showRawResult[log.timestamp] ? $t('ui.structuredView') : $t('ui.rawOutput') }}
                     </button>
-                    
+
                     <!-- LLM Response: Show/Hide Response -->
-                    <button v-if="log.action === 'llm_response' && log.details?.response" class="action-btn" @click.stop="toggleLogExpand(log)">
+                    <button v-if="log.action === 'llm_response' && log.details?.response" type="button" class="r4-btn action-btn" :aria-expanded="String(expandedLogs.has(log.timestamp))" @click.stop="toggleLogExpand(log)">
                       {{ expandedLogs.has(log.timestamp) ? $t('ui.hideResponse') : $t('ui.showResponse') }}
                     </button>
                   </div>
@@ -367,24 +387,25 @@
 
           <!-- Empty State -->
           <div v-if="agentLogs.length === 0 && !isComplete" class="workflow-empty">
-            <div class="empty-pulse"></div>
-            <span>Waiting for agent activity...</span>
+            <div class="empty-pulse" aria-hidden="true"></div>
+            <span>{{ $t('step4.waitingAgentActivity') }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Bottom Console Logs -->
-    <div class="console-logs">
+    <div class="console-logs" :class="{ 'is-open': showTech }">
       <div class="log-header">
         <span class="log-title">{{ $t('ui.consoleOutput') }}</span>
         <span v-if="!showTech && lastLog" class="log-last">{{ lastLog }}</span>
-        <button type="button" class="log-toggle" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
+        <button type="button" class="log-toggle" :aria-expanded="String(showTech)" @click="toggleTech">{{ showTech ? $t('ui.hideLog') : $t('ui.showLog') }}</button>
         <span class="log-id tech-only">{{ reportId || 'NO_REPORT' }}</span>
       </div>
       <div class="log-content" ref="logContent" v-show="showTech">
-        <div class="log-line" v-for="(log, idx) in consoleLogs" :key="idx">
-          <span class="log-msg" :class="getLogLevelClass(log)">{{ log }}</span>
+        <!-- Aviso y error se marcan por peso y filete, no por un tono nuevo: el texto ya dice WARNING / ERROR -->
+        <div class="log-line" :class="getLogLevelClass(log)" v-for="(log, idx) in consoleLogs" :key="idx">
+          <span class="log-msg">{{ log }}</span>
         </div>
       </div>
     </div>
@@ -399,7 +420,19 @@ import { useI18n } from 'vue-i18n'
 import { getAgentLog, getConsoleLog } from '../api/report'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+// «12,3 mil caracteres» / «12.3K characters»: el tamaño del resultado en el idioma de la pantalla
+const formatCharCount = (length, tr, loc) => {
+  if (!length) return ''
+  let n
+  try {
+    n = new Intl.NumberFormat(loc, { notation: 'compact', maximumFractionDigits: 1 }).format(length)
+  } catch {
+    n = String(length)
+  }
+  return tr('step4.charCount', { n })
+}
 
 const props = defineProps({
   reportId: String,
@@ -503,46 +536,38 @@ const isLogCollapsed = (log) => {
   return false
 }
 
-// Tool configurations with display names and colors
+// Herramientas: nombre (clave i18n) e icono. Antes cada una llevaba un color propio (violeta, azul, verde,
+// naranja, cian, rosa) fuera de la marca; ahora se distinguen por icono y nombre.
 const toolConfig = {
   'insight_forge': {
-    name: 'Deep Insight',
-    color: 'purple',
+    nameKey: 'ui.deepInsight',
     icon: 'lightbulb' // 灯泡图标 - 代表洞察
   },
   'panorama_search': {
-    name: 'Panorama Search',
-    color: 'blue',
+    nameKey: 'step4.toolPanorama',
     icon: 'globe' // 地球图标 - 代表全景搜索
   },
   'interview_agents': {
-    name: 'Agent Interview',
-    color: 'green',
+    nameKey: 'ui.agentInterview',
     icon: 'users' // 用户图标 - 代表对话
   },
   'quick_search': {
-    name: 'Quick Search',
-    color: 'orange',
+    nameKey: 'step4.toolQuickSearch',
     icon: 'zap' // 闪电图标 - 代表快速
   },
   'get_graph_statistics': {
-    name: 'Graph Stats',
-    color: 'cyan',
+    nameKey: 'step4.toolGraphStats',
     icon: 'chart' // 图表图标 - 代表统计
   },
   'get_entities_by_type': {
-    name: 'Entity Query',
-    color: 'pink',
+    nameKey: 'step4.toolEntityQuery',
     icon: 'database' // 数据库图标 - 代表实体
   }
 }
 
 const getToolDisplayName = (toolName) => {
-  return toolConfig[toolName]?.name || toolName
-}
-
-const getToolColor = (toolName) => {
-  return toolConfig[toolName]?.color || 'gray'
+  const key = toolConfig[toolName]?.nameKey
+  return key ? t(key) : toolName
 }
 
 const getToolIcon = (toolName) => {
@@ -966,48 +991,51 @@ const parseQuickSearch = (text) => {
 
 // ========== Sub Components ==========
 
+// Piezas comunes de las cuatro vistas de resultado (análisis, panorámica, entrevista, búsqueda rápida).
+// Separadores «/» y «·»: decorativos, fuera del árbol de accesibilidad (y con el mismo gris legible que las etiquetas).
+const statDivider = (ch) => h('span', { class: 'stat-divider', 'aria-hidden': 'true' }, ch)
+const statItem = (value, label) => h('span', { class: 'stat-item' }, [
+  h('span', { class: 'stat-value' }, value),
+  h('span', { class: 'stat-label' }, label)
+])
+// Pestaña: la activa se marca con texto tinta en negrita y un filete inferior (forma), no con un color propio
+const tabButton = (extraClass, label, active, onClick) => h('button', {
+  type: 'button',
+  class: ['r4-tab', extraClass, { active }],
+  'aria-pressed': String(active),
+  onClick
+}, [h('span', { class: 'tab-label' }, label)])
+const expandButton = (expanded, labelCollapsed, labelExpanded, onClick) => h('button', {
+  type: 'button',
+  class: 'r4-btn expand-btn',
+  'aria-expanded': String(expanded),
+  onClick
+}, expanded ? labelExpanded : labelCollapsed)
+
 // Insight Display Component - Enhanced with full data rendering (Interview-like style)
 const InsightDisplay = {
   props: ['result', 'resultLength'],
   setup(props) {
-    const { t } = useI18n()
+    const { t, locale } = useI18n()
     const activeTab = ref('facts') // 'facts', 'entities', 'relations', 'subqueries'
     const expandedFacts = ref(false)
     const expandedEntities = ref(false)
     const expandedRelations = ref(false)
     const INITIAL_SHOW_COUNT = 5
-    
-    // Format result size for display
-    const formatSize = (length) => {
-      if (!length) return ''
-      if (length >= 1000) {
-        return `${(length / 1000).toFixed(1)}k chars`
-      }
-      return `${length} chars`
-    }
-    
+
     return () => h('div', { class: 'insight-display' }, [
       // Header Section - like interview header
-      h('div', { class: 'insight-header' }, [
+      h('div', { class: 'insight-header result-header' }, [
         h('div', { class: 'header-main' }, [
           h('div', { class: 'header-title' }, t('ui.deepInsight')),
           h('div', { class: 'header-stats' }, [
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.stats.facts || props.result.facts.length),
-              h('span', { class: 'stat-label' }, t('ui.facts'))
-            ]),
-            h('span', { class: 'stat-divider' }, '/'),
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.stats.entities || props.result.entities.length),
-              h('span', { class: 'stat-label' }, t('ui.entities'))
-            ]),
-            h('span', { class: 'stat-divider' }, '/'),
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.stats.relationships || props.result.relations.length),
-              h('span', { class: 'stat-label' }, t('ui.relations'))
-            ]),
-            props.resultLength && h('span', { class: 'stat-divider' }, '·'),
-            props.resultLength && h('span', { class: 'stat-size' }, formatSize(props.resultLength))
+            statItem(props.result.stats.facts || props.result.facts.length, t('ui.facts')),
+            statDivider('/'),
+            statItem(props.result.stats.entities || props.result.entities.length, t('ui.entities')),
+            statDivider('/'),
+            statItem(props.result.stats.relationships || props.result.relations.length, t('ui.relations')),
+            props.resultLength && statDivider('·'),
+            props.resultLength && h('span', { class: 'stat-size' }, formatCharCount(props.resultLength, t, locale.value))
           ])
         ]),
         props.result.query && h('div', { class: 'header-topic' }, props.result.query),
@@ -1016,37 +1044,17 @@ const InsightDisplay = {
           h('span', { class: 'scenario-text' }, props.result.simulationRequirement)
         ])
       ]),
-      
+
       // Tab Navigation
-      h('div', { class: 'insight-tabs' }, [
-        h('button', {
-          class: ['insight-tab', { active: activeTab.value === 'facts' }],
-          onClick: () => { activeTab.value = 'facts' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabKeyFacts', { count: props.result.facts.length }))
-        ]),
-        h('button', {
-          class: ['insight-tab', { active: activeTab.value === 'entities' }],
-          onClick: () => { activeTab.value = 'entities' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabCoreEntities', { count: props.result.entities.length }))
-        ]),
-        h('button', {
-          class: ['insight-tab', { active: activeTab.value === 'relations' }],
-          onClick: () => { activeTab.value = 'relations' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabRelationChains', { count: props.result.relations.length }))
-        ]),
-        props.result.subQueries.length > 0 && h('button', {
-          class: ['insight-tab', { active: activeTab.value === 'subqueries' }],
-          onClick: () => { activeTab.value = 'subqueries' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabSubQueries', { count: props.result.subQueries.length }))
-        ])
+      h('div', { class: 'insight-tabs result-tabs' }, [
+        tabButton('insight-tab', t('step4.tabKeyFacts', { count: props.result.facts.length }), activeTab.value === 'facts', () => { activeTab.value = 'facts' }),
+        tabButton('insight-tab', t('step4.tabCoreEntities', { count: props.result.entities.length }), activeTab.value === 'entities', () => { activeTab.value = 'entities' }),
+        tabButton('insight-tab', t('step4.tabRelationChains', { count: props.result.relations.length }), activeTab.value === 'relations', () => { activeTab.value = 'relations' }),
+        props.result.subQueries.length > 0 && tabButton('insight-tab', t('step4.tabSubQueries', { count: props.result.subQueries.length }), activeTab.value === 'subqueries', () => { activeTab.value = 'subqueries' })
       ]),
-      
+
       // Tab Content
-      h('div', { class: 'insight-content' }, [
+      h('div', { class: 'insight-content result-content' }, [
         // Facts Tab
         activeTab.value === 'facts' && props.result.facts.length > 0 && h('div', { class: 'facts-panel' }, [
           h('div', { class: 'panel-header' }, [
@@ -1054,17 +1062,14 @@ const InsightDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.facts.length }))
           ]),
           h('div', { class: 'facts-list' },
-            (expandedFacts.value ? props.result.facts : props.result.facts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) => 
+            (expandedFacts.value ? props.result.facts : props.result.facts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) =>
               h('div', { class: 'fact-item', key: i }, [
                 h('span', { class: 'fact-number' }, i + 1),
                 h('div', { class: 'fact-content' }, fact)
               ])
             )
           ),
-          props.result.facts.length > INITIAL_SHOW_COUNT && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedFacts.value = !expandedFacts.value }
-          }, expandedFacts.value ? t('step4.collapse') : t('step4.expandAll', { count: props.result.facts.length }))
+          props.result.facts.length > INITIAL_SHOW_COUNT && expandButton(expandedFacts.value, t('step4.expandAll', { count: props.result.facts.length }), t('step4.collapse'), () => { expandedFacts.value = !expandedFacts.value })
         ]),
 
         // Entities Tab
@@ -1074,7 +1079,7 @@ const InsightDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalEntityCount', { count: props.result.entities.length }))
           ]),
           h('div', { class: 'entities-grid' },
-            (expandedEntities.value ? props.result.entities : props.result.entities.slice(0, 12)).map((entity, i) => 
+            (expandedEntities.value ? props.result.entities : props.result.entities.slice(0, 12)).map((entity, i) =>
               h('div', { class: 'entity-tag', key: i, title: entity.summary || '' }, [
                 h('span', { class: 'entity-name' }, entity.name),
                 h('span', { class: 'entity-type' }, entity.type),
@@ -1082,10 +1087,7 @@ const InsightDisplay = {
               ])
             )
           ),
-          props.result.entities.length > 12 && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedEntities.value = !expandedEntities.value }
-          }, expandedEntities.value ? t('step4.collapse') : t('step4.expandAllEntities', { count: props.result.entities.length }))
+          props.result.entities.length > 12 && expandButton(expandedEntities.value, t('step4.expandAllEntities', { count: props.result.entities.length }), t('step4.collapse'), () => { expandedEntities.value = !expandedEntities.value })
         ]),
 
         // Relations Tab
@@ -1095,22 +1097,19 @@ const InsightDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.relations.length }))
           ]),
           h('div', { class: 'relations-list' },
-            (expandedRelations.value ? props.result.relations : props.result.relations.slice(0, INITIAL_SHOW_COUNT)).map((rel, i) => 
+            (expandedRelations.value ? props.result.relations : props.result.relations.slice(0, INITIAL_SHOW_COUNT)).map((rel, i) =>
               h('div', { class: 'relation-item', key: i }, [
                 h('span', { class: 'rel-source' }, rel.source),
                 h('span', { class: 'rel-arrow' }, [
-                  h('span', { class: 'rel-line' }),
+                  h('span', { class: 'rel-line', 'aria-hidden': 'true' }),
                   h('span', { class: 'rel-label' }, rel.relation),
-                  h('span', { class: 'rel-line' })
+                  h('span', { class: 'rel-line', 'aria-hidden': 'true' })
                 ]),
                 h('span', { class: 'rel-target' }, rel.target)
               ])
             )
           ),
-          props.result.relations.length > INITIAL_SHOW_COUNT && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedRelations.value = !expandedRelations.value }
-          }, expandedRelations.value ? t('step4.collapse') : t('step4.expandAll', { count: props.result.relations.length }))
+          props.result.relations.length > INITIAL_SHOW_COUNT && expandButton(expandedRelations.value, t('step4.expandAll', { count: props.result.relations.length }), t('step4.collapse'), () => { expandedRelations.value = !expandedRelations.value })
         ]),
 
         // Sub-queries Tab
@@ -1120,7 +1119,7 @@ const InsightDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalEntityCount', { count: props.result.subQueries.length }))
           ]),
           h('div', { class: 'subqueries-list' },
-            props.result.subQueries.map((sq, i) => 
+            props.result.subQueries.map((sq, i) =>
               h('div', { class: 'subquery-item', key: i }, [
                 h('span', { class: 'subquery-number' }, `Q${i + 1}`),
                 h('div', { class: 'subquery-text' }, sq)
@@ -1128,7 +1127,7 @@ const InsightDisplay = {
             )
           )
         ]),
-        
+
         // Empty state
         activeTab.value === 'facts' && props.result.facts.length === 0 && h('div', { class: 'empty-state' }, t('step4.emptyKeyFacts')),
         activeTab.value === 'entities' && props.result.entities.length === 0 && h('div', { class: 'empty-state' }, t('step4.emptyCoreEntities')),
@@ -1142,68 +1141,38 @@ const InsightDisplay = {
 const PanoramaDisplay = {
   props: ['result', 'resultLength'],
   setup(props) {
-    const { t } = useI18n()
+    const { t, locale } = useI18n()
     const activeTab = ref('active') // 'active', 'historical', 'entities'
     const expandedActive = ref(false)
     const expandedHistorical = ref(false)
     const expandedEntities = ref(false)
     const INITIAL_SHOW_COUNT = 5
-    
-    // Format result size for display
-    const formatSize = (length) => {
-      if (!length) return ''
-      if (length >= 1000) {
-        return `${(length / 1000).toFixed(1)}k chars`
-      }
-      return `${length} chars`
-    }
-    
+
     return () => h('div', { class: 'panorama-display' }, [
       // Header Section
-      h('div', { class: 'panorama-header' }, [
+      h('div', { class: 'panorama-header result-header' }, [
         h('div', { class: 'header-main' }, [
-          h('div', { class: 'header-title' }, 'Panorama Search'),
+          h('div', { class: 'header-title' }, t('step4.toolPanorama')),
           h('div', { class: 'header-stats' }, [
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.stats.nodes),
-              h('span', { class: 'stat-label' }, 'Nodes')
-            ]),
-            h('span', { class: 'stat-divider' }, '/'),
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.stats.edges),
-              h('span', { class: 'stat-label' }, 'Edges')
-            ]),
-            props.resultLength && h('span', { class: 'stat-divider' }, '·'),
-            props.resultLength && h('span', { class: 'stat-size' }, formatSize(props.resultLength))
+            statItem(props.result.stats.nodes, t('step4.statNodes')),
+            statDivider('/'),
+            statItem(props.result.stats.edges, t('step4.statEdges')),
+            props.resultLength && statDivider('·'),
+            props.resultLength && h('span', { class: 'stat-size' }, formatCharCount(props.resultLength, t, locale.value))
           ])
         ]),
         props.result.query && h('div', { class: 'header-topic' }, props.result.query)
       ]),
-      
+
       // Tab Navigation
-      h('div', { class: 'panorama-tabs' }, [
-        h('button', {
-          class: ['panorama-tab', { active: activeTab.value === 'active' }],
-          onClick: () => { activeTab.value = 'active' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabActiveFacts', { count: props.result.activeFacts.length }))
-        ]),
-        h('button', {
-          class: ['panorama-tab', { active: activeTab.value === 'historical' }],
-          onClick: () => { activeTab.value = 'historical' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabHistoricalFacts', { count: props.result.historicalFacts.length }))
-        ]),
-        h('button', {
-          class: ['panorama-tab', { active: activeTab.value === 'entities' }],
-          onClick: () => { activeTab.value = 'entities' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabEntities', { count: props.result.entities.length }))
-        ])
+      h('div', { class: 'panorama-tabs result-tabs' }, [
+        tabButton('panorama-tab', t('step4.tabActiveFacts', { count: props.result.activeFacts.length }), activeTab.value === 'active', () => { activeTab.value = 'active' }),
+        tabButton('panorama-tab', t('step4.tabHistoricalFacts', { count: props.result.historicalFacts.length }), activeTab.value === 'historical', () => { activeTab.value = 'historical' }),
+        tabButton('panorama-tab', t('step4.tabEntities', { count: props.result.entities.length }), activeTab.value === 'entities', () => { activeTab.value = 'entities' })
       ]),
-      
+
       // Tab Content
-      h('div', { class: 'panorama-content' }, [
+      h('div', { class: 'panorama-content result-content' }, [
         // Active Facts Tab
         activeTab.value === 'active' && h('div', { class: 'facts-panel active-facts' }, [
           h('div', { class: 'panel-header' }, [
@@ -1211,27 +1180,24 @@ const PanoramaDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.activeFacts.length }))
           ]),
           props.result.activeFacts.length > 0 ? h('div', { class: 'facts-list' },
-            (expandedActive.value ? props.result.activeFacts : props.result.activeFacts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) => 
+            (expandedActive.value ? props.result.activeFacts : props.result.activeFacts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) =>
               h('div', { class: 'fact-item active', key: i }, [
                 h('span', { class: 'fact-number' }, i + 1),
                 h('div', { class: 'fact-content' }, fact)
               ])
             )
           ) : h('div', { class: 'empty-state' }, t('step4.emptyActiveFacts')),
-          props.result.activeFacts.length > INITIAL_SHOW_COUNT && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedActive.value = !expandedActive.value }
-          }, expandedActive.value ? t('step4.collapse') : t('step4.expandAll', { count: props.result.activeFacts.length }))
+          props.result.activeFacts.length > INITIAL_SHOW_COUNT && expandButton(expandedActive.value, t('step4.expandAll', { count: props.result.activeFacts.length }), t('step4.collapse'), () => { expandedActive.value = !expandedActive.value })
         ]),
-        
-        // Historical Facts Tab
+
+        // Historical Facts Tab: el hecho caducado lleva número en gris oscuro y contorno discontinuo (luminosidad y forma)
         activeTab.value === 'historical' && h('div', { class: 'facts-panel historical-facts' }, [
           h('div', { class: 'panel-header' }, [
             h('span', { class: 'panel-title' }, t('step4.panelHistoricalFacts')),
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.historicalFacts.length }))
           ]),
           props.result.historicalFacts.length > 0 ? h('div', { class: 'facts-list' },
-            (expandedHistorical.value ? props.result.historicalFacts : props.result.historicalFacts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) => 
+            (expandedHistorical.value ? props.result.historicalFacts : props.result.historicalFacts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) =>
               h('div', { class: 'fact-item historical', key: i }, [
                 h('span', { class: 'fact-number' }, i + 1),
                 h('div', { class: 'fact-content' }, [
@@ -1250,12 +1216,9 @@ const PanoramaDisplay = {
               ])
             )
           ) : h('div', { class: 'empty-state' }, t('step4.emptyHistoricalFacts')),
-          props.result.historicalFacts.length > INITIAL_SHOW_COUNT && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedHistorical.value = !expandedHistorical.value }
-          }, expandedHistorical.value ? t('step4.collapse') : t('step4.expandAll', { count: props.result.historicalFacts.length }))
+          props.result.historicalFacts.length > INITIAL_SHOW_COUNT && expandButton(expandedHistorical.value, t('step4.expandAll', { count: props.result.historicalFacts.length }), t('step4.collapse'), () => { expandedHistorical.value = !expandedHistorical.value })
         ]),
-        
+
         // Entities Tab
         activeTab.value === 'entities' && h('div', { class: 'entities-panel' }, [
           h('div', { class: 'panel-header' }, [
@@ -1263,17 +1226,14 @@ const PanoramaDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalEntityCount', { count: props.result.entities.length }))
           ]),
           props.result.entities.length > 0 ? h('div', { class: 'entities-grid' },
-            (expandedEntities.value ? props.result.entities : props.result.entities.slice(0, 8)).map((entity, i) => 
+            (expandedEntities.value ? props.result.entities : props.result.entities.slice(0, 8)).map((entity, i) =>
               h('div', { class: 'entity-tag', key: i }, [
                 h('span', { class: 'entity-name' }, entity.name),
                 entity.type && h('span', { class: 'entity-type' }, entity.type)
               ])
             )
           ) : h('div', { class: 'empty-state' }, t('step4.emptyEntities')),
-          props.result.entities.length > 8 && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedEntities.value = !expandedEntities.value }
-          }, expandedEntities.value ? t('step4.collapse') : t('step4.expandAllEntities', { count: props.result.entities.length }))
+          props.result.entities.length > 8 && expandButton(expandedEntities.value, t('step4.expandAllEntities', { count: props.result.entities.length }), t('step4.collapse'), () => { expandedEntities.value = !expandedEntities.value })
         ])
       ])
     ])
@@ -1284,40 +1244,32 @@ const PanoramaDisplay = {
 const InterviewDisplay = {
   props: ['result', 'resultLength'],
   setup(props) {
-    const { t } = useI18n()
-    // Format result size for display
-    const formatSize = (length) => {
-      if (!length) return ''
-      if (length >= 1000) {
-        return `${(length / 1000).toFixed(1)}k chars`
-      }
-      return `${length} chars`
-    }
-    
+    const { t, locale } = useI18n()
+
     // Clean quote text - remove leading list numbers to avoid double numbering
     const cleanQuoteText = (text) => {
       if (!text) return ''
       // Remove leading patterns like "1. ", "2. ", "1、", "（1）", "(1)" etc.
       return text.replace(/^\s*\d+[\.\、\)）]\s*/, '').trim()
     }
-    
+
     const activeIndex = ref(0)
     const expandedAnswers = ref(new Set())
     // 为每个问题-回答对维护独立的平台选择状态
     const platformTabs = reactive({}) // { 'agentIdx-qIdx': 'twitter' | 'reddit' }
-    
+
     // 获取某个问题的当前平台选择
     const getPlatformTab = (agentIdx, qIdx) => {
       const key = `${agentIdx}-${qIdx}`
       return platformTabs[key] || 'twitter'
     }
-    
+
     // 设置某个问题的平台选择
     const setPlatformTab = (agentIdx, qIdx, platform) => {
       const key = `${agentIdx}-${qIdx}`
       platformTabs[key] = platform
     }
-    
+
     const toggleAnswer = (key) => {
       const newSet = new Set(expandedAnswers.value)
       if (newSet.has(key)) {
@@ -1327,13 +1279,13 @@ const InterviewDisplay = {
       }
       expandedAnswers.value = newSet
     }
-    
+
     const formatAnswer = (text, expanded) => {
       if (!text) return ''
       if (expanded || text.length <= 400) return text
       return text.substring(0, 400) + '...'
     }
-    
+
     // Check whether the text is a platform-placeholder (no-reply) marker
     const isPlaceholderText = (text) => {
       if (!text) return true
@@ -1409,7 +1361,7 @@ const InterviewDisplay = {
 
       return [answerText]
     }
-    
+
     // 获取某个问题对应的回答
     const getAnswerForQuestion = (interview, qIdx, platform) => {
       const answer = platform === 'twitter' ? interview.twitterAnswer : (interview.redditAnswer || interview.twitterAnswer)
@@ -1426,7 +1378,7 @@ const InterviewDisplay = {
       // 分割失败：第一个问题返回完整回答，其余返回空
       return qIdx === 0 ? answer : ''
     }
-    
+
     // 检查某个问题是否有双平台回答（过滤占位文本）
     const hasMultiplePlatforms = (interview, qIdx) => {
       if (!interview.twitterAnswer || !interview.redditAnswer) return false
@@ -1435,64 +1387,72 @@ const InterviewDisplay = {
       // 两个平台都有真实回答（非占位文本）且内容不同
       return !isPlaceholderText(twitterAnswer) && !isPlaceholderText(redditAnswer) && twitterAnswer !== redditAnswer
     }
-    
+
+    // Botón de plataforma: misma firma que las pestañas (la elegida, en tinta y con filete)
+    const platformButton = (agentIdx, qIdx, platform, active, label, iconChildren) => h('button', {
+      type: 'button',
+      class: ['r4-tab', 'platform-btn', { active }],
+      'aria-pressed': String(active),
+      onClick: (e) => { e.stopPropagation(); setPlatformTab(agentIdx, qIdx, platform) }
+    }, [
+      h('svg', { class: 'platform-icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'aria-hidden': 'true' }, iconChildren),
+      h('span', {}, label)
+    ])
+
     return () => h('div', { class: 'interview-display' }, [
       // Header Section
       h('div', { class: 'interview-header' }, [
         h('div', { class: 'header-main' }, [
           h('div', { class: 'header-title' }, t('ui.agentInterview')),
           h('div', { class: 'header-stats' }, [
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.successCount || props.result.interviews.length),
-              h('span', { class: 'stat-label' }, 'Interviewed')
-            ]),
-            props.result.totalCount > 0 && h('span', { class: 'stat-divider' }, '/'),
-            props.result.totalCount > 0 && h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.totalCount),
-              h('span', { class: 'stat-label' }, 'Total')
-            ]),
-            props.resultLength && h('span', { class: 'stat-divider' }, '·'),
-            props.resultLength && h('span', { class: 'stat-size' }, formatSize(props.resultLength))
+            statItem(props.result.successCount || props.result.interviews.length, t('step4.statInterviewed')),
+            props.result.totalCount > 0 && statDivider('/'),
+            props.result.totalCount > 0 && statItem(props.result.totalCount, t('step4.statTotal')),
+            props.resultLength && statDivider('·'),
+            props.resultLength && h('span', { class: 'stat-size' }, formatCharCount(props.resultLength, t, locale.value))
           ])
         ]),
         props.result.topic && h('div', { class: 'header-topic' }, props.result.topic)
       ]),
-      
+
       // Agent Selector Tabs
-      props.result.interviews.length > 0 && h('div', { class: 'agent-tabs' }, 
+      props.result.interviews.length > 0 && h('div', { class: 'agent-tabs' },
         props.result.interviews.map((interview, i) => h('button', {
-          class: ['agent-tab', { active: activeIndex.value === i }],
+          type: 'button',
+          class: ['r4-tab', 'agent-tab', { active: activeIndex.value === i }],
+          'aria-pressed': String(activeIndex.value === i),
+          title: interview.name || interview.title || '',
           key: i,
           onClick: () => { activeIndex.value = i }
         }, [
-          h('span', { class: 'tab-avatar' }, interview.name ? interview.name.charAt(0) : (i + 1)),
-          h('span', { class: 'tab-name' }, interview.title || interview.name || `Agent ${i + 1}`)
+          h('span', { class: 'tab-avatar', 'aria-hidden': 'true' }, interview.name ? interview.name.charAt(0) : (i + 1)),
+          h('span', { class: 'tab-name' }, interview.title || interview.name || t('step4.agentN', { n: i + 1 }))
         ]))
       ),
-      
+
       // Active Interview Detail
       props.result.interviews.length > 0 && h('div', { class: 'interview-detail' }, [
         // Agent Profile Card
         h('div', { class: 'agent-profile' }, [
-          h('div', { class: 'profile-avatar' }, props.result.interviews[activeIndex.value]?.name?.charAt(0) || 'A'),
+          h('div', { class: 'profile-avatar', 'aria-hidden': 'true' }, props.result.interviews[activeIndex.value]?.name?.charAt(0) || 'A'),
           h('div', { class: 'profile-info' }, [
-            h('div', { class: 'profile-name' }, props.result.interviews[activeIndex.value]?.name || 'Agent'),
+            h('div', { class: 'profile-name' }, props.result.interviews[activeIndex.value]?.name || t('step4.agent')),
             h('div', { class: 'profile-role' }, props.result.interviews[activeIndex.value]?.role || ''),
             props.result.interviews[activeIndex.value]?.bio && h('div', { class: 'profile-bio' }, props.result.interviews[activeIndex.value].bio)
           ])
         ]),
-        
+
         // Selection Reason - 选择理由
         props.result.interviews[activeIndex.value]?.selectionReason && h('div', { class: 'selection-reason' }, [
           h('div', { class: 'reason-label' }, t('step4.selectionReason')),
           h('div', { class: 'reason-content' }, props.result.interviews[activeIndex.value].selectionReason)
         ]),
-        
+
         // Q&A Conversation Thread - 一问一答样式
-        h('div', { class: 'qa-thread' }, 
-          (props.result.interviews[activeIndex.value]?.questions?.length > 0 
-            ? props.result.interviews[activeIndex.value].questions 
-            : [props.result.interviews[activeIndex.value]?.question || 'No question available']
+        h('div', { class: 'qa-thread' },
+          (props.result.interviews[activeIndex.value]?.questions?.length > 0
+            ? props.result.interviews[activeIndex.value].questions
+            : [props.result.interviews[activeIndex.value]?.question || t('step4.noQuestion')]
           ).map((question, qIdx) => {
             const interview = props.result.interviews[activeIndex.value]
             const currentPlatform = getPlatformTab(activeIndex.value, qIdx)
@@ -1503,11 +1463,11 @@ const InterviewDisplay = {
             const isPlaceholder = isPlaceholderText(answerText)
 
             return h('div', { class: 'qa-pair', key: qIdx }, [
-              // Question Block
+              // Question Block: «Q» en contorno, «A» rellena en tinta (forma y luminosidad, no color)
               h('div', { class: 'qa-question' }, [
                 h('div', { class: 'qa-badge q-badge' }, `Q${qIdx + 1}`),
                 h('div', { class: 'qa-content' }, [
-                  h('div', { class: 'qa-sender' }, 'Interviewer'),
+                  h('div', { class: 'qa-sender' }, t('step4.interviewer')),
                   h('div', { class: 'qa-text' }, question)
                 ])
               ]),
@@ -1517,28 +1477,16 @@ const InterviewDisplay = {
                 h('div', { class: 'qa-badge a-badge' }, `A${qIdx + 1}`),
                 h('div', { class: 'qa-content' }, [
                   h('div', { class: 'qa-answer-header' }, [
-                    h('div', { class: 'qa-sender' }, interview?.name || 'Agent'),
+                    h('div', { class: 'qa-sender' }, interview?.name || t('step4.agent')),
                     // 双平台切换按钮（仅在有真实双平台回答时显示）
                     hasDualPlatform && h('div', { class: 'platform-switch' }, [
-                      h('button', {
-                        class: ['platform-btn', { active: currentPlatform === 'twitter' }],
-                        onClick: (e) => { e.stopPropagation(); setPlatformTab(activeIndex.value, qIdx, 'twitter') }
-                      }, [
-                        h('svg', { class: 'platform-icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, [
-                          h('circle', { cx: '12', cy: '12', r: '10' }),
-                          h('line', { x1: '2', y1: '12', x2: '22', y2: '12' }),
-                          h('path', { d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z' })
-                        ]),
-                        h('span', {}, t('step4.world1'))
+                      platformButton(activeIndex.value, qIdx, 'twitter', currentPlatform === 'twitter', t('step4.world1'), [
+                        h('circle', { cx: '12', cy: '12', r: '10' }),
+                        h('line', { x1: '2', y1: '12', x2: '22', y2: '12' }),
+                        h('path', { d: 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z' })
                       ]),
-                      h('button', {
-                        class: ['platform-btn', { active: currentPlatform === 'reddit' }],
-                        onClick: (e) => { e.stopPropagation(); setPlatformTab(activeIndex.value, qIdx, 'reddit') }
-                      }, [
-                        h('svg', { class: 'platform-icon', viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, [
-                          h('path', { d: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' })
-                        ]),
-                        h('span', {}, t('step4.world2'))
+                      platformButton(activeIndex.value, qIdx, 'reddit', currentPlatform === 'reddit', t('step4.world2'), [
+                        h('path', { d: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' })
                       ])
                     ])
                   ]),
@@ -1552,24 +1500,26 @@ const InterviewDisplay = {
                   }),
                   // Expand/Collapse Button（占位文本不显示）
                   !isPlaceholder && answerText.length > 400 && h('button', {
-                    class: 'expand-answer-btn',
+                    type: 'button',
+                    class: 'r4-link expand-answer-btn',
+                    'aria-expanded': String(isExpanded),
                     onClick: () => toggleAnswer(expandKey)
-                  }, isExpanded ? 'Show Less' : 'Show More')
+                  }, isExpanded ? t('step4.showLess') : t('step4.showMore'))
                 ])
               ])
             ])
           })
         ),
-        
+
         // Key Quotes Section
         props.result.interviews[activeIndex.value]?.quotes?.length > 0 && h('div', { class: 'quotes-section' }, [
-          h('div', { class: 'quotes-header' }, 'Key Quotes'),
+          h('div', { class: 'quotes-header' }, t('step4.keyQuotes')),
           h('div', { class: 'quotes-list' },
             props.result.interviews[activeIndex.value].quotes.slice(0, 3).map((quote, qi) => {
               const cleanedQuote = cleanQuoteText(quote)
               const displayQuote = cleanedQuote.length > 200 ? cleanedQuote.substring(0, 200) + '...' : cleanedQuote
-              return h('blockquote', { 
-                key: qi, 
+              return h('blockquote', {
+                key: qi,
                 class: 'quote-item',
                 innerHTML: renderMarkdown(displayQuote)
               })
@@ -1581,7 +1531,7 @@ const InterviewDisplay = {
       // Summary Section (Collapsible)
       props.result.summary && h('div', { class: 'summary-section' }, [
         h('div', { class: 'summary-header' }, t('ui.interviewSummary')),
-        h('div', { 
+        h('div', {
           class: 'summary-content',
           innerHTML: renderMarkdown(props.result.summary.length > 500 ? props.result.summary.substring(0, 500) + '...' : props.result.summary)
         })
@@ -1594,37 +1544,25 @@ const InterviewDisplay = {
 const QuickSearchDisplay = {
   props: ['result', 'resultLength'],
   setup(props) {
-    const { t } = useI18n()
+    const { t, locale } = useI18n()
     const activeTab = ref('facts') // 'facts', 'edges', 'nodes'
     const expandedFacts = ref(false)
     const INITIAL_SHOW_COUNT = 5
-    
+
     // Check if there are edges or nodes to show tabs
     const hasEdges = computed(() => props.result.edges && props.result.edges.length > 0)
     const hasNodes = computed(() => props.result.nodes && props.result.nodes.length > 0)
     const showTabs = computed(() => hasEdges.value || hasNodes.value)
-    
-    // Format result size for display
-    const formatSize = (length) => {
-      if (!length) return ''
-      if (length >= 1000) {
-        return `${(length / 1000).toFixed(1)}k chars`
-      }
-      return `${length} chars`
-    }
-    
+
     return () => h('div', { class: 'quick-search-display' }, [
       // Header Section
-      h('div', { class: 'quicksearch-header' }, [
+      h('div', { class: 'quicksearch-header result-header' }, [
         h('div', { class: 'header-main' }, [
-          h('div', { class: 'header-title' }, 'Quick Search'),
+          h('div', { class: 'header-title' }, t('step4.toolQuickSearch')),
           h('div', { class: 'header-stats' }, [
-            h('span', { class: 'stat-item' }, [
-              h('span', { class: 'stat-value' }, props.result.count || props.result.facts.length),
-              h('span', { class: 'stat-label' }, 'Results')
-            ]),
-            props.resultLength && h('span', { class: 'stat-divider' }, '·'),
-            props.resultLength && h('span', { class: 'stat-size' }, formatSize(props.resultLength))
+            statItem(props.result.count || props.result.facts.length, t('step4.statResults')),
+            props.resultLength && statDivider('·'),
+            props.resultLength && h('span', { class: 'stat-size' }, formatCharCount(props.resultLength, t, locale.value))
           ])
         ]),
         props.result.query && h('div', { class: 'header-query' }, [
@@ -1632,31 +1570,16 @@ const QuickSearchDisplay = {
           h('span', { class: 'query-text' }, props.result.query)
         ])
       ]),
-      
+
       // Tab Navigation (only show if there are edges or nodes)
-      showTabs.value && h('div', { class: 'quicksearch-tabs' }, [
-        h('button', {
-          class: ['quicksearch-tab', { active: activeTab.value === 'facts' }],
-          onClick: () => { activeTab.value = 'facts' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabFacts', { count: props.result.facts.length }))
-        ]),
-        hasEdges.value && h('button', {
-          class: ['quicksearch-tab', { active: activeTab.value === 'edges' }],
-          onClick: () => { activeTab.value = 'edges' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabEdges', { count: props.result.edges.length }))
-        ]),
-        hasNodes.value && h('button', {
-          class: ['quicksearch-tab', { active: activeTab.value === 'nodes' }],
-          onClick: () => { activeTab.value = 'nodes' }
-        }, [
-          h('span', { class: 'tab-label' }, t('step4.tabNodes', { count: props.result.nodes.length }))
-        ])
+      showTabs.value && h('div', { class: 'quicksearch-tabs result-tabs' }, [
+        tabButton('quicksearch-tab', t('step4.tabFacts', { count: props.result.facts.length }), activeTab.value === 'facts', () => { activeTab.value = 'facts' }),
+        hasEdges.value && tabButton('quicksearch-tab', t('step4.tabEdges', { count: props.result.edges.length }), activeTab.value === 'edges', () => { activeTab.value = 'edges' }),
+        hasNodes.value && tabButton('quicksearch-tab', t('step4.tabNodes', { count: props.result.nodes.length }), activeTab.value === 'nodes', () => { activeTab.value = 'nodes' })
       ]),
-      
+
       // Content Area
-      h('div', { class: ['quicksearch-content', { 'no-tabs': !showTabs.value }] }, [
+      h('div', { class: ['quicksearch-content', 'result-content', { 'no-tabs': !showTabs.value }] }, [
         // Facts (always show if no tabs, or when facts tab is active)
         ((!showTabs.value) || activeTab.value === 'facts') && h('div', { class: 'facts-panel' }, [
           !showTabs.value && h('div', { class: 'panel-header' }, [
@@ -1664,19 +1587,16 @@ const QuickSearchDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.facts.length }))
           ]),
           props.result.facts.length > 0 ? h('div', { class: 'facts-list' },
-            (expandedFacts.value ? props.result.facts : props.result.facts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) => 
+            (expandedFacts.value ? props.result.facts : props.result.facts.slice(0, INITIAL_SHOW_COUNT)).map((fact, i) =>
               h('div', { class: 'fact-item', key: i }, [
                 h('span', { class: 'fact-number' }, i + 1),
                 h('div', { class: 'fact-content' }, fact)
               ])
             )
           ) : h('div', { class: 'empty-state' }, t('step4.emptySearchResults')),
-          props.result.facts.length > INITIAL_SHOW_COUNT && h('button', {
-            class: 'expand-btn',
-            onClick: () => { expandedFacts.value = !expandedFacts.value }
-          }, expandedFacts.value ? t('step4.collapse') : t('step4.expandAll', { count: props.result.facts.length }))
+          props.result.facts.length > INITIAL_SHOW_COUNT && expandButton(expandedFacts.value, t('step4.expandAll', { count: props.result.facts.length }), t('step4.collapse'), () => { expandedFacts.value = !expandedFacts.value })
         ]),
-        
+
         // Edges Tab
         activeTab.value === 'edges' && hasEdges.value && h('div', { class: 'edges-panel' }, [
           h('div', { class: 'panel-header' }, [
@@ -1684,20 +1604,20 @@ const QuickSearchDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalCount', { count: props.result.edges.length }))
           ]),
           h('div', { class: 'edges-list' },
-            props.result.edges.map((edge, i) => 
+            props.result.edges.map((edge, i) =>
               h('div', { class: 'edge-item', key: i }, [
                 h('span', { class: 'edge-source' }, edge.source),
                 h('span', { class: 'edge-arrow' }, [
-                  h('span', { class: 'edge-line' }),
+                  h('span', { class: 'edge-line', 'aria-hidden': 'true' }),
                   h('span', { class: 'edge-label' }, edge.relation),
-                  h('span', { class: 'edge-line' })
+                  h('span', { class: 'edge-line', 'aria-hidden': 'true' })
                 ]),
                 h('span', { class: 'edge-target' }, edge.target)
               ])
             )
           )
         ]),
-        
+
         // Nodes Tab
         activeTab.value === 'nodes' && hasNodes.value && h('div', { class: 'nodes-panel' }, [
           h('div', { class: 'panel-header' }, [
@@ -1705,7 +1625,7 @@ const QuickSearchDisplay = {
             h('span', { class: 'panel-count' }, t('step4.totalEntityCount', { count: props.result.nodes.length }))
           ]),
           h('div', { class: 'nodes-grid' },
-            props.result.nodes.map((node, i) => 
+            props.result.nodes.map((node, i) =>
               h('div', { class: 'node-tag', key: i }, [
                 h('span', { class: 'node-name' }, node.name),
                 node.type && h('span', { class: 'node-type' }, node.type)
@@ -1720,6 +1640,7 @@ const QuickSearchDisplay = {
 
 // Computed
 const statusClass = computed(() => {
+  if (reportError.value) return 'failed'
   if (isComplete.value) return 'completed'
   if (agentLogs.value.length > 0) return 'processing'
   return 'pending'
@@ -1808,7 +1729,7 @@ const workflowSteps = computed(() => {
     noLabel: 'PL',
     title: t('ui.planningOutline'),
     status: planningStatus,
-    meta: planningStatus === 'active' ? 'IN PROGRESS' : ''
+    meta: planningStatus === 'active' ? t('ui.status.processing') : ''
   })
 
   // Sections (if outline exists)
@@ -1824,7 +1745,7 @@ const workflowSteps = computed(() => {
       noLabel: String(idx).padStart(2, '0'),
       title: section.title,
       status,
-      meta: status === 'active' ? 'IN PROGRESS' : ''
+      meta: status === 'active' ? t('ui.status.processing') : ''
     })
   })
 
@@ -1835,7 +1756,7 @@ const workflowSteps = computed(() => {
     noLabel: 'OK',
     title: t('ui.complete'),
     status: completeStatus,
-    meta: completeStatus === 'active' ? 'FINALIZING' : ''
+    meta: completeStatus === 'active' ? t('step4.metaFinalizing') : ''
   })
 
   return steps
@@ -1873,11 +1794,7 @@ const formatParams = (params) => {
   }
 }
 
-const formatResultSize = (length) => {
-  if (!length) return ''
-  if (length < 1000) return `${length} chars`
-  return `${(length / 1000).toFixed(1)}k chars`
-}
+const formatResultSize = (length) => formatCharCount(length, t, locale.value)
 
 const truncateText = (text, maxLen) => {
   if (!text) return ''
@@ -1911,8 +1828,26 @@ const renderMarkdown = (content) => {
   html = html.replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>')
   
   // 处理引用块
-  html = html.replace(/^> (.+)$/gm, '<blockquote class="md-quote">$1</blockquote>')
-  
+  // El escape de arriba convierte «>» en «&gt;», así que la regla antigua (/^> /) no casaba nunca y las citas
+  // salían como texto con «> » delante. Las líneas seguidas forman una sola cita; «— Fulano» es su firma.
+  html = html.replace(/^&gt;(?: (.*))?$/gm, (m, text = '') => {
+    const cite = text.match(/^\s*[—–]\s*(.+)$/)
+    return cite
+      ? `<blockquote class="md-quote"><span class="md-quote-cite">— ${cite[1]}</span></blockquote>`
+      : `<blockquote class="md-quote">${text}</blockquote>`
+  })
+  html = html.replace(/<\/blockquote>\n<blockquote class="md-quote">(?=<span class="md-quote-cite">)/g, '')
+  html = html.replace(/<\/blockquote>\n<blockquote class="md-quote">/g, '<br>')
+
+  // Tablas (GFM): cabecera, fila separadora |---|:--:| y filas. Sin separador no es tabla y no se toca.
+  html = html.replace(/^(\|.*\|)[ \t]*\n(\|[ \t:|-]*-[ \t:|-]*\|)[ \t]*\n((?:\|.*\|[ \t]*(?:\n|$))*)/gm, (m, head, sep, body) => {
+    const cells = row => row.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+    const aligns = cells(sep).map(c => (c.startsWith(':') && c.endsWith(':') ? ' class="is-center"' : c.endsWith(':') ? ' class="is-right"' : ''))
+    const th = cells(head).map((c, i) => `<th${aligns[i] || ''}>${c}</th>`).join('')
+    const rows = body.trim() ? body.trim().split('\n').map(r => `<tr>${cells(r).map((c, i) => `<td${aligns[i] || ''}>${c}</td>`).join('')}</tr>`).join('') : ''
+    return `<div class="md-table-wrap"><table class="md-table"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>\n`
+  })
+
   // 处理列表 - 支持子列表
   html = html.replace(/^(\s*)- (.+)$/gm, (match, indent, text) => {
     const level = Math.floor(indent.length / 2)
@@ -1956,17 +1891,17 @@ const renderMarkdown = (content) => {
   html = html.replace(/<p class="md-p"><\/p>/g, '')
   html = html.replace(/<p class="md-p">(<h[2-5])/g, '$1')
   html = html.replace(/(<\/h[2-5]>)<\/p>/g, '$1')
-  html = html.replace(/<p class="md-p">(<ul|<ol|<blockquote|<pre|<hr)/g, '$1')
-  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>|<\/pre>)<\/p>/g, '$1')
+  html = html.replace(/<p class="md-p">(<ul|<ol|<blockquote|<pre|<hr|<div class="md-table-wrap")/g, '$1')
+  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>|<\/pre>|<\/table><\/div>)<\/p>/g, '$1')
   // 清理块级元素前后的 <br> 标签
-  html = html.replace(/<br>\s*(<ul|<ol|<blockquote)/g, '$1')
-  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>)\s*<br>/g, '$1')
+  html = html.replace(/<br>\s*(<ul|<ol|<blockquote|<div class="md-table-wrap")/g, '$1')
+  html = html.replace(/(<\/ul>|<\/ol>|<\/blockquote>|<\/table><\/div>)\s*<br>/g, '$1')
   // 清理 <p><br> 紧跟块级元素的情况（多余空行导致）
-  html = html.replace(/<p class="md-p">(<br>\s*)+(<ul|<ol|<blockquote|<pre|<hr)/g, '$2')
+  html = html.replace(/<p class="md-p">(<br>\s*)+(<ul|<ol|<blockquote|<pre|<hr|<div class="md-table-wrap")/g, '$2')
   // 清理连续的 <br> 标签
   html = html.replace(/(<br>\s*){2,}/g, '<br>')
   // 清理块级元素后紧跟的段落开始标签前的 <br>
-  html = html.replace(/(<\/ol>|<\/ul>|<\/blockquote>)<br>(<p|<div)/g, '$1$2')
+  html = html.replace(/(<\/ol>|<\/ul>|<\/blockquote>|<\/table><\/div>)<br>(<p|<div)/g, '$1$2')
 
   // 修复非连续有序列表的编号：当单项 <ol> 被段落内容隔开时，保持编号递增
   const tokens = html.split(/(<ol class="md-ol">(?:<li class="md-oli"[^>]*>[\s\S]*?<\/li>)+<\/ol>)/g)
@@ -2238,6 +2173,19 @@ watch(() => props.reportId, (newId) => {
 </script>
 
 <style scoped>
+/*
+ * Paso 4 · informe. Solo tokens de koolbrand.css: lima, tinta, grises, crema, --kb-ok-* y --kb-danger-*.
+ * Contrastes que se usan aquí (WCAG 2.2, medidos):
+ *   --kb-muted #6E6E6E sobre blanco / crema-50 / crema-100 ...... 5,12 / 4,72 / 4,52   (nunca sobre --kb-soft: 4,32)
+ *   --kb-text-on-soft #2A2A2A sobre --kb-soft #ECECEC ............ 12,2
+ *   --kb-ok-text #5C6C16 sobre --kb-ok-bg #EFF8D8 / blanco ........ 5,3 / 5,81
+ *   lima #CCE673 sobre tinta ...................................... 14,27   · --kb-muted-on-dark #8A8A8A sobre tinta 5,5
+ *   blanco sobre #6E6E6E (número de un hecho caducado) ............ 5,12
+ * Botones, una firma por rol: primario (relleno lima, uno por vista: «Entrar a interacción profunda»),
+ * secundario (.r4-btn), texto (.r4-link), pestaña (.r4-tab; la activa, tinta con filete) e icono (.r4-icon-btn).
+ * Las categorías (tipo de herramienta, sí/no, hecho vigente/caducado, pregunta/respuesta) se distinguen por
+ * icono, texto, forma o luminosidad, nunca por un tono propio.
+ */
 .report-panel {
   height: 100%;
   display: flex;
@@ -2247,6 +2195,15 @@ watch(() => props.reportId, (newId) => {
   overflow: hidden;
 }
 
+/* Foco visible: contorno tinta de 2 px en todo lo enfocable, también los bloques con desplazamiento propio
+   (respuesta del modelo, salida en bruto), que Chrome hace enfocables con teclado. Lima sobre el registro oscuro. */
+.report-panel :deep(:focus-visible) {
+  outline: 2px solid var(--kb-text);
+  outline-offset: 2px;
+}
+.report-panel :deep(.r4-tab:focus-visible) { outline-offset: -2px; }
+.console-logs :focus-visible { outline-color: var(--kb-accent-solid) !important; }
+
 /* Main Split Layout */
 .main-split-layout {
   flex: 1;
@@ -2254,19 +2211,103 @@ watch(() => props.reportId, (newId) => {
   overflow: hidden;
 }
 
-/* Panel Headers */
+/* ========== Botones: una firma por rol ========== */
+/* Secundario: contorno de control (#858585, ≥ 3:1 sobre blanco), texto tinta */
+.report-panel :deep(.r4-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--kb-surface);
+  color: var(--kb-text);
+  border: 1px solid var(--kb-control-line);
+  border-radius: 8px;
+  font: 600 13px/1 var(--kb-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.report-panel :deep(.r4-btn:hover) {
+  border-color: var(--kb-text);
+  background: var(--kb-surface-2);
+}
+
+/* Texto: sin caja; texto tinta con subrayado lima (decorativo) */
+.report-panel :deep(.r4-link) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: 600 13px/1.2 var(--kb-font-sans);
+  color: var(--kb-text);
+  text-decoration: underline;
+  text-decoration-color: var(--kb-accent-line);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.report-panel :deep(.r4-link:hover) { text-decoration-color: var(--kb-text); }
+
+/* Pestaña: la activa, en tinta y negrita con filete inferior; las demás, gris legible sobre blanco */
+.report-panel :deep(.r4-tab) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--kb-muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font: 500 13px/1 var(--kb-font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.report-panel :deep(.r4-tab:hover) {
+  color: var(--kb-text);
+  border-bottom-color: var(--kb-line-strong);
+}
+.report-panel :deep(.r4-tab.active) {
+  color: var(--kb-text);
+  font-weight: 600;
+  border-bottom-color: var(--kb-text);
+}
+
+/* Icono: 32 × 32; la caja aparece al pasar por encima */
+.report-panel :deep(.r4-icon-btn) {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--kb-text-2);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 600 13px/1 var(--kb-font-sans);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.report-panel :deep(.r4-icon-btn:hover) {
+  background: var(--kb-surface-2);
+  border-color: var(--kb-line);
+}
+
+/* ========== Cabecera fija del flujo (mientras se genera) ========== */
 .panel-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 20px;
-  background: #FFFFFF;
+  padding: 12px 20px;
+  background: var(--kb-surface);
   border-bottom: 1px solid var(--kb-line);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--kb-text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -2277,148 +2318,109 @@ watch(() => props.reportId, (newId) => {
   height: 8px;
   border-radius: 50%;
   background: var(--kb-text);
-  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.15);
-  margin-right: 10px;
   flex-shrink: 0;
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
-    box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.15);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgba(31, 41, 55, 0.1);
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 .header-index {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--kb-subtle);
-  margin-right: 10px;
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
   flex-shrink: 0;
 }
 
 .header-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--kb-text-2);
+  color: var(--kb-text);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 .header-meta {
   margin-left: auto;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--kb-muted);
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kb-text);
   flex-shrink: 0;
 }
 
-/* Panel header status variants */
 .panel-header--active {
   background: var(--kb-surface-2);
-  border-color: var(--kb-text);
+  border-bottom-color: var(--kb-text);
 }
 
-.panel-header--active .header-index {
-  color: var(--kb-text);
-}
+.panel-header--done .header-index { color: var(--kb-accent-text); }
+.panel-header--todo .header-title { color: var(--kb-muted); }
 
-.panel-header--active .header-title {
-  color: var(--kb-text);
-}
-
-.panel-header--active .header-meta {
-  color: var(--kb-text);
-}
-
-.panel-header--done {
-  background: var(--kb-surface-2);
-}
-
-.panel-header--done .header-index {
-  color: #10B981;
-}
-
-.panel-header--todo .header-index,
-.panel-header--todo .header-title {
-  color: var(--kb-subtle);
-}
-
-/* Left Panel - Report Style */
+/* ========== Panel izquierdo: el informe ========== */
 .left-panel.report-style {
   width: 45%;
   min-width: 450px;
-  background: #FFFFFF;
+  background: var(--kb-surface);
   border-right: 1px solid var(--kb-line);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 30px 50px 60px 50px;
+  padding: 32px 48px 64px;
 }
 
-.left-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.left-panel::-webkit-scrollbar-track {
+.left-panel::-webkit-scrollbar,
+.right-panel::-webkit-scrollbar { width: 6px; }
+.left-panel::-webkit-scrollbar-track,
+.right-panel::-webkit-scrollbar-track { background: transparent; }
+.left-panel::-webkit-scrollbar-thumb,
+.right-panel::-webkit-scrollbar-thumb {
   background: transparent;
-}
-
-.left-panel::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 3px;
+  border-radius: 4px;
   transition: background 0.3s ease;
 }
+.left-panel:hover::-webkit-scrollbar-thumb,
+.right-panel:hover::-webkit-scrollbar-thumb { background: var(--kb-line-strong); }
+.left-panel::-webkit-scrollbar-thumb:hover,
+.right-panel::-webkit-scrollbar-thumb:hover { background: var(--kb-control-line); }
 
-.left-panel:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-}
-
-.left-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
-
-/* Report Header */
 .report-content-wrapper {
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
 }
 
-.report-header-block {
-  margin-bottom: 30px;
-}
+.report-header-block { margin-bottom: 32px; }
 
 .report-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 24px;
 }
 
 .report-tag {
   background: var(--kb-text);
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 8px;
-  letter-spacing: 0.05em;
+  color: var(--kb-accent-solid);
+  font: 600 12px/1 var(--kb-font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  padding: 6px 8px;
+  border-radius: 4px;
 }
 
 .report-id {
-  font-size: 11px;
-  color: var(--kb-subtle);
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font: 400 12px/1.4 var(--kb-font-mono);
+  color: var(--kb-muted);
+  overflow-wrap: anywhere;
 }
 
+/* El título se lee entero: sin recorte a 3 líneas ni «…», con líneas equilibradas */
 .main-title {
   font-family: var(--kb-font-sans);
   font-size: clamp(22px, 2.2vw, 30px);
@@ -2428,21 +2430,17 @@ watch(() => props.reportId, (newId) => {
   margin: 0 0 16px 0;
   letter-spacing: -0.02em;
   text-wrap: balance;
-  /* Un título de 7 líneas ocupaba medio panel: máximo 3 */
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: break-word;
 }
 
 .sub-title {
   font-family: var(--kb-font-sans);
   font-size: 16px;
-  color: var(--kb-muted);
-  font-style: italic;
-  line-height: 1.6;
-  margin: 0 0 30px 0;
-  font-weight: 400;
+  line-height: 1.55;
+  color: var(--kb-text-2);
+  margin: 0 0 32px 0;
+  max-width: 56ch;
+  text-wrap: pretty;
 }
 
 .header-divider {
@@ -2455,131 +2453,172 @@ watch(() => props.reportId, (newId) => {
 .sections-list {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 40px;
 }
 
 .report-section-item {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .section-header-row {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  transition: background-color 0.2s ease;
   padding: 8px 12px;
   margin: -8px -12px;
   border-radius: 8px;
+  transition: background-color 0.2s ease;
 }
 
-.section-header-row.clickable {
-  cursor: pointer;
-}
+.section-header-row.clickable { cursor: pointer; }
+.section-header-row.clickable:hover { background-color: var(--kb-surface-2); }
 
-.section-header-row.clickable:hover {
-  background-color: var(--kb-surface-2);
-}
-
-.collapse-icon {
+.collapse-btn {
   margin-left: auto;
-  color: var(--kb-subtle);
-  transition: transform 0.3s ease;
-  flex-shrink: 0;
   align-self: center;
 }
 
-.collapse-icon.is-collapsed {
-  transform: rotate(-90deg);
-}
+.collapse-icon { transition: transform 0.3s ease; }
+.collapse-icon.is-collapsed { transform: rotate(-90deg); }
 
 .section-number {
   font-family: var(--kb-font-sans);
   font-size: 16px;
-  color: var(--kb-subtle); /* 深灰色，不随状态变化 */
   font-weight: 500;
+  color: var(--kb-muted);
+  flex-shrink: 0;
 }
 
 .section-title {
   font-family: var(--kb-font-sans);
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--kb-text);
   margin: 0;
+  text-wrap: balance;
   transition: color 0.3s ease;
 }
 
-/* States */
-.report-section-item.is-pending .section-title {
-  color: var(--kb-line-strong);
-}
-
-.report-section-item.is-active .section-title,
-.report-section-item.is-completed .section-title {
-  color: var(--kb-text);
-}
+/* Pendiente: gris legible (antes #CFCFCF sobre blanco, 1,56:1) */
+.report-section-item.is-pending .section-title { color: var(--kb-muted); }
 
 .section-body {
-  padding-left: 28px;
-  overflow: hidden;
+  padding-left: 32px;
+  min-width: 0;
 }
 
-/* Generated Content */
+/* ---------- Markdown del informe: medida ≤ 75 caracteres (56ch de Inter Tight ≈ 72), interlineado 1,6 ---------- */
 .generated-content {
   font-family: var(--kb-font-sans);
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: 16px;
+  line-height: 1.6;
   color: var(--kb-text-2);
+  max-width: 56ch;
+  overflow-wrap: break-word;
 }
 
-.generated-content :deep(p) {
-  margin-bottom: 1em;
-}
+.generated-content :deep(.md-p) { margin: 0 0 1em; }
+.generated-content :deep(.md-p:last-child) { margin-bottom: 0; }
 
-.generated-content :deep(.md-h2),
-.generated-content :deep(.md-h3),
-.generated-content :deep(.md-h4) {
+.generated-content :deep(:is(.md-h2, .md-h3, .md-h4, .md-h5)) {
   font-family: var(--kb-font-sans);
   color: var(--kb-text);
-  margin-top: 1.5em;
-  margin-bottom: 0.8em;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 1.6em 0 0.6em;
+  text-wrap: balance;
+}
+.generated-content :deep(:is(.md-h2, .md-h3, .md-h4, .md-h5):first-child) { margin-top: 0; }
+.generated-content :deep(.md-h2) { font-size: 22px; }
+.generated-content :deep(.md-h3) { font-size: 18px; }
+.generated-content :deep(.md-h4) { font-size: 16px; }
+.generated-content :deep(.md-h5) { font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.generated-content :deep(:is(.md-ul, .md-ol)) {
+  padding-left: 1.4em;
+  margin: 0 0 1em;
+}
+.generated-content :deep(:is(.md-li, .md-oli)) {
+  margin: 0.35em 0;
+  padding-left: 0.2em;
+}
+.generated-content :deep(:is(.md-li, .md-oli)[data-level="1"]) { margin-left: 1.2em; }
+.generated-content :deep(:is(.md-li, .md-oli)[data-level="2"]) { margin-left: 2.4em; }
+.generated-content :deep(:is(.md-li, .md-oli)::marker) {
+  color: var(--kb-accent-text);
   font-weight: 700;
 }
 
-.generated-content :deep(.md-h2) { font-size: 20px; border-bottom: 1px solid var(--kb-soft); padding-bottom: 8px; }
-.generated-content :deep(.md-h3) { font-size: 18px; }
-.generated-content :deep(.md-h4) { font-size: 16px; }
-
-.generated-content :deep(.md-ul),
-.generated-content :deep(.md-ol) {
-  padding-left: 24px;
-  margin: 12px 0;
-}
-
-.generated-content :deep(.md-li),
-.generated-content :deep(.md-oli) {
-  margin: 6px 0;
-}
-
+/* Citas: filete lima y la firma («— Fulano») debajo, en gris */
 .generated-content :deep(.md-quote) {
-  border-left: 3px solid var(--kb-line);
-  padding-left: 16px;
   margin: 1.5em 0;
-  color: var(--kb-muted);
-  font-style: italic;
+  padding: 4px 0 4px 20px;
+  border-left: 3px solid var(--kb-accent-line);
+  color: var(--kb-text);
   font-family: var(--kb-font-sans);
 }
+.generated-content :deep(.md-quote-cite) {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--kb-muted);
+}
+
+/* Tablas: cabecera con filete tinta, filas cebreadas en crema, cifras tabulares, desplazamiento propio */
+.generated-content :deep(.md-table-wrap) {
+  margin: 1.5em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.generated-content :deep(.md-table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.generated-content :deep(.md-table th) {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: bottom;
+  font-weight: 600;
+  color: var(--kb-text);
+  border-bottom: 2px solid var(--kb-text);
+}
+.generated-content :deep(.md-table td) {
+  padding: 8px 12px;
+  vertical-align: top;
+  color: var(--kb-text-2);
+  border-bottom: 1px solid var(--kb-line);
+}
+.generated-content :deep(.md-table tbody tr:nth-child(even)) { background: var(--kb-surface-2); }
+.generated-content :deep(.md-table .is-center) { text-align: center; }
+.generated-content :deep(.md-table .is-right) { text-align: right; }
 
 .generated-content :deep(.code-block) {
   background: var(--kb-surface-2);
-  padding: 12px;
+  padding: 12px 16px;
   border-radius: 6px;
   font-family: var(--kb-font-mono);
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.5;
   overflow-x: auto;
   margin: 1em 0;
   border: 1px solid var(--kb-line);
+}
+
+.generated-content :deep(.inline-code) {
+  font-family: var(--kb-font-mono);
+  font-size: 14px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--kb-soft);
+  color: var(--kb-text-on-soft);
 }
 
 .generated-content :deep(strong) {
@@ -2587,74 +2626,39 @@ watch(() => props.reportId, (newId) => {
   color: var(--kb-text);
 }
 
+.generated-content :deep(.md-hr) {
+  border: 0;
+  border-top: 1px solid var(--kb-line);
+  margin: 2em 0;
+}
+
 /* Loading State */
 .loading-state {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--kb-muted);
-  font-size: 14px;
+  gap: 12px;
   margin-top: 4px;
 }
 
 .loading-icon {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
   animation: spin 1s linear infinite;
   display: flex;
-  align-items: center;
-  justify-content: center;
 }
+.loading-icon svg { width: 100%; height: 100%; }
+.spin-track { stroke: var(--kb-line); }
+.spin-head { stroke: var(--kb-text); }
 
 .loading-text {
   font-family: var(--kb-font-sans);
-  font-size: 15px;
+  font-size: 16px;
   color: var(--kb-text-2);
-}
-
-.cursor-blink {
-  display: inline-block;
-  width: 8px;
-  height: 14px;
-  background: #8B5CF6;
-  opacity: 0.5;
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0; }
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-/* Content Styles Override for this view */
-.generated-content :deep(.md-h2) {
-  font-family: var(--kb-font-sans);
-  font-size: 18px;
-  margin-top: 0;
-}
-
-
-/* Slide Content Transition */
-.slide-content-enter-active {
-  transition: opacity 0.3s ease-out;
-}
-
-.slide-content-leave-active {
-  transition: opacity 0.2s ease-in;
-}
-
-.slide-content-enter-from,
-.slide-content-leave-to {
-  opacity: 0;
-}
-
-.slide-content-enter-to,
-.slide-content-leave-from {
-  opacity: 1;
 }
 
 /* Waiting Placeholder */
@@ -2666,7 +2670,7 @@ watch(() => props.reportId, (newId) => {
   justify-content: center;
   gap: 20px;
   padding: 40px;
-  color: var(--kb-subtle);
+  color: var(--kb-muted);
 }
 
 .waiting-animation {
@@ -2679,89 +2683,38 @@ watch(() => props.reportId, (newId) => {
   position: absolute;
   width: 100%;
   height: 100%;
-  border: 2px solid var(--kb-line);
+  border: 2px solid var(--kb-line-strong);
   border-radius: 50%;
   animation: ripple 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-
-.waiting-ring:nth-child(2) {
-  animation-delay: 0.4s;
-}
-
-.waiting-ring:nth-child(3) {
-  animation-delay: 0.8s;
-}
+.waiting-ring:nth-child(2) { animation-delay: 0.4s; }
+.waiting-ring:nth-child(3) { animation-delay: 0.8s; }
 
 @keyframes ripple {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(2); opacity: 0; }
 }
 
-.waiting-text {
-  font-size: 14px;
-}
+.waiting-text { font-size: 14px; }
 
-/* Right Panel */
+/* ========== Panel derecho: flujo de trabajo ========== */
 .right-panel {
   flex: 1;
-  background: #FFFFFF;
+  background: var(--kb-surface);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-
-  /* Functional palette (low saturation, status-based) */
-  --wf-border: var(--kb-line);
-  --wf-divider: #F3F4F6;
-
-  --wf-active-bg: #FAFAFA;
-  --wf-active-border: #1F2937;
-  --wf-active-dot: #1F2937;
-  --wf-active-text: #1F2937;
-
-  --wf-done-bg: #F9FAFB;
-  --wf-done-border: #E5E7EB;
-  --wf-done-dot: #10B981;
-
-  --wf-muted-dot: #D1D5DB;
-  --wf-todo-text: #9CA3AF;
 }
 
-.right-panel::-webkit-scrollbar {
-  width: 6px;
-}
+.mono { font-family: var(--kb-font-mono); }
 
-.right-panel::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.right-panel::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 3px;
-  transition: background 0.3s ease;
-}
-
-.right-panel:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-}
-
-.right-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.mono {
-  font-family: var(--kb-font-mono);
-}
-
-/* Workflow Overview */
-.workflow-overview {
-  padding: 16px 20px 0 20px;
-}
+.workflow-overview { padding: 16px 20px 0 20px; }
 
 .workflow-metrics {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 16px;
   margin-bottom: 12px;
 }
 
@@ -2771,118 +2724,78 @@ watch(() => props.reportId, (newId) => {
   gap: 6px;
 }
 
-.metric-right {
-  margin-left: auto;
-}
+.metric-right { margin-left: auto; }
 
 .metric-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kb-subtle);
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--kb-muted);
 }
 
 .metric-value {
-  font-size: 12px;
-  color: var(--kb-text-2);
+  font: 600 13px/1 var(--kb-font-mono);
+  color: var(--kb-text);
 }
 
+/* Estado: «hecho» con los semánticos de la marca (lima oscuro sobre lima claro), «en curso» con tinta */
 .metric-pill {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  display: inline-block;
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 4px 10px;
+  padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid var(--wf-border);
-  background: var(--kb-surface-2);
+  border: 1px solid var(--kb-line);
+  background: var(--kb-surface);
   color: var(--kb-muted);
 }
-
-.metric-pill.pill--processing {
-  background: var(--wf-active-bg);
-  border-color: var(--wf-active-border);
-  color: var(--wf-active-text);
-}
-
-.metric-pill.pill--completed {
-  background: #ECFDF5;
-  border-color: #A7F3D0;
-  color: #065F46;
-}
-
-.metric-pill.pill--pending {
-  background: transparent;
-  border-style: dashed;
-  color: var(--kb-muted);
-}
+.metric-pill.pill--processing { border-color: var(--kb-text); color: var(--kb-text); }
+.metric-pill.pill--completed { background: var(--kb-ok-bg); border-color: var(--kb-ok-line); color: var(--kb-ok-text); }
+.metric-pill.pill--pending { border-style: dashed; border-color: var(--kb-control-line); }
+.metric-pill.pill--failed { border-color: var(--kb-danger-line); color: var(--kb-danger-text); }
 
 .workflow-steps {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 10px;
+  gap: 8px;
+  padding-bottom: 12px;
 }
 
 .wf-step {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--wf-divider);
+  border: 1px solid var(--kb-line);
   border-radius: 8px;
-  background: #FFFFFF;
+  background: var(--kb-surface);
 }
-
-.wf-step--active {
-  background: var(--wf-active-bg);
-  border-color: var(--wf-active-border);
-}
-
-.wf-step--done {
-  background: var(--wf-done-bg);
-  border-color: var(--wf-done-border);
-}
-
-.wf-step--todo {
-  background: transparent;
-  border-color: var(--wf-border);
-  border-style: dashed;
-}
+.wf-step--active { background: var(--kb-surface-2); border-color: var(--kb-text); }
+.wf-step--todo { border-style: dashed; }
 
 .wf-step-connector {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 24px;
-  flex-shrink: 0;
+  width: 16px;
 }
 
+/* Estado por forma: aro vacío (pendiente), punto tinta (en curso), punto lima con marca tinta (hecho) */
 .wf-step-dot {
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
-  background: var(--wf-muted-dot);
-  border: 2px solid #FFFFFF;
-  z-index: 1;
+  background: transparent;
+  border: 2px solid var(--kb-control-line);
+  color: var(--kb-text);
 }
-
-.wf-step-line {
-  width: 2px;
-  flex: 1;
-  background: var(--wf-divider);
-  margin-top: -2px;
-}
-
-.wf-step--active .wf-step-dot {
-  background: var(--wf-active-dot);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-}
-
-.wf-step--done .wf-step-dot {
-  background: var(--wf-done-dot);
-}
+.wf-step--active .wf-step-dot { background: var(--kb-text); border-color: var(--kb-text); }
+.wf-step--done .wf-step-dot { background: var(--kb-accent-solid); border-color: var(--kb-text); }
+.wf-step-line { display: none; }
 
 .wf-step-title-row {
   display: flex;
@@ -2892,10 +2805,9 @@ watch(() => props.reportId, (newId) => {
 }
 
 .wf-step-index {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--kb-subtle);
-  letter-spacing: 0.02em;
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
   flex-shrink: 0;
 }
 
@@ -2906,196 +2818,177 @@ watch(() => props.reportId, (newId) => {
   color: var(--kb-text);
   line-height: 1.35;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .wf-step-meta {
   margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--wf-active-text);
+  font: 600 11px/1 var(--kb-font-mono);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--kb-text);
   flex-shrink: 0;
 }
 
-.wf-step--todo .wf-step-title,
-.wf-step--todo .wf-step-index {
-  color: var(--wf-todo-text);
+.wf-step--todo .wf-step-title { color: var(--kb-muted); }
+
+/* Primario: el único relleno de la vista, con la firma de la portada (lima + tinta, sombra dura al pasar) */
+.next-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 16px 26px;
+  font: 600 16px/1 var(--kb-font-sans);
+  color: var(--kb-accent-on);
+  background: var(--kb-accent-solid);
+  border: 1px solid var(--kb-accent-solid);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
+.next-step-btn:hover {
+  background: var(--kb-accent-hover);
+  border-color: var(--kb-accent-hover);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--kb-text);
+}
+.next-step-btn:active { transform: none; box-shadow: none; }
+.next-step-btn svg { transition: transform 0.2s ease; }
+.next-step-btn:hover svg { transform: translateX(4px); }
 
 .workflow-divider {
   height: 1px;
-  background: var(--wf-divider);
-  margin: 14px 0 0 0;
+  background: var(--kb-line);
+  margin: 16px 0 0 0;
 }
 
 /* Workflow Timeline */
 .workflow-timeline {
-  padding: 14px 20px 24px;
+  padding: 16px 20px 24px;
   flex: 1;
 }
 
 .timeline-item {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 12px minmax(0, 1fr);
   gap: 12px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  border: 1px solid var(--wf-divider);
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--kb-line);
   border-radius: 8px;
-  background: #FFFFFF;
+  background: var(--kb-surface);
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-
-.timeline-item:hover {
-  background: var(--kb-surface-2);
-  border-color: var(--wf-border);
-}
-
-.timeline-item.node--active {
-  background: var(--wf-active-bg);
-  border-color: var(--wf-active-border);
-}
-
-.timeline-item.node--active:hover {
-  background: var(--wf-active-bg);
-  border-color: var(--wf-active-border);
-}
-
-.timeline-item.node--done {
-  background: var(--wf-done-bg);
-  border-color: var(--wf-done-border);
-}
-
-.timeline-item.node--done:hover {
-  background: var(--wf-done-bg);
-  border-color: var(--wf-done-border);
-}
+.timeline-item:hover { background: var(--kb-surface-2); }
+.timeline-item.node--active,
+.timeline-item.node--active:hover { background: var(--kb-surface-2); border-color: var(--kb-text); }
 
 .timeline-connector {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 24px;
-  flex-shrink: 0;
+  width: 12px;
+  padding-top: 2px;
 }
 
 .connector-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--wf-muted-dot);
-  border: 2px solid #FFFFFF;
-  z-index: 1;
+  background: var(--kb-line-strong);
+  border: 2px solid var(--kb-surface);
+  flex-shrink: 0;
 }
 
 .connector-line {
   width: 2px;
   flex: 1;
-  background: var(--wf-divider);
-  margin-top: -2px;
+  margin-top: 4px;
+  background: var(--kb-soft);
 }
 
-/* Connector dot: status only */
-.dot-active {
-  background: var(--wf-active-dot);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-}
+/* Punto por luminosidad y contorno: gris (paso), tinta (el último en curso), lima con aro tinta (hito) */
+.dot-active { background: var(--kb-text); border-color: var(--kb-text); }
+.dot-done { background: var(--kb-accent-solid); border-color: var(--kb-text); }
+.dot-muted { background: var(--kb-line-strong); }
 
-.dot-done {
-  background: var(--wf-done-dot);
-}
-
-.dot-muted {
-  background: var(--wf-muted-dot);
-}
-
-.timeline-content {
-  min-width: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  margin: 0;
-  transition: none;
-}
-
-.timeline-content:hover {
-  box-shadow: none;
-}
+.timeline-content { min-width: 0; }
 
 .timeline-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .action-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--kb-text-2);
+  color: var(--kb-text);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
 .action-time {
-  font-size: 11px;
-  color: var(--kb-subtle);
-  font-family: var(--kb-font-mono);
+  font: 400 11px/1 var(--kb-font-mono);
+  color: var(--kb-muted);
+  flex-shrink: 0;
 }
 
 .timeline-body {
   font-size: 13px;
+  line-height: 1.5;
   color: var(--kb-text-2);
+  min-width: 0;
 }
 
 .timeline-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--kb-soft);
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--kb-line);
 }
 
-.elapsed-placeholder {
-  flex-shrink: 0;
-}
+.elapsed-placeholder { flex-shrink: 0; }
 
 .footer-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-left: auto;
 }
 
+/* Tiempo transcurrido: sin fondo gris (era #6E6E6E sobre #ECECEC, 4,32:1) */
 .elapsed-badge {
-  font-size: 11px;
+  font: 400 11px/1 var(--kb-font-mono);
   color: var(--kb-muted);
-  background: var(--kb-soft);
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-family: var(--kb-font-mono);
 }
 
 /* Timeline Body Elements */
 .info-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 6px;
 }
 
 .info-key {
-  font-size: 11px;
-  color: var(--kb-subtle);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--kb-muted);
   min-width: 80px;
+  flex-shrink: 0;
 }
 
 .info-val {
   color: var(--kb-text-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .status-message {
@@ -3103,29 +2996,20 @@ watch(() => props.reportId, (newId) => {
   border-radius: 6px;
   font-size: 13px;
   border: 1px solid transparent;
+  background: var(--kb-surface-2);
+  color: var(--kb-text-2);
 }
-
-.status-message.planning {
-  background: var(--wf-active-bg);
-  border-color: var(--wf-active-border);
-  color: var(--wf-active-text);
-}
-
-.status-message.success {
-  background: #ECFDF5;
-  border-color: #A7F3D0;
-  color: #065F46;
-}
+.status-message.success { background: var(--kb-ok-bg); border-color: var(--kb-ok-line); color: var(--kb-ok-text); }
 
 .outline-badge {
   display: inline-block;
   margin-top: 8px;
   padding: 4px 10px;
-  background: var(--kb-surface-2);
+  background: var(--kb-surface);
   color: var(--kb-muted);
   border: 1px solid var(--kb-line);
-  border-radius: 12px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -3133,236 +3017,113 @@ watch(() => props.reportId, (newId) => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
   padding: 6px 12px;
   background: var(--kb-surface-2);
-  border: 1px solid var(--wf-border);
+  border: 1px solid var(--kb-line);
   border-radius: 6px;
 }
-
-.section-tag.content-ready {
-  background: var(--wf-active-bg);
-  border: 1px dashed var(--wf-active-border);
-}
-
-.section-tag.content-ready svg {
-  color: var(--wf-active-dot);
-}
-
-
-.section-tag.completed {
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-}
-
-.section-tag.completed svg {
-  color: #059669;
-}
+.section-tag svg { flex-shrink: 0; }
+.section-tag.content-ready { border-style: dashed; border-color: var(--kb-control-line); }
+.section-tag.completed { background: var(--kb-ok-bg); border-color: var(--kb-ok-line); }
+.section-tag.completed svg { color: var(--kb-ok-text); }
 
 .tag-num {
-  font-size: 11px;
-  font-weight: 700;
+  font: 600 11px/1 var(--kb-font-mono);
   color: var(--kb-muted);
-}
-
-.section-tag.completed .tag-num {
-  color: #059669;
 }
 
 .tag-title {
   font-size: 13px;
   font-weight: 500;
   color: var(--kb-text-2);
+  min-width: 0;
 }
+.section-tag.completed .tag-title { color: var(--kb-text); }
 
+/* Herramienta: tesela tinta con el icono en lima + nombre. Lo que la distingue es el icono y el texto. */
 .tool-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--kb-surface-2);
-  color: var(--kb-text-2);
-  border: 1px solid var(--wf-border);
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  transition: all 0.2s ease;
+  color: var(--kb-text);
 }
 
-.tool-icon {
+.tool-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--kb-text);
+  color: var(--kb-accent-solid);
   flex-shrink: 0;
 }
 
-/* Tool Colors - Purple (Deep Insight) */
-.tool-badge.tool-purple {
-  background: #F5F3FF;
-  border-color: #C4B5FD;
-  color: #6D28D9;
-}
-.tool-badge.tool-purple .tool-icon {
-  stroke: #7C3AED;
-}
-
-/* Tool Colors - Blue (Panorama Search) */
-.tool-badge.tool-blue {
-  background: #EFF6FF;
-  border-color: #93C5FD;
-  color: #1D4ED8;
-}
-.tool-badge.tool-blue .tool-icon {
-  stroke: #2563EB;
-}
-
-/* Tool Colors - Green (Agent Interview) */
-.tool-badge.tool-green {
-  background: #F0FDF4;
-  border-color: #86EFAC;
-  color: #15803D;
-}
-.tool-badge.tool-green .tool-icon {
-  stroke: #16A34A;
-}
-
-/* Tool Colors - Orange (Quick Search) */
-.tool-badge.tool-orange {
-  background: #FFF7ED;
-  border-color: #FDBA74;
-  color: #C2410C;
-}
-.tool-badge.tool-orange .tool-icon {
-  stroke: #EA580C;
-}
-
-/* Tool Colors - Cyan (Graph Stats) */
-.tool-badge.tool-cyan {
-  background: #ECFEFF;
-  border-color: #67E8F9;
-  color: #0E7490;
-}
-.tool-badge.tool-cyan .tool-icon {
-  stroke: #0891B2;
-}
-
-/* Tool Colors - Pink (Entity Query) */
-.tool-badge.tool-pink {
-  background: #FDF2F8;
-  border-color: #F9A8D4;
-  color: #BE185D;
-}
-.tool-badge.tool-pink .tool-icon {
-  stroke: #DB2777;
-}
-
-/* Tool Colors - Gray (Default) */
-.tool-badge.tool-gray {
-  background: linear-gradient(135deg, var(--kb-surface-2) 0%, var(--kb-soft) 100%);
-  border-color: var(--kb-line-strong);
-  color: var(--kb-text-2);
-}
-.tool-badge.tool-gray .tool-icon {
-  stroke: var(--kb-muted);
-}
+.tool-icon { display: block; }
 
 .tool-params {
-  margin-top: 10px;
-  background: transparent;
-  border-radius: 0;
-  padding: 10px 0 0 0;
-  border-top: 1px dashed var(--wf-divider);
+  margin-top: 12px;
   overflow-x: auto;
 }
 
-.tool-params pre {
+.tool-params pre,
+.result-raw pre,
+.llm-content pre {
   margin: 0;
-  font-family: var(--kb-font-mono);
-  font-size: 11px;
-  color: var(--kb-text-2);
+  font: 400 12px/1.5 var(--kb-font-mono);
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
+  color: var(--kb-text-2);
   background: var(--kb-surface-2);
   border: 1px solid var(--kb-line);
   border-radius: 6px;
-  padding: 10px;
-}
-
-/* Unified Action Buttons */
-.action-btn {
-  background: var(--kb-soft);
-  border: 1px solid var(--kb-line);
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.action-btn:hover {
-  background: var(--kb-line);
-  color: var(--kb-text-2);
-  border-color: var(--kb-line-strong);
+  padding: 12px;
 }
 
 /* Result Wrapper */
-.result-wrapper {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--wf-divider);
-  border-radius: 0;
-  padding: 12px 0 0 0;
-}
+.result-wrapper { padding-top: 4px; }
 
 .result-meta {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .result-tool {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--kb-text-2);
+  color: var(--kb-text);
 }
 
 .result-size {
-  font-size: 10px;
+  font: 400 12px/1.4 var(--kb-font-mono);
   color: var(--kb-muted);
-  font-family: var(--kb-font-mono);
 }
 
 .result-raw {
-  margin-top: 10px;
-  max-height: 300px;
+  margin-top: 8px;
+  max-height: 320px;
   overflow-y: auto;
-}
-
-.result-raw pre {
-  margin: 0;
-  font-family: var(--kb-font-mono);
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--kb-text-2);
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  padding: 10px;
-  border-radius: 6px;
 }
 
 .raw-preview {
   margin: 0;
-  font-family: var(--kb-font-mono);
-  font-size: 11px;
+  font: 400 12px/1.5 var(--kb-font-mono);
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--kb-muted);
+  color: var(--kb-text-2);
 }
 
-/* Legacy toggle-raw removed - using unified .action-btn */
-
-/* LLM Response */
+/* LLM Response: «no» en contorno, «sí» con relleno gris suave, «respuesta final» con el semántico de hecho */
 .llm-meta {
   display: flex;
   gap: 8px;
@@ -3370,23 +3131,16 @@ watch(() => props.reportId, (newId) => {
 }
 
 .meta-tag {
-  font-size: 11px;
-  padding: 3px 8px;
-  background: var(--kb-soft);
-  color: var(--kb-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 2px 8px;
+  border: 1px solid var(--kb-line);
   border-radius: 4px;
+  background: var(--kb-surface);
+  color: var(--kb-muted);
 }
-
-.meta-tag.active {
-  background: #DBEAFE;
-  color: #1E40AF;
-}
-
-.meta-tag.final-answer {
-  background: #D1FAE5;
-  color: #059669;
-  font-weight: 600;
-}
+.meta-tag.active { background: var(--kb-soft); border-color: var(--kb-soft); color: var(--kb-text-on-soft); font-weight: 600; }
+.meta-tag.final-answer { background: var(--kb-ok-bg); border-color: var(--kb-ok-line); color: var(--kb-ok-text); }
 
 .final-answer-hint {
   display: flex;
@@ -3394,34 +3148,19 @@ watch(() => props.reportId, (newId) => {
   gap: 8px;
   margin-top: 10px;
   padding: 10px 14px;
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
+  background: var(--kb-ok-bg);
+  border: 1px solid var(--kb-ok-line);
   border-radius: 6px;
-  color: #065F46;
-  font-size: 12px;
+  color: var(--kb-ok-text);
+  font-size: 13px;
   font-weight: 500;
 }
-
-.final-answer-hint svg {
-  flex-shrink: 0;
-}
+.final-answer-hint svg { flex-shrink: 0; }
 
 .llm-content {
   margin-top: 10px;
-  max-height: 200px;
+  max-height: 240px;
   overflow-y: auto;
-}
-
-.llm-content pre {
-  margin: 0;
-  font-family: var(--kb-font-mono);
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--kb-text-2);
-  background: var(--kb-soft);
-  padding: 10px;
-  border-radius: 6px;
 }
 
 /* Complete Banner */
@@ -3430,42 +3169,12 @@ watch(() => props.reportId, (newId) => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
+  background: var(--kb-ok-bg);
+  border: 1px solid var(--kb-ok-line);
   border-radius: 8px;
-  color: #065F46;
+  color: var(--kb-ok-text);
   font-weight: 600;
   font-size: 14px;
-}
-
-.next-step-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: calc(100% - 40px);
-  margin: 4px 20px 0 20px;
-  padding: 14px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #FFFFFF;
-  background: var(--kb-text);
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.next-step-btn:hover {
-  background: var(--kb-text-2);
-}
-
-.next-step-btn svg {
-  transition: transform 0.2s ease;
-}
-
-.next-step-btn:hover svg {
-  transform: translateX(4px);
 }
 
 /* Workflow Empty */
@@ -3475,7 +3184,7 @@ watch(() => props.reportId, (newId) => {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
-  color: var(--kb-subtle);
+  color: var(--kb-muted);
   font-size: 13px;
 }
 
@@ -3494,421 +3203,366 @@ watch(() => props.reportId, (newId) => {
 }
 
 /* Timeline Transitions */
-.timeline-item-enter-active {
-  transition: all 0.4s ease;
-}
+.timeline-item-enter-active { transition: all 0.4s ease; }
+.timeline-item-enter-from { opacity: 0; transform: translateX(-20px); }
 
-.timeline-item-enter-from {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-/* ========== Structured Result Display Components ========== */
-
-/* Common Styles - using :deep() for dynamic components */
-:deep(.stat-row) {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-:deep(.stat-box) {
-  flex: 1;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  padding: 10px 8px;
-  text-align: center;
-}
-
-:deep(.stat-box .stat-num) {
-  display: block;
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--kb-text);
-  font-family: var(--kb-font-sans);
-}
-
-:deep(.stat-box .stat-label) {
-  display: block;
-  font-size: 10px;
-  color: var(--kb-subtle);
-  margin-top: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-:deep(.stat-box.highlight) {
-  background: #ECFDF5;
-  border-color: #A7F3D0;
-}
-
-:deep(.stat-box.highlight .stat-num) {
-  color: #059669;
-}
-
-:deep(.stat-box.muted) {
+/* ========== Resultados de herramientas: una sola piel para las cuatro (análisis, panorámica, búsqueda, entrevista) ========== */
+:deep(.result-header) {
+  padding: 12px 16px;
   background: var(--kb-surface-2);
-  border-color: var(--kb-line);
-}
-
-:deep(.stat-box.muted .stat-num) {
-  color: var(--kb-muted);
-}
-
-:deep(.query-display) {
-  background: var(--kb-surface-2);
-  padding: 10px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--kb-text-2);
-  margin-bottom: 12px;
   border: 1px solid var(--kb-line);
-  line-height: 1.5;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
 }
 
-:deep(.expand-details) {
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:deep(.expand-details:hover) {
-  border-color: var(--kb-line-strong);
-  color: var(--kb-text-2);
-}
-
-:deep(.detail-content) {
-  margin-top: 14px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  padding: 14px;
-}
-
-:deep(.section-label) {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kb-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-/* Facts Section */
-:deep(.facts-section) {
-  margin-bottom: 14px;
-}
-
-:deep(.fact-row) {
-  display: flex;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-:deep(.fact-row:last-child) {
-  border-bottom: none;
-}
-
-:deep(.fact-row.active) {
-  background: #ECFDF5;
-  margin: 0 -10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border-bottom: none;
-}
-
-:deep(.fact-idx) {
-  min-width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-soft);
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--kb-muted);
-  flex-shrink: 0;
-}
-
-:deep(.fact-row.active .fact-idx) {
-  background: #A7F3D0;
-  color: #065F46;
-}
-
-:deep(.fact-text) {
-  font-size: 12px;
-  color: var(--kb-text-2);
-  line-height: 1.6;
-}
-
-/* Entities Section */
-:deep(.entities-section) {
-  margin-bottom: 14px;
-}
-
-:deep(.entity-chips) {
+:deep(:is(.result-header, .interview-header) .header-main) {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-
-:deep(.entity-chip) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  padding: 6px 12px;
-}
-
-:deep(.chip-name) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-text);
-}
-
-:deep(.chip-type) {
-  font-size: 10px;
-  color: var(--kb-subtle);
-  background: var(--kb-line);
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-
-/* Relations Section */
-:deep(.relations-section) {
-  margin-bottom: 14px;
-}
-
-:deep(.relation-row) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-:deep(.relation-row:last-child) {
-  border-bottom: none;
-}
-
-:deep(.rel-node) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-text);
-  background: var(--kb-soft);
-  padding: 4px 10px;
-  border-radius: 4px;
-}
-
-:deep(.rel-edge) {
-  font-size: 10px;
-  font-weight: 600;
-  color: #FFFFFF;
-  background: #4F46E5;
-  padding: 3px 10px;
-  border-radius: 10px;
-}
-
-/* ========== Interview Display - Conversation Style ========== */
-:deep(.interview-display) {
-  padding: 0;
-}
-
-/* Header */
-:deep(.interview-display .interview-header) {
-  padding: 0;
-  background: transparent;
-  border-bottom: none;
-  margin-bottom: 16px;
-}
-
-:deep(.interview-display .header-main) {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 8px;
 }
 
-:deep(.interview-display .header-title) {
-  font-family: var(--kb-font-mono);
-  font-size: 13px;
-  font-weight: 600;
+:deep(:is(.result-header, .interview-header) .header-title) {
+  font-family: var(--kb-font-sans);
+  font-size: 14px;
+  font-weight: 700;
   color: var(--kb-text);
-  letter-spacing: -0.01em;
 }
 
-:deep(.interview-display .header-stats) {
+:deep(.header-stats) {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-size: 12px;
 }
 
-:deep(.interview-display .stat-item) {
-  display: flex;
+:deep(.stat-item) {
+  display: inline-flex;
   align-items: baseline;
   gap: 4px;
 }
 
-:deep(.interview-display .stat-value) {
-  font-size: 14px;
-  font-weight: 600;
-  color: #4F46E5;
-  font-family: var(--kb-font-sans);
+:deep(.stat-value) {
+  font: 700 12px/1.4 var(--kb-font-mono);
+  color: var(--kb-text);
 }
 
-:deep(.interview-display .stat-label) {
-  font-size: 11px;
-  color: var(--kb-subtle);
-  text-transform: lowercase;
-}
-
-:deep(.interview-display .stat-divider) {
-  color: var(--kb-line-strong);
-  font-size: 12px;
-}
-
-:deep(.interview-display .stat-size) {
-  font-size: 11px;
-  color: var(--kb-subtle);
-  font-family: var(--kb-font-mono);
-}
-
-:deep(.interview-display .header-topic) {
-  margin-top: 4px;
+:deep(:is(.stat-label, .stat-divider)) {
   font-size: 12px;
   color: var(--kb-muted);
+}
+
+:deep(.stat-size) {
+  font: 400 12px/1.4 var(--kb-font-mono);
+  color: var(--kb-muted);
+}
+
+:deep(:is(.header-topic, .header-query)) {
+  font-size: 13px;
   line-height: 1.5;
-}
-
-/* Agent Tabs - Card Style */
-:deep(.interview-display .agent-tabs) {
-  display: flex;
-  gap: 8px;
-  padding: 0 0 14px 0;
-  background: transparent;
-  border-bottom: 1px solid var(--kb-soft);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--kb-line) transparent;
-}
-
-:deep(.interview-display .agent-tabs::-webkit-scrollbar) {
-  height: 4px;
-}
-
-:deep(.interview-display .agent-tabs::-webkit-scrollbar-track) {
-  background: transparent;
-}
-
-:deep(.interview-display .agent-tabs::-webkit-scrollbar-thumb) {
-  background: var(--kb-line);
-  border-radius: 2px;
-}
-
-:deep(.interview-display .agent-tabs::-webkit-scrollbar-thumb:hover) {
-  background: var(--kb-line-strong);
-}
-
-:deep(.interview-display .agent-tab) {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-:deep(.interview-display .agent-tab:hover) {
-  background: var(--kb-soft);
-  border-color: var(--kb-line-strong);
   color: var(--kb-text-2);
 }
 
-:deep(.interview-display .agent-tab.active) {
-  background: #EEF2FF;
-  border-color: #A5B4FC;
-  color: #4338CA;
-  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.1);
+/* Medida del texto corrido del panel derecho: 56ch ≈ 72 caracteres por línea (a 750 px salían más de 100) */
+:deep(:is(.header-topic, .header-query, .header-scenario, .fact-content, .subquery-text)),
+:deep(.interview-display :is(.qa-text, .reason-content, .summary-content, .quote-item)),
+.info-val,
+.status-message,
+.final-answer-hint {
+  max-width: 56ch;
 }
 
-:deep(.interview-display .tab-avatar) {
-  width: 18px;
-  height: 18px;
+:deep(.header-scenario) {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--kb-text-2);
+}
+
+:deep(:is(.scenario-label, .query-label)) {
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+:deep(.result-tabs) {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-line);
+  flex-wrap: wrap;
+  gap: 0 4px;
+  padding: 0 8px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+}
+:deep(.result-tabs .r4-tab) { margin-bottom: -1px; }
+
+:deep(.result-content) {
+  padding: 12px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+:deep(.result-content.no-tabs) { border-top: 1px solid var(--kb-line); }
+
+:deep(.result-content .panel-header) {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--kb-line);
+}
+
+:deep(.result-content .panel-title) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+:deep(.result-content .panel-count) {
+  font-size: 12px;
   color: var(--kb-muted);
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 50%;
   flex-shrink: 0;
 }
 
-:deep(.interview-display .agent-tab:hover .tab-avatar) {
+:deep(:is(.facts-list, .relations-list, .subqueries-list, .edges-list)) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+:deep(.fact-item) {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--kb-surface-2);
+  border: 1px solid var(--kb-line);
+  border-radius: 6px;
+}
+
+/* Hecho caducado: contorno discontinuo y número en gris oscuro (forma y luminosidad) */
+:deep(.fact-item.historical) {
+  background: var(--kb-surface);
+  border-style: dashed;
+  border-color: var(--kb-control-line);
+}
+
+:deep(.fact-number) {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+  border-radius: 50%;
+  font: 600 12px/1 var(--kb-font-mono);
+  color: var(--kb-text-2);
+}
+:deep(.fact-item.historical .fact-number) {
+  background: var(--kb-muted);
+  border-color: var(--kb-muted);
+  color: var(--kb-surface);
+}
+
+:deep(.fact-content) {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--kb-text-2);
+}
+
+:deep(.fact-time) {
+  display: block;
+  margin-bottom: 4px;
+  font: 400 12px/1.4 var(--kb-font-mono);
+  color: var(--kb-muted);
+}
+
+:deep(.fact-text) { display: block; }
+
+:deep(:is(.entities-grid, .nodes-grid)) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+:deep(:is(.entity-tag, .node-tag)) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line);
+  border-radius: 6px;
+}
+
+:deep(:is(.entity-name, .node-name)) {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+:deep(:is(.entity-type, .node-type)) {
+  font-size: 12px;
+  color: var(--kb-text-on-soft);
+  background: var(--kb-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+:deep(.entity-fact-count) {
+  font-size: 12px;
+  color: var(--kb-muted);
+}
+
+:deep(:is(.relation-item, .edge-item)) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--kb-surface-2);
+  border: 1px solid var(--kb-line);
+  border-radius: 6px;
+}
+
+:deep(:is(.rel-source, .rel-target, .edge-source, .edge-target)) {
+  min-width: 0;
+  padding: 4px 8px;
+  background: var(--kb-surface);
+  border: 1px solid var(--kb-line-strong);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+:deep(:is(.rel-arrow, .edge-arrow)) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 80px;
+  min-width: 80px;
+}
+
+:deep(:is(.rel-line, .edge-line)) {
+  flex: 1;
+  height: 1px;
   background: var(--kb-line-strong);
 }
 
+/* El verbo de la relación: la etiqueta de acento de la marca (lima oscuro sobre lima claro, 5,3:1) */
+:deep(:is(.rel-label, .edge-label)) {
+  padding: 2px 6px;
+  background: var(--kb-accent-subtle);
+  border-radius: 4px;
+  font: 500 12px/1.4 var(--kb-font-mono);
+  color: var(--kb-accent-text);
+  white-space: nowrap;
+}
+
+:deep(.subquery-item) {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--kb-surface-2);
+  border: 1px solid var(--kb-line);
+  border-radius: 6px;
+}
+
+:deep(.subquery-number) {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  background: var(--kb-text);
+  border-radius: 4px;
+  font: 700 11px/1 var(--kb-font-mono);
+  color: var(--kb-accent-solid);
+}
+
+:deep(.subquery-text) {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--kb-text-2);
+}
+
+/* «Ver todos»: botón secundario a todo el ancho */
+:deep(.expand-btn) {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
+}
+
+:deep(.empty-state) {
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--kb-muted);
+}
+
+/* ---------- Entrevista a agentes ---------- */
+:deep(.interview-display .interview-header) { margin-bottom: 12px; }
+
+:deep(.interview-display .agent-tabs) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  border-bottom: 1px solid var(--kb-line);
+}
+
+:deep(.interview-display .tab-avatar) {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--kb-soft);
+  color: var(--kb-text-on-soft);
+  font: 600 11px/1 var(--kb-font-mono);
+  text-transform: uppercase;
+  border-radius: 50%;
+}
 :deep(.interview-display .agent-tab.active .tab-avatar) {
-  background: #6366F1;
-  color: #FFFFFF;
+  background: var(--kb-text);
+  color: var(--kb-accent-solid);
 }
 
 :deep(.interview-display .tab-name) {
-  max-width: 100px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Interview Detail */
-:deep(.interview-display .interview-detail) {
-  padding: 12px 0;
-  background: transparent;
-}
+:deep(.interview-display .interview-detail) { padding: 16px 0 0; }
 
-/* Agent Profile - No card */
 :deep(.interview-display .agent-profile) {
   display: flex;
   gap: 12px;
-  padding: 0;
-  background: transparent;
-  border: none;
   margin-bottom: 16px;
 }
 
 :deep(.interview-display .profile-avatar) {
   width: 32px;
   height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-line);
-  color: var(--kb-muted);
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  background: var(--kb-text);
+  color: var(--kb-accent-solid);
+  font: 700 14px/1 var(--kb-font-mono);
+  text-transform: uppercase;
+  border-radius: 50%;
 }
 
 :deep(.interview-display .profile-info) {
@@ -3917,53 +3571,52 @@ watch(() => props.reportId, (newId) => {
 }
 
 :deep(.interview-display .profile-name) {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--kb-text);
   margin-bottom: 2px;
+  overflow-wrap: anywhere;
 }
 
 :deep(.interview-display .profile-role) {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kb-muted);
   margin-bottom: 4px;
 }
 
 :deep(.interview-display .profile-bio) {
-  font-size: 11px;
-  color: var(--kb-subtle);
-  line-height: 1.4;
+  font-size: 12px;
+  color: var(--kb-muted);
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Selection Reason - 选择理由 */
 :deep(.interview-display .selection-reason) {
   background: var(--kb-surface-2);
   border: 1px solid var(--kb-line);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 12px 16px;
   margin-bottom: 16px;
 }
 
-:deep(.interview-display .reason-label) {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kb-muted);
+/* Rótulos de apartado: mono en mayúsculas, gris legible */
+:deep(.interview-display :is(.reason-label, .quotes-header, .summary-header)) {
+  font: 600 12px/1.4 var(--kb-font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: 6px;
+  color: var(--kb-muted);
+  margin-bottom: 8px;
 }
 
 :deep(.interview-display .reason-content) {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--kb-text-2);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
-/* Q&A Thread - Clean list */
 :deep(.interview-display .qa-thread) {
   display: flex;
   flex-direction: column;
@@ -3974,41 +3627,33 @@ watch(() => props.reportId, (newId) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
 }
 
-:deep(.interview-display .qa-question),
-:deep(.interview-display .qa-answer) {
+:deep(.interview-display :is(.qa-question, .qa-answer)) {
   display: flex;
   gap: 12px;
 }
 
 :deep(.interview-display .qa-badge) {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 4px;
+  width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  font: 700 11px/1 var(--kb-font-mono);
+  border-radius: 4px;
 }
 
+/* Pregunta en contorno; respuesta rellena en tinta con letra lima */
 :deep(.interview-display .q-badge) {
-  background: transparent;
-  color: var(--kb-subtle);
-  border: 1px solid var(--kb-line);
+  background: var(--kb-surface);
+  color: var(--kb-text-2);
+  border: 1px solid var(--kb-control-line);
 }
-
 :deep(.interview-display .a-badge) {
-  background: #4F46E5;
-  color: #FFFFFF;
-  border: 1px solid #4F46E5;
+  background: var(--kb-text);
+  color: var(--kb-accent-solid);
+  border: 1px solid var(--kb-text);
 }
 
 :deep(.interview-display .qa-content) {
@@ -4017,131 +3662,46 @@ watch(() => props.reportId, (newId) => {
 }
 
 :deep(.interview-display .qa-sender) {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--kb-subtle);
+  color: var(--kb-muted);
   margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
 }
 
 :deep(.interview-display .qa-text) {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--kb-text-2);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
-:deep(.interview-display .qa-answer) {
-  background: transparent;
-  padding: 0;
-  border: none;
-  margin-top: 0;
-}
-
-:deep(.interview-display .answer-placeholder) {
-  opacity: 0.6;
-}
-
-:deep(.interview-display .placeholder-text) {
-  font-style: italic;
-  color: var(--kb-subtle);
-}
+:deep(.interview-display .answer-text) { color: var(--kb-text); }
+:deep(.interview-display .answer-text strong) { font-weight: 600; }
+:deep(.interview-display .placeholder-text) { font-style: italic; color: var(--kb-muted); }
 
 :deep(.interview-display .qa-answer-header) {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 4px 12px;
   margin-bottom: 4px;
 }
 
-/* Platform Switch */
 :deep(.interview-display .platform-switch) {
   display: flex;
-  gap: 2px;
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-}
-
-:deep(.interview-display .platform-btn) {
-  display: flex;
-  align-items: center;
   gap: 4px;
-  padding: 2px 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--kb-subtle);
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
+:deep(.interview-display .platform-icon) { flex-shrink: 0; }
 
-:deep(.interview-display .platform-btn:hover) {
-  color: var(--kb-muted);
-}
+:deep(.interview-display .expand-answer-btn) { margin-top: 8px; }
 
-:deep(.interview-display .platform-btn.active) {
-  background: transparent;
-  color: #4F46E5;
-  border-color: var(--kb-line);
-  box-shadow: none;
-}
-
-:deep(.interview-display .platform-icon) {
-  flex-shrink: 0;
-}
-
-:deep(.interview-display .answer-text) {
-  font-size: 13px;
-  color: var(--kb-text);
-  line-height: 1.6;
-}
-
-:deep(.interview-display .answer-text strong) {
-  color: var(--kb-text);
-  font-weight: 600;
-}
-
-:deep(.interview-display .expand-answer-btn) {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-bottom: 1px dotted var(--kb-line-strong);
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-subtle);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:deep(.interview-display .expand-answer-btn:hover) {
-  background: transparent;
-  color: var(--kb-muted);
-  border-bottom-style: solid;
-}
-
-/* Quotes Section - Clean list */
 :deep(.interview-display .quotes-section) {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--kb-soft);
-  border-radius: 0;
-  padding: 16px 0 0 0;
+  border-top: 1px solid var(--kb-line);
+  padding-top: 16px;
   margin-top: 16px;
-}
-
-:deep(.interview-display .quotes-header) {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kb-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 12px;
 }
 
 :deep(.interview-display .quotes-list) {
@@ -4152,33 +3712,19 @@ watch(() => props.reportId, (newId) => {
 
 :deep(.interview-display .quote-item) {
   margin: 0;
-  padding: 10px 12px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  font-size: 12px;
-  font-style: italic;
-  color: var(--kb-text-2);
-  line-height: 1.5;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--kb-accent-line);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--kb-text);
 }
+:deep(.interview-display .quote-item .md-p) { margin: 0; }
+:deep(.interview-display .quote-item strong) { font-weight: 600; }
 
-/* Summary Section */
 :deep(.interview-display .summary-section) {
   margin-top: 20px;
-  padding: 16px 0 0 0;
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--kb-soft);
-  border-radius: 0;
-}
-
-:deep(.interview-display .summary-header) {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kb-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--kb-line);
 }
 
 :deep(.interview-display .summary-content) {
@@ -4186,1017 +3732,124 @@ watch(() => props.reportId, (newId) => {
   color: var(--kb-text-2);
   line-height: 1.6;
 }
-
-/* Markdown styles in summary */
-:deep(.interview-display .summary-content h2),
-:deep(.interview-display .summary-content h3),
-:deep(.interview-display .summary-content h4),
-:deep(.interview-display .summary-content h5) {
+:deep(.interview-display .summary-content :is(h2, h3, h4, h5)) {
   margin: 12px 0 8px 0;
   font-weight: 600;
   color: var(--kb-text);
 }
-
-:deep(.interview-display .summary-content h2) {
-  font-size: 15px;
-}
-
-:deep(.interview-display .summary-content h3) {
-  font-size: 14px;
-}
-
-:deep(.interview-display .summary-content h4),
-:deep(.interview-display .summary-content h5) {
-  font-size: 13px;
-}
-
-:deep(.interview-display .summary-content p) {
-  margin: 8px 0;
-}
-
-:deep(.interview-display .summary-content strong) {
-  font-weight: 600;
-  color: var(--kb-text);
-}
-
-:deep(.interview-display .summary-content em) {
-  font-style: italic;
-}
-
-:deep(.interview-display .summary-content ul),
-:deep(.interview-display .summary-content ol) {
-  margin: 8px 0;
-  padding-left: 20px;
-}
-
-:deep(.interview-display .summary-content li) {
-  margin: 4px 0;
-}
-
+:deep(.interview-display .summary-content :is(h2, h3)) { font-size: 14px; }
+:deep(.interview-display .summary-content :is(h4, h5)) { font-size: 13px; }
+:deep(.interview-display .summary-content p) { margin: 8px 0; }
+:deep(.interview-display .summary-content strong) { font-weight: 600; color: var(--kb-text); }
+:deep(.interview-display .summary-content :is(ul, ol)) { margin: 8px 0; padding-left: 20px; }
+:deep(.interview-display .summary-content li) { margin: 4px 0; }
 :deep(.interview-display .summary-content blockquote) {
   margin: 8px 0;
   padding-left: 12px;
-  border-left: 3px solid var(--kb-line);
-  color: var(--kb-muted);
-  font-style: italic;
-}
-
-/* Markdown styles in quotes */
-:deep(.interview-display .quote-item strong) {
-  font-weight: 600;
+  border-left: 3px solid var(--kb-accent-line);
   color: var(--kb-text-2);
 }
 
-:deep(.interview-display .quote-item em) {
-  font-style: italic;
-}
-
-/* ========== Enhanced Insight Display Styles ========== */
-:deep(.insight-display) {
-  padding: 0;
-}
-
-:deep(.insight-header) {
-  padding: 12px 16px;
-  background: #F5F3FF;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid #C4B5FD;
-  border-bottom: none;
-}
-
-:deep(.insight-header .header-main) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-:deep(.insight-header .header-title) {
-  font-size: 14px;
-  font-weight: 700;
-  color: #6D28D9;
-}
-
-:deep(.insight-header .header-stats) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-}
-
-:deep(.insight-header .stat-item) {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-:deep(.insight-header .stat-value) {
-  font-family: var(--kb-font-mono);
-  font-weight: 700;
-  color: #7C3AED;
-}
-
-:deep(.insight-header .stat-label) {
-  color: #8B5CF6;
-  font-size: 10px;
-}
-
-:deep(.insight-header .stat-divider) {
-  color: #C4B5FD;
-  margin: 0 4px;
-}
-
-:deep(.insight-header .stat-size) {
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.insight-header .header-topic) {
-  font-size: 13px;
-  color: #5B21B6;
-  line-height: 1.5;
-}
-
-:deep(.insight-header .header-scenario) {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #7C3AED;
-}
-
-:deep(.insight-header .scenario-label) {
-  font-weight: 600;
-}
-
-:deep(.insight-tabs) {
-  display: flex;
-  gap: 2px;
-  padding: 8px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-top: none;
-}
-
-:deep(.insight-tab) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:deep(.insight-tab:hover) {
-  background: var(--kb-soft);
-  color: var(--kb-text-2);
-}
-
-:deep(.insight-tab.active) {
-  background: #FFFFFF;
-  color: #7C3AED;
-  border-color: #C4B5FD;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-
-:deep(.insight-content) {
-  padding: 12px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-}
-
-:deep(.insight-display .panel-header) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-:deep(.insight-display .panel-title) {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--kb-text-2);
-}
-
-:deep(.insight-display .panel-count) {
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.insight-display .facts-list),
-:deep(.insight-display .relations-list),
-:deep(.insight-display .subqueries-list) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-:deep(.insight-display .entities-grid) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-:deep(.insight-display .fact-item) {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.insight-display .fact-number) {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-line);
-  border-radius: 50%;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--kb-muted);
-}
-
-:deep(.insight-display .fact-content) {
-  flex: 1;
-  font-size: 12px;
-  color: var(--kb-text-2);
-  line-height: 1.6;
-}
-
-/* Entity Tag Styles - Compact multi-column layout */
-:deep(.insight-display .entity-tag) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  cursor: default;
-  transition: all 0.15s ease;
-}
-
-:deep(.insight-display .entity-tag:hover) {
-  background: var(--kb-soft);
-  border-color: var(--kb-line-strong);
-}
-
-:deep(.insight-display .entity-tag .entity-name) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-text);
-}
-
-:deep(.insight-display .entity-tag .entity-type) {
-  font-size: 9px;
-  color: #7C3AED;
-  background: #EDE9FE;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-:deep(.insight-display .entity-tag .entity-fact-count) {
-  font-size: 9px;
-  color: var(--kb-subtle);
-  margin-left: 2px;
-}
-
-/* Legacy entity card styles for backwards compatibility */
-:deep(.insight-display .entity-card) {
-  padding: 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 8px;
-}
-
-:deep(.insight-display .entity-header) {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-:deep(.insight-display .entity-info) {
-  flex: 1;
-}
-
-:deep(.insight-display .entity-card .entity-name) {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--kb-text);
-}
-
-:deep(.insight-display .entity-card .entity-type) {
-  font-size: 10px;
-  color: #7C3AED;
-  background: #EDE9FE;
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: inline-block;
-  margin-top: 2px;
-}
-
-:deep(.insight-display .entity-card .entity-fact-count) {
-  font-size: 10px;
-  color: var(--kb-subtle);
-  background: var(--kb-soft);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-:deep(.insight-display .entity-summary) {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--kb-line);
-  font-size: 11px;
-  color: var(--kb-muted);
-  line-height: 1.5;
-}
-
-/* Relation Item Styles */
-:deep(.insight-display .relation-item) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.insight-display .rel-source),
-:deep(.insight-display .rel-target) {
-  padding: 4px 8px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line-strong);
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-text-2);
-}
-
-:deep(.insight-display .rel-arrow) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-}
-
-:deep(.insight-display .rel-line) {
-  flex: 1;
-  height: 1px;
-  background: var(--kb-line-strong);
-}
-
-:deep(.insight-display .rel-label) {
-  padding: 2px 6px;
-  background: #EDE9FE;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  color: #7C3AED;
-  white-space: nowrap;
-}
-
-/* Sub-query Styles */
-:deep(.insight-display .subquery-item) {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.insight-display .subquery-number) {
-  flex-shrink: 0;
-  padding: 2px 6px;
-  background: #7C3AED;
-  border-radius: 4px;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: #FFFFFF;
-}
-
-:deep(.insight-display .subquery-text) {
-  font-size: 12px;
-  color: var(--kb-text-2);
-  line-height: 1.5;
-}
-
-/* Expand Button */
-:deep(.insight-display .expand-btn),
-:deep(.panorama-display .expand-btn),
-:deep(.quick-search-display .expand-btn) {
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: center;
-}
-
-:deep(.insight-display .expand-btn:hover),
-:deep(.panorama-display .expand-btn:hover),
-:deep(.quick-search-display .expand-btn:hover) {
-  background: var(--kb-soft);
-  color: var(--kb-text-2);
-  border-color: var(--kb-line-strong);
-}
-
-/* Empty State */
-:deep(.insight-display .empty-state),
-:deep(.panorama-display .empty-state),
-:deep(.quick-search-display .empty-state) {
-  padding: 24px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--kb-subtle);
-}
-
-/* ========== Enhanced Panorama Display Styles ========== */
-:deep(.panorama-display) {
-  padding: 0;
-}
-
-:deep(.panorama-header) {
-  padding: 12px 16px;
-  background: #EFF6FF;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid #93C5FD;
-  border-bottom: none;
-}
-
-:deep(.panorama-header .header-main) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-:deep(.panorama-header .header-title) {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1D4ED8;
-}
-
-:deep(.panorama-header .header-stats) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-}
-
-:deep(.panorama-header .stat-item) {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-:deep(.panorama-header .stat-value) {
-  font-family: var(--kb-font-mono);
-  font-weight: 700;
-  color: #2563EB;
-}
-
-:deep(.panorama-header .stat-label) {
-  color: #60A5FA;
-  font-size: 10px;
-}
-
-:deep(.panorama-header .stat-divider) {
-  color: #93C5FD;
-  margin: 0 4px;
-}
-
-:deep(.panorama-header .stat-size) {
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.panorama-header .header-topic) {
-  font-size: 13px;
-  color: #1E40AF;
-  line-height: 1.5;
-}
-
-:deep(.panorama-tabs) {
-  display: flex;
-  gap: 2px;
-  padding: 8px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-top: none;
-}
-
-:deep(.panorama-tab) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:deep(.panorama-tab:hover) {
-  background: var(--kb-soft);
-  color: var(--kb-text-2);
-}
-
-:deep(.panorama-tab.active) {
-  background: #FFFFFF;
-  color: #2563EB;
-  border-color: #93C5FD;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-
-:deep(.panorama-content) {
-  padding: 12px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-}
-
-:deep(.panorama-display .panel-header) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-:deep(.panorama-display .panel-title) {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--kb-text-2);
-}
-
-:deep(.panorama-display .panel-count) {
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.panorama-display .facts-list) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-:deep(.panorama-display .fact-item) {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.panorama-display .fact-item.active) {
-  background: var(--kb-surface-2);
-  border-color: var(--kb-line);
-}
-
-:deep(.panorama-display .fact-item.historical) {
-  background: var(--kb-surface-2);
-  border-color: var(--kb-line);
-}
-
-:deep(.panorama-display .fact-number) {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-line);
-  border-radius: 50%;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--kb-muted);
-}
-
-:deep(.panorama-display .fact-item.active .fact-number) {
-  background: var(--kb-line);
-  color: var(--kb-muted);
-}
-
-:deep(.panorama-display .fact-item.historical .fact-number) {
-  background: var(--kb-subtle);
-  color: #FFFFFF;
-}
-
-:deep(.panorama-display .fact-content) {
-  flex: 1;
-  font-size: 12px;
-  color: var(--kb-text-2);
-  line-height: 1.6;
-}
-
-:deep(.panorama-display .fact-time) {
-  display: block;
-  font-size: 10px;
-  color: var(--kb-subtle);
-  margin-bottom: 4px;
-  font-family: var(--kb-font-mono);
-}
-
-:deep(.panorama-display .fact-text) {
-  display: block;
-}
-
-/* Entities Grid */
-:deep(.panorama-display .entities-grid) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-:deep(.panorama-display .entity-tag) {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.panorama-display .entity-name) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-text-2);
-}
-
-:deep(.panorama-display .entity-type) {
-  font-size: 10px;
-  color: #2563EB;
-  background: #DBEAFE;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* ========== Enhanced Quick Search Display Styles ========== */
-:deep(.quick-search-display) {
-  padding: 0;
-}
-
-:deep(.quicksearch-header) {
-  padding: 12px 16px;
-  background: #FFF7ED;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid #FDBA74;
-  border-bottom: none;
-}
-
-:deep(.quicksearch-header .header-main) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-:deep(.quicksearch-header .header-title) {
-  font-size: 14px;
-  font-weight: 700;
-  color: #C2410C;
-}
-
-:deep(.quicksearch-header .header-stats) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-}
-
-:deep(.quicksearch-header .stat-item) {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-:deep(.quicksearch-header .stat-value) {
-  font-family: var(--kb-font-mono);
-  font-weight: 700;
-  color: #EA580C;
-}
-
-:deep(.quicksearch-header .stat-label) {
-  color: #FB923C;
-  font-size: 10px;
-}
-
-:deep(.quicksearch-header .stat-divider) {
-  color: #FDBA74;
-  margin: 0 4px;
-}
-
-:deep(.quicksearch-header .stat-size) {
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.quicksearch-header .header-query) {
-  font-size: 13px;
-  color: #9A3412;
-  line-height: 1.5;
-}
-
-:deep(.quicksearch-header .query-label) {
-  font-weight: 600;
-}
-
-:deep(.quicksearch-tabs) {
-  display: flex;
-  gap: 2px;
-  padding: 8px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-top: none;
-}
-
-:deep(.quicksearch-tab) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-:deep(.quicksearch-tab:hover) {
-  background: var(--kb-soft);
-  color: var(--kb-text-2);
-}
-
-:deep(.quicksearch-tab.active) {
-  background: #FFFFFF;
-  color: #EA580C;
-  border-color: #FDBA74;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-
-:deep(.quicksearch-content) {
-  padding: 12px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-}
-
-/* When there are no tabs, content connects directly to header */
-:deep(.quicksearch-content.no-tabs) {
-  border-top: none;
-}
-
-:deep(.quick-search-display .panel-header) {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--kb-soft);
-}
-
-:deep(.quick-search-display .panel-title) {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--kb-text-2);
-}
-
-:deep(.quick-search-display .panel-count) {
-  font-size: 10px;
-  color: var(--kb-subtle);
-}
-
-:deep(.quick-search-display .facts-list) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-:deep(.quick-search-display .fact-item) {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.quick-search-display .fact-item.active) {
-  background: var(--kb-surface-2);
-  border-color: var(--kb-line);
-}
-
-:deep(.quick-search-display .fact-number) {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--kb-line);
-  border-radius: 50%;
-  font-family: var(--kb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--kb-muted);
-}
-
-:deep(.quick-search-display .fact-item.active .fact-number) {
-  background: var(--kb-line);
-  color: var(--kb-muted);
-}
-
-:deep(.quick-search-display .fact-content) {
-  flex: 1;
-  font-size: 12px;
-  color: var(--kb-text-2);
-  line-height: 1.6;
-}
-
-/* Edges Panel */
-:deep(.quick-search-display .edges-list) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-:deep(.quick-search-display .edge-item) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.quick-search-display .edge-source),
-:deep(.quick-search-display .edge-target) {
-  padding: 4px 8px;
-  background: #FFFFFF;
-  border: 1px solid var(--kb-line-strong);
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--kb-text-2);
-}
-
-:deep(.quick-search-display .edge-arrow) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-}
-
-:deep(.quick-search-display .edge-line) {
-  flex: 1;
-  height: 1px;
-  background: var(--kb-line-strong);
-}
-
-:deep(.quick-search-display .edge-label) {
-  padding: 2px 6px;
-  background: #FFEDD5;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  color: #C2410C;
-  white-space: nowrap;
-}
-
-/* Nodes Grid */
-:deep(.quick-search-display .nodes-grid) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-:deep(.quick-search-display .node-tag) {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--kb-surface-2);
-  border: 1px solid var(--kb-line);
-  border-radius: 6px;
-}
-
-:deep(.quick-search-display .node-name) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--kb-text-2);
-}
-
-:deep(.quick-search-display .node-type) {
-  font-size: 10px;
-  color: #EA580C;
-  background: #FFEDD5;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* Console Logs - 与 Step3Simulation.vue 保持一致 */
+/* ========== Registro técnico (fondo tinta) ========== */
 .console-logs {
   background: var(--kb-text);
   color: var(--kb-line-strong);
-  padding: 16px;
+  padding: 10px 16px;
   font-family: var(--kb-font-mono);
   border-top: 1px solid var(--kb-text);
   flex-shrink: 0;
 }
+.console-logs.is-open { padding-bottom: 16px; }
 
 .log-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  font-size: 12px;
+  color: var(--kb-muted-on-dark);
+}
+.console-logs.is-open .log-header {
   border-bottom: 1px solid var(--kb-text-2);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  font-size: 10px;
-  color: var(--kb-muted);
 }
 
+.log-header .log-toggle { margin-left: auto; }
+
 .log-title {
+  flex-shrink: 0;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  color: var(--kb-muted-on-dark);
 }
 
 .log-content {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  height: 100px;
+  height: 120px;
   overflow-y: auto;
   padding-right: 4px;
 }
-
 .log-content::-webkit-scrollbar { width: 4px; }
-.log-content::-webkit-scrollbar-thumb { background: var(--kb-text-2); border-radius: 2px; }
+.log-content::-webkit-scrollbar-thumb { background: var(--kb-text-2); border-radius: 4px; }
 
 .log-line {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
 .log-msg {
-  color: #BBB;
+  color: var(--kb-line-strong);
   word-break: break-all;
 }
 
-.log-msg.error { color: #EF5350; }
-.log-msg.warning { color: #FFA726; }
-.log-msg.success { color: #66BB6A; }
+/* Aviso y error: blanco en negrita; el error, además, con filete rojo de la marca a la izquierda */
+.log-line.warning .log-msg,
+.log-line.error .log-msg { color: var(--kb-surface); font-weight: 600; }
+.log-line.error {
+  border-left: 2px solid var(--kb-danger-line);
+  padding-left: 8px;
+}
 
 /* Pantallas estrechas: informe arriba y flujo de trabajo debajo, en una sola columna que se desplaza */
 @media (max-width: 900px) {
   .main-split-layout { flex-direction: column; overflow-y: auto; }
-  .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 22px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
+  .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 24px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
   .right-panel { flex: none; overflow: visible; }
   .right-panel :is(.workflow-overview, .workflow-timeline, .wf-step, .wf-step-content, .wf-step-title-row) { min-width: 0; max-width: 100%; }
-  .timeline-item { grid-template-columns: 24px minmax(0, 1fr); }
-  :deep(.interview-display .qa-answer-header) { flex-wrap: wrap; gap: 4px 8px; }
+  .workflow-overview { padding: 16px 16px 0; }
+  .workflow-timeline { padding: 16px 16px 24px; }
+  .section-title { font-size: 22px; }
+  .section-body { padding-left: 0; }
+  :deep(.result-header) { padding: 12px; }
+}
+
+/* Móvil: la columna de puntos se come 24 px de cada tarjeta; el estado ya lo dicen el contorno y las etiquetas.
+   Las pestañas de agentes se desplazan en horizontal en vez de apilarse en seis filas. */
+@media (max-width: 600px) {
+  .timeline-item { grid-template-columns: minmax(0, 1fr); }
+  .timeline-connector { display: none; }
+  :deep(.interview-display .agent-tabs) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--kb-line-strong) transparent;
+  }
+  :deep(.interview-display .agent-tab) { flex-shrink: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-dot,
+  .loading-icon,
+  .waiting-ring,
+  .empty-pulse { animation: none; }
+  .timeline-item-enter-active,
+  .next-step-btn,
+  .next-step-btn svg,
+  .collapse-icon { transition: none; }
+  .next-step-btn:hover { transform: none; }
 }
 </style>
 
