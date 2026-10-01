@@ -2776,6 +2776,17 @@ watch(() => props.simulationId, (newId) => {
   .left-panel.report-style { width: 100%; min-width: 0; flex: none; padding: 22px 18px 32px; border-right: 0; border-bottom: 1px solid var(--kb-line); overflow-y: visible; }
   .right-panel { flex: none; height: 82vh; min-height: 460px; }
 }
+
+/* Nombres de agente: los modelos los generan con guiones bajos y sin espacios («marca_que_busca_proyectar_modernidad_…»),
+   y una palabra sin huecos no parte nunca: salía por el borde del panel. Parten donde haga falta. */
+.agent-name-g,
+.profile-card-name,
+.profile-card-handle,
+.checkbox-name,
+.result-name {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 </style>
 
 <style>
