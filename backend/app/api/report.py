@@ -17,6 +17,7 @@ from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 from ..utils.logger import get_logger
+from ..utils.access import visible_simulation_id
 from ..utils.locale import t, get_locale, set_locale
 
 logger = get_logger('mirofish.api.report')
@@ -552,10 +553,11 @@ def list_reports():
         simulation_id = request.args.get('simulation_id')
         limit = request.args.get('limit', 50, type=int)
         
-        reports = ReportManager.list_reports(
-            simulation_id=simulation_id,
-            limit=limit
-        )
+        # Aislamiento por usuario: primero se filtra y después se corta
+        reports = [
+            r for r in ReportManager.list_reports(simulation_id=simulation_id, limit=100000)
+            if visible_simulation_id(r.simulation_id)
+        ][:limit]
         
         return jsonify({
             "success": True,

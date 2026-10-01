@@ -85,6 +85,14 @@ class TaskManager:
         """
         task_id = str(uuid.uuid4())
         now = datetime.now()
+
+        # Aislamiento por usuario: la tarea lleva el dueño de la petición que la crea (si la crea el propio
+        # servidor desde un hilo, no lleva ninguno: pasa por id —no se adivina— pero no sale en los listados)
+        from ..utils.access import current_owner_id
+        metadata = dict(metadata or {})
+        owner = current_owner_id()
+        if owner and 'owner_id' not in metadata:
+            metadata['owner_id'] = owner
         
         task = Task(
             task_id=task_id,
@@ -92,7 +100,7 @@ class TaskManager:
             status=TaskStatus.PENDING,
             created_at=now,
             updated_at=now,
-            metadata=metadata or {}
+            metadata=metadata
         )
         
         with self._task_lock:

@@ -10,7 +10,7 @@ import warnings
 # 需要在所有其他导入之前设置
 warnings.filterwarnings("ignore", message=".*resource_tracker.*")
 
-from flask import Flask, request
+from flask import Flask, g, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -18,7 +18,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
-from .utils.security import validate_bearer_token, is_valid_storage_id, is_internal_request
+from .utils.security import identify_bearer, is_valid_storage_id, is_internal_request
+from .utils.access import ADMIN, INTERNAL, user_identity, authorize_request
 
 
 def create_app(config_class=Config):
@@ -186,28 +187,32 @@ def create_app(config_class=Config):
                 req_logger.debug(f"Cuerpo de la petición: {_sanitize_body(body)}")
 
         if not (
-            Config.API_AUTH_REQUIRED
-            and request.path.startswith('/api/')
+            request.path.startswith('/api/')
             and request.path != '/api/health'
             and request.method != 'OPTIONS'
         ):
             return None
 
-        # Llamada interna del modo automático (secreto del proceso)
-        if is_internal_request(request.headers):
-            return None
+        # Quién hace la petición (aislamiento por usuario): ver utils/access.py
+        if not Config.API_AUTH_REQUIRED:
+            g.identity = ADMIN                      # desarrollo sin auth: ve todo
+        elif is_internal_request(request.headers):
+            g.identity = INTERNAL                   # llamada interna del modo automático (secreto del proceso)
+        else:
+            who = identify_bearer(request.headers.get('Authorization', ''))
+            if who is None:
+                get_logger('mirofish.security').warning(
+                    f"401 unauthorized API request: {request.method} {request.path}"
+                )
+                return {
+                    "success": False,
+                    "error": "No autorizado"
+                }, 401
+            kind, user_id = who
+            g.identity = user_identity(user_id) if kind == 'user' else ADMIN
 
-        auth_header = request.headers.get('Authorization', '')
-        if not validate_bearer_token(auth_header):
-            get_logger('mirofish.security').warning(
-                f"401 unauthorized API request: {request.method} {request.path}"
-            )
-            return {
-                "success": False,
-                "error": "No autorizado"
-            }, 401
-
-        return None
+        # Lo que la petición nombra (proyecto, simulación, informe, grafo, tarea) debe poder verlo su identidad
+        return authorize_request()
 
     @app.after_request
     def log_response(response):
