@@ -1,0 +1,3 @@
+Inter Tight (Rasmus Andersson, The Inter Project Authors) y JetBrains Mono (JetBrains s.r.o.)
+se distribuyen bajo la SIL Open Font License 1.1: https://openfontlicense.org
+Se incluyen aquí solo para incrustarlas en los PDF de los informes de Simuloo.

@@ -186,6 +186,16 @@ docker run -d \
 | `frontend/src/lib/miniMarkdown.js` | Markdown mínimo SIN HTML para lo que escriben las personas simuladas y el modelo (posts, chat, encuestas). No uses `v-html` con texto de la API |
 | `backend/scripts/recsys_memory.py` | Parche de memoria del recomendador de OASIS (evita el kill -9 por OOM en simulaciones largas); `RECSYS_MEMORY_PATCH=0` lo desactiva |
 | `backend/app/utils/recsys_prewarm.py` | Precarga del modelo del recomendador al arrancar (caché en el volumen `mirofish_hf_cache`) |
+| `backend/app/services/report_pdf.py`, `backend/app/assets/fonts/` | PDF del informe con la marca de Simuloo (WeasyPrint + Markdown): portada con cifras, pie con página y fuentes Inter Tight / JetBrains Mono embebidas. Se pide con `GET /api/report/<id>/download?format=pdf` (sin `format`, sigue el `.md`) |
+| `frontend/src/components/ReportDownloads.vue` | Botones PDF (lima, con estado ocupado) y `.md` del informe, en los pasos 4 y 5; muestra el error que devuelve el servidor |
+
+### Al tocar el PDF del informe
+
+- **Fuentes**: archivos `.ttf` en `backend/app/assets/fonts/` (subconjuntos latinos, licencia OFL en `LICENSE.txt`). Una familia de WeasyPrint por peso (`IT-400/500/700/800`, `JBM-400/500/700`): los nombres internos de los TTF no coinciden con sus pesos, y mezclarlos en una sola familia hacía caer a una fuente del sistema. Lo que no está en el subconjunto (→, ✓, ≥) cae a DejaVu y el chino a WenQuanYi (por eso están en el `Dockerfile`).
+- **Seguridad**: el texto del informe lo escribe un modelo. Se escapa el HTML (`<` y `&`), las imágenes se sustituyen por su texto alternativo y solo se dejan enlaces `http`/`https`/`mailto`. El `URLFetcher` de `render_pdf` solo deja cargar `data:` y los `.ttf` de `FONT_DIR`: nada de red ni de archivos del servidor.
+- **Coste**: ~1–3 s por informe y unos 150 KB. Máximo dos PDFs a la vez (`threading.BoundedSemaphore(2)`); si falta pango responde 501 `api.pdfUnavailable` y la app sugiere el Markdown.
+- **WeasyPrint ≥ 70** (la API de `URLFetcher` cambió) y necesita pango/harfbuzz del sistema. En macOS: `brew install pango` y arrancar el backend con `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`, **directamente y sin `nohup`** (el binario protegido por SIP descarta las variables `DYLD_*`). Los tests de PDF se saltan solos si falta pango.
+- Al cambiar la maqueta, mirar el PDF de verdad (PyMuPDF: `fitz.open(...)[n].get_pixmap(dpi=60).save(...)`), no solo el HTML: portada, una página larga, tablas y un informe en chino.
 
 ### Auditoría UX/UI (1-oct-2026) — reglas que salieron de medir
 

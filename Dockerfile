@@ -31,8 +31,12 @@ RUN uv sync --frozen --no-editable
 FROM python:3.11-slim
 
 # 安装必要的系统依赖
+# pango y harfbuzz: los usa WeasyPrint para maquetar el PDF del informe; DejaVu da los símbolos (→, ✓, ≥) que
+# no traen Inter Tight ni JetBrains Mono, y WenQuanYi Micro Hei los caracteres chinos (unos 5 MB)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
+    fonts-dejavu-core fonts-wqy-microhei \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

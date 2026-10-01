@@ -25,6 +25,14 @@ export const downloadReport = (reportId) => {
 }
 
 /**
+ * Descarga el informe en PDF con la identidad de Simuloo (se maqueta en el servidor)
+ * @param {string} reportId
+ */
+export const downloadReportPdf = (reportId) => {
+  return downloadFile(`/api/report/${reportId}/download?format=pdf`, `${reportId}.pdf`)
+}
+
+/**
  * 获取 Agent 日志（增量）
  * @param {string} reportId
  * @param {number} fromLine - 从第几行开始获取

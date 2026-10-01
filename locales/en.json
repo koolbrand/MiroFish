@@ -909,7 +909,10 @@
     "requestFailedBody": "Try again in a few seconds; your question and recipients are still here.",
     "activityFailed": "We couldn't load this agent's activity.",
     "platformShortTwitter": "Plaza",
-    "platformShortReddit": "Community"
+    "platformShortReddit": "Community",
+    "downloadPdfTitle": "Download the report as a PDF in the Simuloo style",
+    "generatingPdf": "Creating PDF…",
+    "pdfFailed": "The PDF could not be created. Download the report as Markdown (.md) or try again."
   },
   "graph": {
     "panelTitle": "Graph Relationship Visualization",
@@ -1107,7 +1110,9 @@
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
     "simNotRunning": "Simulation is not running: {simulationId} (status={status})",
-    "fileContentInvalid": "File content does not match the extension: {filename}"
+    "fileContentInvalid": "File content does not match the extension: {filename}",
+    "pdfUnavailable": "PDF is not available on this server. Download the report as Markdown.",
+    "reportNotReady": "The report is not finished yet."
   },
   "progress": {
     "initGraphService": "Initializing graph build service...",

@@ -62,6 +62,47 @@ def _build_report_filename(report) -> str:
         return default_name
 
 
+def _pdf_meta(report) -> dict:
+    """Personas, rondas y acciones de la simulación para la portada del PDF (los que falten, no se pintan)."""
+    meta = {}
+    try:
+        sim_state = SimulationManager().get_simulation(report.simulation_id)
+        if sim_state:
+            meta["people"] = getattr(sim_state, "profiles_count", None) or getattr(sim_state, "entities_count", None)
+        run_state = SimulationRunner.get_run_state(report.simulation_id)
+        if run_state:
+            meta["rounds"] = getattr(run_state, "total_rounds", None)
+            meta["actions"] = (getattr(run_state, "twitter_actions_count", 0) or 0) + (getattr(run_state, "reddit_actions_count", 0) or 0)
+    except Exception as meta_err:  # noqa: BLE001 — la portada no debe impedir la descarga
+        logger.warning(f"No se pudieron leer los datos de la simulación para el PDF: {meta_err}")
+    return meta
+
+
+def _download_report_pdf(report):
+    """PDF del informe con la identidad de Simuloo (ver services/report_pdf.py)."""
+    if report.status != ReportStatus.COMPLETED:
+        return jsonify({"success": False, "error": t('api.reportNotReady')}), 409
+    try:
+        from ..services.report_pdf import render_report_pdf
+        pdf = render_report_pdf(
+            markdown_text=report.markdown_content or "",
+            question=report.simulation_requirement or "",
+            meta=_pdf_meta(report),
+            locale=get_locale(),
+            completed_at=report.completed_at,
+            created_at=report.created_at,
+        )
+    except (ImportError, OSError) as lib_err:
+        # WeasyPrint necesita pango en el sistema; si falta, se dice claro y el resto sigue funcionando
+        logger.error(f"El PDF no está disponible en este servidor: {lib_err}")
+        return jsonify({"success": False, "error": t('api.pdfUnavailable')}), 501
+    import io
+    name = _build_report_filename(report)
+    base = re.sub(r"\s+", " ", name[:-3] if name.endswith(".md") else name).strip(" .")
+    pdf_name = (base if base.startswith("report_") else f"Simuloo - {base}") + ".pdf"
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=pdf_name)
+
+
 # ============== 报告生成接口 ==============
 
 # Un doble clic o dos pestañas lanzaban dos informes en paralelo (el doble de
@@ -547,6 +588,9 @@ def download_report(report_id: str):
                 "error": t('api.reportNotFound', id=report_id)
             }), 404
         
+        if (request.args.get('format') or 'md').lower() == 'pdf':
+            return _download_report_pdf(report)
+
         md_path = ReportManager._get_report_markdown_path(report_id)
         download_name = _build_report_filename(report)
 
