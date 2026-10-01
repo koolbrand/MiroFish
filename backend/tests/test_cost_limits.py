@@ -87,6 +87,31 @@ def test_a_pixel_bomb_png_is_rejected_by_its_declared_size(client, ontology):
     assert ProjectManager.list_projects() == []
 
 
+def test_a_file_that_is_not_an_image_gets_a_clear_400(client, ontology):
+    """Lo para antes la comprobación de contenido (firma del archivo), sin llegar a Pillow."""
+    r = upload(client, [(io.BytesIO(b"esto no es una imagen"), "falsa.png")])
+    assert r.status_code == 400 and "no coincide con la extensión" in r.get_json()["error"]
+    assert ProjectManager.list_projects() == []
+
+
+def test_a_truncated_png_gets_a_clear_400(client, ontology):
+    """Firma correcta pero cuerpo cortado: pasa la comprobación de contenido y falla al decodificar. Antes: 500."""
+    r = upload(client, [(io.BytesIO(png(64, 64)[:-40]), "cortada.png")])
+    assert r.status_code == 400 and "No se pudo leer la imagen" in r.get_json()["error"]
+    assert ProjectManager.list_projects() == []
+
+
+def test_pillow_only_tries_the_allowed_formats():
+    """Defensa en profundidad: aunque algo cuele un TIFF hasta Pillow, `formats` impide que lo decodifique."""
+    from PIL import Image
+    from app.utils import file_parser
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8)).save(buf, format="TIFF")
+    assert file_parser._IMAGE_FORMATS == ["PNG", "JPEG", "WEBP", "GIF"]
+    with pytest.raises(Image.UnidentifiedImageError):
+        Image.open(io.BytesIO(buf.getvalue()), formats=file_parser._IMAGE_FORMATS)
+
+
 def test_a_normal_image_is_still_processed(client, ontology, monkeypatch):
     from app.utils import file_parser
     monkeypatch.setattr(file_parser.FileParser, "_extract_from_image", staticmethod(lambda p: "descripción"))

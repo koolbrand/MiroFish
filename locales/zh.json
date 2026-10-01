@@ -1139,6 +1139,7 @@
     "tooManyImages": "一次最多上传 {max} 张图片",
     "textTooLong": "材料过长（总共最多 {max} 个字符），请只上传重点内容。",
     "imageTooLarge": "图片过大",
+    "imageUnreadable": "无法读取该图片：文件可能已损坏，或不是 PNG、JPG、WEBP、GIF 格式",
     "tooManyInterviews": "每次请求最多 {max} 次访谈",
     "interviewPromptTooLong": "每个问题最多 {max} 个字符",
     "simConfigMissing": "模拟配置不存在，请先调用 /prepare 接口。",

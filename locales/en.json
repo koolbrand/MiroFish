@@ -1139,6 +1139,7 @@
     "tooManyImages": "You can upload at most {max} images at a time",
     "textTooLong": "The material is too long (at most {max} characters in total). Upload only the essentials.",
     "imageTooLarge": "The image is too large",
+    "imageUnreadable": "The image could not be read: it may be damaged or not a PNG, JPG, WEBP or GIF file",
     "tooManyInterviews": "At most {max} interviews per request",
     "interviewPromptTooLong": "Each question can have at most {max} characters",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",

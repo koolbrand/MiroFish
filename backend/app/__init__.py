@@ -301,6 +301,15 @@ def create_app(config_class=Config):
     def handle_too_large(error):
         return {"success": False, "error": t('api.payloadTooLarge')}, 413
 
+    # Una ruta /api/* que no existe responde JSON siempre. Antes solo lo hacía la ruta comodín del frontend, que
+    # existe únicamente si hay `frontend/dist`: sin esa carpeta (desarrollo solo con la API, CI) devolvía el 404 HTML
+    # de Flask y el cliente no podía leer el error.
+    @app.errorhandler(404)
+    def handle_not_found(error):
+        if request.path == '/api' or request.path.startswith('/api/'):
+            return {"success": False, "error": "Not found"}, 404
+        return error
+
     # IDs de almacenamiento en la URL: se validan antes de entrar en la ruta,
     # así un ID manipulado da 400 y no un 500 desde el try/except de cada vista.
     _STORAGE_ID_PREFIXES = {
@@ -348,6 +357,15 @@ def create_app(config_class=Config):
     @app.route('/api/health')
     def health():
         return {'status': 'ok', 'service': 'Simuloo Backend'}
+
+    # «Listo para trabajar»: además de que Flask responda, Neo4j contesta y el disco de datos se puede escribir.
+    # Aparte de /health a propósito: si Coolify reiniciara el contenedor cada vez que Neo4j tarda en arrancar,
+    # el remedio sería peor que el fallo. Esta es para un monitor externo; /health sigue siendo la del contenedor.
+    @app.route('/health/ready')
+    def health_ready():
+        from .utils.health import readiness
+        ready, checks = readiness()
+        return {'status': 'ok' if ready else 'degraded', 'checks': checks}, (200 if ready else 503)
 
     # Servir el frontend compilado en producción
     frontend_dist = os.path.join(os.path.dirname(__file__), '../../frontend/dist')

@@ -22,10 +22,19 @@ import os
 from collections import OrderedDict
 from typing import List
 
-RECSYS_BATCH_SIZE = int(os.environ.get('RECSYS_BATCH_SIZE', '64'))
-RECSYS_MAX_TOKENS = int(os.environ.get('RECSYS_MAX_TOKENS', '256'))
+def _env_int(name: str, default: int) -> int:
+    """Entero del entorno; vacío o no numérico = el valor por defecto (un typo no debe impedir arrancar)."""
+    try:
+        value = int(os.environ.get(name) or default)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+RECSYS_BATCH_SIZE = _env_int('RECSYS_BATCH_SIZE', 64)
+RECSYS_MAX_TOKENS = _env_int('RECSYS_MAX_TOKENS', 256)
 # ~3 KB por vector: 20000 entradas ≈ 60 MB como mucho
-RECSYS_CACHE_SIZE = int(os.environ.get('RECSYS_CACHE_SIZE', '20000'))
+RECSYS_CACHE_SIZE = _env_int('RECSYS_CACHE_SIZE', 20000)
 
 _applied = False
 _cache: "OrderedDict[str, object]" = OrderedDict()

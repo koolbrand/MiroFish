@@ -68,7 +68,22 @@ def test_cors_rejects_unknown_origin(client):
 def test_unknown_api_route_is_json_404(client):
     r = client.get("/api/no-existe", headers=auth())
     assert r.status_code == 404
-    assert r.is_json
+    assert r.is_json and r.get_json()["success"] is False
+
+
+def test_unknown_api_route_is_json_404_even_without_the_built_frontend(client, monkeypatch, tmp_path):
+    """Sin `frontend/dist` (desarrollo solo con la API, CI) no existe la ruta comodín del SPA: el 404 sigue siendo JSON."""
+    import os as _os
+    real_exists = _os.path.exists
+    monkeypatch.setattr(_os.path, "exists", lambda p: False if str(p).endswith("frontend/dist") else real_exists(p))
+    from app import create_app
+    app = create_app()
+    app.config["TESTING"] = True
+    r = app.test_client().get("/api/no-existe", headers=auth())
+    assert r.status_code == 404 and r.is_json
+    assert r.get_json() == {"success": False, "error": "Not found"}
+    page = app.test_client().get("/no-es-api")
+    assert page.status_code == 404 and not page.is_json            # lo que no es API conserva su 404 normal
 
 
 def test_project_id_traversal_rejected(client):
