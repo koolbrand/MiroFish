@@ -240,7 +240,8 @@ docker run -d \
 - Los gráficos van animados (petición expresa) y nada de interfaz debe superar 700 ms.
 - Los campos, chips y botones de contorno usan `--kb-control-line` (#858585, ≥ 3:1 sobre blanco y crema, WCAG 1.4.11); `--kb-line` y `--kb-line-strong` son para divisores, no para controles.
 - Lo que hay tras pulsar «Iniciar simulación» también cuenta: `MainView.vue` muestra un aviso claro con «Reintentar» y «Volver al inicio» si falla el análisis o la construcción del mapa (antes quedaba un «generando…» eterno), y las cinco pantallas del proceso abren en «Mesa de trabajo» y reparten el encabezado en filas por debajo de 900 px.
-- La nota de duración del formulario («20–30 min») y las cifras de la portada salen de ejecuciones medidas (18, 26 y 35 min; 19, 23 y 113 personas): si cambia el motor, se vuelven a medir.
+- La nota de duración del formulario («alrededor de una hora y media», cifra «1–2 horas») sale de **una** ejecución completa medida en producción el 1-oct-2026, en automático, con 47 personas y 40 rondas: **83,5 min** (investigación 1 · ontología 3 · grafo 18 · preparación 10 · simulación 31 · informe 20). Antes decía «20–30 min», que salía de ejecuciones de 10 rondas sin investigación y dejó de ser cierto con el modo automático. Las rondas pesan un tercio: bajar de 40 a 12 ahorra ~20 min, así que no se ofrece «Rápida». Con más personas tarda más: si cambia el motor o el tamaño típico, volver a medir y repetir al menos una vez más. Las cifras «20–120 personas» salen de ejecuciones medidas (19, 23 y 113 personas).
+- «Brief inicial» es el nombre del material que sube la persona (antes «semilla de la realidad», jerga heredada del motor); en inglés «initial brief». El chino conserva «现实种子» a la espera de una revisión de un hablante nativo.
 
 ## 🔗 Useful Resources
 
