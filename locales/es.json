@@ -1072,6 +1072,8 @@
     "maxRoundsInvalid": "max_rounds debe ser un entero válido",
     "maxRoundsTooLarge": "max_rounds no puede pasar de {max}",
     "maxRoundsOutOfRange": "max_rounds debe estar entre {min} y {max}",
+    "ownerAdminOnly": "Solo el administrador puede cambiar el dueño de un proyecto",
+    "ownerInvalid": "owner_id debe ser el id de un usuario (letras y números, de 8 a 32 caracteres) o null",
     "invalidPlatform": "Tipo de plataforma inválido: {platform}. Opciones: twitter/reddit/parallel",
     "simRunningForceHint": "La simulación está en ejecución. Detenla primero en /stop, o usa force=true para reiniciar.",
     "simNotReady": "La simulación no está lista. Estado actual: {status}. Por favor llama a /prepare primero.",

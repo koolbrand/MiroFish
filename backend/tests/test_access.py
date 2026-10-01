@@ -24,7 +24,7 @@ from app.utils.security import INTERNAL_AUTH_HEADER, internal_request_headers
 from test_pipeline import ontology, storage  # noqa: F401 — fixtures reutilizados
 
 ADMIN_TOKEN = "token-admin-estatico"
-USERS = {"tokA": "userA", "tokB": "userB"}
+USERS = {"tokA": "userA", "tokB": "userB", "tokV": "5yg3ot03jo2qibu"}   # tokV: un id con el formato real de PocketBase (15 caracteres)
 
 
 def hdr(token):
@@ -224,6 +224,79 @@ def test_ownerless_projects_are_admin_only_until_assigned(client, monkeypatch):
     assert ids(client.get("/api/graph/project/list", headers=hdr("tokA")), "project_id") == {legacy["project"]}
     assert client.get(f"/api/report/{legacy['report']}", headers=hdr("tokA")).status_code == 200
     assert client.get(f"/api/report/{legacy['report']}", headers=hdr("tokB")).status_code == 404
+
+
+# ============== Cambiar el dueño de un proyecto (solo administrador) ==============
+
+def set_owner(client, token, project, owner_id, **kw):
+    return client.put(f"/api/graph/project/{project}/owner", headers=hdr(token), json={"owner_id": owner_id}, **kw)
+
+
+VICTOR = "5yg3ot03jo2qibu"
+
+
+def test_admin_hands_a_project_over_to_another_user(client, world):
+    mine = world["A"]
+    r = set_owner(client, ADMIN_TOKEN, mine["project"], VICTOR)
+    assert r.status_code == 200
+    assert r.get_json()["data"] == {"project_id": mine["project"], "owner_id": VICTOR, "previous_owner_id": "userA"}
+    # lo que cuelga del proyecto cambia con él: simulación, informe y grafo
+    for path in (f"/api/graph/project/{mine['project']}", f"/api/simulation/{mine['sim']}", f"/api/report/{mine['report']}"):
+        assert client.get(path, headers=hdr("tokV")).status_code == 200, path
+        assert client.get(path, headers=hdr("tokA")).status_code == 404, path
+    assert mine["project"] in ids(client.get("/api/graph/project/list", headers=hdr("tokV")), "project_id")
+    assert mine["project"] not in ids(client.get("/api/graph/project/list", headers=hdr("tokA")), "project_id")
+    # y el cambio sobrevive a otro guardado
+    project = ProjectManager.get_project(mine["project"])
+    project.name = "Otro"
+    ProjectManager.save_project(project)
+    assert ProjectManager.get_project(mine["project"]).owner_id == VICTOR
+
+
+def test_an_ownerless_project_goes_to_its_real_user_and_leaves_the_legacy_owner(client, monkeypatch):
+    """El caso real: un proyecto de antes del aislamiento que el servidor trataba como del dueño por defecto."""
+    monkeypatch.setattr(Config, "LEGACY_OWNER_ID", "userA")
+    legacy = make_world(None, "l")
+    assert client.get(f"/api/simulation/{legacy['sim']}", headers=hdr("tokA")).status_code == 200
+    assert client.get(f"/api/simulation/{legacy['sim']}", headers=hdr("tokV")).status_code == 404
+
+    assert set_owner(client, ADMIN_TOKEN, legacy["project"], VICTOR).status_code == 200
+    assert client.get(f"/api/simulation/{legacy['sim']}", headers=hdr("tokV")).status_code == 200
+    assert client.get(f"/api/simulation/{legacy['sim']}", headers=hdr("tokA")).status_code == 404
+
+
+def test_a_user_cannot_hand_over_a_project_not_even_their_own(client, world):
+    mine, other = world["A"], world["B"]
+    # el dueño: 403 y nada cambia
+    assert set_owner(client, "tokA", mine["project"], "userB").status_code == 403
+    assert ProjectManager.get_project(mine["project"]).owner_id == "userA"
+    # un tercero: 404, como con cualquier cosa ajena (no se revela que existe)
+    assert set_owner(client, "tokA", other["project"], "userA").status_code == 404
+    assert ProjectManager.get_project(other["project"]).owner_id == "userB"
+    # sin sesión
+    assert client.put(f"/api/graph/project/{mine['project']}/owner", json={"owner_id": "userB"}).status_code == 401
+
+
+def test_the_internal_secret_is_not_an_administrator_here(client, world):
+    r = client.put(f"/api/graph/project/{world['A']['project']}/owner", headers=internal_request_headers(), json={"owner_id": "userB"})
+    assert r.status_code == 403
+    assert ProjectManager.get_project(world["A"]["project"]).owner_id == "userA"
+
+
+@pytest.mark.parametrize("body", [{}, {"owner_id": ""}, {"owner_id": "corto"}, {"owner_id": "con espacios 1234"},
+                                  {"owner_id": 12345678}, {"owner_id": ["userB"]}, {"owner_id": "x" * 33}, {"otro": "userB"}])
+def test_invalid_owner_ids_are_rejected_and_change_nothing(client, world, body):
+    r = client.put(f"/api/graph/project/{world['A']['project']}/owner", headers=hdr(ADMIN_TOKEN), json=body)
+    assert r.status_code == 400
+    assert ProjectManager.get_project(world["A"]["project"]).owner_id == "userA"
+
+
+def test_owner_null_leaves_the_project_ownerless_and_unknown_projects_are_404(client, world):
+    r = set_owner(client, ADMIN_TOKEN, world["A"]["project"], None)
+    assert r.status_code == 200 and r.get_json()["data"]["owner_id"] is None
+    assert client.get(f"/api/simulation/{world['A']['sim']}", headers=hdr("tokA")).status_code == 404   # sin dueño: solo el administrador
+    assert client.get(f"/api/simulation/{world['A']['sim']}", headers=hdr(ADMIN_TOKEN)).status_code == 200
+    assert set_owner(client, ADMIN_TOKEN, "proj_000000000000", "userB").status_code == 404
 
 
 # ============== Tareas ==============
