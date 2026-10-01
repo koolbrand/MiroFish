@@ -8,9 +8,23 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from ..utils.llm_client import LLMClient
-from ..utils.locale import get_language_instruction
+from ..utils.locale import get_language_instruction, get_locale
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_label(item: Dict[str, Any]) -> None:
+    """La etiqueta legible de un tipo: texto corto y sin saltos de línea; si no es válida, se quita (la interfaz
+    usa entonces el diccionario o el nombre)."""
+    label = item.get("label")
+    if not isinstance(label, str):
+        item.pop("label", None)
+        return
+    label = " ".join(label.split())
+    if label:
+        item["label"] = label[:60]
+    else:
+        item.pop("label", None)
 
 
 def _to_pascal_case(name: str) -> str:
@@ -63,6 +77,7 @@ Por favor produce JSON con la siguiente estructura:
     "entity_types": [
         {
             "name": "Nombre del tipo de entidad (en inglés, PascalCase)",
+            "label": "Nombre legible del tipo en el idioma del usuario (1 a 4 palabras, p. ej. «Desarrollador de apps»)",
             "description": "Descripción breve (en inglés, máximo 100 caracteres)",
             "attributes": [
                 {
@@ -77,6 +92,7 @@ Por favor produce JSON con la siguiente estructura:
     "edge_types": [
         {
             "name": "Nombre del tipo de relación (en inglés, UPPER_SNAKE_CASE)",
+            "label": "Nombre legible de la relación en el idioma del usuario (1 a 4 palabras, en minúsculas, p. ej. «compite con»)",
             "description": "Descripción breve (en inglés, máximo 100 caracteres)",
             "source_targets": [
                 {"source": "Tipo de entidad origen", "target": "Tipo de entidad destino"}
@@ -211,6 +227,8 @@ class OntologyGenerator:
             f"{lang_instruction}\n"
             "CRITICAL: The `description` fields and `analysis_summary` field MUST be written in the language specified above. "
             "Do NOT output Chinese for those fields unless that is the target language.\n"
+            "Every entity type and every relationship type MUST also have a short human-readable `label` (1 to 4 words) "
+            "in the language specified above; it is only shown to people, the `name` stays in English.\n"
             "IMPORTANT: Entity type names MUST be in English PascalCase (e.g., 'PersonEntity', 'MediaOrganization'). "
             "Relationship type names MUST be in English UPPER_SNAKE_CASE (e.g., 'WORKS_FOR'). "
             "Attribute names MUST be in English snake_case.\n\n"
@@ -230,6 +248,8 @@ class OntologyGenerator:
         
         # 验证和后处理
         result = self._validate_and_process(result)
+        # Idioma de las etiquetas: solo se muestran si coincide con el de la interfaz (si no, se usa el diccionario)
+        result["label_locale"] = get_locale()
         
         return result
     
@@ -311,6 +331,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
             # 确保description不超过100字符
             if len(entity.get("description", "")) > 100:
                 entity["description"] = entity["description"][:97] + "..."
+            _clean_label(entity)
         
         # 验证关系类型
         for edge in result["edge_types"]:
@@ -332,6 +353,7 @@ Por favor, a partir del contenido anterior, diseña los tipos de entidad y los t
                 edge["attributes"] = []
             if len(edge.get("description", "")) > 100:
                 edge["description"] = edge["description"][:97] + "..."
+            _clean_label(edge)
         
         # Zep API 限制：最多 10 个自定义实体类型，最多 10 个自定义边类型
         MAX_ENTITY_TYPES = 10

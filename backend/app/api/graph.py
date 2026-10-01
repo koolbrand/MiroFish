@@ -534,6 +534,9 @@ def generate_project_ontology(project, document_texts, additional_context=None):
         "entity_types": ontology.get("entity_types", []),
         "edge_types": ontology.get("edge_types", [])
     }
+    if ontology.get("label_locale"):
+        # idioma en el que el modelo escribió las etiquetas legibles de los tipos (solo para mostrar)
+        project.ontology["label_locale"] = ontology["label_locale"]
     project.analysis_summary = ontology.get("analysis_summary", "")
     project.status = ProjectStatus.ONTOLOGY_GENERATED
     ProjectManager.save_project(project)
