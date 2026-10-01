@@ -29,10 +29,25 @@ def test_creating_a_task_triggers_cleanup_at_most_every_half_hour(monkeypatch):
     manager = TaskManager()
     calls = []
     monkeypatch.setattr(manager, "cleanup_old_tasks", lambda *a, **k: calls.append(1))
-    manager._last_cleanup = 0.0
+    manager._last_cleanup = None
     manager.create_task("a")
     manager.create_task("b")
     manager.create_task("c")
+    assert len(calls) == 1
+
+
+def test_the_first_cleanup_runs_even_on_a_freshly_booted_machine(monkeypatch):
+    """`time.monotonic()` es el tiempo desde que arrancó la máquina: en un runner de CI nuevo vale menos de 1800 s.
+    Con el contador inicial en 0.0 la primera limpieza no se hacía (falló en GitHub, no en local)."""
+    manager = TaskManager()
+    calls = []
+    monkeypatch.setattr(manager, "cleanup_old_tasks", lambda *a, **k: calls.append(1))
+    if hasattr(manager, "_last_cleanup"):
+        monkeypatch.delattr(manager, "_last_cleanup")              # proceso recién arrancado: nunca se ha limpiado
+    monkeypatch.setattr(time, "monotonic", lambda: 100.0)
+    manager.create_task("a")
+    assert len(calls) == 1
+    manager.create_task("b")                                       # y ya no vuelve a limpiar hasta pasada media hora
     assert len(calls) == 1
 
 

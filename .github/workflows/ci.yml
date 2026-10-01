@@ -102,12 +102,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Avisos de seguridad de dependencias: informativo. Un aviso nuevo en un paquete que no tocas no debe poner en
-  # rojo tu PR; se mira en esta pestaña.
+  # Avisos de seguridad de dependencias: informativo. Hay avisos que hoy no se pueden resolver (graphiti-core, transformers
+  # y unstructured los bloquean camel-ai/OASIS), así que este job NO falla: una cruz roja permanente en cada PR
+  # enseña a ignorar el CI. El resultado sale en el resumen del job (pestaña «Summary» de la ejecución).
   audit:
     name: Avisos de seguridad (informativo)
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -116,12 +116,15 @@ jobs:
           version: "0.9.26"
       - name: pip-audit (backend)
         working-directory: backend
+        continue-on-error: true
         run: |
           uv export --frozen --no-hashes --no-emit-project --no-dev > /tmp/req.txt
-          uvx pip-audit --no-deps --disable-pip -r /tmp/req.txt
+          { echo '### pip-audit (backend)'; echo '```'; uvx pip-audit --no-deps --disable-pip -r /tmp/req.txt 2>&1 || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: npm audit (frontend, solo producción)
         working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+        run: |
+          { echo '### npm audit (frontend, producción)'; echo '```'; npm audit --omit=dev --audit-level=high 2>&1 || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
