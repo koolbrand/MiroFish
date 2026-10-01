@@ -516,6 +516,13 @@
     },
     "researchLabel": "Investigar en internet antes de simular",
     "researchHint": "Busca contexto sobre tu tema —polémicas, noticias, quién está implicado— y lo suma a tu documento, con las fuentes. Tu pregunta y el inicio de tu documento se envían al buscador: no lo actives con algo confidencial.",
+    "roundsLabel": "Duración de la conversación",
+    "rounds_short": "Corta",
+    "rounds_standard": "Estándar",
+    "rounds_long": "Larga",
+    "roundsUpTo": "hasta {n} rondas",
+    "roundsTime": "≈ {n} min",
+    "roundsHint": "Más rondas dan más tiempo a que las opiniones cambien. Es solo la parte de la conversación: el análisis previo y el informe se suman.",
     "skipToForm": "Saltar al formulario"
   },
   "main": {
@@ -1063,6 +1070,8 @@
     "noMatchingEntities": "No se encontraron entidades coincidentes",
     "maxRoundsPositive": "max_rounds debe ser un entero positivo",
     "maxRoundsInvalid": "max_rounds debe ser un entero válido",
+    "maxRoundsTooLarge": "max_rounds no puede pasar de {max}",
+    "maxRoundsOutOfRange": "max_rounds debe estar entre {min} y {max}",
     "invalidPlatform": "Tipo de plataforma inválido: {platform}. Opciones: twitter/reddit/parallel",
     "simRunningForceHint": "La simulación está en ejecución. Detenla primero en /stop, o usa force=true para reiniciar.",
     "simNotReady": "La simulación no está lista. Estado actual: {status}. Por favor llama a /prepare primero.",

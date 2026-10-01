@@ -3,6 +3,7 @@
  * 用于首页点击启动引擎后立即跳转，在Process页面再进行API调用
  */
 import { reactive } from 'vue'
+import { DEFAULT_ROUNDS, normalizeRounds } from '../lib/rounds'
 
 const state = reactive({
   files: [],
@@ -10,15 +11,17 @@ const state = reactive({
   projectName: '',
   mode: 'manual',        // 'manual' (paso a paso) o 'auto' (el servidor sigue hasta el informe)
   webResearch: false,    // investigar en internet antes de la ontología (opcional)
+  rounds: DEFAULT_ROUNDS, // rondas de la simulación en modo automático (20 / 40 / 72)
   isPending: false
 })
 
-export function setPendingUpload(files, requirement, projectName = '', mode = 'manual', webResearch = false) {
+export function setPendingUpload(files, requirement, projectName = '', mode = 'manual', webResearch = false, rounds = DEFAULT_ROUNDS) {
   state.files = files
   state.simulationRequirement = requirement
   state.projectName = projectName
   state.mode = mode === 'auto' ? 'auto' : 'manual'
   state.webResearch = !!webResearch
+  state.rounds = normalizeRounds(rounds)
   state.isPending = true
 }
 
@@ -29,6 +32,7 @@ export function getPendingUpload() {
     projectName: state.projectName,
     mode: state.mode,
     webResearch: state.webResearch,
+    rounds: state.rounds,
     isPending: state.isPending
   }
 }
@@ -39,6 +43,7 @@ export function clearPendingUpload() {
   state.projectName = ''
   state.mode = 'manual'
   state.webResearch = false
+  state.rounds = DEFAULT_ROUNDS
   state.isPending = false
 }
 

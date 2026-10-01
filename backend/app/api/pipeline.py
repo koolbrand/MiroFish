@@ -52,17 +52,42 @@ def _internal_error(exc: Exception):
     }), 500
 
 
+def _read_max_rounds(form):
+    """
+    Campo opcional `max_rounds`: tope de rondas de la simulación (entero entre
+    SIMULATION_MIN_ROUNDS y SIMULATION_MAX_ROUNDS). Devuelve (valor | None, error | None);
+    sin campo, valor None y el pipeline usa el de por defecto.
+    """
+    raw = form.get('max_rounds')
+    raw = raw.strip() if isinstance(raw, str) else ''
+    if not raw:
+        return None, None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None, t('api.maxRoundsInvalid')
+    low, high = Config.SIMULATION_MIN_ROUNDS, Config.SIMULATION_MAX_ROUNDS
+    if not low <= value <= high:
+        return None, t('api.maxRoundsOutOfRange', min=low, max=high)
+    return value, None
+
+
 @pipeline_bp.route('/auto', methods=['POST'])
 def start_auto_pipeline():
     """
     Crea el proyecto y guarda los archivos en la petición (mismas validaciones
     y límites que ontology/generate) y lanza en segundo plano la ontología y
     todo lo que sigue. Responde en pocos segundos. Con `web_research`
-    ("true"/"1"), antes de la ontología va la etapa «research».
+    ("true"/"1"), antes de la ontología va la etapa «research». Con `max_rounds`
+    (10–100), el tope de rondas de la simulación; sin él, 40.
 
     Devuelve: {"success": true, "data": {"project_id": "proj_…", "pipeline": <estado>}}
     """
     logger.info("=== Modo automático: nuevo proyecto ===")
+    max_rounds, rounds_error = _read_max_rounds(request.form)
+    if rounds_error:
+        return jsonify({"success": False, "error": rounds_error}), 400
+
     try:
         simulation_requirement, project_name, additional_context, uploaded_files = \
             read_ontology_form(request.form, request.files)
@@ -89,6 +114,7 @@ def start_auto_pipeline():
             document_texts=document_texts,
             additional_context=additional_context,
             web_research=web_research,
+            max_rounds=max_rounds,
         )
     except PipelineConflict:
         return jsonify({"success": False, "error": _CONFLICT_MESSAGE}), 409

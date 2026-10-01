@@ -1701,6 +1701,14 @@ def start_simulation():
                     "success": False,
                     "error": t('api.maxRoundsInvalid')
                 }), 400
+            if max_rounds > Config.SIMULATION_MAX_ROUNDS:
+                return jsonify({
+                    "success": False,
+                    "error": t('api.maxRoundsTooLarge', max=Config.SIMULATION_MAX_ROUNDS)
+                }), 400
+        else:
+            # Sin tope explícito, el de seguridad del servidor (la configuración automática llega a 336 rondas)
+            max_rounds = Config.SIMULATION_MAX_ROUNDS
 
         # 检查模拟是否已准备好
         manager = SimulationManager()

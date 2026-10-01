@@ -336,6 +336,7 @@ def test_auto_runs_every_stage_in_order_with_the_screen_params(client, backend, 
     assert body["pipeline"]["mode"] == "auto"
     assert body["pipeline"]["status"] == "running"
     assert body["pipeline"]["stage"] == "ontology" and body["pipeline"]["stage_index"] == 1
+    assert body["pipeline"]["max_rounds"] == 40
 
     final = wait_finished(client, project_id)
     assert final["status"] == "completed", final
@@ -388,6 +389,81 @@ def test_auto_validates_like_ontology_generate(client, backend, ontology, storag
     assert r.status_code == 400
     assert os.listdir(storage / "projects") == []
     assert ontology.calls == []
+
+
+# ============== Rondas elegidas ==============
+
+def start_payload(backend):
+    [payload] = [p for path, p in action_posts(backend) if path == "/api/simulation/start"]
+    return payload
+
+
+@pytest.mark.parametrize("rounds", [20, 40, 72])
+def test_auto_uses_the_rounds_chosen_on_launch(client, backend, ontology, rounds):
+    r = upload(client, max_rounds=str(rounds))
+    assert r.status_code == 200
+    body = r.get_json()["data"]
+    backend.project_id = body["project_id"]
+    assert body["pipeline"]["max_rounds"] == rounds
+
+    final = wait_finished(client, body["project_id"])
+    assert final["status"] == "completed", final
+    assert final["max_rounds"] == rounds
+    assert start_payload(backend)["max_rounds"] == rounds
+
+
+@pytest.mark.parametrize("value", ["abc", "1.5", "9", "0", "-5", "101", "5000"])
+def test_auto_rejects_rounds_out_of_range(client, backend, ontology, storage, value):
+    r = upload(client, max_rounds=value)
+    assert r.status_code == 400
+    assert "max_rounds" in r.get_json()["error"]
+    # Nada a medias: ni proyecto ni hilo
+    assert os.listdir(storage / "projects") == []
+    assert ontology.calls == []
+
+
+def test_auto_rounds_limits_are_inclusive(client, backend, ontology):
+    for value in (Config.SIMULATION_MIN_ROUNDS, Config.SIMULATION_MAX_ROUNDS):
+        r = upload(client, max_rounds=str(value))
+        assert r.status_code == 200, value
+        wait_finished(client, r.get_json()["data"]["project_id"])
+
+
+def test_resume_keeps_the_rounds_chosen_at_launch(client, backend):
+    project_id = make_project()
+    backend.project_id = project_id
+    sim_id = make_prepared_simulation(project_id, created_at=iso(5))
+    backend.sim_id = sim_id
+    set_run_state(sim_id, "stopped", twitter_actions_count=3, reddit_actions_count=3)
+    write_old_pipeline(project_id, "cancelled", "simulate", simulation_id=sim_id, max_rounds=72)
+
+    r = client.post(f"/api/pipeline/{project_id}/resume", headers=auth())
+    assert r.status_code == 200
+    assert r.get_json()["data"]["max_rounds"] == 72
+    final = wait_finished(client, project_id)
+    assert final["status"] == "completed", final
+    assert start_payload(backend)["max_rounds"] == 72
+
+
+def test_old_pipeline_without_rounds_reads_as_the_default(client, backend):
+    project_id = make_project()
+    write_old_pipeline(project_id, "failed", "graph")
+    assert pipeline_of(client, project_id)["max_rounds"] == 40
+
+
+def test_simulation_start_caps_the_rounds(client, backend):
+    """Validación antes de mirar la simulación: con una inexistente, lo válido llega al 404."""
+    def start(**extra):
+        return client.post("/api/simulation/start", headers=auth(),
+                           json={"simulation_id": "sim_notexist0001", **extra})
+
+    too_many = start(max_rounds=Config.SIMULATION_MAX_ROUNDS + 1)
+    assert too_many.status_code == 400
+    assert str(Config.SIMULATION_MAX_ROUNDS) in too_many.get_json()["error"]
+    assert start(max_rounds=0).status_code == 400
+    assert start(max_rounds="muchas").status_code == 400
+    assert start(max_rounds=Config.SIMULATION_MAX_ROUNDS).status_code == 404
+    assert start().status_code == 404
 
 
 # ============== Fallos ==============
