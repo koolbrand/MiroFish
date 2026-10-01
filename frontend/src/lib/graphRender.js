@@ -1195,12 +1195,16 @@ export class GraphRenderer {
       let hubs = 0
       for (const e of this.edges) if (e.vis && !(F && F.edges.has(e.id)) && isHub(e)) { this._edgePath(ctx, e); hubs++ }
       if (hubs) {
-        ctx.globalCompositeOperation = 'lighter'
-        ctx.globalAlpha = 0.07 * dimK
-        ctx.lineWidth = 6
-        ctx.stroke()
-        ctx.globalCompositeOperation = 'source-over'
-        ctx.globalAlpha = 0.68 * dimK
+        // con cientos de relaciones principales los halos aditivos se suman en el núcleo y lo lavan: proporcional
+        const dens = clamp(160 / hubs, 0.25, 1)
+        if (dens > 0.5) {   // con tantas, el halo ancho aditivo es casi invisible y es lo más caro de repintar
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = 0.07 * dens * dimK
+          ctx.lineWidth = 6
+          ctx.stroke()
+          ctx.globalCompositeOperation = 'source-over'
+        }
+        ctx.globalAlpha = (0.5 + 0.18 * dens) * dimK
         ctx.lineWidth = 1.5
         ctx.stroke()
       }
@@ -1437,6 +1441,7 @@ export class GraphRenderer {
     const { W, H, tk, t } = this
     const N = this.nodes.length
     const grid = new BoxGrid(48)
+    this.labelRects = []   // dónde hay texto: la composición solo copia esos rectángulos de la capa (no el lienzo entero)
     const focusOnly = F && fm > 0.5
     // la franja de los controles de arriba (búsqueda, interruptor) también estorba: nada se coloca debajo
     if (this.insets.top > 8) grid.add({ x0: 0, y0: 0, x1: W, y1: this.insets.top - 6, owner: '__ui__' })
@@ -1485,6 +1490,7 @@ export class GraphRenderer {
       if (!this.entry) n.labelPos = box.dir
       const la = clamp((n.ap - 0.55) / 0.45, 0, 1) * (F && !F.nodes.has(n.id) ? 1 - 2 * fm : 1)
       if (la <= 0.02) return true
+      this.labelRects.push([box.x0 - 8, box.y0 - 6, box.x1 + 8, box.y1 + 6])
       ctx.globalAlpha = la
       if (crowded) {
         // sobre otros nodos: píldora de tinta detrás para que se lea
@@ -1541,6 +1547,7 @@ export class GraphRenderer {
       grid.add(b)
       ctx.globalAlpha = inF ? 1 : 1 - (F ? Math.min(1, 2 * fm) : 0)
       if (ctx.globalAlpha <= 0.02) return
+      this.labelRects.push([b.x0 - 8, b.y0 - 6, b.x1 + 8, b.y1 + 6])
       ctx.font = efont
       ctx.lineWidth = 4
       ctx.strokeStyle = ink
@@ -1607,9 +1614,23 @@ export class GraphRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
-    ctx.drawImage(this.labelLayer, 0, 0)
+    this._blitLabels(ctx)
     ctx.setTransform(d, 0, 0, d, 0, 0)
     this._overlays(ctx, now, dt)
+  }
+
+  // Las etiquetas ocupan una fracción mínima de la pantalla: se copian solo sus rectángulos (volcar el lienzo
+  // entero cada fotograma costaba, sin GPU, más que toda la animación).
+  _blitLabels(ctx) {
+    const rects = this.labelRects
+    if (!rects || !rects.length) return
+    const d = this.dpr, cw = this.canvas.width, ch = this.canvas.height
+    const L = this.labelLayer
+    for (const r of rects) {
+      const x = Math.max(0, Math.floor(r[0] * d)), y = Math.max(0, Math.floor(r[1] * d))
+      const w = Math.min(cw, Math.ceil(r[2] * d)) - x, h = Math.min(ch, Math.ceil(r[3] * d)) - y
+      if (w > 0 && h > 0) ctx.drawImage(L, x, y, w, h, x, y, w, h)
+    }
   }
 
   // Sin GPU la animación se adelgaza sola: cada 30 fotogramas, si cuesta de media más de 6 ms, baja a la mitad de
@@ -1630,9 +1651,13 @@ export class GraphRenderer {
   _flow(ctx, dt) {
     const E = this.edges
     if (!E.length) return
+    if (this._busy && E.length > 900) return   // grafo denso y escena repintándose entera (arrastre, zoom): las partículas esperan
     const F = this.focus, fm = F ? this.focusMix : 0
     const stride = (this.fxLevel >= 1 ? 1 : this.fxLevel >= 0.5 ? 2 : 4) * (this._busy ? 2 : 1)
     const lime = this.tk['--lime-500'], core = this.tk['--lime-50']
+    // aditiva: es lo que deja ver la red POR ENCIMA de los nodos; en grafos densos las estelas son más finas y tenues
+    // para que, sumadas en el núcleo, no lo laven
+    const dense = E.length > 900 ? 0.72 : 1
     ctx.globalCompositeOperation = 'lighter'
     ctx.lineCap = 'round'
     for (let pass = 0; pass < (F ? 2 : 1); pass++) {
@@ -1661,9 +1686,9 @@ export class GraphRenderer {
         any = true
       }
       if (!any) continue
-      ctx.globalAlpha = hot ? 0.95 : 0.5 * (1 - 0.75 * fm)
+      ctx.globalAlpha = hot ? 0.95 : 0.5 * dense * (1 - 0.75 * fm)
       ctx.strokeStyle = lime
-      ctx.lineWidth = hot ? 2.2 : 1.2
+      ctx.lineWidth = hot ? 2.2 : 1.2 * dense
       ctx.stroke(tails)
       ctx.globalAlpha = hot ? 1 : 0.85 * (1 - 0.7 * fm)
       ctx.fillStyle = core
@@ -1677,8 +1702,9 @@ export class GraphRenderer {
   _bloom(ctx, now) {
     const order = this.model?.byPriority
     if (!order || !order.length) return
+    if (this._busy && this.edges.length > 900) return
     const F = this.focus, fm = F ? this.focusMix : 0
-    const K = Math.min(order.length, Math.max(5, Math.round(this.nodes.length * 0.05)), 36)
+    const K = Math.min(order.length, Math.max(5, Math.round(this.nodes.length * 0.05)), this.edges.length > 900 ? 14 : 36)
     const lime = this.tk['--lime-500']
     ctx.globalCompositeOperation = 'lighter'
     ctx.setTransform(1, 0, 0, 1, 0, 0)
