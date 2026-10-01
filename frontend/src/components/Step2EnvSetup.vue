@@ -424,12 +424,15 @@
                 <span class="config-block-title">{{ $t('step2.llmConfigReasoning') }}</span>
               </div>
               <div class="reasoning-content">
-                <div 
-                  v-for="(reason, idx) in simulationConfig.generation_reasoning.split('|').slice(0, 2)" 
-                  :key="idx" 
-                  class="reasoning-item"
-                >
-                  <p class="reasoning-text">{{ reason.trim() }}</p>
+                <!-- El texto lo escribe el modelo: se parte en título + párrafos + listas (datos, nunca HTML) -->
+                <div v-for="(section, idx) in reasoningBlocks" :key="idx" class="reasoning-item">
+                  <h4 v-if="section.label" class="reasoning-label">{{ section.label }}</h4>
+                  <template v-for="(block, i) in section.blocks" :key="i">
+                    <p v-if="block.type === 'p'" class="reasoning-text">{{ block.text }}</p>
+                    <ul v-else class="reasoning-list">
+                      <li v-for="(item, j) in block.items" :key="j">{{ item }}</li>
+                    </ul>
+                  </template>
                 </div>
               </div>
             </div>
@@ -758,6 +761,7 @@
 </template>
 
 <script setup>
+import { reasoningSections } from '../lib/reasoningText'
 import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1466,6 +1470,9 @@ onUnmounted(() => {
   stopProfilesPolling()
   stopConfigPolling()
 })
+
+// Razonamiento de la configuración, partido en apartados legibles (ver lib/reasoningText.js)
+const reasoningBlocks = computed(() => reasoningSections(simulationConfig.value?.generation_reasoning))
 </script>
 
 <style scoped>
@@ -2447,17 +2454,41 @@ onUnmounted(() => {
 }
 
 .reasoning-item {
-  padding: 12px 14px;
+  padding: 16px 20px 18px;
   background: var(--kb-surface-2);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
-.reasoning-text {
-  font-size: 13px;
-  color: var(--kb-text-2);
-  line-height: 1.7;
-  margin: 0;
+/* Título del apartado: como las etiquetas del resto de la pantalla (mono, versalitas, discreto) */
+.reasoning-label {
+  margin: 0 0 10px;
+  font: 600 11px/1.3 var(--kb-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
 }
+
+/* Texto: ~66 caracteres por línea (60–75 se lee bien; antes pasaba de 110), interlineado 1,6 y sin viudas */
+.reasoning-text {
+  max-width: 66ch;
+  font-size: 14px;
+  color: var(--kb-text-2);
+  line-height: 1.6;
+  margin: 0 0 0.75em;
+  text-wrap: pretty;
+}
+.reasoning-list {
+  max-width: 66ch;
+  margin: 0 0 0.75em;
+  padding-left: 1.25em;
+  font-size: 14px;
+  color: var(--kb-text-2);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.reasoning-list li { margin: 0 0 0.45em; padding-left: 0.2em; }
+.reasoning-list li::marker { color: var(--kb-accent-text); font-weight: 600; }
+.reasoning-item > :last-child { margin-bottom: 0; }
 
 /* Profile Modal */
 .profile-modal-overlay {

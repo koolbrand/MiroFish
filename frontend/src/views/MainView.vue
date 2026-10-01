@@ -183,12 +183,19 @@ const rightPanelStyle = computed(() => {
 const failureLook = { ears: 'flop', body: 'bowtie' }
 const failed = computed(() => !!error.value && currentStep.value === 1)
 const noPending = computed(() => error.value === t('log.noPendingFilesError'))
-const failureText = computed(() => (noPending.value ? t('main.failBodyNoFiles') : currentProjectId.value === 'new' ? t('main.failBodyNew') : t('main.failBodyBuild')))
-const canRetry = computed(() => !noPending.value && (currentProjectId.value !== 'new' || getPendingUpload().isPending))
+// Un rechazo del servidor que la persona puede resolver (demasiadas imágenes, formato, tamaño…) trae su mensaje claro:
+// se enseña como texto principal y no se ofrece «Reintentar», que fallaría igual con lo mismo. Antes solo se veía
+// «el análisis ha fallado» y la causa quedaba escondida en «Detalle técnico».
+const userFacing = ref('')
+// El mensaje del servidor puede venir sin punto final: se cierra la frase antes de añadir qué hacer
+const sentence = (text) => { const s = String(text).trim(); return /[.!?…]$/.test(s) ? s : `${s}.` }
+const failureText = computed(() => (userFacing.value ? `${sentence(userFacing.value)} ${t('main.failFixAndBack')}` : noPending.value ? t('main.failBodyNoFiles') : currentProjectId.value === 'new' ? t('main.failBodyNew') : t('main.failBodyBuild')))
+const canRetry = computed(() => !noPending.value && !userFacing.value && (currentProjectId.value !== 'new' || getPendingUpload().isPending))
 const retryFromError = async () => {
   if (loading.value) return
   const isNew = currentProjectId.value === 'new'
   error.value = ''
+  userFacing.value = ''
   if (isNew) await handleNewProject()
   else await startBuildGraph()
 }
@@ -264,6 +271,7 @@ const handleNewProject = async () => {
     return
   }
   setLaunching(true)
+  userFacing.value = ''
   
   try {
     loading.value = true
@@ -315,6 +323,8 @@ const handleNewProject = async () => {
     }
   } catch (err) {
     error.value = err.message
+    const status = err?.response?.status
+    if ([400, 413, 415, 422].includes(status) && err.message) userFacing.value = err.message
     addLog(`Exception in handleNewProject: ${err.message}`)
     ontologyProgress.value = null
     currentPhase.value = -1

@@ -527,7 +527,10 @@
     "roundsTime": "约 {n} 分钟",
     "roundsHint": "轮数越多，观点越有时间变化。这只是对话本身的时间：前期分析和报告另计。",
     "skipToForm": "跳到表单",
-    "launchedElsewhere": "你的分析已创建，可在“项目”中查看。"
+    "launchedElsewhere": "你的分析已创建，可在“项目”中查看。",
+    "limitImages": "一次最多可上传 {max} 张图片：有 {n} 张未添加。请删除一些，或只上传最重要的。",
+    "limitFiles": "一次最多可上传 {max} 个文件：有 {n} 个未添加。",
+    "roundsWhat": "一轮就是对话的一个回合，通常相当于模拟的一小时。每一轮中，此刻活跃的人会浏览其他人发布的内容，并决定是发帖、回复、点赞还是保持沉默。20 轮约为一天的对话，72 轮为三天。"
   },
   "main": {
     "layoutGraph": "图谱",
@@ -547,7 +550,8 @@
     "failBodyNoFiles": "没有待处理的文档（是否刷新了页面？）。请返回首页重新上传。",
     "failRetry": "重试",
     "failBack": "返回首页",
-    "failDetails": "技术细节"
+    "failDetails": "技术细节",
+    "failFixAndBack": "请修正后重新启动：你的材料仍保留在表单中。"
   },
   "stepper": {
     "ariaLabel": "向导导航",
@@ -855,7 +859,8 @@
     "failedTitle": "报告未能完成",
     "regenerate": "重新生成报告",
     "regenerating": "生成中…",
-    "reportNotFound": "该报告已不存在，或你没有访问权限。"
+    "reportNotFound": "该报告已不存在，或你没有访问权限。",
+    "techTimeline": "技术详情：智能体的工作过程（逐步）"
   },
   "step5": {
     "interactiveTools": "Interactive Tools",

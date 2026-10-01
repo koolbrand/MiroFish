@@ -104,6 +104,10 @@
                 <textarea ref="pasteEl" v-model="pasteText" class="field" rows="6" :placeholder="$t('home.pastePlaceholder')" :aria-label="$t('home.pastePlaceholder')" :disabled="loading"></textarea>
                 <button type="button" class="paste-add" :disabled="!pasteText.trim() || loading" @click="addPasted">{{ $t('home.pasteAdd') }}</button>
               </div>
+              <div v-if="limitNotice" class="file-error" role="alert">
+                <span class="file-error-mark" aria-hidden="true">!</span>
+                <span class="file-error-text">{{ limitNotice }}</span>
+              </div>
               <div v-if="rejected.length" class="file-error" role="alert">
                 <span class="file-error-mark" aria-hidden="true">!</span>
                 <span class="file-error-text">{{ rejectedText }}</span>
@@ -189,6 +193,8 @@
             <!-- Solo en automático: cuánto dura la conversación simulada (paso a paso lo eliges en el paso 2) -->
             <div v-if="runMode === 'auto'" class="rounds-pick" role="radiogroup" :aria-label="$t('home.roundsLabel')" data-tour="home-rounds">
               <p class="rounds-title">{{ $t('home.roundsLabel') }}</p>
+              <!-- «Ronda» no se explica sola: qué es y cuánto tiempo de conversación equivale -->
+              <p class="rounds-hint rounds-what">{{ $t('home.roundsWhat') }}</p>
               <div class="rounds-options">
                 <label v-for="c in ROUNDS_CHOICES" :key="c.key" class="rounds-opt" :class="{ on: rounds === c.rounds }">
                   <input v-model.number="rounds" type="radio" name="run-rounds" :value="c.rounds" />
@@ -360,6 +366,7 @@ import BiankaRow from '../components/BiankaRow.vue'
 import BiankaAvatar from '../components/BiankaAvatar.vue'
 import CountUp from '../components/CountUp.vue'
 import { getPendingUpload, setPendingUpload, clearPendingUpload, isLaunching } from '../store/pendingUpload'
+import { MAX_UPLOAD_FILES, MAX_UPLOAD_IMAGES, fitUploads } from '../lib/uploadLimits'
 import BiankaScene from '../components/BiankaScene.vue'
 import { fixedLook, drawBianka } from '../lib/biankaSprite'
 import { vReveal } from '../composables/useReveal'
@@ -674,6 +681,8 @@ let pastedCount = 0
 const addPasted = () => {
   const text = pasteText.value.trim()
   if (!text) return
+  const fit = fitUploads(files.value, [{ name: 'texto.txt' }])        // el texto pegado también es un archivo del envío
+  if (!fit.accepted.length) { showLimitNotice(fit.overFiles, 0); return }
   pastedCount += 1
   files.value.push(new File([text], `${t('home.pastedFileName')}${pastedCount > 1 ? `-${pastedCount}` : ''}.txt`, { type: 'text/plain' }))
   pasteText.value = ''
@@ -684,10 +693,23 @@ let rejectedTimer = null
 const rejectedText = computed(() => (rejected.value.length === 1
   ? t('home.fileRejectedOne', { name: rejected.value[0] })
   : t('home.fileRejectedMany', { n: rejected.value.length })))
+// Aviso de los topes de subida (archivos e imágenes por envío): se dice al añadir, con cuánto sobra y qué hacer
+const limitNotice = ref('')
+let limitTimer = null
+const showLimitNotice = (overFiles, overImages) => {
+  clearTimeout(limitTimer)
+  const parts = []
+  if (overImages) parts.push(t('home.limitImages', { max: MAX_UPLOAD_IMAGES, n: overImages }))
+  if (overFiles) parts.push(t('home.limitFiles', { max: MAX_UPLOAD_FILES, n: overFiles }))
+  limitNotice.value = parts.join(' ')
+  if (parts.length) limitTimer = setTimeout(() => { limitNotice.value = '' }, 12000)
+}
 const addFiles = (newFiles) => {
   const readable = ['pdf', 'docx', 'md', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'gif']
-  const validFiles = [], unreadable = []
-  for (const file of newFiles) (readable.includes(file.name.split('.').pop().toLowerCase()) ? validFiles : unreadable).push(file)
+  const readableFiles = [], unreadable = []
+  for (const file of newFiles) (readable.includes(file.name.split('.').pop().toLowerCase()) ? readableFiles : unreadable).push(file)
+  const { accepted: validFiles, overFiles, overImages } = fitUploads(files.value, readableFiles)
+  showLimitNotice(overFiles, overImages)
   files.value.push(...validFiles)
   clearTimeout(rejectedTimer)
   rejected.value = unreadable.map(f => f.name)
@@ -696,6 +718,7 @@ const addFiles = (newFiles) => {
 
 const removeFile = (index) => {
   files.value.splice(index, 1)
+  limitNotice.value = ''
 }
 
 // Rellena la pregunta con un ejemplo y deja el cursor al final para editarlo.
@@ -1282,6 +1305,7 @@ const startSimulation = () => {
 .rounds-opt.on { border-color: var(--ink-950); background: var(--kb-accent-subtle); box-shadow: inset 0 0 0 1px var(--ink-950); }
 .rounds-opt:has(input:focus-visible) { outline: 2px solid var(--ink-950); outline-offset: 2px; }
 .rounds-hint { margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+.rounds-what { max-width: 62ch; }
 @media (max-width: 420px) {
   .rounds-options { grid-template-columns: 1fr; }
   .rounds-opt { grid-template-columns: auto 1fr auto; align-items: baseline; gap: 4px 10px; }

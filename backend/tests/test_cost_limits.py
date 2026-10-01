@@ -112,6 +112,16 @@ def test_pillow_only_tries_the_allowed_formats():
         Image.open(io.BytesIO(buf.getvalue()), formats=file_parser._IMAGE_FORMATS)
 
 
+def test_real_material_with_six_images_is_accepted(client, ontology, monkeypatch):
+    """El material de northkin (6 imágenes + 2 textos) se rechazaba con el tope de 3, elegido sin datos."""
+    from app.utils import file_parser
+    monkeypatch.setattr(file_parser.FileParser, "_extract_from_image", staticmethod(lambda p: "descripción de imagen"))
+    files = [(io.BytesIO(png(8, 8)), f"imagen{i}.png") for i in range(6)] + [md(1), md(2)]
+    r = upload(client, files)
+    assert r.status_code == 200, r.get_json()
+    assert Config.MAX_UPLOAD_IMAGES >= 6
+
+
 def test_a_normal_image_is_still_processed(client, ontology, monkeypatch):
     from app.utils import file_parser
     monkeypatch.setattr(file_parser.FileParser, "_extract_from_image", staticmethod(lambda p: "descripción"))

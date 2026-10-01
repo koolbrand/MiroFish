@@ -527,7 +527,10 @@
     "roundsTime": "≈ {n} min",
     "roundsHint": "Más rondas dan más tiempo a que las opiniones cambien. Es solo la parte de la conversación: el análisis previo y el informe se suman.",
     "skipToForm": "Saltar al formulario",
-    "launchedElsewhere": "Tu análisis ya está creado: lo encontrarás en Proyectos."
+    "launchedElsewhere": "Tu análisis ya está creado: lo encontrarás en Proyectos.",
+    "limitImages": "Se pueden subir como máximo {max} imágenes a la vez: {n} no se han añadido. Quita alguna o sube solo las más importantes.",
+    "limitFiles": "Se pueden subir como máximo {max} archivos a la vez: {n} no se han añadido.",
+    "roundsWhat": "Una ronda es un turno de la conversación: normalmente, una hora simulada. En cada una, las personas que están activas a esa hora miran lo que han publicado las demás y deciden si escriben, responden, dan «me gusta» o se callan. 20 rondas son casi un día de conversación; 72, tres días."
   },
   "main": {
     "layoutGraph": "Grafo",
@@ -547,7 +550,8 @@
     "failBodyNoFiles": "No hay ningún documento pendiente (¿has recargado la página?). Vuelve al inicio y súbelo de nuevo.",
     "failRetry": "Reintentar",
     "failBack": "Volver al inicio",
-    "failDetails": "Detalle técnico"
+    "failDetails": "Detalle técnico",
+    "failFixAndBack": "Corrígelo y vuelve a lanzarlo: tu material sigue en el formulario."
   },
   "stepper": {
     "ariaLabel": "Navegación del asistente",
@@ -855,7 +859,8 @@
     "failedTitle": "El informe no se ha podido terminar",
     "regenerate": "Volver a generar el informe",
     "regenerating": "Generando…",
-    "reportNotFound": "Este informe ya no existe o no tienes acceso a él."
+    "reportNotFound": "Este informe ya no existe o no tienes acceso a él.",
+    "techTimeline": "Detalle técnico: cómo trabajó el agente paso a paso"
   },
   "step5": {
     "interactiveTools": "Herramientas interactivas",
