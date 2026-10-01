@@ -5,6 +5,7 @@
 
 import io
 import os
+import re
 import traceback
 import threading
 from flask import request, jsonify, send_file
@@ -210,6 +211,51 @@ def update_project(project_id: str):
     return jsonify({
         "success": True,
         "data": project.to_dict()
+    })
+
+
+_OWNER_ID_RE = re.compile(r'^[A-Za-z0-9]{8,32}$')     # ids de PocketBase: 15 caracteres alfanuméricos
+
+
+@graph_bp.route('/project/<project_id>/owner', methods=['PUT'])
+def set_project_owner(project_id: str):
+    """
+    Cambia el dueño de un proyecto (y con él, de su grafo, simulaciones e informes: lo heredan).
+    Solo el administrador (la clave estática): un usuario, aunque sea el dueño, no puede cederlo.
+
+    Cuerpo: {"owner_id": "<id del usuario en PocketBase>"}, o {"owner_id": null} para dejarlo sin dueño
+    (entonces lo ve el administrador, o el usuario de LEGACY_OWNER_ID si está definido).
+    Pensado para proyectos anteriores al aislamiento por usuario, que quedaron sin dueño.
+    """
+    if current_identity().kind != 'admin':
+        return jsonify({"success": False, "error": t('api.ownerAdminOnly')}), 403
+
+    project = ProjectManager.get_project(project_id)
+    if not project:
+        return jsonify({
+            "success": False,
+            "error": t('api.projectNotFound', id=project_id)
+        }), 404
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'owner_id' not in data:
+        return jsonify({"success": False, "error": t('api.ownerInvalid')}), 400
+    new_owner = data['owner_id']
+    if new_owner is not None and not (isinstance(new_owner, str) and _OWNER_ID_RE.match(new_owner)):
+        return jsonify({"success": False, "error": t('api.ownerInvalid')}), 400
+
+    previous = project.owner_id
+    project.owner_id = new_owner
+    ProjectManager.save_project(project)
+    logger.info(f"[acceso] Dueño del proyecto {project_id}: {previous or 'sin dueño'} -> {new_owner or 'sin dueño'}")
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "project_id": project_id,
+            "owner_id": new_owner,
+            "previous_owner_id": previous,
+        }
     })
 
 

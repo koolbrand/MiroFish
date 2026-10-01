@@ -197,8 +197,9 @@ docker run -d \
 - **Un único control central** (`authorize_request`, en el `before_request` de `__init__.py`) mira todos los ids que nombra la petición —URL, query, JSON y formulario: `project_id`, `simulation_id`, `report_id`, `graph_id`, `task_id`— y responde 404 («No encontrado», nunca 403) si no son del usuario. Una ruta nueva con ids queda cubierta sola; solo hay que filtrar a mano **los listados** (`can_see`, `visible_project_id`, `visible_simulation_id`, `visible_task`) y **filtrar antes de cortar con `limit`**.
 - **Identidades**: usuario de PocketBase (ve lo suyo) · clave estática `API_AUTH_TOKEN` o desarrollo sin auth (admin, ve todo) · secreto interno del modo automático (ve todo) · ninguna (nada). `identify_bearer` saca el id del `record` de `auth-refresh` (o del claim `id` del JWT) y lo cachea 5 min.
 - **Sin dueño** (anteriores a este cambio o creados con la clave de emergencia): solo el admin, salvo `LEGACY_OWNER_ID` = id de un usuario de PocketBase, que los hereda. Tareas: llevan `owner_id` en `metadata`; una tarea sin dueño pasa por id (no se adivina) pero no sale en los listados.
+- **Cambiar el dueño**: `PUT /api/graph/project/<id>/owner` con `{"owner_id": "<id de PocketBase>"}` (o `null` para dejarlo sin dueño). **Solo la clave estática (admin)**: un usuario recibe 403 aunque sea el dueño, y el secreto interno también. Existe porque los proyectos creados antes del aislamiento quedaron sin dueño y `LEGACY_OWNER_ID` los reparte todos a una sola persona (Earmod, de Víctor, lo veía solo Adrián). Los ids de PocketBase son de 15 caracteres alfanuméricos; el endpoint admite 8–32. Se loguea cada cambio. Para usarlo en producción hace falta el ciclo de clave temporal (`API_AUTH_TOKEN`).
 - **Pendiente (paso 2)**: organización + «compartir» y rol admin para usuarios. El esquema ya lo admite: añadir `org_id`/`visibility` al proyecto y ampliar `can_see`.
-- Tests: `tests/test_access.py` (dos usuarios cruzados; desactivando el control fallan 12 de 23).
+- Tests: `tests/test_access.py` (dos usuarios cruzados y el cambio de dueño; desactivando el control fallan 12 de 23).
 
 ### Al tocar el grafo (`graphRender.js`)
 
