@@ -3,9 +3,11 @@
 // · Canvas 2D (no SVG): con 1.500 nodos el DOM no aguanta 60 fps; el canvas sí.
 // · Layout con d3-force, pero los ticks los da este bucle (no el temporizador de d3): así, al pausar el bucle
 //   (panel fuera de pantalla o pestaña oculta) también se para el cálculo del layout.
-// · Dos capas en caché: fondo + aristas, y nodos + etiquetas. Solo se repintan cuando algo cambia (tick,
-//   zoom, foco…). Lo que se mueve siempre (pulsos de luz, ondas, anillo de selección) se pinta encima en
-//   cada fotograma, que así cuesta dos drawImage y poco más.
+// · Tres capas en caché: fondo + aristas, nodos, y etiquetas. Solo se repintan cuando algo cambia (tick,
+//   zoom, foco…). Lo que se mueve siempre se pinta en cada fotograma ENTRE los nodos y las etiquetas:
+//   flujo de partículas por cada relación, cometas con reacción en cadena, latido de los nodos principales,
+//   destellos y un barrido tipo sonar. Por delante de los nodos (antes iba por detrás y los tapaban) y por
+//   detrás del texto (que nunca queda bajo una chispa). Anillo de selección y ondas, encima de todo.
 // · Todo se dibuja en coordenadas de PANTALLA: texto y trazos tienen el mismo tamaño a cualquier zoom.
 // · Colores: solo los tokens de koolbrand.css, leídos en tiempo de ejecución (las reservas son los mismos valores).
 
@@ -305,8 +307,10 @@ export class GraphRenderer {
     this.opts = opts
     this.edgeLayer = document.createElement('canvas')
     this.nodeLayer = document.createElement('canvas')
+    this.labelLayer = document.createElement('canvas')
     this.ectx = this.edgeLayer.getContext('2d')
     this.nctx = this.nodeLayer.getContext('2d')
+    this.lctx = this.labelLayer.getContext('2d')
     this.mctx = document.createElement('canvas').getContext('2d')   // solo para medir texto
     this.tk = readTokens()
     this.W = 0; this.H = 0; this.dpr = 1
@@ -324,8 +328,10 @@ export class GraphRenderer {
     this.hidden = typeof document !== 'undefined' && document.hidden
     this.interacted = false
     this.insets = { top: 0, right: 0, bottom: 0, left: 0 }
-    this.pulses = []; this.effects = []
-    this.spawnAcc = 0; this.focusAcc = 0; this.pingAcc = 0
+    this.pulses = []; this.effects = []; this.flashes = []
+    this.spawnAcc = 0; this.focusAcc = 0; this.pingAcc = 0; this.twinkleAcc = 0
+    this.sweep = null; this.sweepNext = 0
+    this.fxLevel = 1; this._fxN = 0; this._fxSum = 0; this._fxCalm = 0   // 1 → 0,5 → 0,25 si el equipo va justo
     this.entry = null; this.entryDur = 0
     this.zoomTween = null
     this.dirty = true
@@ -368,7 +374,7 @@ export class GraphRenderer {
   setReducedMotion(v) {
     this.reduced = !!v
     if (this.reduced) {
-      this.pulses = []; this.effects = []; this.entry = null; this.zoomTween = null
+      this.pulses = []; this.effects = []; this.flashes = []; this.sweep = null; this.entry = null; this.zoomTween = null
       if (this.simActive) { this.simActive = false; this.settling = true }
     }
     this._invalidate()
@@ -392,14 +398,17 @@ export class GraphRenderer {
       }
     }
     if (this.nodes.length && w && h) {
-      if (!this.interacted || !prevW) this._applyTransform(this._fitTransform())
+      // un ajuste animado pedido antes (con el ancho de entonces) pisaría cada fotograma el ajuste nuevo y, si
+      // termina después del último cambio de tamaño, dejaría el grafo descentrado: con el panel ensanchándose
+      // al cambiar de vista pasaba casi siempre en equipos lentos
+      if (!this.interacted || !prevW) { this.zoomTween = null; this._applyTransform(this._fitTransform()) }
       else this._applyTransform(zoomIdentity.translate(this.t.x + (w - prevW) / 2, this.t.y + (h - prevH) / 2).scale(this.t.k))
     }
     this._invalidate()
   }
 
   _allocate() {
-    for (const cv of [this.canvas, this.edgeLayer, this.nodeLayer]) {
+    for (const cv of [this.canvas, this.edgeLayer, this.nodeLayer, this.labelLayer]) {
       cv.width = Math.max(1, Math.round(this.W * this.dpr))
       cv.height = Math.max(1, Math.round(this.H * this.dpr))
     }
@@ -990,6 +999,7 @@ export class GraphRenderer {
     const wasDirty = this.dirty
     const r0 = performance.now()
     if (this.dirty) { this.dirty = false; this._renderStatic(now) }
+    this._busy = wasDirty   // se repinta la escena entera (paneo, zoom, física): la animación cede
     this._composite(now, dt)
     if (wasDirty) this._adaptResolution(performance.now() - r0)   // solo el pintado (no la física)
 
@@ -1077,7 +1087,10 @@ export class GraphRenderer {
     const p2 = T.call(performance)
     this._drawNodes(this.nctx, F, fm)
     const p3 = T.call(performance)
-    this._drawLabels(this.nctx, F, fm)
+    this.lctx.setTransform(1, 0, 0, 1, 0, 0)
+    this.lctx.globalAlpha = 1
+    this.lctx.clearRect(0, 0, this.labelLayer.width, this.labelLayer.height)
+    this._drawLabels(this.lctx, F, fm)
     const p4 = T.call(performance)
     this.perf.parts = { pre: p0 - now, bg: p1 - p0, edges: p2 - p1, nodes: p3 - p2, labels: p4 - p3 }
   }
@@ -1146,6 +1159,18 @@ export class GraphRenderer {
 
   _colorOf(n) { return this.tk[styleColorToken(n.style)] }
 
+  // Suma de grados por encima de la cual una arista cuenta como «estructura» (el 28 % más conectado)
+  _hubCut() {
+    const sig = `${this.model?.signature}|${this.edges.length}`
+    if (this._cutSig === sig) return this._cut
+    const w = []
+    for (const e of this.edges) if (!e.self && e.source && e.target) w.push(e.source.degree + e.target.degree)
+    w.sort((a, b) => a - b)
+    this._cut = w.length ? Math.max(3, w[Math.floor(w.length * 0.72)]) : 3
+    this._cutSig = sig
+    return this._cut
+  }
+
   _drawEdges(ctx, F, fm) {
     const { tk } = this
     const lime = tk['--lime-500']
@@ -1155,13 +1180,30 @@ export class GraphRenderer {
     const selEdge = this.selected?.kind === 'edge' ? this.selected.id : null
     ctx.lineCap = 'round'
     if (big) {
-      // muchas aristas: un solo trazo por pasada (miles de degradados por fotograma no caben en 16 ms)
+      // muchas aristas: pocas pasadas (miles de degradados por fotograma no caben en 16 ms). Dos niveles: las que
+      // tocan a los nodos más conectados se leen como la estructura (claras y con halo); el resto, como el tejido
+      // de fondo, pero ya no a un 30 % que se perdía entre los nodos.
+      const cut = this._hubCut()
+      const isHub = (e) => !e.self && e.source.degree + e.target.degree >= cut
       ctx.beginPath()
-      for (const e of this.edges) if (e.vis && !(F && F.edges.has(e.id))) this._edgePath(ctx, e)
-      ctx.globalAlpha = (E > 900 ? 0.16 : 0.3) * dimK
+      for (const e of this.edges) if (e.vis && !(F && F.edges.has(e.id)) && !isHub(e)) this._edgePath(ctx, e)
+      ctx.globalAlpha = (E > 900 ? 0.24 : 0.42) * dimK
       ctx.strokeStyle = lime
-      ctx.lineWidth = E > 900 ? 0.9 : 1.1
+      ctx.lineWidth = E > 900 ? 1 : 1.15
       ctx.stroke()
+      ctx.beginPath()
+      let hubs = 0
+      for (const e of this.edges) if (e.vis && !(F && F.edges.has(e.id)) && isHub(e)) { this._edgePath(ctx, e); hubs++ }
+      if (hubs) {
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.globalAlpha = 0.07 * dimK
+        ctx.lineWidth = 6
+        ctx.stroke()
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.globalAlpha = 0.68 * dimK
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      }
     } else {
       // halo suave bajo cada arista (aditivo): las conexiones brillan sobre la tinta
       ctx.globalCompositeOperation = 'lighter'
@@ -1541,7 +1583,9 @@ export class GraphRenderer {
     ctx.globalAlpha = 1
   }
 
-  // ── Capa viva: pulsos, ondas, anillos ────────────────────────────────────
+  // ── Capa viva ────────────────────────────────────────────────────────────
+  // Orden: aristas → nodos → [flujo, latido, barrido, cometas, destellos] → etiquetas → anillos y ondas.
+  // La animación va POR DELANTE de los nodos (por detrás la tapaban) y por detrás del texto.
   _composite(now, dt) {
     const ctx = this.ctx, d = this.dpr
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -1549,23 +1593,199 @@ export class GraphRenderer {
     ctx.globalAlpha = 1
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
     ctx.drawImage(this.edgeLayer, 0, 0)
-    ctx.setTransform(d, 0, 0, d, 0, 0)
-    if (!this.reduced) this._pulses(ctx, now, dt)
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.globalAlpha = 1
     ctx.drawImage(this.nodeLayer, 0, 0)
+    if (!this.reduced) {
+      const f0 = performance.now()
+      ctx.setTransform(d, 0, 0, d, 0, 0)
+      this._flow(ctx, dt)
+      this._bloom(ctx, now)
+      this._sweepFx(ctx, now)
+      this._pulses(ctx, now, dt)
+      this._flashFx(ctx, now)
+      this._fxAdapt(performance.now() - f0)
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+    ctx.drawImage(this.labelLayer, 0, 0)
     ctx.setTransform(d, 0, 0, d, 0, 0)
     this._overlays(ctx, now, dt)
   }
 
-  _spawnPulse(now, pool) {
+  // Sin GPU la animación se adelgaza sola: cada 30 fotogramas, si cuesta de media más de 6 ms, baja a la mitad de
+  // partículas; si sobra tiempo de forma sostenida, vuelve a subir.
+  _fxAdapt(ms) {
+    this._fxN++; this._fxSum += ms
+    if (this._fxN < 30) return
+    const avg = this._fxSum / this._fxN
+    this._fxN = 0; this._fxSum = 0
+    if (avg > 6 && this.fxLevel > 0.25) { this.fxLevel /= 2; this._fxCalm = 0 }
+    else if (avg < 1.8 && this.fxLevel < 1) { if (++this._fxCalm >= 6) { this.fxLevel *= 2; this._fxCalm = 0 } }
+    else this._fxCalm = 0
+  }
+
+  // Una partícula recorre cada relación de origen a destino (alguna, al revés): los enlaces se ven vivos aunque
+  // el grafo esté quieto. Entre los bordes de los dos nodos, para que no «atraviesen» las formas. En foco, las
+  // relaciones del vecindario llevan partículas más grandes y rápidas; el resto se atenúa.
+  _flow(ctx, dt) {
+    const E = this.edges
+    if (!E.length) return
+    const F = this.focus, fm = F ? this.focusMix : 0
+    const stride = (this.fxLevel >= 1 ? 1 : this.fxLevel >= 0.5 ? 2 : 4) * (this._busy ? 2 : 1)
+    const lime = this.tk['--lime-500'], core = this.tk['--lime-50']
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.lineCap = 'round'
+    for (let pass = 0; pass < (F ? 2 : 1); pass++) {
+      const hot = pass === 1
+      const tails = new Path2D()
+      ctx.beginPath()
+      let any = false
+      for (let i = 0; i < E.length; i += hot ? 1 : stride) {
+        const e = E[i]
+        if (!e.vis || e.p < 1 || e.self) continue
+        if (hot !== !!(F && F.edges.has(e.id))) continue
+        if (e.fu === undefined) { const h = fnv(String(e.id)); e.fu = (h % 1000) / 1000; e.frev = ((h >>> 10) % 5) === 0 }
+        const len = Math.max(40, e.len)
+        e.fu = (e.fu + dt * clamp((hot ? 110 : 62) / len, 0.08, 0.7)) % 1
+        const s = e.source, t = e.target
+        const u0 = Math.min(0.4, (s.sr + 3) / len), u1 = 1 - Math.min(0.4, (t.sr + 3) / len)
+        const q = u0 + e.fu * (u1 - u0)
+        const u = e.frev ? 1 - q : q
+        const pt = this._curvePoint(e, u)
+        const hx = pt.x, hy = pt.y
+        const uT = clamp(e.frev ? u + (hot ? 24 : 15) / len : u - (hot ? 24 : 15) / len, 0, 1)
+        const p2 = this._curvePoint(e, uT)
+        tails.moveTo(p2.x, p2.y); tails.lineTo(hx, hy)
+        const r = hot ? 2.2 : 1.3
+        ctx.moveTo(hx + r, hy); ctx.arc(hx, hy, r, 0, TAU)
+        any = true
+      }
+      if (!any) continue
+      ctx.globalAlpha = hot ? 0.95 : 0.5 * (1 - 0.75 * fm)
+      ctx.strokeStyle = lime
+      ctx.lineWidth = hot ? 2.2 : 1.2
+      ctx.stroke(tails)
+      ctx.globalAlpha = hot ? 1 : 0.85 * (1 - 0.7 * fm)
+      ctx.fillStyle = core
+      ctx.fill()
+    }
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
+
+  // Los nodos más conectados laten: un halo que respira, cada uno a su fase.
+  _bloom(ctx, now) {
+    const order = this.model?.byPriority
+    if (!order || !order.length) return
+    const F = this.focus, fm = F ? this.focusMix : 0
+    const K = Math.min(order.length, Math.max(5, Math.round(this.nodes.length * 0.05)), 36)
+    const lime = this.tk['--lime-500']
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    for (let i = 0; i < K; i++) {
+      const n = order[i]
+      if (!n.vis || n.degree < 2) continue
+      if (n._ph === undefined) n._ph = (fnv(String(n.id)) % 628) / 100
+      const w = 0.5 + 0.5 * Math.sin(now / 760 + n._ph)
+      const dim = F && !F.nodes.has(n.id) ? 1 - 0.85 * fm : 1
+      ctx.globalAlpha = (0.07 + 0.2 * w) * n.a * dim
+      this._blitGlow(ctx, lime, n.sx, n.sy, n.sr * (2.5 + 0.8 * w) + 7)
+    }
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
+
+  // Cada pocos segundos una onda sale del centro y enciende los nodos que cruza (como un sonar). No barre
+  // mientras hay un foco o una selección: ahí manda lo que el usuario está mirando.
+  _sweepFx(ctx, now) {
+    if (!this.sweep) {
+      if (this.focus || this.selected || this.entry || this.simActive) return
+      if (!this.sweepNext) { this.sweepNext = now + 1800; return }
+      if (now < this.sweepNext) return
+      const c = this.cScreen || { x: this.W / 2, y: this.H / 2 }
+      this.sweep = { t0: now, dur: 3600, cx: c.x, cy: c.y, maxR: Math.hypot(this.W, this.H) * 0.6 }
+    }
+    const sw = this.sweep
+    const u = (now - sw.t0) / sw.dur
+    if (u >= 1) { this.sweep = null; this.sweepNext = now + 5200 + Math.random() * 3600; return }
+    const R = sw.maxR * (1 - Math.pow(1 - u, 2.2))   // sale deprisa y se frena: una onda que pierde fuerza
+    const fade = Math.pow(1 - u, 1.1)
+    const lime = this.tk['--lime-500']
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.strokeStyle = lime
+    ctx.globalAlpha = 0.06 * fade
+    ctx.lineWidth = 22
+    ctx.beginPath(); ctx.arc(sw.cx, sw.cy, R, 0, TAU); ctx.stroke()
+    ctx.globalAlpha = 0.3 * fade
+    ctx.lineWidth = 1.4
+    ctx.beginPath(); ctx.arc(sw.cx, sw.cy, R, 0, TAU); ctx.stroke()
+    const band = 34 + 20 * u
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    for (const n of this.nodes) {
+      if (!n.vis) continue
+      const dd = Math.abs(Math.hypot(n.sx - sw.cx, n.sy - sw.cy) - R)
+      if (dd > band) continue
+      const k = 1 - dd / band
+      ctx.globalAlpha = 0.75 * k * k * fade * n.a
+      this._blitGlow(ctx, lime, n.sx, n.sy, n.sr * 2.4 + 7)
+    }
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
+
+  // Destello al llegar un cometa a un nodo (y, suelto, en nodos al azar)
+  _flashFx(ctx, now) {
+    if (!this.flashes.length) return
+    const lime = this.tk['--lime-500']
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    const keep = []
+    for (const f of this.flashes) {
+      const u = (now - f.t0) / f.dur
+      if (u >= 1) continue
+      keep.push(f)
+      const n = f.n
+      if (u < 0 || !n.vis) continue
+      ctx.globalAlpha = Math.min(1, f.a * Math.pow(1 - u, 1.6) * n.a)
+      this._blitGlow(ctx, lime, n.sx, n.sy, n.sr * (f.r + 1.4 * easeOutCubic(u)) + 6)
+    }
+    this.flashes = keep
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+  }
+
+  // Un cometa llega a un nodo: destello y, con probabilidad decreciente, lanza otros por sus demás relaciones
+  // (hasta 3 generaciones): la información «se contagia» por la red.
+  _arrive(nid, gen, now, live) {
+    const n = this.nodeById.get(nid)
+    if (!n || !n.vis) return
+    if (this.flashes.length < 160) this.flashes.push({ n, t0: now, dur: 640, a: gen === 0 ? 0.9 : 0.7, r: 2.1 })
+    if (live) this._ping(nid, now)
+    if (gen >= 3 || this.pulses.length >= 130 || Math.random() > 0.64 - gen * 0.17) return
+    const pool = n.links.filter(e => !e.self && e.vis && e.p >= 1)
+    const k = pool.length > 1 && Math.random() < 0.35 ? 2 : 1
+    for (let i = 0; i < k && pool.length; i++) {
+      const e = pool.splice((Math.random() * pool.length) | 0, 1)[0]
+      this._spawnPulse(now, null, { e, rev: e.tid === nid, gen: gen + 1 })
+    }
+  }
+
+  _spawnPulse(now, pool, opts = null) {
+    const speed = this.live ? 170 : 130
+    if (opts) {
+      const e = opts.e
+      this.pulses.push({ e, t0: now, dur: clamp(e.len / speed, this.live ? 0.9 : 0.7, 2.6) * 1000, rev: opts.rev, live: this.live, gen: opts.gen || 0 })
+      return
+    }
     const E = pool || this.edges
     if (!E.length) return
     for (let tries = 0; tries < 6; tries++) {
       const e = E[(Math.random() * E.length) | 0]
       if (!e || !e.vis || e.p < 1) continue
-      const speed = this.live ? 170 : 130
-      this.pulses.push({ e, t0: now, dur: clamp(e.len / speed, this.live ? 0.9 : 0.7, 2.6) * 1000, rev: !e.self && Math.random() < 0.2, live: this.live })
+      this.pulses.push({ e, t0: now, dur: clamp(e.len / speed, this.live ? 0.9 : 0.7, 2.6) * 1000, rev: !e.self && Math.random() < 0.2, live: this.live, gen: 0 })
       return
     }
   }
@@ -1586,14 +1806,14 @@ export class GraphRenderer {
     const live = this.live
     const F = this.focus
     if (E.length) {
-      // en vivo (construyendo o simulando) la memoria se escribe: muchos más pulsos que en reposo
-      const rate = live ? Math.min(26, 4 + E.length * 0.6) : Math.min(6, 0.4 + E.length * 0.06)
-      const cap = live ? 170 : 70
-      this.spawnAcc += dt * rate
+      // en vivo (construyendo o simulando) la memoria se escribe: muchos más cometas que en reposo
+      const rate = live ? Math.min(26, 4 + E.length * 0.6) : Math.min(14, 1.2 + E.length * 0.05)
+      const cap = live ? 170 : 110
+      this.spawnAcc += dt * rate * (this.fxLevel < 1 ? Math.max(0.5, this.fxLevel) : 1)
       while (this.spawnAcc >= 1) { this.spawnAcc -= 1; if (this.pulses.length < cap) this._spawnPulse(now) }
       // el vecindario bajo el ratón (o seleccionado) late más: la conexión se ve viva
       if (F && F.edges.size) {
-        this.focusAcc += dt * Math.min(5, 1.6 + F.edges.size * 0.4)
+        this.focusAcc += dt * Math.min(6, 2 + F.edges.size * 0.5)
         if (this.focusAcc >= 1) {
           const pool = []
           for (const id of F.edges) { const e = this.edgeById.get(id); if (e) pool.push(e) }
@@ -1610,21 +1830,31 @@ export class GraphRenderer {
         if (n && n.vis) this._ping(n.id, now, 0.75)
       }
     }
+    // centelleo: nodos al azar se encienden un instante, para que ni el reposo esté quieto
+    if (this.nodes.length) {
+      this.twinkleAcc += dt * Math.min(5, 0.8 + this.nodes.length * 0.01)
+      while (this.twinkleAcc >= 1) {
+        this.twinkleAcc -= 1
+        const n = this.nodes[(Math.random() * this.nodes.length) | 0]
+        if (n && n.vis && n.degree && this.flashes.length < 160) this.flashes.push({ n, t0: now, dur: 900, a: 0.5, r: 1.8 })
+      }
+    }
     if (!this.pulses.length) return
     const lime = this.tk['--lime-500'], core = this.tk['--lime-50']
     const fm = F ? this.focusMix : 0
     ctx.globalCompositeOperation = 'lighter'
     ctx.lineCap = 'round'
     const keep = []
+    const arrived = []
     for (const p of this.pulses) {
       const e = p.e
       const u = (now - p.t0) / p.dur
-      if (u >= 1) { if (p.live) this._ping(p.rev ? e.sid : e.tid, now); continue }
+      if (u >= 1) { arrived.push(p); continue }
       keep.push(p)
       if (!e.vis || e.p < 1 || u < 0) continue
       const dim = F && !F.edges.has(e.id) ? 1 - 0.8 * fm : 1
       const pos = easeInOut(u)
-      const tail = (p.live ? 70 : 46) / Math.max(30, e.len)
+      const tail = (p.live ? 80 : 58) / Math.max(30, e.len)
       // cola de cometa: tramos cada vez más finos y transparentes
       let prev = null
       for (let i = 0; i <= 9; i++) {
@@ -1632,26 +1862,27 @@ export class GraphRenderer {
         if (q < 0) break
         const pt = this._curvePoint(e, p.rev ? 1 - q : q)
         if (prev) {
-          ctx.globalAlpha = dim * (p.live ? 0.75 : 0.55) * (1 - i / 10)
+          ctx.globalAlpha = dim * (p.live ? 0.85 : 0.7) * (1 - i / 10)
           ctx.strokeStyle = lime
-          ctx.lineWidth = (p.live ? 2.6 : 2) * (1 - i / 11)
+          ctx.lineWidth = (p.live ? 3 : 2.5) * (1 - i / 11)
           ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(pt.x, pt.y); ctx.stroke()
         }
         prev = [pt.x, pt.y]
       }
       const h = this._curvePoint(e, p.rev ? 1 - pos : pos)
       const hx = h.x, hy = h.y
-      ctx.globalAlpha = dim * (p.live ? 1 : 0.8)
+      ctx.globalAlpha = dim * (p.live ? 1 : 0.9)
       ctx.setTransform(1, 0, 0, 1, 0, 0)
-      this._blitGlow(ctx, lime, hx, hy, p.live ? 13 : 9)
+      this._blitGlow(ctx, lime, hx, hy, p.live ? 15 : 12)
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
-      h.x = hx; h.y = hy
       ctx.fillStyle = core
-      ctx.beginPath(); ctx.arc(h.x, h.y, p.live ? 1.9 : 1.5, 0, TAU); ctx.fill()
+      ctx.beginPath(); ctx.arc(hx, hy, p.live ? 2.3 : 1.9, 0, TAU); ctx.fill()
     }
     this.pulses = keep
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
+    // al llegar: destello y, a veces, otro cometa por las demás relaciones del nodo
+    for (const p of arrived) this._arrive(p.rev ? p.e.sid : p.e.tid, p.gen || 0, now, p.live)
   }
 
   _overlays(ctx, now) {
