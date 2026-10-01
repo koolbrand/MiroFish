@@ -1074,6 +1074,7 @@
     "maxRoundsOutOfRange": "max_rounds must be between {min} and {max}",
     "ownerAdminOnly": "Only the administrator can change a project owner",
     "ownerInvalid": "owner_id must be a user id (letters and digits, 8 to 32 characters) or null",
+    "typeLabelsInvalid": "Expected an object with lists of names (entity, relation, attribute)",
     "invalidPlatform": "Invalid platform type: {platform}. Options: twitter/reddit/parallel",
     "simRunningForceHint": "Simulation is running. Stop it first via /stop, or use force=true to restart.",
     "simNotReady": "Simulation not ready. Current status: {status}. Please call /prepare first.",

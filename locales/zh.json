@@ -1074,6 +1074,7 @@
     "maxRoundsOutOfRange": "max_rounds 必须在 {min} 到 {max} 之间",
     "ownerAdminOnly": "只有管理员可以更改项目所有者",
     "ownerInvalid": "owner_id 必须是用户 ID（8 到 32 位字母或数字）或 null",
+    "typeLabelsInvalid": "需要包含名称列表（entity、relation、attribute）的对象",
     "invalidPlatform": "无效的平台类型: {platform}，可选: twitter/reddit/parallel",
     "simRunningForceHint": "模拟正在运行中，请先调用 /stop 接口停止，或使用 force=true 强制重新开始",
     "simNotReady": "模拟未准备好，当前状态: {status}，请先调用 /prepare 接口",

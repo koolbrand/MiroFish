@@ -13,6 +13,7 @@ from flask import request, jsonify, send_file
 from . import graph_bp
 from ..config import Config
 from ..services import web_research as web_research_service
+from ..services import type_labels as type_labels_service
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
@@ -212,6 +213,27 @@ def update_project(project_id: str):
         "success": True,
         "data": project.to_dict()
     })
+
+
+@graph_bp.route('/type-labels', methods=['POST'])
+def type_labels():
+    """
+    Etiquetas legibles (en el idioma pedido) para los tipos de la ontología, solo para mostrar.
+
+    Cuerpo: {"locale": "es", "entity": ["SmallBusinessOwner"], "relation": ["WORKS_FOR"], "attribute": ["industry"]}
+    Respuesta: {"success": true, "data": {"locale": "es", "labels": {"entity": {...}, "relation": {...}, "attribute": {...}}}}
+    Solo trae las que conoce o ha podido traducir; si el modelo falla, faltan y la interfaz usa el identificador
+    separado en palabras. Con "en" (u otro idioma sin traducción) no devuelve nada. No depende de ningún proyecto.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": t('api.typeLabelsInvalid')}), 400
+    locale = data.get('locale') if isinstance(data.get('locale'), str) else get_locale()
+    names = {kind: data.get(kind) for kind in type_labels_service.KINDS}
+    if any(v is not None and not isinstance(v, list) for v in names.values()):
+        return jsonify({"success": False, "error": t('api.typeLabelsInvalid')}), 400
+    labels = type_labels_service.get_labels(locale, {k: (v or []) for k, v in names.items()})
+    return jsonify({"success": True, "data": {"locale": locale, "labels": labels}})
 
 
 _OWNER_ID_RE = re.compile(r'^[A-Za-z0-9]{8,32}$')     # ids de PocketBase: 15 caracteres alfanuméricos
@@ -587,6 +609,8 @@ def generate_project_ontology(project, document_texts, additional_context=None):
     project.status = ProjectStatus.ONTOLOGY_GENERATED
     ProjectManager.save_project(project)
     logger.info(f"=== Ontología generada === project_id: {project.project_id}")
+    # Los nombres de los tipos se traducen ya, en segundo plano: listos cuando se abra el paso 1
+    type_labels_service.warm_async(project.ontology, get_locale())
     return project
 
 

@@ -98,7 +98,7 @@
                 >
                   <GraphTypeSwatch :type-style="n.style" />
                   <span class="opt-name">{{ n.name }}</span>
-                  <span class="opt-type">{{ n.type }}</span>
+                  <span class="opt-type">{{ entityLabel(n.type) }}</span>
                 </li>
               </ul>
               <p v-if="query.trim() && !results.length" class="gp-results-empty">{{ $t('graph.searchNoResults', { q: query.trim() }) }}</p>
@@ -126,7 +126,7 @@
               <h3 :id="`${uid}-detail-title`" class="detail-title">
                 <template v-if="selectedItem.type === 'node'">{{ selectedItem.data.name }}</template>
                 <template v-else-if="selectedItem.data.isSelfLoopGroup">{{ selectedItem.data.source_name }}</template>
-                <template v-else>{{ humanizeRelation(selectedItem.data.name || 'RELATED_TO') }}</template>
+                <template v-else>{{ relationLabel(selectedItem.data.name || 'RELATED_TO') }}</template>
               </h3>
             </div>
             <button class="detail-close" type="button" @click="closeDetailPanel(true)" :aria-label="$t('graph.closeDetails')" :title="$t('graph.close')">
@@ -140,7 +140,7 @@
           <div v-if="selectedItem.type === 'node'" class="detail-content">
             <div class="detail-type">
               <GraphTypeSwatch v-if="selectedNode" :type-style="selectedNode.style" />
-              <span class="detail-type-badge">{{ selectedItem.entityType }}</span>
+              <span class="detail-type-badge" :title="selectedItem.entityType">{{ entityLabel(selectedItem.entityType) }}</span>
               <span class="detail-degree">{{ $t('graph.relationsCount', selectedNode ? selectedNode.degree + selectedNode.selfLoops : 0) }}</span>
             </div>
             <dl class="detail-rows">
@@ -189,7 +189,7 @@
             <div class="detail-section" v-if="selectedItem.data.labels && selectedItem.data.labels.length > 0">
               <h4 class="section-title">{{ $t('graph.labels') }}</h4>
               <div class="labels-list">
-                <span v-for="label in selectedItem.data.labels" :key="label" class="label-tag">{{ label }}</span>
+                <span v-for="label in selectedItem.data.labels" :key="label" class="label-tag" :title="label">{{ entityLabel(label) }}</span>
               </div>
             </div>
           </div>
@@ -216,7 +216,7 @@
                     @click="toggleSelfLoop(loop.uuid || idx)"
                   >
                     <span class="self-loop-index">#{{ idx + 1 }}</span>
-                    <span class="self-loop-name">{{ humanizeRelation(loop.name || loop.fact_type || 'RELATED') }}</span>
+                    <span class="self-loop-name">{{ relationLabel(loop.name || loop.fact_type || 'RELATED') }}</span>
                     <span class="self-loop-toggle" aria-hidden="true">{{ expandedSelfLoops.has(loop.uuid || idx) ? '−' : '+' }}</span>
                   </button>
                   <div class="self-loop-item-content" v-show="expandedSelfLoops.has(loop.uuid || idx)">
@@ -253,7 +253,7 @@
             <template v-else>
               <div class="edge-relation-header">
                 <button type="button" class="edge-end" @click="pickNode(selectedItem.data.source_node_uuid)">{{ selectedItem.data.source_name }}</button>
-                <span class="edge-mid"><span aria-hidden="true">→</span> {{ humanizeRelation(selectedItem.data.name || 'RELATED_TO') }} <span aria-hidden="true">→</span></span>
+                <span class="edge-mid"><span aria-hidden="true">→</span> {{ relationLabel(selectedItem.data.name || 'RELATED_TO') }} <span aria-hidden="true">→</span></span>
                 <button type="button" class="edge-end" @click="pickNode(selectedItem.data.target_node_uuid)">{{ selectedItem.data.target_name }}</button>
               </div>
               <dl class="detail-rows">
@@ -341,7 +341,7 @@
           <ul>
             <li v-for="n in mainEntities" :key="n.id">
               <button type="button" @click="pickNode(n.id)">
-                {{ $t('graph.entityOption', { name: n.name, type: n.type, relations: $t('graph.relationsCount', n.degree + n.selfLoops) }) }}
+                {{ $t('graph.entityOption', { name: n.name, type: entityLabel(n.type), relations: $t('graph.relationsCount', n.degree + n.selfLoops) }) }}
               </button>
             </li>
           </ul>
@@ -382,7 +382,8 @@ import { useI18n } from 'vue-i18n'
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import BiankaAvatar from './BiankaAvatar.vue'
 import GraphTypeSwatch from './GraphTypeSwatch.vue'
-import { GraphRenderer, buildGraphModel, humanizeRelation, OTHER_KEY } from '../lib/graphRender'
+import { GraphRenderer, buildGraphModel, OTHER_KEY } from '../lib/graphRender'
+import { entityLabel, relationLabel, typeLabelsVersion } from '../lib/typeLabels'
 
 const { t, locale } = useI18n()
 
@@ -442,18 +443,18 @@ const toggleSelfLoop = (id) => {
 // ── Textos derivados ──────────────────────────────────────────────────────
 const entitiesText = computed(() => t('graph.entitiesCount', model.value?.nodes.length || 0))
 const relationsText = computed(() => t('graph.relationsCount', model.value?.relationCount || 0))
-const typeLabel = (ty) => (ty.key === OTHER_KEY ? t('graph.otherTypes') : ty.name)
+const typeLabel = (ty) => (ty.key === OTHER_KEY ? t('graph.otherTypes') : entityLabel(ty.name))
 
 const legendTypes = computed(() => (model.value?.types || []).map(ty => ({
   ...ty,
   label: typeLabel(ty),
-  title: ty.key === OTHER_KEY ? t('graph.otherTypesList', { list: ty.members.join(', ') }) : t('graph.highlightType', { type: ty.name }),
+  title: ty.key === OTHER_KEY ? t('graph.otherTypesList', { list: ty.members.map(entityLabel).join(', ') }) : t('graph.highlightType', { type: entityLabel(ty.name) }),
 })))
 
 const canvasLabel = computed(() => {
   const m = model.value
   if (!m) return t('graph.panelTitle')
-  const types = m.types.map(ty => `${ty.key === OTHER_KEY ? ty.members.join(', ') : ty.name} (${ty.count})`).join(', ')
+  const types = m.types.map(ty => `${ty.key === OTHER_KEY ? ty.members.map(entityLabel).join(', ') : entityLabel(ty.name)} (${ty.count})`).join(', ')
   return t('graph.canvasLabel', { entities: entitiesText.value, relations: relationsText.value, types })
 })
 
@@ -473,7 +474,7 @@ const matches = computed(() => {
     const i = nn.indexOf(q)
     if (i === 0) out.push([0, n])
     else if (i > 0) out.push([nn.includes(` ${q}`) ? 1 : 2, n])
-    else if (norm(n.type).includes(q)) out.push([3, n])
+    else if (norm(n.type).includes(q) || norm(entityLabel(n.type)).includes(q)) out.push([3, n])
   }
   return out.sort((a, b) => a[0] - b[0]).map(x => x[1])
 })
@@ -576,7 +577,7 @@ const nodeConnections = computed(() => {
     if (e.self) return { key: e.id, self: true, edgeId: e.id, rel: t('ui.selfRelations'), name: `(${e.count})` }
     const out = e.sid === n.id
     const other = m.nodeById.get(out ? e.tid : e.sid)
-    return { key: e.id, self: false, out, otherId: other?.id, rel: humanizeRelation(e.name), name: other?.name || '—' }
+    return { key: e.id, self: false, out, otherId: other?.id, rel: relationLabel(e.name), name: other?.name || '—' }
   })
 })
 
@@ -669,7 +670,9 @@ watch(() => (searchOpen.value && activeIdx.value >= 0 ? results.value[activeIdx.
 watch(showEdgeLabels, (v) => renderer?.setShowEdgeLabels(v))
 watch(isLive, (v) => renderer?.setLive(v))
 watch(selectedItem, () => nextTick(updateInsets))
-watch(locale, () => renderer?.setStrings({ selfLoop: (n) => `${t('ui.selfRelations')} (${n})` }))
+// Las etiquetas de las relaciones sobre el lienzo siguen al idioma y a las traducciones que llegan del servidor
+const rendererStrings = () => ({ selfLoop: (n) => `${t('ui.selfRelations')} (${n})`, relation: relationLabel })
+watch([locale, typeLabelsVersion], () => renderer?.setStrings(rendererStrings()))
 watch(narrow, (v) => { legendOpen.value = !v; nextTick(updateInsets) })
 watch(legendOpen, () => nextTick(updateInsets))
 
@@ -689,7 +692,7 @@ onMounted(() => {
   mq = window.matchMedia?.('(prefers-reduced-motion: reduce)') || null
   renderer.setReducedMotion(!!mq?.matches)
   mq?.addEventListener?.('change', onMotion)
-  renderer.setStrings({ selfLoop: (n) => `${t('ui.selfRelations')} (${n})` })
+  renderer.setStrings(rendererStrings())
   renderer.setShowEdgeLabels(showEdgeLabels.value)
   narrow.value = (panelEl.value?.clientWidth || 9999) < 560
   legendOpen.value = !narrow.value
