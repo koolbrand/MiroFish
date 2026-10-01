@@ -1083,6 +1083,7 @@
     "maxRoundsOutOfRange": "max_rounds debe estar entre {min} y {max}",
     "ownerAdminOnly": "Solo el administrador puede cambiar el dueño de un proyecto",
     "ownerInvalid": "owner_id debe ser el id de un usuario (letras y números, de 8 a 32 caracteres) o null",
+    "typeLabelsInvalid": "Se esperaba un objeto con listas de nombres (entity, relation, attribute)",
     "projectCascadeFailed": "No se pudo limpiar todo lo que depende del proyecto {id}; no se ha borrado nada. Inténtalo de nuevo.",
     "chunkParamsInvalid": "chunk_size debe ser un entero entre 100 y 5000 y chunk_overlap, entre 0 y la mitad de chunk_size",
     "invalidPlatform": "Tipo de plataforma inválido: {platform}. Opciones: twitter/reddit/parallel",

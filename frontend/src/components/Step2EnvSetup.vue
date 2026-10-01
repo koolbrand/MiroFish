@@ -281,7 +281,7 @@
                       <span class="agent-name">{{ agent.entity_name }}</span>
                     </div>
                     <div class="agent-tags">
-                      <span class="agent-type">{{ agent.entity_type }}</span>
+                      <span class="agent-type" :title="agent.entity_type">{{ entityLabel(agent.entity_type) }}</span>
                       <span class="agent-stance" :class="'stance-' + agent.stance">{{ stanceLabel(agent.stance) }}</span>
                     </div>
                   </div>
@@ -773,6 +773,7 @@ import {
 import { usePipeline } from '../composables/usePipeline'
 import { MiniMarkdown } from '../lib/miniMarkdown'
 import { MANUAL_MAX_ROUNDS, SERVER_MAX_ROUNDS, roundsMinutes } from '../lib/rounds'
+import { entityLabel } from '../lib/typeLabels'
 
 const { t, te } = useI18n()
 

@@ -57,7 +57,7 @@
             <div class="detail-header">
                <div class="detail-title-group">
                   <span class="detail-type-badge">{{ selectedOntologyItem.itemType === 'entity' ? $t('step1.kindEntity') : $t('step1.kindRelation') }}</span>
-                  <span class="detail-name">{{ selectedOntologyItem.name }}</span>
+                  <span class="detail-name" :title="selectedOntologyItem.name">{{ selectedOntologyItem.itemType === 'entity' ? entityLabel(selectedOntologyItem.name) : relationLabel(selectedOntologyItem.name) }}</span>
                </div>
                <button class="close-btn" @click="selectedOntologyItem = null">×</button>
             </div>
@@ -69,8 +69,8 @@
                   <span class="section-label">{{ $t('step1.attributes') }}</span>
                   <div class="attr-list">
                      <div v-for="attr in selectedOntologyItem.attributes" :key="attr.name" class="attr-item">
-                        <span class="attr-name">{{ attr.name }}</span>
-                        <span class="attr-type">({{ attr.type }})</span>
+                        <span class="attr-name" :title="attr.name">{{ attributeLabel(attr.name) }}</span>
+                        <span class="attr-type tech-only">({{ attr.type }})</span>
                         <span class="attr-desc">{{ attr.description }}</span>
                      </div>
                   </div>
@@ -89,9 +89,9 @@
                   <span class="section-label">{{ $t('step1.connections') }}</span>
                   <div class="conn-list">
                      <div v-for="(conn, idx) in selectedOntologyItem.source_targets" :key="idx" class="conn-item">
-                        <span class="conn-node">{{ conn.source }}</span>
+                        <span class="conn-node" :title="conn.source">{{ entityLabel(conn.source) }}</span>
                         <span class="conn-arrow">→</span>
-                        <span class="conn-node">{{ conn.target }}</span>
+                        <span class="conn-node" :title="conn.target">{{ entityLabel(conn.target) }}</span>
                      </div>
                   </div>
                </div>
@@ -106,9 +106,10 @@
                 v-for="entity in projectData.ontology.entity_types" 
                 :key="entity.name" 
                 class="entity-tag clickable"
+                :title="entity.name"
                 @click="selectOntologyItem(entity, 'entity')"
               >
-                {{ entity.name }}
+                {{ entityLabel(entity.name) }}
               </span>
             </div>
           </div>
@@ -121,9 +122,10 @@
                 v-for="rel in projectData.ontology.edge_types" 
                 :key="rel.name" 
                 class="entity-tag clickable"
+                :title="rel.name"
                 @click="selectOntologyItem(rel, 'relation')"
               >
-                {{ rel.name }}
+                {{ relationLabel(rel.name) }}
               </span>
             </div>
           </div>
@@ -233,6 +235,7 @@ import { useI18n } from 'vue-i18n'
 import { createSimulation, listSimulations } from '../api/simulation'
 import { downloadResearch } from '../api/graph'
 import { usePipeline } from '../composables/usePipeline'
+import { entityLabel, relationLabel, attributeLabel } from '../lib/typeLabels'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -530,9 +533,9 @@ watch(() => props.systemLogs.length, () => {
   border: 1px solid var(--kb-line);
   padding: 4px 10px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--kb-text-2);
-  font-family: var(--kb-font-mono);
+  font-family: var(--kb-font-sans);
   transition: all 0.2s;
 }
 
@@ -655,7 +658,7 @@ watch(() => props.systemLogs.length, () => {
 }
 
 .attr-name {
-    font-family: var(--kb-font-mono);
+    font-family: var(--kb-font-sans);
     font-weight: 600;
     color: var(--kb-text);
 }

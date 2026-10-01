@@ -97,6 +97,10 @@ def ontology(monkeypatch):
     FakeOntologyGenerator.calls = []
     FakeOntologyGenerator.fail = None
     monkeypatch.setattr(graph_api, "OntologyGenerator", FakeOntologyGenerator)
+    # La traducción de los tipos en segundo plano llamaría a un modelo de verdad
+    FakeOntologyGenerator.warmed = []
+    monkeypatch.setattr(graph_api.type_labels_service, "warm_async",
+                        lambda ontology, locale: FakeOntologyGenerator.warmed.append((ontology, locale)))
     return FakeOntologyGenerator
 
 

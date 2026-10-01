@@ -342,7 +342,7 @@ export class GraphRenderer {
     this.textCache = new Map()
     this.paths = {}
     for (const [k, d] of Object.entries(SHAPES)) this.paths[k] = new Path2D(d)
-    this.strings = { selfLoop: (n) => `↻ ${n}` }
+    this.strings = { selfLoop: (n) => `↻ ${n}`, relation: humanizeRelation }   // `relation`: cómo se nombra una relación sobre el lienzo (la interfaz pone el idioma)
     this.perf = { intervals: [], work: [] }
     this._pt = { x: 0, y: 0 }
     this.ringR = 0
@@ -1522,7 +1522,7 @@ export class GraphRenderer {
       const forcedE = mode > 0
       if (!e.vis || e.p < 1) return
       const inF = F && F.edges.has(e.id)
-      const text = e.self ? this.strings.selfLoop(e.count) : humanizeRelation(e.name)
+      const text = e.self ? this.strings.selfLoop(e.count) : this.strings.relation(e.name)
       const info = this._wrap(text, efont, EDGE_LABEL_MAX_W)
       const lh = 15, h = info.lines.length * lh + 2, w = info.w + 6
       const cands = []
