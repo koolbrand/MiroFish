@@ -33,11 +33,15 @@ STAGE_INDEX = {
     "done": 5,
 }
 
+# Rondas de simulación por defecto del modo automático (la «Estándar» de la portada).
+DEFAULT_MAX_ROUNDS = 40
+
 # Lo único que sale al cliente. El resto (run_id, additional_context...) es interno.
 # `web_research`: si se pidió la investigación en internet (etapa «research»).
+# `max_rounds`: tope de rondas elegido al lanzar (los pipelines anteriores: el de por defecto).
 PUBLIC_KEYS = (
     "mode", "status", "stage", "stage_index", "project_id", "simulation_id",
-    "report_id", "error", "started_at", "updated_at", "finished_at", "web_research",
+    "report_id", "error", "started_at", "updated_at", "finished_at", "web_research", "max_rounds",
 )
 
 ERROR_MAX_CHARS = 2000
@@ -129,6 +133,7 @@ def public_view(state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         return {"mode": "manual"}
     view = {key: state.get(key) for key in PUBLIC_KEYS}
     view["web_research"] = bool(view["web_research"])  # pipelines anteriores: False
+    view["max_rounds"] = int(view["max_rounds"] or DEFAULT_MAX_ROUNDS)  # pipelines anteriores: 40
     return view
 
 

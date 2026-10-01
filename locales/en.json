@@ -515,6 +515,13 @@
     },
     "researchLabel": "Research the web before simulating",
     "researchHint": "Looks up context on your topic —controversies, news, who is involved— and adds it to your document, with sources. Your question and the start of your document are sent to the search engine: don’t turn it on for anything confidential.",
+    "roundsLabel": "Conversation length",
+    "rounds_short": "Short",
+    "rounds_standard": "Standard",
+    "rounds_long": "Long",
+    "roundsUpTo": "up to {n} rounds",
+    "roundsTime": "≈ {n} min",
+    "roundsHint": "More rounds give opinions more time to change. This is only the conversation itself: the analysis beforehand and the report come on top.",
     "skipToForm": "Skip to the form"
   },
   "main": {
@@ -1062,6 +1069,8 @@
     "noMatchingEntities": "No matching entities found",
     "maxRoundsPositive": "max_rounds must be a positive integer",
     "maxRoundsInvalid": "max_rounds must be a valid integer",
+    "maxRoundsTooLarge": "max_rounds cannot exceed {max}",
+    "maxRoundsOutOfRange": "max_rounds must be between {min} and {max}",
     "invalidPlatform": "Invalid platform type: {platform}. Options: twitter/reddit/parallel",
     "simRunningForceHint": "Simulation is running. Stop it first via /stop, or use force=true to restart.",
     "simNotReady": "Simulation not ready. Current status: {status}. Please call /prepare first.",

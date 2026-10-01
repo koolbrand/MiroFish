@@ -186,6 +186,19 @@
                 <p v-if="canSubmit" class="composer-note">{{ readyNote }}</p>
               </div>
             </div>
+            <!-- Solo en automático: cuánto dura la conversación simulada (paso a paso lo eliges en el paso 2) -->
+            <div v-if="runMode === 'auto'" class="rounds-pick" role="radiogroup" :aria-label="$t('home.roundsLabel')" data-tour="home-rounds">
+              <p class="rounds-title">{{ $t('home.roundsLabel') }}</p>
+              <div class="rounds-options">
+                <label v-for="c in ROUNDS_CHOICES" :key="c.key" class="rounds-opt" :class="{ on: rounds === c.rounds }">
+                  <input v-model.number="rounds" type="radio" name="run-rounds" :value="c.rounds" />
+                  <strong>{{ $t(`home.rounds_${c.key}`) }}</strong>
+                  <span>{{ $t('home.roundsUpTo', { n: c.rounds }) }}</span>
+                  <span class="rounds-time">{{ $t('home.roundsTime', { n: roundsMinutes(c.rounds) }) }}</span>
+                </label>
+              </div>
+              <p class="rounds-hint">{{ $t('home.roundsHint') }}</p>
+            </div>
             <!-- Investigación opcional: busca contexto en internet (polémicas, noticias, actores) y lo suma al material -->
             <label class="research-opt" :class="{ on: webResearch }" data-tour="home-research">
               <input v-model="webResearch" type="checkbox" />
@@ -354,6 +367,7 @@ import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
 import { useAuth } from '../composables/useAuth'
 import { pb } from '../lib/pocketbase'
+import { ROUNDS_CHOICES, DEFAULT_ROUNDS, normalizeRounds, roundsMinutes } from '../lib/rounds'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -554,6 +568,7 @@ const formData = ref({
 const files = ref([])
 const runMode = ref('manual')   // 'manual' · 'auto'
 const webResearch = ref(false)   // buscar contexto en internet antes de simular (opcional)
+const rounds = ref(DEFAULT_ROUNDS)   // rondas de la simulación en automático: 20 · 40 · 72
 const loading = ref(false)
 const isDragOver = ref(false)
 const fileInput = ref(null)
@@ -567,6 +582,7 @@ if (pending.isPending && (pending.files.length || pending.simulationRequirement)
   formData.value.projectName = pending.projectName
   runMode.value = pending.mode === 'auto' ? 'auto' : 'manual'
   webResearch.value = !!pending.webResearch
+  rounds.value = normalizeRounds(pending.rounds)
   clearPendingUpload()
 }
 
@@ -682,7 +698,8 @@ const stashForm = () => {
     formData.value.simulationRequirement,
     (formData.value.projectName || '').trim(),
     runMode.value,
-    webResearch.value
+    webResearch.value,
+    rounds.value
   )
 }
 
@@ -1219,6 +1236,33 @@ const startSimulation = () => {
 .research-text { display: grid; gap: 3px; min-width: 0; }
 .research-text strong { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
 .research-text span { font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+.rounds-pick { flex: 1 1 100%; order: 2; max-width: 62ch; display: grid; gap: 8px; }
+.rounds-title { margin: 0; font: 600 0.85rem/1.3 var(--kb-font-sans); color: var(--kb-text-2); }
+.rounds-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rounds-opt {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--kb-control-line);
+  border-radius: 10px;
+  background: var(--kb-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.rounds-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.rounds-opt strong { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; }
+.rounds-opt span { font-size: 0.82rem; line-height: 1.35; color: var(--kb-muted); }
+.rounds-opt .rounds-time { font-family: var(--kb-font-mono); font-size: 0.78rem; color: var(--kb-text-2); }
+.rounds-opt:hover { border-color: var(--ink-950); }
+.rounds-opt.on { border-color: var(--ink-950); background: var(--kb-accent-subtle); box-shadow: inset 0 0 0 1px var(--ink-950); }
+.rounds-opt:has(input:focus-visible) { outline: 2px solid var(--ink-950); outline-offset: 2px; }
+.rounds-hint { margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty; }
+@media (max-width: 420px) {
+  .rounds-options { grid-template-columns: 1fr; }
+  .rounds-opt { grid-template-columns: auto 1fr auto; align-items: baseline; gap: 4px 10px; }
+}
 .composer-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 16px; }
 .mode-switch {
   display: inline-flex;

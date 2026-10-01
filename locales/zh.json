@@ -515,6 +515,13 @@
     },
     "researchLabel": "模拟前先上网调研",
     "researchHint": "搜索与你的主题相关的背景——争议、新闻、涉及的各方——并连同来源一起并入你的文档。你的问题和文档开头部分会发送给搜索引擎：涉及机密内容时请勿开启。",
+    "roundsLabel": "对话时长",
+    "rounds_short": "短",
+    "rounds_standard": "标准",
+    "rounds_long": "长",
+    "roundsUpTo": "最多 {n} 轮",
+    "roundsTime": "约 {n} 分钟",
+    "roundsHint": "轮数越多，观点越有时间变化。这只是对话本身的时间：前期分析和报告另计。",
     "skipToForm": "跳到表单"
   },
   "main": {
@@ -1062,6 +1069,8 @@
     "noMatchingEntities": "没有找到符合条件的实体",
     "maxRoundsPositive": "max_rounds 必须是正整数",
     "maxRoundsInvalid": "max_rounds 必须是有效的整数",
+    "maxRoundsTooLarge": "max_rounds 不能超过 {max}",
+    "maxRoundsOutOfRange": "max_rounds 必须在 {min} 到 {max} 之间",
     "invalidPlatform": "无效的平台类型: {platform}，可选: twitter/reddit/parallel",
     "simRunningForceHint": "模拟正在运行中，请先调用 /stop 接口停止，或使用 force=true 强制重新开始",
     "simNotReady": "模拟未准备好，当前状态: {status}，请先调用 /prepare 接口",
