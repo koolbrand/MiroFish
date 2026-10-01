@@ -1121,6 +1121,7 @@
     "fileReadFailed": "读取文件失败: {error}",
     "fileUnsupported": "不支持的文件格式: {ext}",
     "simAlreadyRunning": "模拟已在运行中: {simulationId}",
+    "simTooManyRunning": "已有 {limit} 个模拟在运行，服务器内存不足以再运行一个。请等待其中一个完成。",
     "simConfigMissing": "模拟配置不存在，请先调用 /prepare 接口。",
     "simNotFound": "模拟不存在: {simulationId}",
     "simNotRunning": "模拟未在运行: {simulationId} (状态={status})",

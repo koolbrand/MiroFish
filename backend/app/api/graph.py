@@ -313,6 +313,7 @@ def delete_project(project_id: str):
                 run_state = SimulationRunner.get_run_state(sid)
                 if run_state and run_state.runner_status in (RunnerStatus.RUNNING, RunnerStatus.STARTING):
                     SimulationRunner.stop_simulation(sid)
+                SimulationRunner.terminate_if_alive(sid, finished=True)      # también la ya terminada que espera entrevistas
             except Exception as stop_err:
                 logger.warning(f"Fallo al detener la simulación en cascada: {sid}: {stop_err}")
             for rep in ReportManager.list_reports(simulation_id=sid):

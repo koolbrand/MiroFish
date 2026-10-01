@@ -112,3 +112,47 @@ def test_console_logs_of_two_reports_do_not_leak_into_each_other(tmp_path):
     log_b = (tmp_path / "reports" / "report_bbbbbbbbbbbb" / "console_log.txt").read_text(encoding="utf-8")
     assert "informe aaaaaaaaaaaa" in log_a and "informe bbbbbbbbbbbb" not in log_a
     assert "informe bbbbbbbbbbbb" in log_b and "informe aaaaaaaaaaaa" not in log_b
+
+
+# ============== Reintentos por sección ==============
+
+class _Section:
+    title = "Reacciones de los grupos"
+
+
+def make_agent(monkeypatch, results):
+    from app.services import report_agent as module
+    agent = module.ReportAgent.__new__(module.ReportAgent)
+    calls = {"n": 0}
+
+    def fake(**kwargs):
+        calls["n"] += 1
+        outcome = results[min(calls["n"] - 1, len(results) - 1)]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    agent._generate_section_react = fake
+    slept = []
+    monkeypatch.setattr(module.time, "sleep", lambda s: slept.append(s))
+    return agent, calls, slept
+
+
+def test_a_transient_provider_error_in_a_section_is_retried_not_fatal(monkeypatch):
+    agent, calls, slept = make_agent(monkeypatch, [RuntimeError("503 Service Unavailable"), "Texto de la sección"])
+    assert agent._generate_section_with_retries(section=_Section()) == "Texto de la sección"
+    assert calls["n"] == 2 and slept == [15]
+
+
+def test_three_failures_give_up_with_the_last_error_and_backoff(monkeypatch):
+    agent, calls, slept = make_agent(monkeypatch, [RuntimeError("429"), RuntimeError("503"), RuntimeError("timeout")])
+    with pytest.raises(RuntimeError, match="timeout"):
+        agent._generate_section_with_retries(section=_Section())
+    assert calls["n"] == 3 and slept == [15, 45]
+
+
+def test_a_deleted_report_is_not_retried(monkeypatch):
+    agent, calls, slept = make_agent(monkeypatch, [FileNotFoundError("el informe fue borrado"), "no debería llegar"])
+    with pytest.raises(FileNotFoundError):
+        agent._generate_section_with_retries(section=_Section())
+    assert calls["n"] == 1 and slept == []

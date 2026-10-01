@@ -33,7 +33,7 @@ def _cleanup_old_logs(max_days: int = 30) -> None:
         return
     cutoff = datetime.now() - timedelta(days=max_days)
     for fname in os.listdir(LOG_DIR):
-        if not fname.endswith('.log'):
+        if not (fname.endswith('.log') or '.log.' in fname):       # también los rotados (.log.1 … .log.5, 10 MB cada uno)
             continue
         fpath = os.path.join(LOG_DIR, fname)
         try:

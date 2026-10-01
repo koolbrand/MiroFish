@@ -223,6 +223,12 @@ class SimulationRunner:
     _processes: Dict[str, subprocess.Popen] = {}
     _action_queues: Dict[str, Queue] = {}
     _monitor_threads: Dict[str, threading.Thread] = {}
+    # Un candado por simulación: dos «iniciar» a la vez (doble clic, pantalla + modo automático) lanzaban dos
+    # subprocesos sobre la misma carpeta, con el doble de coste y la base de datos de OASIS escrita por ambos
+    _start_locks: Dict[str, threading.Lock] = {}
+    _start_locks_guard = threading.Lock()
+    # Simulaciones cuyo entorno se cierra a propósito por estar ya terminadas: el monitor las cuenta como completadas
+    _closed_when_done: set = set()
     _stdout_files: Dict[str, Any] = {}  # 存储 stdout 文件句柄
     _stderr_files: Dict[str, Any] = {}  # 存储 stderr 文件句柄
     
@@ -319,6 +325,76 @@ class SimulationRunner:
         cls._run_states[state.simulation_id] = state
     
     @classmethod
+    def _start_lock(cls, simulation_id: str) -> threading.Lock:
+        with cls._start_locks_guard:
+            lock = cls._start_locks.get(simulation_id)
+            if lock is None:
+                lock = cls._start_locks[simulation_id] = threading.Lock()
+            return lock
+
+    @classmethod
+    def live_processes(cls) -> Dict[str, subprocess.Popen]:
+        """Subprocesos de simulación que siguen vivos (incluidos los que ya terminaron y esperan entrevistas)."""
+        return {sid: p for sid, p in list(cls._processes.items()) if p.poll() is None}
+
+    @classmethod
+    def _is_waiting_for_interviews(cls, simulation_id: str) -> bool:
+        """¿Terminó de simular y su proceso solo sigue vivo para contestar entrevistas?"""
+        state = cls._run_states.get(simulation_id)
+        if state is None:
+            return False
+        if state.runner_status == RunnerStatus.COMPLETED:      # todas las plataformas terminaron; el proceso sigue vivo
+            return True
+        twitter_on = state.twitter_running or state.twitter_completed or state.twitter_actions_count > 0
+        reddit_on = state.reddit_running or state.reddit_completed or state.reddit_actions_count > 0
+        if not (twitter_on or reddit_on):
+            return False
+        return (not twitter_on or state.twitter_completed) and (not reddit_on or state.reddit_completed)
+
+    @classmethod
+    def terminate_if_alive(cls, simulation_id: str, *, finished: bool = False) -> bool:
+        """
+        Mata el proceso de una simulación si sigue vivo, sea cual sea su estado (borrar o reiniciar solo lo
+        hacían con RUNNING/STARTING y dejaban procesos de ~1 GB vivos y sin dueño). `finished=True`: la
+        simulación ya había terminado; el monitor la deja como completada, no como fallida.
+        """
+        process = cls._processes.get(simulation_id)
+        if process is None or process.poll() is not None:
+            return False
+        if finished:
+            cls._closed_when_done.add(simulation_id)
+        try:
+            cls._terminate_process(process, simulation_id)
+        except ProcessLookupError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Error al terminar el proceso de {simulation_id}: {exc}")
+            try:
+                process.kill()
+            except Exception:  # noqa: BLE001
+                pass
+        return True
+
+    @classmethod
+    def _ensure_capacity(cls) -> None:
+        """
+        Cada simulación viva ocupa ~1 GB (BERT + agentes) y el contenedor tiene 4. Antes de lanzar otra se cierran
+        las que ya terminaron y solo esperan entrevistas (las entrevistas pasan a contestarse sin entorno); si aun
+        así no cabe, se rechaza con un mensaje claro en vez de dejar que el OOM mate la de otra persona.
+        """
+        limit = max(1, int(getattr(Config, 'MAX_CONCURRENT_SIMULATIONS', 2)))
+        live = cls.live_processes()
+        if len(live) < limit:
+            return
+        for sid in sorted(live, key=lambda s: getattr(cls._run_states.get(s), 'started_at', '') or ''):
+            if cls._is_waiting_for_interviews(sid) and cls.terminate_if_alive(sid, finished=True):
+                logger.info(f"Se cierra el entorno de {sid} (terminada, solo esperaba entrevistas) para dejar sitio")
+                if len(cls.live_processes()) < limit:
+                    return
+        if len(cls.live_processes()) >= limit:
+            raise ValueError(t('api.simTooManyRunning', limit=limit))
+
+    @classmethod
     def start_simulation(
         cls,
         simulation_id: str,
@@ -326,6 +402,21 @@ class SimulationRunner:
         max_rounds: int = None,  # 最大模拟轮数（可选，用于截断过长的模拟）
         enable_graph_memory_update: bool = False,  # 是否将活动更新到Zep图谱
         graph_id: str = None  # Zep图谱ID（启用图谱更新时必需）
+    ) -> SimulationRunState:
+        """Inicia la simulación; dos llamadas a la vez para la misma simulación se serializan (la segunda ve la primera)."""
+        validate_storage_id(simulation_id, "sim_")
+        with cls._start_lock(simulation_id):
+            return cls._start_simulation_unlocked(
+                simulation_id, platform, max_rounds, enable_graph_memory_update, graph_id)
+
+    @classmethod
+    def _start_simulation_unlocked(
+        cls,
+        simulation_id: str,
+        platform: str = "parallel",
+        max_rounds: int = None,
+        enable_graph_memory_update: bool = False,
+        graph_id: str = None
     ) -> SimulationRunState:
         """
         启动模拟
@@ -363,6 +454,9 @@ class SimulationRunner:
             else:
                 raise ValueError(t('api.simAlreadyRunning', simulationId=simulation_id))
         
+        # Hay sitio para otro proceso de ~1 GB (o se cierra el de una simulación ya terminada)
+        cls._ensure_capacity()
+
         # Validar antes de guardar nada: si no, el estado queda en STARTING
         if enable_graph_memory_update and not graph_id:
             raise ValueError("Se debe proporcionar graph_id al habilitar la actualización de memoria del grafo")
@@ -534,9 +628,16 @@ class SimulationRunner:
         
         twitter_position = 0
         reddit_position = 0
+        last_signature, last_saved = None, 0.0
+        stdout_handle = cls._stdout_files.get(simulation_id)     # el de ESTE proceso: el de uno nuevo no es nuestro
         
         try:
             while process.poll() is None:  # 进程仍在运行
+                # Si «reiniciar» o «borrar» sustituyó este proceso, otro monitor se ocupa del nuevo: no se pisa
+                if cls._processes.get(simulation_id) is not process:
+                    logger.info(f"El monitor de {simulation_id} cede: su proceso fue sustituido")
+                    return
+
                 # 读取 Twitter 动作日志
                 if os.path.exists(twitter_actions_log):
                     twitter_position = cls._read_action_log(
@@ -549,9 +650,19 @@ class SimulationRunner:
                         reddit_actions_log, reddit_position, state, "reddit"
                     )
                 
-                # 更新状态
-                cls._save_run_state(state)
+                # 更新状态: solo si algo cambió (o cada 30 s). Con la simulación terminada y el entorno
+                # esperando entrevistas se reescribían 67 KB cada 2 s durante horas.
+                signature = (state.current_round, state.twitter_current_round, state.reddit_current_round,
+                             state.twitter_actions_count, state.reddit_actions_count, state.runner_status,
+                             state.twitter_completed, state.reddit_completed, state.twitter_running, state.reddit_running)
+                if signature != last_signature or time.monotonic() - last_saved > 30:
+                    cls._save_run_state(state)
+                    last_signature, last_saved = signature, time.monotonic()
                 time.sleep(2)
+            
+            if cls._processes.get(simulation_id) is not process:
+                logger.info(f"El monitor de {simulation_id} cede: su proceso fue sustituido")
+                return
             
             # 进程结束后，最后读取一次日志
             if os.path.exists(twitter_actions_log):
@@ -573,7 +684,10 @@ class SimulationRunner:
                 if not state.completed_at:
                     state.completed_at = datetime.now().isoformat()
                 logger.info(f"La simulación fue detenida por el usuario: {simulation_id}, exit_code={exit_code}")
-            elif exit_code == 0:
+            elif exit_code == 0 or simulation_id in cls._closed_when_done or state.runner_status == RunnerStatus.COMPLETED:
+                # Terminó (o ya había terminado todo y solo esperaba entrevistas cuando lo cerraron / lo mató el
+                # sistema): los datos están completos, no es un fallo
+                cls._closed_when_done.discard(simulation_id)
                 state.runner_status = RunnerStatus.COMPLETED
                 state.completed_at = datetime.now().isoformat()
                 logger.info(f"Simulación completada: {simulation_id}")
@@ -628,23 +742,26 @@ class SimulationRunner:
                     logger.error(f"Error al detener el actualizador de memoria del grafo: {e}")
                 cls._graph_memory_enabled.pop(simulation_id, None)
 
-            # 清理进程资源
-            cls._processes.pop(simulation_id, None)
-            cls._action_queues.pop(simulation_id, None)
-            
-            # 关闭日志文件句柄
-            if simulation_id in cls._stdout_files:
-                try:
-                    cls._stdout_files[simulation_id].close()
-                except Exception:
-                    pass
-                cls._stdout_files.pop(simulation_id, None)
-            if simulation_id in cls._stderr_files and cls._stderr_files[simulation_id]:
-                try:
-                    cls._stderr_files[simulation_id].close()
-                except Exception:
-                    pass
+            # 清理进程资源 — solo si siguen siendo de ESTE proceso. Tras «reiniciar con force» el monitor viejo
+            # (que despierta hasta 2 s después) borraba el registro del proceso NUEVO y este quedaba imparable.
+            if cls._processes.get(simulation_id) is process:
+                cls._processes.pop(simulation_id, None)
+                cls._action_queues.pop(simulation_id, None)
+                cls._monitor_threads.pop(simulation_id, None)
+                if simulation_id in cls._stdout_files and cls._stdout_files[simulation_id] is stdout_handle:
+                    cls._stdout_files.pop(simulation_id, None)
+                if cls._stderr_files.get(simulation_id):
+                    try:
+                        cls._stderr_files[simulation_id].close()
+                    except Exception:
+                        pass
                 cls._stderr_files.pop(simulation_id, None)
+            # El archivo de registro de este proceso se cierra siempre (es un manejador abierto suyo)
+            if stdout_handle is not None:
+                try:
+                    stdout_handle.close()
+                except Exception:
+                    pass
     
     @classmethod
     def _read_action_log(
@@ -1197,6 +1314,10 @@ class SimulationRunner:
         
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         
+        # Un proceso vivo (aunque ya haya terminado y solo espere entrevistas) se mata antes de borrarle los
+        # archivos: si no, seguía vivo y sin dueño, y su monitor reescribía el estado sobre la limpieza
+        cls.terminate_if_alive(simulation_id, finished=True)
+        
         if not os.path.exists(sim_dir):
             return {"success": True, "message": "El directorio de la simulación no existe, no hay nada que limpiar"}
         
@@ -1227,6 +1348,17 @@ class SimulationRunner:
                 except Exception as e:
                     errors.append(f"Error al eliminar {filename}: {str(e)}")
         
+        # Las respuestas de entrevistas (~100 KB cada una) que el servidor ya leyó pero nunca borró
+        for ipc_dir in ("ipc_commands", "ipc_responses"):
+            ipc_path = os.path.join(sim_dir, ipc_dir)
+            if os.path.isdir(ipc_path):
+                for name in os.listdir(ipc_path):
+                    try:
+                        os.remove(os.path.join(ipc_path, name))
+                        cleaned_files.append(f"{ipc_dir}/{name}")
+                    except OSError as e:
+                        errors.append(f"Error al eliminar {ipc_dir}/{name}: {str(e)}")
+
         # 清理平台目录中的动作日志
         for dir_name in dirs_to_clean:
             dir_path = os.path.join(sim_dir, dir_name)
@@ -1462,7 +1594,23 @@ class SimulationRunner:
             return False
 
         ipc_client = SimulationIPCClient(sim_dir)
-        return ipc_client.check_env_alive()
+        if not ipc_client.check_env_alive():
+            return False
+        # env_status.json se queda en «alive» si el proceso muere de golpe (memoria agotada, caída): con esa
+        # marca sola, cada entrevista esperaba 180 s a un entorno que ya no existía. Se comprueba el proceso.
+        process = cls._processes.get(simulation_id)
+        if process is not None:
+            return process.poll() is None
+        state = cls._run_states.get(simulation_id)
+        pid = getattr(state, 'process_pid', None) if state else None
+        if pid:
+            try:
+                os.kill(int(pid), 0)
+            except ProcessLookupError:
+                return False
+            except (PermissionError, ValueError, OSError):
+                pass
+        return True
 
     @classmethod
     def get_env_status_detail(cls, simulation_id: str) -> Dict[str, Any]:
