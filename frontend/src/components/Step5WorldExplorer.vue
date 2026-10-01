@@ -56,7 +56,7 @@
             >
               <span class="agent-avatar" aria-hidden="true">{{ (item.username || 'A')[0] }}</span>
               <span class="agent-meta">
-                <span class="agent-name">{{ item.username || `agent_${item.__idx}` }}</span>
+                <span class="agent-name" :title="item.username || `agent_${item.__idx}`">{{ item.username || `agent_${item.__idx}` }}</span>
                 <span class="agent-sub">
                   {{ item.profession || $t('step2.unknownProfession') }}
                   <template v-if="item.age">· {{ item.age }}</template>
@@ -102,7 +102,7 @@
 
           <div v-if="selectedAgent.bio" class="detail-bio">
             <div class="block-label">{{ $t('step5.profileBio') }}</div>
-            <MiniMarkdown class="bio-text" :text="selectedAgent.bio" />
+            <MiniMarkdown class="bio-text" :text="bioShown(selectedAgent.bio)" />
           </div>
 
           <!-- Stats strip -->
@@ -189,6 +189,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['chat-with-agent'])
+
+// El servidor guarda la bio recortada a 150 caracteres, a veces a mitad de palabra («…para optim»): si parece cortada,
+// se quita la palabra a medias y se pone «…» (la descripción completa está en el perfil de la persona)
+const bioShown = (bio) => {
+  const t = String(bio || '').trim()
+  return t.length >= 150 && !/[.!?…»")]$/.test(t) ? `${t.replace(/\s+\S*$/, '')}…` : t
+}
 
 const filters = reactive({
   query: '',
@@ -386,6 +393,7 @@ defineExpose({ selectAgent })
 
 <style scoped>
 .world-explorer {
+  container-type: inline-size;   /* el diseño depende del ancho del panel, no del de la ventana */
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -655,6 +663,7 @@ defineExpose({ selectAgent })
 
 .detail-header {
   display: flex;
+  flex-wrap: wrap;   /* el botón de chatear baja a su fila cuando el nombre necesita sitio */
   align-items: center;
   gap: 14px;
   padding-bottom: 16px;
@@ -677,7 +686,7 @@ defineExpose({ selectAgent })
 }
 
 .detail-id {
-  flex: 1;
+  flex: 1 1 220px;
   min-width: 0;
 }
 
@@ -942,5 +951,27 @@ defineExpose({ selectAgent })
   .stats-strip {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Panel estrecho (móvil o pantalla dividida): la lista de agentes pasa encima del detalle en vez de aplastarlo
+   (a 390 px el nombre salía letra a letra en vertical) */
+@container (max-width: 640px) {
+  .explorer-body { flex-direction: column; }
+  .agents-column {
+    width: auto;
+    flex: 0 1 auto;
+    max-height: 38%;
+    border-right: 0;
+    border-bottom: 1px solid var(--kb-line);
+  }
+  .detail-column { flex: 1 1 0; min-height: 0; padding: 16px; }
+}
+
+/* Nombres de agente: los modelos los generan con guiones bajos y sin espacios («marca_que_busca_proyectar_modernidad_…»),
+   y una palabra sin huecos no parte nunca: salía por el borde del panel. Parten donde haga falta. */
+.detail-name,
+.detail-handle {
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 </style>

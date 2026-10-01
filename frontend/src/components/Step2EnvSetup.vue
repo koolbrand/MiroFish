@@ -3292,4 +3292,13 @@ onUnmounted(() => {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
 }
+
+/* Nombres de agente: los modelos los generan con guiones bajos y sin espacios («marca_que_busca_proyectar_modernidad_…»),
+   y una palabra sin huecos no parte nunca: salía por el borde del panel. Parten donde haga falta. */
+.profile-realname,
+.modal-realname,
+.modal-username {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 </style>
