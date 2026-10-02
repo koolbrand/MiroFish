@@ -229,7 +229,8 @@ class OasisProfileGenerator:
         user_id: int,
         use_llm: bool = True,
         encuestado=None,
-        fuente=None
+        fuente=None,
+        relevantes=None
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -286,7 +287,7 @@ class OasisProfileGenerator:
 
         ficha = None
         if anclado:
-            ficha = poblacion.construir_ficha(encuestado, fuente=fuente, tema=topic or '')
+            ficha = poblacion.construir_ficha(encuestado, fuente=fuente, tema=topic or '', relevantes=relevantes)
         else:
             encuestado = None
 
@@ -321,7 +322,7 @@ class OasisProfileGenerator:
             profile_data["mbti"] = None
             profile_data["data_source"] = fuente.nombre
             profile_data["data_ref"] = encuestado.estudio
-            profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado, tema=topic or '')
+            profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado, tema=topic or '', relevantes=relevantes)
 
         return OasisAgentProfile(
             user_id=user_id,
@@ -1094,6 +1095,7 @@ Rules:
         # nada de esto corre y todo sale como siempre; en ese caso se deja escrito por qué para decírselo a la persona.
         encuestados_por_idx: Dict[int, Any] = {}
         fuente_poblacion = None
+        relevantes: List[str] = []
         if poblacion.modo_activo(poblacion_datos):
             try:
                 grupos: Dict[str, Dict[str, Any]] = {}
@@ -1115,10 +1117,15 @@ Rules:
                             fuente=deteccion.fuente, deteccion=deteccion)
                     if asignacion is not None:
                         fuente_poblacion = asignacion.fuente
+                        # Qué respuestas de la encuesta importan para ESTE tema (una llamada por simulación)
+                        relevantes = poblacion.preguntas_relevantes(
+                            asignacion.banco, "\n".join(x for x in (pregunta, (publico_descripcion or "")[:600]) if x),
+                            self._llm_texto)
                         for k, v in grupos.items():
                             for i, enc in zip(v['idx'], asignacion.de_grupo(k)):
                                 encuestados_por_idx[i] = enc
                         resumen = asignacion.resumen()
+                        resumen["preguntas_relevantes"] = relevantes
                         logger.info(f"Público con datos reales ({fuente_poblacion.nombre}, {fuente_poblacion.pais_nombre}): "
                                     f"{len(encuestados_por_idx)} personas ancladas en {len(grupos)} grupos")
                     else:
@@ -1146,7 +1153,8 @@ Rules:
                     user_id=idx,
                     use_llm=use_llm,
                     encuestado=encuestados_por_idx.get(idx),
-                    fuente=fuente_poblacion
+                    fuente=fuente_poblacion,
+                    relevantes=relevantes
                 )
                 
                 # 实时输出生成的人设到控制台和日志
@@ -1402,6 +1410,12 @@ Rules:
                 item["profession"] = profile.profession
             if profile.interested_topics:
                 item["interested_topics"] = profile.interested_topics
+            # Persona anclada a datos reales: la marca y las respuestas se conservan en el fichero final (la interfaz
+            # pinta «Datos reales · CIS» y el informe cita la fuente). OASIS ignora los campos que no conoce.
+            if profile.data_source:
+                item["data_source"] = profile.data_source
+                item["data_ref"] = profile.data_ref
+                item["memory_facts"] = profile.memory_facts
             
             data.append(item)
         

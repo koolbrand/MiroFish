@@ -204,6 +204,15 @@ class Banco:
                            for r in self.conn.execute(f"SELECT {','.join(cols)} FROM encuestados")}
         return {c: [self._tabla[i][c] for i in ids if i in self._tabla] for c in campos}
 
+    def catalogo(self, min_cobertura: float = 0.1) -> List[str]:
+        """Preguntas NO políticas que contesta al menos `min_cobertura` de la gente del banco (las de uso general, no las
+        baterías de un solo estudio). Sirve para elegir, según el tema de la simulación, qué respuestas van a la ficha."""
+        total = self.conn.execute("SELECT COUNT(*) FROM encuestados").fetchone()[0] or 1
+        filas = self.conn.execute(
+            "SELECT pregunta, COUNT(*) c FROM respuestas WHERE politica = 0 GROUP BY pregunta HAVING c >= ? ORDER BY c DESC, pregunta",
+            (int(total * min_cobertura),)).fetchall()
+        return [r["pregunta"] for r in filas]
+
     def titulo_estudio(self, estudio: str) -> str:
         r = self.conn.execute("SELECT titulo FROM estudios WHERE id = ?", (estudio,)).fetchone()
         return (r["titulo"] if r and r["titulo"] else f"estudio {estudio}")
