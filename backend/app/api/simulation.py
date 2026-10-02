@@ -508,6 +508,13 @@ def prepare_simulation():
         
         entity_types_list = data.get('entity_types')
         use_llm_for_profiles = data.get('use_llm_for_profiles', True)
+        # Interruptor «Público con datos reales»: None = lo que diga POBLACION_DATOS_REALES. `poblacion_cis` es el
+        # nombre antiguo del mismo interruptor. `poblacion_pais`: código ISO elegido, o «auto» (según el brief).
+        poblacion_datos = data.get('poblacion_datos', data.get('poblacion_cis'))
+        if poblacion_datos is not None:
+            poblacion_datos = bool(poblacion_datos)
+        poblacion_pais = data.get('poblacion_pais')
+        poblacion_pais = poblacion_pais.strip()[:8] if isinstance(poblacion_pais, str) and poblacion_pais.strip() else None
         try:
             parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
         except (TypeError, ValueError):
@@ -659,7 +666,9 @@ def prepare_simulation():
                     defined_entity_types=entity_types_list,
                     use_llm_for_profiles=use_llm_for_profiles,
                     progress_callback=progress_callback,
-                    parallel_profile_count=parallel_profile_count
+                    parallel_profile_count=parallel_profile_count,
+                    poblacion_datos=poblacion_datos,
+                    poblacion_pais=poblacion_pais
                 )
                 
                 # 任务完成
@@ -1218,6 +1227,40 @@ def get_simulation_profiles(simulation_id: str):
             "error": str(e),
             **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
+
+
+@simulation_bp.route('/poblacion/estado', methods=['GET'])
+def poblacion_estado():
+    """Fuentes de datos reales disponibles en este servidor (una por país). Lo usa la interfaz para mostrar el
+    interruptor, el selector de país y su valor por defecto. Sin ningún banco, `disponible` es false."""
+    from ..services import poblacion
+    info = {"disponible": False, "por_defecto": bool(Config.POBLACION_DATOS_REALES), "fuentes": [],
+            "fuente": "", "estudios": []}
+    for f in poblacion.disponibles():
+        try:
+            estudios = poblacion.abrir_banco(f).estudios()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"No se pudo leer el banco {f.id}: {e}")
+            continue
+        info["fuentes"].append({
+            "id": f.id, "pais": f.pais, "pais_nombre": f.pais_nombre, "nombre": f.nombre, "cita": f.cita,
+            "uso_interno": f.uso_interno, "licencia": f.licencia, "licencia_nota": f.licencia_nota,
+            "etiqueta_region": f.etiqueta_region, "estudios": estudios,
+        })
+    if info["fuentes"]:
+        info["disponible"] = True
+        info["fuente"] = info["fuentes"][0]["cita"]                      # compatibilidad con la interfaz anterior
+        info["estudios"] = info["fuentes"][0]["estudios"]
+    return jsonify({"success": True, "data": info})
+
+
+@simulation_bp.route('/<simulation_id>/poblacion', methods=['GET'])
+def poblacion_de_simulacion(simulation_id: str):
+    """Reparto (edad, sexo, región), grupos, filtros y país del público anclado a datos reales; `data: null` si esa
+    simulación no lo usó. Si se pidió pero no se pudo aplicar, `data.sin_datos` es true y `data.motivo` dice por qué."""
+    from ..services import poblacion
+    validate_storage_id(simulation_id, "sim_")
+    return jsonify({"success": True, "data": poblacion.resumen_de_simulacion(simulation_id)})
 
 
 @simulation_bp.route('/<simulation_id>/profiles/realtime', methods=['GET'])

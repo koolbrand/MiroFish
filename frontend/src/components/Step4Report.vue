@@ -14,6 +14,7 @@
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
+            <p v-if="cisCita" class="cis-source-line" data-testid="cis-source">{{ cisCita }}</p>
             <div class="header-divider"></div>
           </div>
 
@@ -436,6 +437,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAgentLog, getConsoleLog, getReport, generateReport } from '../api/report'
 import ReportDownloads from './ReportDownloads.vue'
+import { getPoblacionSimulacion } from '../api/simulation'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -2213,7 +2215,26 @@ const stopPolling = () => {
 }
 
 // Lifecycle
+// «Fuente de datos: <fuente> (estudio NNNN)» si el público de esta simulación se ancló a datos reales de su país
+const cisCita = ref('')
+const cargarCitaCis = async () => {
+  if (!props.simulationId) return
+  try {
+    const res = await getPoblacionSimulacion(props.simulationId)
+    const d = res?.data
+    const est = d?.estudios || []
+    const source = d?.fuente || ''
+    // sin_datos = se pidió pero no se aplicó: no se cita una fuente que no se usó
+    cisCita.value = res.success && d && !d.sin_datos
+      ? (est.length ? t('step2.datosSource', { source, ref: est.join(', ') }) : t('step2.datosSourceShort', { source }))
+      : ''
+  } catch (e) {
+    cisCita.value = ''
+  }
+}
+
 onMounted(() => {
+  cargarCitaCis()
   if (props.reportId) {
     addLog(`Report Agent initialized: ${props.reportId}`)
     startPolling()
@@ -2471,6 +2492,7 @@ watch(() => props.reportId, (newId) => {
 }
 
 .report-header-block { margin-bottom: 32px; }
+.cis-source-line { margin: 8px 0 0; font-size: 12px; font-weight: 600; color: var(--kb-text-2); }
 
 .report-meta {
   display: flex;

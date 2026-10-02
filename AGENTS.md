@@ -344,3 +344,55 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 
 **Last Updated**: 2026-09-30
 **Maintained by**: Adrian (adrian@koolbrand.com)
+
+## 🌍 Público con datos reales POR PAÍS — `backend/app/services/poblacion/`
+
+> **Uso interno de I+D** hasta tener la **autorización escrita** de cada titular de los datos. Estrategia, evidencia, licencias verificadas y plan por fases: [`docs/estrategia-poblacion-por-pais.md`](docs/estrategia-poblacion-por-pais.md). Cita obligada: «Fuente de datos: <fuente> (estudio NNNN)» (sale en perfiles, reparto, informe en pantalla y PDF).
+
+**Por qué:** un modelo, por defecto, se parece al público de EE. UU. y de los países occidentales, y acertar el **país** es lo que más rinde (un ama de casa de EE. UU. no es una de España). Las personas del **público** (entidades marcadas por `entity_role_filter` con `__simuloo_individual`) dejan de ser inventadas y se anclan a un **encuestado real y anónimo de la encuesta oficial de SU país**. Empresas, medios y competidores siguen como siempre.
+
+**Cómo reparte (la idea central):** el grafo da GRUPOS (la entidad base + sus variantes, `__simuloo_group`); la encuesta pone las PERSONAS. Cada grupo pide a su segmento tantos encuestados como personas tenga, **los segmentos más estrechos eligen primero y nadie se repite**. La variedad dentro de un grupo la pone la encuesta, no la temperatura del modelo.
+
+**Antiestereotipo (reglas duras):** (1) un filtro demográfico solo se pone si el texto lo **dice** («jubilados», «madres»); nunca se deduce de una afición o un producto. (2) El prompt de persona prohíbe inferir rasgos, aficiones, ingresos o política del sexo, edad, región o trabajo, y manda quedarse neutral donde la ficha calla. (3) Con encuestado real no se le pide al modelo que invente edad, familia ni que sea «distinta de las demás». (4) Edad, género y país son del dato real; no se inventa MBTI.
+
+**Qué país:** lo elige la persona en la interfaz o, en «Automático», lo decide el modelo leyendo el brief **solo entre países que tienen banco**; si duda, no ancla. Sin país claro o sin banco de ese país, las personas se generan como siempre y la interfaz lo dice (`poblacion.json` → `sin_datos` + `motivo`).
+
+| Pieza | Dónde |
+|---|---|
+| Registro de fuentes: una encuesta oficial por país (`Fuente`: país, nombre, regiones, licencia) | `services/poblacion/fuentes.py` |
+| Banco SQLite genérico (segmento con relajación, muestreo ponderado sin repetir, `region`/`subregion`) | `services/poblacion/banco.py` |
+| Vocabulario cerrado COMÚN (sexo, tramo, tamaño de municipio, estudios, situación laboral, estado civil) | `services/poblacion/vocabulario.py` |
+| Detección del país | `services/poblacion/pais.py` |
+| Descripción del grupo → filtros (el LLM propone, se valida contra la fuente; si falla, «sin filtros») | `services/poblacion/filtros.py` |
+| «Ficha de datos reales» y hechos de memoria | `services/poblacion/ficha.py` |
+| Calidad de la muestra (Jensen–Shannon, ruido esperable, dispersión de edad, línea base sin modelo) | `services/poblacion/metricas.py` |
+| Fachada: `modo_activo()`, `asignar_por_grupos()`, `cita_de_simulacion()` | `services/poblacion/__init__.py` |
+| Integración (agrupa por `__simuloo_group`, detecta país, prompt `_build_encuesta_persona_prompt`) | `services/oasis_profile_generator.py` |
+| Constructores OFFLINE del banco (uno por fuente) | `backend/scripts/poblacion/build_banco_*.py` |
+| Medición de fidelidad (a solo demografía · b con respuestas · moda del grupo · azar) | `backend/scripts/poblacion/fidelidad.py` |
+| API | `GET /api/simulation/poblacion/estado` (una fuente por país) · `GET /api/simulation/<id>/poblacion` · `poblacion_datos` y `poblacion_pais` en `POST /prepare` |
+| UI | interruptor + selector de país + reparto + «uso interno» en `Step2EnvSetup.vue`, cita en `Step4Report.vue`; textos `step2.datos*` en es/en/zh |
+
+**Variables:** `POBLACION_DATOS_REALES` (`true/false`, por defecto `false`; el antiguo `POBLACION_CIS` sigue valiendo) · `POBLACION_BANCOS_DIR` (por defecto `backend/data/poblacion/`) · `POBLACION_BANCO_PATH` (solo el CIS; por defecto `<bancos>/banco_cis.sqlite`). **Sin banco o con el modo apagado el comportamiento es idéntico al de siempre** (el interruptor ni aparece sin banco).
+
+**Añadir un país:** (1) registrar su `Fuente` en `fuentes.py` (nace `solo_investigacion`); (2) escribir su `scripts/poblacion/build_banco_<fuente>.py` que normalice a los vocabularios comunes y guarde `meta(fuente, pais)`; (3) tests con banco sintético (`tests/poblacion_fixture.py::registrar_pais_sintetico`); (4) medir fidelidad antes de fiarse; (5) pedir la autorización escrita antes de llevarlo a un entregable de cliente.
+
+**Reglas de datos:** los microdatos **nunca** van al repo (es público) ni a la imagen Docker (`.gitignore`/`.dockerignore` cubren `backend/data/`, `*.sqlite`, `MD35*.zip`). Los tests usan bancos **sintéticos inventados**. No cruzar con datos personales ni reidentificar. No usar SDV (licencia BSL). Varias fuentes prohíben ceder los ficheros a terceros o investigar a individuos concretos: antes de enviar un registro individual a un modelo externo, la autorización escrita tiene que cubrir ese uso.
+
+**Con datos reales (2-oct-2026):** banco de 20.128 encuestados y 156 preguntas de 5 estudios del CIS. Lo que hay que saber: (1) el modelo con las respuestas reales mejora al modelo con solo demografía (+6 puntos) pero **no supera a la respuesta más común del grupo sexo × edad** — por eso Simuloo es un ensayo, no una predicción; (2) la ficha pone primero lo que tiene que ver con el tema del brief y deja las políticas, los nombres propios y los elementos de batería sin enunciado al final (máx. 4); (3) los paradatos del trabajo de campo no entran en el banco. Detalle y cifras en `docs/estrategia-poblacion-por-pais.md` §7.
+
+**Construir el banco del CIS** (ZIP en cis.es; el formulario solo exige el correo; en 2-oct-2026 están en `~/dev-worktrees/cis-zips/`, fuera del repo):
+
+```bash
+cd backend && uv run --with pyreadstat --with pandas python scripts/poblacion/build_banco_cis.py ~/Downloads/MD35*.zip --reemplazar
+```
+
+⚠️ Los nombres de variable cambian entre estudios: `build_banco_cis.py` prueba candidatos (`CANDIDATAS`) y se fijan a mano por estudio en `MAPEOS_ESTUDIO` tras mirar el codebook. Los normalizadores (CCAA, tamaño, estudios…) se probaron con etiquetas **supuestas** del CIS, no con los ficheros reales: revisar el primer volcado.
+
+**Producción:** los microdatos **no van por GitHub ni por la imagen**. El volumen persistente `mirofish-uploads` (`/app/backend/uploads`) guarda el banco en `/app/backend/uploads/poblacion/` (variable `POBLACION_BANCOS_DIR`). Lo construye `backend/scripts/poblacion/instalar_banco_cis.sh`, que descarga del propio CIS los 5 estudios, **comprueba su huella** y lanza el constructor; es idempotente (si el banco existe, no hace nada) y tarda ~8 min. Se ejecuta como «comando posterior al despliegue» de la app en Coolify (en segundo plano):
+
+```
+setsid nohup sh /app/backend/scripts/poblacion/instalar_banco_cis.sh >/app/backend/logs/instalar_banco.log 2>&1 &
+```
+
+Si el CIS publica una versión nueva de un fichero, la huella no coincide y el script se para: hay que actualizar la URL y la huella en el script. El interruptor de la interfaz sigue apagado por defecto (`POBLACION_DATOS_REALES` sin definir).

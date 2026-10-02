@@ -179,6 +179,7 @@ def filter_entities(entities: list, topic: str) -> EntityRoleResult:
 # Ampliación de audiencia
 # ---------------------------------------------------------------------------
 INDIVIDUAL_FLAG = "__simuloo_individual"
+GROUP_KEY = "__simuloo_group"       # uuid de la entidad base: ella y sus variantes forman un grupo del público
 VARIANT_HINT = "__simuloo_variant"
 TOPIC_HINT = "__simuloo_topic"
 
@@ -201,6 +202,7 @@ def expand_audience(entities: list, result: EntityRoleResult, topic: str = "") -
     for e in audience:
         e.attributes = dict(e.attributes or {})
         e.attributes[INDIVIDUAL_FLAG] = True
+        e.attributes[GROUP_KEY] = str(getattr(e, "uuid", e.name))
         if topic:
             e.attributes[TOPIC_HINT] = topic[:600]
     if not audience or not Config.AUDIENCE_EXPANSION:

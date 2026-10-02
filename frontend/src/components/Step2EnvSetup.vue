@@ -72,6 +72,58 @@
             {{ $t('step2.generateAgentPersonaDesc') }}
           </p>
 
+          <!-- Público con datos reales del país: solo aparece si este servidor tiene algún banco -->
+          <div v-if="cisEstado.disponible" class="cis-toggle" data-testid="cis-toggle">
+            <label class="cis-toggle-row">
+              <input type="checkbox" v-model="usarCis" class="cis-check" data-testid="cis-checkbox" />
+              <span class="cis-toggle-text">
+                <span class="cis-toggle-title">{{ $t('step2.datosToggleTitle') }}</span>
+                <span class="cis-toggle-desc">{{ $t('step2.datosToggleDesc') }}</span>
+              </span>
+            </label>
+            <div v-if="usarCis" class="cis-pais">
+              <label class="cis-pais-label" for="cis-pais-select">{{ $t('step2.datosPaisLabel') }}</label>
+              <select id="cis-pais-select" v-model="paisElegido" class="cis-pais-select" data-testid="cis-pais">
+                <option value="auto">{{ $t('step2.datosPaisAuto') }}</option>
+                <option v-for="f in cisEstado.fuentes" :key="f.id" :value="f.pais">{{ f.pais_nombre }} · {{ f.nombre }}</option>
+              </select>
+              <span v-if="fuenteInterna" class="cis-interno" :title="$t('step2.datosInternoHint')" data-testid="cis-interno">{{ $t('step2.datosInterno') }}</span>
+            </div>
+            <div v-if="cisCambiado" class="cis-changed" role="status">
+              <span>{{ $t('step2.datosToggleChanged') }}</span>
+              <button type="button" class="cis-regen" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
+            </div>
+          </div>
+
+          <!-- Se pidieron datos reales pero no se pudieron aplicar: se dice, no se disimula -->
+          <div v-if="poblacion?.sin_datos" class="cis-reparto cis-sin-datos" role="status" data-testid="cis-sin-datos">
+            <span class="cis-reparto-title">{{ $t('step2.datosSinDatosTitle') }}</span>
+            <p class="cis-reparto-sub">{{ $t('step2.datosSinDatosBody', { motivo: poblacion.motivo }) }}</p>
+          </div>
+
+          <!-- Reparto del público elegido, antes de simular -->
+          <div v-else-if="poblacion" class="cis-reparto" data-testid="cis-reparto">
+            <div class="cis-reparto-head">
+              <span class="cis-reparto-title">{{ $t('step2.datosRepartoTitle') }}</span>
+              <span class="cis-source">{{ cisCita }}</span>
+              <span v-if="poblacion.uso_interno" class="cis-interno" :title="$t('step2.datosInternoHint')">{{ $t('step2.datosInterno') }}</span>
+            </div>
+            <p class="cis-reparto-sub">{{ $t('step2.datosRepartoSub') }} · {{ $t('step2.datosPeople', { n: poblacion.reparto?.n || 0 }) }}<template v-if="poblacion.grupos?.length > 1"> · {{ $t('step2.datosGrupos', { n: poblacion.grupos.length }) }}</template></p>
+            <p v-if="paisTexto" class="cis-pais-line" data-testid="cis-pais-line">{{ paisTexto }}</p>
+            <div class="cis-bars">
+              <div v-for="grupo in cisGrupos" :key="grupo.key" class="cis-group">
+                <span class="cis-group-title">{{ grupo.titulo }}</span>
+                <div v-for="fila in grupo.filas" :key="fila.label" class="cis-bar-row">
+                  <span class="cis-bar-label">{{ fila.label }}</span>
+                  <span class="cis-bar-track"><span class="cis-bar-fill" :style="{ width: Math.min(100, fila.pct) + '%' }"></span></span>
+                  <span class="cis-bar-pct">{{ fila.pct }}%</span>
+                </div>
+              </div>
+            </div>
+            <p v-if="!(poblacion.grupos?.length > 1)" class="cis-filters">{{ cisFiltrosTexto }}</p>
+            <p v-if="poblacion.relajado" class="cis-relaxed">{{ $t('step2.datosRelaxed') }}</p>
+          </div>
+
           <!-- Profiles Stats -->
           <div v-if="profiles.length > 0" class="stats-grid">
             <div class="stat-card">
@@ -177,6 +229,7 @@
                 </div>
                 <div class="profile-meta">
                   <span class="profile-profession">{{ profile.profession || $t('step2.unknownProfession') }}</span>
+                  <span v-if="profile.data_source" class="cis-tag" data-testid="cis-tag">{{ $t('step2.datosTag', { source: profile.data_source, ref: profile.data_ref }) }}</span>
                 </div>
                 <MiniMarkdown v-if="profile.bio" tag="p" inline class="profile-bio" :text="profile.bio" />
                 <p v-else class="profile-bio">{{ $t('step2.noBio') }}</p>
@@ -690,6 +743,16 @@
             </div>
           </div>
 
+          <div v-if="selectedProfile.data_source" class="modal-section cis-modal">
+            <span class="cis-tag">{{ $t('step2.datosSource', { source: selectedProfile.data_source, ref: selectedProfile.data_ref }) }}</span>
+            <template v-if="selectedProfile.memory_facts?.length">
+              <span class="section-label">{{ $t('step2.datosMemoryTitle') }}</span>
+              <ul class="cis-facts">
+                <li v-for="(h, i) in selectedProfile.memory_facts" :key="i">{{ h }}</li>
+              </ul>
+            </template>
+          </div>
+
           <!-- 简介 -->
           <div class="modal-section">
             <span class="section-label">{{ $t('step2.profileModalBio') }}</span>
@@ -772,7 +835,9 @@ import {
   getSimulationConfig,
   getSimulationConfigRealtime,
   getSimulation,
-  getRunStatus
+  getRunStatus,
+  getPoblacionEstado,
+  getPoblacionSimulacion
 } from '../api/simulation'
 import { usePipeline } from '../composables/usePipeline'
 import { MiniMarkdown } from '../lib/miniMarkdown'
@@ -1104,7 +1169,80 @@ const logEntityFilter = (summary) => {
   }
 }
 
-const startPrepareSimulation = async () => {
+// ---- Público con datos reales del país del público (una encuesta oficial por país) ----
+const cisEstado = ref({ disponible: false, por_defecto: false, estudios: [], fuentes: [] })
+const usarCis = ref(false)
+const paisElegido = ref('auto')     // 'auto' = lo decide el brief; si no, el código ISO de un país con banco
+const cisUsado = ref(null)          // valor con el que se lanzó la preparación en curso
+const paisUsado = ref(null)
+const poblacion = ref(null)         // resumen de poblacion.json (país, reparto, grupos, avisos o sin_datos)
+const cisCambiado = computed(() => cisEstado.value.disponible && cisUsado.value !== null &&
+  (usarCis.value !== cisUsado.value || (usarCis.value && paisElegido.value !== paisUsado.value)))
+// ¿Los datos que se van a usar están en «uso interno»? (todas las fuentes nacen así hasta tener autorización escrita)
+const fuenteInterna = computed(() => {
+  const fuentes = cisEstado.value.fuentes || []
+  const elegidas = paisElegido.value === 'auto' ? fuentes : fuentes.filter(f => f.pais === paisElegido.value)
+  return elegidas.some(f => f.uso_interno)
+})
+const cisCita = computed(() => {
+  const source = poblacion.value?.fuente || ''
+  const est = poblacion.value?.estudios || []
+  return est.length ? t('step2.datosSource', { source, ref: est.join(', ') }) : t('step2.datosSourceShort', { source })
+})
+const paisTexto = computed(() => {
+  const p = poblacion.value
+  if (!p?.pais_nombre) return ''
+  return t(p.pais_decidido_por === 'automatico' ? 'step2.datosPaisAuto2' : 'step2.datosPaisPedido', { country: p.pais_nombre })
+})
+const cisGrupos = computed(() => {
+  const r = poblacion.value?.reparto
+  if (!r) return []
+  const filas = (obj) => Object.entries(obj || {}).map(([label, pct]) => ({ label, pct }))
+  return [
+    { key: 'sexo', titulo: t('step2.datosSexo'), filas: filas(r.sexo) },
+    { key: 'edad', titulo: t('step2.datosEdad'), filas: filas(r.edad) },
+    { key: 'region', titulo: poblacion.value?.etiqueta_region || t('step2.datosRegion'), filas: filas(r.region) }
+  ].filter(g => g.filas.length)
+})
+const cisFiltrosTexto = computed(() => {
+  const f = poblacion.value?.filtros_aplicados || {}
+  const partes = Object.entries(f).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+  return partes.length ? t('step2.datosFilters', { filters: partes.join(' · ') })
+    : t('step2.datosNoFilters', { country: poblacion.value?.pais_nombre || '' })
+})
+
+const cargarPoblacion = async () => {
+  if (!props.simulationId || !cisEstado.value.disponible) return
+  try {
+    const res = await getPoblacionSimulacion(props.simulationId)
+    poblacion.value = (res.success && res.data) ? res.data : null
+  } catch (e) {
+    poblacion.value = null
+  }
+}
+
+const iniciarEstadoCis = async () => {
+  try {
+    const res = await getPoblacionEstado()
+    if (res.success && res.data) {
+      cisEstado.value = res.data
+      usarCis.value = !!res.data.por_defecto
+    }
+  } catch (e) {
+    cisEstado.value = { disponible: false, por_defecto: false, estudios: [], fuentes: [] }
+  }
+}
+
+const regenerarPublico = async () => {
+  stopPolling()
+  stopProfilesPolling()
+  profiles.value = []
+  poblacion.value = null
+  lastLoggedProfileCount = 0
+  await startPrepareSimulation(true)
+}
+
+const startPrepareSimulation = async (force = false) => {
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     emit('update-status', 'error')
@@ -1118,11 +1256,19 @@ const startPrepareSimulation = async () => {
   emit('update-status', 'processing')
   
   try {
-    const res = await prepareSimulation({
+    const peticion = {
       simulation_id: props.simulationId,
       use_llm_for_profiles: true,
       parallel_profile_count: 5
-    })
+    }
+    if (cisEstado.value.disponible) {
+      peticion.poblacion_datos = usarCis.value
+      peticion.poblacion_pais = paisElegido.value
+      cisUsado.value = usarCis.value
+      paisUsado.value = paisElegido.value
+    }
+    if (force) peticion.force_regenerate = true
+    const res = await prepareSimulation(peticion)
     
     if (res.success && res.data) {
       if (res.data.already_prepared) {
@@ -1268,6 +1414,7 @@ const fetchProfilesRealtime = async () => {
     if (res.success && res.data) {
       const prevCount = profiles.value.length
       profiles.value = res.data.profiles || []
+      if (!poblacion.value && profiles.value.some(p => p.data_source)) cargarPoblacion()
       // 只有当 API 返回有效值时才更新，避免覆盖已有的有效值
       if (res.data.total_expected) {
         expectedTotal.value = res.data.total_expected
@@ -1408,6 +1555,7 @@ const loadPreparedData = async () => {
 
   // 最后获取一次 Profiles
   await fetchProfilesRealtime()
+  await cargarPoblacion()
   addLog(t('log.loadedAgentProfiles', { count: profiles.value.length }))
 
   // 获取配置（使用实时接口）
@@ -1454,12 +1602,13 @@ watch(() => props.systemLogs?.length, () => {
 // La ficha de una persona se cierra también con Esc
 const onKeydown = (e) => { if (e.key === 'Escape' && selectedProfile.value) selectedProfile.value = null }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
   // 自动开始准备流程
   if (props.simulationId) {
     addLog(t('log.step2Init'))
     loadRunStatus()
+    await iniciarEstadoCis()    // antes de preparar: hay que saber si hay banco y qué valor lleva el interruptor
     startPrepareSimulation()
   }
 })
@@ -1840,6 +1989,42 @@ const reasoningBlocks = computed(() => reasoningSections(simulationConfig.value?
   color: #FFF;
   border-color: var(--kb-text);
 }
+
+/* Público con datos reales del país (una encuesta oficial por país) */
+.cis-toggle { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--kb-control-line); border-radius: 10px; background: var(--kb-soft); }
+.cis-toggle-row { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.cis-check { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--kb-text); flex: none; }
+.cis-toggle-text { display: flex; flex-direction: column; gap: 2px; }
+.cis-toggle-title { font-weight: 700; font-size: 14px; color: var(--kb-text); }
+.cis-toggle-desc { font-size: 12.5px; color: var(--kb-text-2); line-height: 1.45; }
+.cis-changed { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--kb-text); }
+.cis-regen { min-height: 32px; padding: 4px 14px; border: 1px solid var(--kb-text); border-radius: 999px; background: var(--kb-text); color: #FFF; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cis-reparto { margin: 14px 0; padding: 14px; border: 1px solid var(--kb-control-line); border-radius: 10px; background: #FFF; }
+.cis-reparto-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cis-reparto-title { font-weight: 700; font-size: 14px; color: var(--kb-text); }
+.cis-source { font-size: 12px; font-weight: 600; color: var(--kb-text-on-soft); background: var(--kb-soft); border-radius: 999px; padding: 2px 10px; }
+.cis-reparto-sub { margin: 4px 0 10px; font-size: 12.5px; color: var(--kb-text-2); }
+.cis-bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 24px; }
+.cis-group { display: flex; flex-direction: column; gap: 5px; }
+.cis-group-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--kb-text-2); font-weight: 700; }
+.cis-bar-row { display: grid; grid-template-columns: 96px 1fr 38px; gap: 8px; align-items: center; font-size: 12px; color: var(--kb-text); }
+.cis-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cis-bar-track { height: 8px; border-radius: 4px; background: var(--kb-soft); overflow: hidden; }
+.cis-bar-fill { display: block; height: 100%; background: var(--kb-text); border-radius: 4px; }
+.cis-bar-pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--kb-text-2); }
+.cis-filters, .cis-relaxed { margin: 10px 0 0; font-size: 12px; color: var(--kb-text-2); }
+.cis-relaxed { font-weight: 600; color: var(--kb-text); }
+.cis-tag { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--kb-text-on-soft); background: var(--kb-soft); border: 1px solid var(--kb-control-line); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+.cis-pais { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--kb-control-line); }
+.cis-pais-label { font-size: 12.5px; font-weight: 600; color: var(--kb-text); }
+.cis-pais-select { min-height: 36px; padding: 4px 28px 4px 12px; border: 1px solid var(--kb-control-line); border-radius: 8px; background: #FFF; color: var(--kb-text); font: inherit; font-size: 13px; }
+.cis-pais-select:focus-visible { outline: 2px solid var(--kb-text); outline-offset: 2px; }
+.cis-interno { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--kb-text); background: transparent; border: 1px dashed var(--kb-text-2); border-radius: 999px; padding: 1px 9px; cursor: help; }
+.cis-pais-line { margin: 0 0 10px; font-size: 12.5px; font-weight: 600; color: var(--kb-text); }
+.cis-sin-datos { background: var(--kb-soft); }
+.cis-modal { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.cis-modal .cis-tag { margin-left: 0; }
+.cis-facts { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--kb-text-2); }
 
 .profiles-controls {
   display: flex;

@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""Medición de fidelidad: ¿cuánto mejora anclar a una persona a sus datos reales?
+
+Con ~150 encuestados de un estudio del banco se esconden 8–10 preguntas de actitud y se le pide al LLM que las
+responda en dos condiciones:
+  (a) solo sociodemografía
+  (b) sociodemografía + el resto de sus respuestas reales (las escondidas no aparecen en ninguna)
+y se compara con lo que respondió cada persona: acierto individual y distancia entre la distribución prevista y
+la real (Jensen–Shannon, base 2, con pesos). Líneas base: la moda de su grupo demográfico (sexo × tramo de edad,
+sin contarse a sí mismo) y el azar.
+
+    cd backend
+    uv run python scripts/poblacion/fidelidad.py --estudio 3535 --estimar        # solo calcula el coste
+    uv run python scripts/poblacion/fidelidad.py --estudio 3535 --ejecutar       # lanza (cuesta dinero real)
+
+Referencia: Park et al. (Stanford 2024, arXiv 2411.10109): 74 % con solo demografía, 82 % con encuesta y 86 % con
+encuesta y entrevista, frente a lo que la misma persona repite a las dos semanas. Otro estudio (arXiv 2509.19088)
+avisa de que, persona a persona y ante estímulos nuevos, solo se llega a r = 0,20: se vende como ensayo, no como
+predicción. Uso interno de I+D. Fuente de datos: CIS.
+"""
+
+import argparse
+import json
+import math
+import os
+from concurrent.futures import ThreadPoolExecutor
+import random
+import re
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Callable, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from app.config import Config                                  # noqa: E402
+from app.services.poblacion.banco import Banco                   # noqa: E402
+from app.services.poblacion.ficha import lineas_sociodemografia, _recortar  # noqa: E402
+from app.services.poblacion.fuentes import FUENTES, abrir_banco, ruta_banco, tiene_banco  # noqa: E402
+from app.services.poblacion.metricas import jsd                  # noqa: E402,F401  (misma medida que la calidad de la muestra)
+
+# MiniMax-M3 (producción): 0,30 $/M entrada · 1,20 $/M salida
+PRECIO_ENTRADA, PRECIO_SALIDA = 0.30 / 1e6, 1.20 / 1e6
+SALIDA_ESTIMADA = 1500     # tokens de salida por llamada (modelo de razonamiento: se razona antes de responder)
+CHARS_POR_TOKEN = 3.6
+
+
+# ---------------------------------------------------------------- métricas (puras)
+def distribucion(respuestas: List[Optional[str]], pesos: List[float], opciones: List[str]) -> Dict[str, float]:
+    d = {o: 0.0 for o in opciones}
+    for r, w in zip(respuestas, pesos):
+        if r in d:
+            d[r] += w
+    return d
+
+
+# ---------------------------------------------------------------- preparación
+def cargar_muestra(banco: Banco, estudio: str, n: int, semilla: int):
+    ids = [r[0] for r in banco.conn.execute(
+        "SELECT id FROM encuestados WHERE estudio=? AND edad>=18 ORDER BY id", (estudio,)).fetchall()]
+    random.Random(semilla).shuffle(ids)
+    return [banco.encuestado(i) for i in ids[:n]]
+
+
+# Lo que NO es una actitud: sociodemografía que el modelo ya recibe o puede deducir, y el trabajo de campo. Esconder
+# «nivel de ingresos» o «día de la semana de la entrevista» y medir el acierto no dice nada de si se capta la persona.
+NO_ACTITUD = re.compile(r"ingresos|clase social|identificaci[oó]n subjetiva de clase|religios|estudios|escolariz|ocupaci[oó]n|"
+                        r"situaci[oó]n profesional|poblaci[oó]n activa|nacionalidad|nacimiento|etnic|raza|participaci[oó]n|"
+                        r"\bvoto\b|ideol[oó]g|d[ií]a de|d[ií]a internacional|a[nñ]o de|mes de|hora de", re.I)
+
+
+def elegir_preguntas(muestra, cuantas: int = 10, min_cobertura: float = 0.8, max_por_escala: int = 2):
+    """Preguntas de actitud NO políticas, respondidas por casi todos, con 3–7 opciones y sin una moda aplastante.
+    Una batería («Mucho/Bastante/Poco» sobre siete tecnologías) son preguntas casi iguales: se admiten `max_por_escala`
+    con las mismas opciones para que la medición no sea siete veces lo mismo."""
+    por_p = defaultdict(list)
+    for e in muestra:
+        for r in e.respuestas:
+            if not r["politica"] and not NO_ACTITUD.search(r["pregunta"]) and len(r["pregunta"].split()) >= 4:
+                por_p[r["pregunta"]].append(r["respuesta"])
+    cand = []
+    for q, rs in por_p.items():
+        c = Counter(rs)
+        cobertura = len(rs) / len(muestra)
+        if cobertura >= min_cobertura and 3 <= len(c) <= 7 and max(c.values()) / len(rs) <= 0.8:
+            entropia = -sum(v / len(rs) * math.log2(v / len(rs)) for v in c.values())
+            cand.append((entropia, q, sorted(c)))
+    cand.sort(reverse=True)
+    elegidas, por_escala = [], Counter()
+    for _, q, ops in cand:
+        if por_escala[tuple(ops)] >= max_por_escala:
+            continue
+        por_escala[tuple(ops)] += 1
+        elegidas.append((q, ops))
+        if len(elegidas) == cuantas:
+            break
+    return elegidas
+
+
+def ic95(valores: List[Optional[float]], semilla: int = 1, remuestreos: int = 2000):
+    """Intervalo del 95 % de la media remuestreando PERSONAS (las preguntas de una misma persona no son independientes)."""
+    vals = [v for v in valores if v is not None]
+    if len(vals) < 2:
+        return None
+    rng = random.Random(semilla)
+    medias = sorted(sum(rng.choice(vals) for _ in vals) / len(vals) for _ in range(remuestreos))
+    return (medias[int(0.025 * remuestreos)], medias[int(0.975 * remuestreos) - 1])
+
+
+def ic95_diferencia(x: List[Optional[float]], y: List[Optional[float]], semilla: int = 1, remuestreos: int = 2000):
+    """Media de x − y por persona (pareado) con su intervalo del 95 %."""
+    par = [a - b for a, b in zip(x, y) if a is not None and b is not None]
+    if len(par) < 2:
+        return None
+    rng = random.Random(semilla)
+    medias = sorted(sum(rng.choice(par) for _ in par) / len(par) for _ in range(remuestreos))
+    return (sum(par) / len(par), medias[int(0.025 * remuestreos)], medias[int(0.975 * remuestreos) - 1])
+
+
+def prompt_persona(e, ocultas: set, con_respuestas: bool, preguntas, fuente=None) -> str:
+    fuente = fuente or FUENTES["cis"]
+    partes = [f"Eres una persona real que respondió a una encuesta de {fuente.nombre} en {fuente.pais_nombre}. Datos:"]
+    partes += [f"- {l}" for l in lineas_sociodemografia(e, fuente)]
+    if con_respuestas:
+        previas = [r for r in e.respuestas if r["pregunta"] not in ocultas]
+        previas.sort(key=lambda r: r["politica"])
+        if previas:
+            partes.append("\nLo que ya respondiste en la encuesta:")
+            partes += [f"- {_recortar(r['pregunta'], 140)} → {_recortar(r['respuesta'], 120)}" for r in previas[:60]]
+    partes.append("\nAhora responde cada pregunta como lo haría esta persona, eligiendo EXACTAMENTE una de las opciones:")
+    for i, (q, ops) in enumerate(preguntas, 1):
+        partes.append(f"{i}. {q} Opciones: {' | '.join(ops)}")
+    partes.append('\nDevuelve SOLO un JSON {"1": "<opción>", "2": "<opción>", ...} sin texto alrededor.')
+    return "\n".join(partes)
+
+
+def estimar_coste(muestra, preguntas, salida_tokens: int = SALIDA_ESTIMADA, fuente=None) -> Dict:
+    ocultas = {q for q, _ in preguntas}
+    ent = sal = 0
+    for e in muestra:
+        for con in (False, True):
+            ent += int(len(prompt_persona(e, ocultas, con, preguntas, fuente)) / CHARS_POR_TOKEN)
+            sal += salida_tokens
+    usd = ent * PRECIO_ENTRADA + sal * PRECIO_SALIDA
+    return {"llamadas": len(muestra) * 2, "tokens_entrada": ent, "tokens_salida": sal, "usd": round(usd, 3)}
+
+
+# ---------------------------------------------------------------- ejecución
+def parsear(texto: str, preguntas) -> Dict[int, Optional[str]]:
+    m = re.search(r"\{.*\}", texto or "", flags=re.S)
+    out: Dict[int, Optional[str]] = {i: None for i in range(1, len(preguntas) + 1)}
+    if not m:
+        return out
+    try:
+        d = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return out
+    for i, (_, ops) in enumerate(preguntas, 1):
+        v = str(d.get(str(i), "")).strip()
+        ok = [o for o in ops if o.lower() == v.lower()]
+        out[i] = ok[0] if ok else None
+    return out
+
+
+def llm_por_defecto() -> Callable[[str], str]:
+    from openai import OpenAI
+    from app.utils.llm_client import strip_reasoning
+    cli = OpenAI(api_key=Config.LLM_API_KEY, base_url=Config.LLM_BASE_URL, timeout=Config.LLM_TIMEOUT_SECONDS)
+
+    def llm(prompt: str) -> str:
+        r = cli.chat.completions.create(model=Config.LLM_MODEL_NAME, temperature=0,
+                                        messages=[{"role": "user", "content": prompt}])
+        return strip_reasoning(r.choices[0].message.content)
+    return llm
+
+
+def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fuente=None, trabajadores: int = 1) -> Dict:
+    ocultas = {q for q, _ in preguntas}
+    pesos = [max(e.peso, 1e-9) for e in muestra]
+    real = {q: [next((r["respuesta"] for r in e.respuestas if r["pregunta"] == q), None) for e in muestra]
+            for q, _ in preguntas}
+    pred = {"a": {q: [] for q, _ in preguntas}, "b": {q: [] for q, _ in preguntas}}
+    # Las llamadas son independientes: se lanzan en paralelo (un modelo de razonamiento tarda ~20 s por llamada) y se
+    # recogen en el mismo orden que la muestra
+    trabajos = [(cond, e, con) for e in muestra for cond, con in (("a", False), ("b", True))]
+
+    def una(t):
+        _, e, con = t
+        return parsear(llm(prompt_persona(e, ocultas, con, preguntas, fuente)), preguntas)
+
+    with ThreadPoolExecutor(max_workers=max(1, trabajadores)) as pool:
+        resultados = list(pool.map(una, trabajos))
+    for (cond, _, _), res in zip(trabajos, resultados):
+        for i, (q, _) in enumerate(preguntas, 1):
+            pred[cond][q].append(res[i])
+    # línea base: moda del grupo (sexo × tramo), sin contarse a sí mismo
+    grupo = lambda e: (e.sexo, e.tramo)  # noqa: E731
+    base = {q: [] for q, _ in preguntas}
+    for k, e in enumerate(muestra):
+        for q, ops in preguntas:
+            c = Counter(real[q][j] for j, o in enumerate(muestra) if j != k and grupo(o) == grupo(e) and real[q][j])
+            if not c:
+                c = Counter(real[q][j] for j in range(len(muestra)) if j != k and real[q][j])
+            base[q].append(c.most_common(1)[0][0] if c else None)
+    rng = random.Random(semilla)
+    cond_res = {}
+    por_persona: Dict[str, List[Optional[float]]] = {}
+    for nombre, preds in (("a_sociodemografia", pred["a"]), ("b_con_respuestas", pred["b"]), ("moda_del_grupo", base)):
+        aciertos = []; aciertos_w = []; dist = []; sin_resp = 0
+        pp: List[Optional[float]] = []
+        for k in range(len(muestra)):
+            v = [1.0 if preds[q][k] == real[q][k] else 0.0 for q, _ in preguntas if real[q][k] is not None]
+            pp.append(sum(v) / len(v) if v else None)
+        por_persona[nombre] = pp
+        for q, ops in preguntas:
+            for r, p, w in zip(real[q], preds[q], pesos):
+                if r is None:
+                    continue
+                if p is None:
+                    sin_resp += 1
+                aciertos.append(1.0 if p == r else 0.0)
+                aciertos_w.append((1.0 if p == r else 0.0, w))
+            validos = [(r, p, w) for r, p, w in zip(real[q], preds[q], pesos) if r is not None]
+            dist.append(jsd(distribucion([p for _, p, _ in validos], [w for _, _, w in validos], ops),
+                            distribucion([r for r, _, _ in validos], [w for _, _, w in validos], ops)))
+        cond_res[nombre] = {
+            "acierto": sum(aciertos) / len(aciertos) if aciertos else 0.0,
+            "acierto_ponderado": sum(a * w for a, w in aciertos_w) / (sum(w for _, w in aciertos_w) or 1),
+            "jsd_medio": sum(dist) / len(dist) if dist else 1.0, "sin_respuesta": sin_resp,
+            "ic95": ic95(pp, semilla),
+        }
+    azar_acierto = sum(1 / len(ops) for _, ops in preguntas) / len(preguntas)
+    azar_jsd = []
+    for q, ops in preguntas:
+        validos = [(r, w) for r, w in zip(real[q], pesos) if r is not None]
+        azar_jsd.append(jsd({o: 1.0 for o in ops}, distribucion([r for r, _ in validos], [w for _, w in validos], ops)))
+    cond_res["azar"] = {"acierto": azar_acierto, "acierto_ponderado": azar_acierto, "jsd_medio": sum(azar_jsd) / len(azar_jsd), "sin_respuesta": 0}
+    cond_res["diferencias"] = {
+        f"{a} − {b}": ic95_diferencia(por_persona[a], por_persona[b], semilla)
+        for a, b in (("b_con_respuestas", "a_sociodemografia"), ("b_con_respuestas", "moda_del_grupo"),
+                     ("a_sociodemografia", "moda_del_grupo"))
+    }
+    return cond_res
+
+
+def informe_md(estudio, n, preguntas, res, coste, fuente=None) -> str:
+    fuente = fuente or FUENTES["cis"]
+    f = lambda x: f"{x * 100:.1f} %"  # noqa: E731
+    def ic(v):
+        return f"{f(v['ic95'][0])} – {f(v['ic95'][1])}" if v.get("ic95") else "—"
+    filas = "\n".join(
+        f"| {n_} | {f(v['acierto'])} | {ic(v)} | {f(v['acierto_ponderado'])} | {v['jsd_medio']:.3f} |"
+        for n_, v in res.items() if n_ != "diferencias")
+    difs = "\n".join(
+        f"| {k} | {d[0] * 100:+.1f} puntos | {d[1] * 100:+.1f} a {d[2] * 100:+.1f} | "
+        f"{'sí' if d[1] > 0 or d[2] < 0 else 'no'} |"
+        for k, d in (res.get("diferencias") or {}).items() if d)
+    qs = "\n".join(f"- {q} ({' / '.join(ops)})" for q, ops in preguntas)
+    return f"""# Fidelidad con datos de {fuente.nombre} ({fuente.pais_nombre}) — estudio {estudio}
+
+*{fuente.cita} (estudio {estudio}). Uso interno de I+D.*
+
+{n} encuestados reales · {len(preguntas)} preguntas de actitud escondidas · coste real aproximado {coste['usd']} $ ({coste['llamadas']} llamadas).
+
+## Resultado
+
+| Condición | Acierto individual | Intervalo del 95 % | Acierto ponderado | Distancia JS media (0 = igual) |
+|---|---|---|---|---|
+{filas}
+
+Diferencias entre condiciones (misma gente, por persona; «distinta» = el intervalo del 95 % no incluye el cero):
+
+| Comparación | Diferencia | Intervalo del 95 % | ¿Distinta de cero? |
+|---|---|---|---|
+{difs}
+
+Referencia (Park et al., Stanford 2024, arXiv 2411.10109): 74 % con solo demografía, 82 % con encuesta, 86 % con
+encuesta y entrevista, frente a lo que la misma persona repite a las dos semanas. Otro estudio (arXiv 2509.19088):
+persona a persona y ante estímulos nuevos solo r = 0,20 → **se vende como ensayo, no como predicción**.
+
+## Preguntas escondidas
+{qs}
+
+## Cómo leerlo
+- *a_sociodemografia*: el modelo solo sabe sexo, edad, región, estudios, situación laboral.
+- *b_con_respuestas*: además sabe el resto de lo que esa persona contestó (las escondidas no aparecen).
+- *moda_del_grupo*: línea base sin LLM — la respuesta más común de su grupo (sexo × tramo de edad).
+- *azar*: elegir al azar entre las opciones.
+La mejora de b sobre a es lo que aporta anclar a la persona a sus datos reales; la de a sobre la moda del grupo, lo
+que aporta el modelo.
+"""
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--fuente", default="cis", help="id de la fuente registrada en fuentes.py (por defecto: cis)")
+    ap.add_argument("--estudio", default="3535")
+    ap.add_argument("--n", type=int, default=150)
+    ap.add_argument("--preguntas", type=int, default=10)
+    ap.add_argument("--semilla", type=int, default=1)
+    ap.add_argument("--estimar", action="store_true", help="solo calcula el coste y sale")
+    ap.add_argument("--ejecutar", action="store_true", help="lanza las llamadas (cuesta dinero real)")
+    ap.add_argument("--max-usd", type=float, default=1.0)
+    ap.add_argument("--paralelo", type=int, default=8, help="llamadas simultáneas al modelo")
+    ap.add_argument("--salida", default="")
+    a = ap.parse_args(argv)
+    fuente = FUENTES.get(a.fuente)
+    if fuente is None:
+        raise SystemExit(f"Fuente desconocida {a.fuente!r}. Registradas: {', '.join(FUENTES)}.")
+    if not tiene_banco(fuente):
+        raise SystemExit(f"No hay banco de {fuente.nombre}: constrúyelo con su script de scripts/poblacion/.")
+    banco = abrir_banco(fuente)
+    muestra = cargar_muestra(banco, a.estudio, a.n, a.semilla)
+    preguntas = elegir_preguntas(muestra, a.preguntas)
+    if len(muestra) < 30 or len(preguntas) < 3:
+        raise SystemExit(f"Muestra insuficiente ({len(muestra)} personas, {len(preguntas)} preguntas aptas).")
+    coste = estimar_coste(muestra, preguntas, fuente=fuente)
+    print(f"{len(muestra)} personas · {len(preguntas)} preguntas escondidas")
+    print(f"Coste estimado: {coste['usd']} $ ({coste['llamadas']} llamadas, {coste['tokens_entrada']:,} tokens de entrada, "
+          f"~{coste['tokens_salida']:,} de salida) con MiniMax-M3")
+    if not a.ejecutar:
+        return
+    if coste["usd"] > a.max_usd:
+        raise SystemExit(f"El coste estimado supera --max-usd={a.max_usd}. No se lanza.")
+    res = evaluar(muestra, preguntas, llm_por_defecto(), a.semilla, fuente, a.paralelo)
+    md = informe_md(a.estudio, len(muestra), preguntas, res, coste, fuente)
+    salida = a.salida or os.path.join(os.path.dirname(ruta_banco(fuente)), f"fidelidad-{fuente.id}.md")
+    Path(salida).write_text(md, encoding="utf-8")
+    print(md)
+    print(f"Informe guardado en {salida}")
+
+
+if __name__ == "__main__":
+    main()

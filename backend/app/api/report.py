@@ -63,6 +63,15 @@ def _build_report_filename(report) -> str:
         return default_name
 
 
+def poblacion_cita(simulation_id) -> str:
+    """«Fuente de datos: CIS (estudio NNNN)» si el público de esa simulación se ancló a datos reales; si no, vacío."""
+    try:
+        from ..services.poblacion import cita_de_simulacion
+        return cita_de_simulacion(simulation_id)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _pdf_meta(report) -> dict:
     """Personas, rondas y acciones de la simulación para la portada del PDF (los que falten, no se pintan)."""
     meta = {}
@@ -76,6 +85,9 @@ def _pdf_meta(report) -> dict:
             meta["actions"] = (getattr(run_state, "twitter_actions_count", 0) or 0) + (getattr(run_state, "reddit_actions_count", 0) or 0)
     except Exception as meta_err:  # noqa: BLE001 — la portada no debe impedir la descarga
         logger.warning(f"No se pudieron leer los datos de la simulación para el PDF: {meta_err}")
+    cita = poblacion_cita(report.simulation_id)
+    if cita:
+        meta["fuente_datos"] = cita
     return meta
 
 
