@@ -129,7 +129,7 @@ def draft_file():
     mimetype, filename = DRAFT_FORMATS[fmt]
     try:
         if fmt == 'docx':
-            payload = build_docx(markdown)
+            payload = build_docx(markdown, locale=get_locale())
         else:
             from ..services.report_pdf import render_brief_pdf
             payload = render_brief_pdf(markdown_text=markdown, locale=get_locale())

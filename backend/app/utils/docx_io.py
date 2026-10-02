@@ -198,12 +198,32 @@ def extract_docx_text(source) -> str:
 # Escribir
 # ---------------------------------------------------------------------------------------------------------------
 
+# Identidad de Simuloo (brandbook de Koolbrand): tinta, lima y su versión suave, y las dos tipografías. El bloque lima
+# detrás del texto es la firma de la marca; en Word es el sombreado de carácter.
+_INK, _INK2, _MUTED, _LINE = '111111', '2A2A2A', '6E6E6E', 'DDDDDD'
+_LIME, _LIME_SOFT = 'CCE673', 'F0F8D5'
+_SANS, _MONO = 'Inter Tight', 'JetBrains Mono'
+_TEXT_WIDTH = 9072                        # A4 (11906) menos 1417 de margen a cada lado, en veinteavos de punto
+_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+
+_LABELS = {
+    'es': {'template': 'Plantilla de brief', 'draft': 'Borrador de brief', 'lang': 'es-ES',
+           'tagline': 'Simuloo · Simulación de opinión pública con IA', 'page': ('Página ', ' de ', '')},
+    'en': {'template': 'Brief template', 'draft': 'Brief draft', 'lang': 'en-GB',
+           'tagline': 'Simuloo · AI public opinion simulation', 'page': ('Page ', ' of ', '')},
+    'zh': {'template': '简报模板', 'draft': '简报草稿', 'lang': 'zh-CN',
+           'tagline': 'Simuloo · AI 舆论模拟', 'page': ('第 ', ' 页，共 ', ' 页')},
+}
+
 _CONTENT_TYPES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
                   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
                   '<Default Extension="xml" ContentType="application/xml"/>'
                   '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
                   '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+                  '<Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>'
+                  '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
+                  '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
                   '</Types>')
 _RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
@@ -211,29 +231,105 @@ _RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
          '</Relationships>')
 _DOC_RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-             '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+             f'<Relationship Id="rId1" Type="{_R}/styles" Target="styles.xml"/>'
+             f'<Relationship Id="rId2" Type="{_R}/header" Target="header1.xml"/>'
+             f'<Relationship Id="rId3" Type="{_R}/footer" Target="footer1.xml"/>'
+             f'<Relationship Id="rId4" Type="{_R}/fontTable" Target="fontTable.xml"/>'
              '</Relationships>')
 
+# Si el equipo que abre el documento no tiene las tipografías de la marca, Word usa estas en su lugar.
+_FONT_TABLE = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+               f'<w:fonts xmlns:w="{W}">'
+               f'<w:font w:name="{_SANS}"><w:altName w:val="Arial"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>'
+               f'<w:font w:name="{_MONO}"><w:altName w:val="Consolas"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/></w:font>'
+               '</w:fonts>')
 
-def _style_xml(style_id: str, name: str, size_half_pts: int, bold: bool, before: int, after: int, outline: Optional[int] = None) -> str:
-    return (f'<w:style w:type="paragraph" w:styleId="{style_id}"><w:name w:val="{name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
-            f'<w:pPr><w:keepNext/><w:spacing w:before="{before}" w:after="{after}"/>'
-            + (f'<w:outlineLvl w:val="{outline}"/>' if outline is not None else '') +
-            f'</w:pPr><w:rPr>{"<w:b/>" if bold else ""}<w:color w:val="111111"/><w:sz w:val="{size_half_pts}"/></w:rPr></w:style>')
+
+def _rpr(font: str = '', bold: bool = False, italic: bool = False, caps: bool = False, color: str = '',
+         spacing: int = 0, size: int = 0, shade: str = '') -> str:
+    """Propiedades de texto. El esquema de Word fija el orden: rFonts, b, i, caps, color, spacing, sz, shd."""
+    return ((f'<w:rFonts w:ascii="{font}" w:hAnsi="{font}" w:cs="{font}"/>' if font else '')
+            + ('<w:b/>' if bold else '') + ('<w:i/>' if italic else '') + ('<w:caps/>' if caps else '')
+            + (f'<w:color w:val="{color}"/>' if color else '') + (f'<w:spacing w:val="{spacing}"/>' if spacing else '')
+            + (f'<w:sz w:val="{size}"/>' if size else '')
+            + (f'<w:shd w:val="clear" w:color="auto" w:fill="{shade}"/>' if shade else ''))
 
 
-_STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-           f'<w:styles xmlns:w="{W}">'
-           '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri" w:eastAsia="Calibri"/>'
-           '<w:sz w:val="22"/><w:lang w:val="es-ES"/></w:rPr></w:rPrDefault>'
-           '<w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
-           '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-           + _style_xml('Heading1', 'heading 1', 40, True, 360, 160, 0)
-           + _style_xml('Heading2', 'heading 2', 30, True, 300, 120, 1)
-           + _style_xml('Heading3', 'heading 3', 26, True, 240, 100, 2)
-           + '<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:qFormat/>'
-             '<w:pPr><w:ind w:left="567"/></w:pPr><w:rPr><w:i/><w:color w:val="555555"/></w:rPr></w:style>'
-           '</w:styles>')
+def _style_xml(style_id: str, name: str, ppr: str, rpr: str) -> str:
+    return (f'<w:style w:type="paragraph" w:styleId="{style_id}"><w:name w:val="{name}"/><w:basedOn w:val="Normal"/>'
+            f'<w:next w:val="Normal"/><w:qFormat/><w:pPr>{ppr}</w:pPr><w:rPr>{rpr}</w:rPr></w:style>')
+
+
+def _styles_xml(lang: str) -> str:
+    # En pPr el orden es: keepNext, pBdr, shd, spacing, ind, outlineLvl
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<w:styles xmlns:w="{W}">'
+            '<w:docDefaults><w:rPrDefault><w:rPr>'
+            f'<w:rFonts w:ascii="{_SANS}" w:hAnsi="{_SANS}" w:eastAsia="Microsoft YaHei" w:cs="{_SANS}"/>'
+            f'<w:color w:val="{_INK2}"/><w:sz w:val="21"/><w:lang w:val="{lang}" w:eastAsia="zh-CN"/></w:rPr></w:rPrDefault>'
+            '<w:pPrDefault><w:pPr><w:spacing w:after="100" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
+            '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
+            # Título: texto ink sobre el bloque lima de la marca
+            + _style_xml('Heading1', 'heading 1',
+                         '<w:keepNext/><w:spacing w:before="0" w:after="200"/><w:outlineLvl w:val="0"/>',
+                         _rpr(_SANS, bold=True, color=_INK, size=44, shade=_LIME))
+            # Sección: título con filete fino debajo
+            + _style_xml('Heading2', 'heading 2',
+                         f'<w:keepNext/><w:pBdr><w:bottom w:val="single" w:sz="4" w:space="4" w:color="{_LINE}"/></w:pBdr>'
+                         '<w:spacing w:before="280" w:after="100"/><w:outlineLvl w:val="1"/>',
+                         _rpr(_SANS, bold=True, color=_INK, size=30))
+            # Subtítulo: etiqueta en mayúsculas con la mono de la marca
+            + _style_xml('Heading3', 'heading 3',
+                         '<w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="2"/>',
+                         _rpr(_MONO, caps=True, color=_MUTED, spacing=20, size=18))
+            # Cita = nota destacada: barra lima y fondo lima suave
+            + _style_xml('Quote', 'Quote',
+                         f'<w:pBdr><w:left w:val="single" w:sz="36" w:space="10" w:color="{_LIME}"/></w:pBdr>'
+                         f'<w:shd w:val="clear" w:color="auto" w:fill="{_LIME_SOFT}"/>'
+                         '<w:spacing w:before="60" w:after="60"/><w:ind w:left="340" w:right="113"/>',
+                         _rpr(color=_INK2))
+            + '</w:styles>')
+
+
+def _small_run(text: str, mono: bool = True) -> str:
+    return (f'<w:r><w:rPr>{_rpr(_MONO if mono else _SANS, caps=mono, color=_MUTED, spacing=20 if mono else 0, size=16)}</w:rPr>'
+            f'<w:t xml:space="preserve">{escape(text)}</w:t></w:r>')
+
+
+def _field(instr: str, rpr: str) -> str:
+    """Campo de Word (número de página, total de páginas). El «1» es el valor guardado; Word lo recalcula al maquetar."""
+    return (f'<w:r><w:rPr>{rpr}</w:rPr><w:fldChar w:fldCharType="begin"/></w:r>'
+            f'<w:r><w:rPr>{rpr}</w:rPr><w:instrText xml:space="preserve"> {instr} </w:instrText></w:r>'
+            f'<w:r><w:rPr>{rpr}</w:rPr><w:fldChar w:fldCharType="separate"/></w:r>'
+            f'<w:r><w:rPr>{rpr}</w:rPr><w:t>1</w:t></w:r>'
+            f'<w:r><w:rPr>{rpr}</w:rPr><w:fldChar w:fldCharType="end"/></w:r>')
+
+
+def _header_xml(label: str) -> str:
+    """Cabecera: la marca (simul + «oo» sobre el bloque lima) a la izquierda y el tipo de documento a la derecha."""
+    word = _rpr(_SANS, bold=True, color=_INK, size=32)
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<w:hdr xmlns:w="{W}" xmlns:r="{_R}"><w:p><w:pPr>'
+            f'<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="6" w:color="{_LINE}"/></w:pBdr>'
+            f'<w:tabs><w:tab w:val="right" w:pos="{_TEXT_WIDTH}"/></w:tabs><w:spacing w:after="0"/></w:pPr>'
+            f'<w:r><w:rPr>{word}</w:rPr><w:t>simul</w:t></w:r>'
+            f'<w:r><w:rPr>{_rpr(_SANS, bold=True, color=_INK, size=32, shade=_LIME)}</w:rPr><w:t>oo</w:t></w:r>'
+            '<w:r><w:tab/></w:r>' + _small_run(label) + '</w:p></w:hdr>')
+
+
+def _footer_xml(tagline: str, page: tuple) -> str:
+    """Pie: la frase de la marca a la izquierda y «Página X de Y» a la derecha."""
+    rpr = _rpr(_MONO, caps=True, color=_MUTED, spacing=20, size=16)
+    before, between, after = page
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<w:ftr xmlns:w="{W}" xmlns:r="{_R}"><w:p><w:pPr>'
+            f'<w:pBdr><w:top w:val="single" w:sz="4" w:space="6" w:color="{_LINE}"/></w:pBdr>'
+            f'<w:tabs><w:tab w:val="right" w:pos="{_TEXT_WIDTH}"/></w:tabs><w:spacing w:after="0"/></w:pPr>'
+            + _small_run(tagline) + '<w:r><w:tab/></w:r>'
+            + (_small_run(before) if before else '') + _field('PAGE', rpr)
+            + _small_run(between) + _field('NUMPAGES', rpr) + (_small_run(after) if after else '')
+            + '</w:p></w:ftr>')
+
 
 _INLINE_RE = re.compile(r'(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`)')
 _CTRL_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
@@ -267,11 +363,14 @@ def _paragraph(text: str, style: Optional[str] = None, hanging: int = 0, left: i
     return f'<w:p>{"<w:pPr>" + ppr + "</w:pPr>" if ppr else ""}{runs}</w:p>'
 
 
-def build_docx(markdown_text: str, title: str = '') -> bytes:
+def build_docx(markdown_text: str, title: str = '', *, locale: str = 'es', kind: str = 'draft') -> bytes:
     """
     .docx sencillo desde Markdown básico: `# ## ###` (títulos reales de Word, con navegación), `-`/`*`/`1.` (listas),
     `>` (cita), `**negrita**`, `*cursiva*`, `` `código` `` y párrafos. Suficiente para una plantilla o un borrador.
+    Lleva la identidad de Simuloo: estilos, cabecera con la marca y pie con el número de página. `kind` es
+    `template` o `draft` (rotula la cabecera) y `locale` es es, en o zh (rotula cabecera y pie).
     """
+    labels = _LABELS.get(locale) or _LABELS['es']
     # Bloques como Markdown: las líneas seguidas de un mismo párrafo (o cita, o elemento de lista) forman UN párrafo
     blocks: List[dict] = []
     current: Optional[dict] = None
@@ -340,14 +439,18 @@ def build_docx(markdown_text: str, title: str = '') -> bytes:
         body.insert(0, _paragraph(title, 'Heading1'))
 
     document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                f'<w:document xmlns:w="{W}"><w:body>' + ''.join(body) +
-                '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
+                f'<w:document xmlns:w="{W}" xmlns:r="{_R}"><w:body>' + ''.join(body) +
+                '<w:sectPr><w:headerReference w:type="default" r:id="rId2"/><w:footerReference w:type="default" r:id="rId3"/>'
+                '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1304" w:right="1417" w:bottom="1247" w:left="1417" w:header="624" w:footer="567" w:gutter="0"/></w:sectPr>'
                 '</w:body></w:document>')
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr('[Content_Types].xml', _CONTENT_TYPES)
         zf.writestr('_rels/.rels', _RELS)
         zf.writestr('word/document.xml', document)
-        zf.writestr('word/styles.xml', _STYLES)
+        zf.writestr('word/styles.xml', _styles_xml(labels['lang']))
+        zf.writestr('word/fontTable.xml', _FONT_TABLE)
+        zf.writestr('word/header1.xml', _header_xml(labels['template' if kind == 'template' else 'draft']))
+        zf.writestr('word/footer1.xml', _footer_xml(labels['tagline'], labels['page']))
         zf.writestr('word/_rels/document.xml.rels', _DOC_RELS)
     return buf.getvalue()
