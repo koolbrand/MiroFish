@@ -389,4 +389,10 @@ cd backend && uv run --with pyreadstat --with pandas python scripts/poblacion/bu
 
 ⚠️ Los nombres de variable cambian entre estudios: `build_banco_cis.py` prueba candidatos (`CANDIDATAS`) y se fijan a mano por estudio en `MAPEOS_ESTUDIO` tras mirar el codebook. Los normalizadores (CCAA, tamaño, estudios…) se probaron con etiquetas **supuestas** del CIS, no con los ficheros reales: revisar el primer volcado.
 
-**Producción:** el banco llega al volumen por SSH a koollab, **no por GitHub**; despliegue solo con OK de Adrián.
+**Producción:** los microdatos **no van por GitHub ni por la imagen**. El volumen persistente `mirofish-uploads` (`/app/backend/uploads`) guarda el banco en `/app/backend/uploads/poblacion/` (variable `POBLACION_BANCOS_DIR`). Lo construye `backend/scripts/poblacion/instalar_banco_cis.sh`, que descarga del propio CIS los 5 estudios, **comprueba su huella** y lanza el constructor; es idempotente (si el banco existe, no hace nada) y tarda ~8 min. Se ejecuta como «comando posterior al despliegue» de la app en Coolify (en segundo plano):
+
+```
+setsid nohup sh /app/backend/scripts/poblacion/instalar_banco_cis.sh >/app/backend/logs/instalar_banco.log 2>&1 &
+```
+
+Si el CIS publica una versión nueva de un fichero, la huella no coincide y el script se para: hay que actualizar la URL y la huella en el script. El interruptor de la interfaz sigue apagado por defecto (`POBLACION_DATOS_REALES` sin definir).
