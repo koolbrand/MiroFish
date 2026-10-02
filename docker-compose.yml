@@ -52,6 +52,10 @@ services:
       - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY}
       - API_AUTH_REQUIRED=${API_AUTH_REQUIRED:-true}
       - API_AUTH_TOKEN=${API_AUTH_TOKEN:-}
+      # Público con datos reales (encuestas oficiales por país): apagado por defecto. El banco vive en el volumen de
+      # uploads (no en la imagen) y lo construye backend/scripts/poblacion/instalar_banco_cis.sh tras el despliegue.
+      - POBLACION_DATOS_REALES=${POBLACION_DATOS_REALES:-false}
+      - POBLACION_BANCOS_DIR=/app/backend/uploads/poblacion
       - POCKETBASE_URL=${POCKETBASE_URL:-https://pocketbase.koolgrowth.com}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       - NEO4J_URI=bolt://neo4j:7687
