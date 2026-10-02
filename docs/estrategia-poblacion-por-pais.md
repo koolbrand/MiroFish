@@ -186,6 +186,27 @@ la cita «Fuente de datos» no salía en pantalla en el informe (sí en el PDF);
 **Siguientes pasos, sin implementar:** (1) aplicar a **todos** los grupos la región que sitúa el brief y bajar el mínimo de casos para no relajarla; (2) probar la hipótesis de dar a cada agente la
 **distribución real de su segmento** en las preguntas cercanas al tema; (3) pedir a Jev que no marque instituciones como público; (4) repetir con más agentes y con un segundo brief.
 
+## Alcance geográfico de la simulación (3-oct-2026)
+
+**Por qué.** Tras la prueba del Kool Café, Adrián señaló el fallo de fondo: el banco era nacional y el brief local (salió una teletrabajadora de Extremadura para un café de Vigo), y a la inversa, para un problema nacional no tiene sentido sacar a todo el mundo de una ciudad. El sistema tiene que decidir **dónde vive el público** antes de montar el ecosistema, y el agente del informe tiene que saberlo.
+
+**Qué hace cada nivel.**
+
+| Nivel | A quién se busca | Personas que no salen de la encuesta | Informe |
+|---|---|---|---|
+| Local (ciudad, comarca, provincia) | Región + provincia que el banco conoce, en TODOS los grupos | «vive en la zona del estudio» (con el sitio, si el modelo grande lo dio) | no extrapolar al país; sin inventar competencia ni cifras |
+| Regional | La región (o varias comunidades) | de cualquier ciudad de la región | no extrapolar al país |
+| Nacional | Todo el país, sin acotar por lugar | de cualquier parte, sin la sede por defecto | no atribuir lo observado a una ciudad |
+| Multinacional / Mundial | No se ancla a la encuesta de un solo país | una cultura distinta por persona, repartidas a propósito | no generalizar a un país; muestras pequeñas por cultura |
+
+**Cómo se decide.** Jev (TypeSafe System One) responde en ~0,5 s con una sola petición: el nivel, una pregunta de sí/no por cada región del banco y la provincia. Si duda, falla o es multinacional, decide el modelo grande, que además extrae el nombre del sitio y los países. La persona puede fijarlo a mano (selector del paso 2).
+
+**Medido** con 50 briefs etiquetados a mano (`scripts/poblacion/evaluar_alcance.py`): el modelo grande solo acierta el nivel exacto en 48–49 de 50 y es aceptable en 50 de 50; con Jev primero, Jev decide 37 de 50 con el 100 % bien (mediana 0,5 s) y los 13 restantes pasan al modelo grande. Es decir, Jev no baja la calidad y quita el coste de espera en tres de cada cuatro casos.
+
+**Revisión adversarial** (4 lentes, 2 escépticos por hallazgo): 38 hallazgos, 29 confirmados. Los que importaban: con Jev el «lugar» salía como la provincia (Vigo → Pontevedra) o vacío; en nacional salía siempre «España» por haber un solo banco; una provincia sin región no filtraba nada; una provincia clara se perdía por un «sí» suelto a otra región; al fijar a mano local/regional se perdía el lugar; los grupos de visitantes se forzaban al lugar; el informe local mandaba «contextualizar con competencia y estacionalidad» sin datos (invitaba a inventar); en pantalla, volver a generar sobre una simulación ya preparada se daba por terminado a los 2 s con los datos viejos. Todos corregidos con su test. **Lección:** un modelo rápido decide bien el *nivel*, pero no extrae *nombres*; lo que no extrae se queda vacío y se dice la zona real, no se rellena con otra cosa.
+
+**Límites.** Jev no extrae ciudades ni países; el reparto de culturas es parejo (no pondera por población mundial) y con pocos agentes por cultura las diferencias son orientativas; no hay una opción «el brief no dice dónde» (se elige el nivel más razonable y se dice el motivo); no se ha medido todavía si el alcance mejora el informe (solo que las personas dejan de ser de otro sitio).
+
 ## 8. Cómo sabremos que funciona (criterios de aceptación)
 
 Criterios de aceptación de la fase 1 (se fijan *antes* de mirar los resultados):

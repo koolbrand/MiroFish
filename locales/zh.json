@@ -699,6 +699,7 @@
     "alcance_mundial": "全球",
     "alcance_desconocido": "未确定",
     "alcanceDetectado": "已识别：{texto}",
+    "alcanceElegidoChip": "已选择：{texto}",
     "alcanceHint": "受众所在的地方：它决定找谁（一个地点、一个地区、整个国家或多个国家）以及报告采取哪些谨慎措施。",
     "profileModalAge": "事件外显年龄",
     "profileModalGender": "事件外显性别",

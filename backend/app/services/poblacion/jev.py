@@ -22,10 +22,14 @@ logger = get_logger('mirofish.poblacion.jev')
 
 TIMEOUT = 25
 MAX_POR_PETICION = 120          # la documentación no fija un tope; se trocea para no depender de él
+ENFRIAMIENTO = 90               # segundos sin volver a llamar a Jev después de un fallo del servicio
+
+_caido_hasta = 0.0
 
 
 def disponible() -> bool:
-    return bool(Config.TYPESAFE_API_KEY) and Config.JEV_ENTITY_FILTER is not False
+    """Hay clave y el servicio no acaba de fallar: tras un fallo, las decisiones siguientes van directas al modelo grande."""
+    return bool(Config.TYPESAFE_API_KEY) and Config.JEV_ENTITY_FILTER is not False and time.time() >= _caido_hasta
 
 
 def choice(instrucciones: str, criterios: Dict[str, str]) -> dict:
@@ -39,6 +43,7 @@ def noul(instrucciones: str, si: str = "Sí", no: str = "No") -> dict:
 
 
 def _post(cliente: httpx.Client, state, preguntas: Dict[str, dict]) -> Optional[Dict[str, dict]]:
+    global _caido_hasta
     payload = {"model": Config.JEV_MODEL, "state": state, "questions": preguntas}
     espera = 1.0
     for intento in range(3):
@@ -48,11 +53,16 @@ def _post(cliente: httpx.Client, state, preguntas: Dict[str, dict]) -> Optional[
                 time.sleep(espera)
                 espera *= 2
                 continue
+            if 400 <= r.status_code < 500 and r.status_code not in (408, 429):
+                # Una petición mal formada o una clave rechazada no se arregla repitiéndola
+                logger.warning(f"Jev rechazó la petición ({r.status_code}): {r.text[:120]}")
+                return None
             r.raise_for_status()
             return r.json()["answers"]
         except Exception as e:  # noqa: BLE001 — sin respuesta, quien llama usa el camino lento
             if intento == 2:
                 logger.warning(f"Jev no respondió: {type(e).__name__}: {str(e)[:120]}")
+                _caido_hasta = time.time() + ENFRIAMIENTO
             else:
                 time.sleep(espera)
                 espera *= 2

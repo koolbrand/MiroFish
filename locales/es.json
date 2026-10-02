@@ -699,6 +699,7 @@
     "alcance_mundial": "Mundial",
     "alcance_desconocido": "Sin determinar",
     "alcanceDetectado": "Detectado: {texto}",
+    "alcanceElegidoChip": "Elegido: {texto}",
     "alcanceHint": "Dónde vive el público: decide a quién se busca (un lugar, una región, un país entero o varios países) y con qué cautelas escribe el informe.",
     "profileModalAge": "Edad aparente",
     "profileModalGender": "Género aparente",

@@ -26,6 +26,7 @@ from .ficha import construir_ficha as _construir_ficha
 from .ficha import genero_oasis, hechos_memoria
 from . import jev
 from .alcance import Alcance
+from .filtros import FUERA_DEL_LUGAR
 from .filtros import traducir_grupos
 from .metricas import CAMPOS_CALIDAD, calidad_de_grupo
 from .fuentes import (FUENTES, Fuente, abrir_banco, disponibles, fuente_de_pais, registrar, ruta_banco,
@@ -81,7 +82,7 @@ def _relevantes_con_jev(catalogo: List[str], tema: str, n: int) -> List[str]:
     r = jev.preguntar({"tema_del_estudio": " ".join(tema.split())[:1200]}, preguntas)
     if not r:
         return []
-    puntos = sorted(((float(r.get(f"q{i}", {}).get("noul", 0)), i) for i in range(len(catalogo))), reverse=True)
+    puntos = sorted(((float(r.get(f"q{i}", {}).get("noul", 0)), i) for i in range(len(catalogo))), key=lambda t: (-t[0], t[1]))   # a igual probabilidad, la más contestada (catálogo ordenado)
     elegidas = [catalogo[i] for p, i in puntos if p >= 0.5][:n]
     return elegidas if len(elegidas) >= 5 else []
 
@@ -229,15 +230,23 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
     # banco conoce: la región tiene que ser de la lista de la fuente y la provincia, del banco
     lugar_regiones: List[str] = []
     lugar_provincia: Optional[str] = None
+    fuera = {k for k, f in filtros.items() if f.pop(FUERA_DEL_LUGAR, False)}   # visitantes de fuera: no son del lugar del alcance
     if alcance is not None and alcance.acota_por_lugar:
         lugar_regiones = [r for r in alcance.lista_regiones if r in fuente.regiones]
         lugar_provincia = alcance.provincia if alcance.provincia in banco.subregiones() else None
+        if lugar_provincia and not lugar_regiones:   # solo se sabe la provincia: su región la dice el propio banco
+            lugar_regiones = [r for r in banco.regiones_de(lugar_provincia) if r in fuente.regiones]
         for g in grupos:
             f = filtros.setdefault(g.clave, {})
-            if lugar_regiones and "region" not in f:
+            if g.clave in fuera or not lugar_regiones:
+                continue
+            propia = f.get("region")
+            if propia is None:
                 f["region"] = list(lugar_regiones)
-                if lugar_provincia and alcance.nivel == "local" and len(lugar_regiones) == 1:
-                    f["subregion"] = [lugar_provincia]
+            elif not set(propia) <= set(lugar_regiones):
+                continue                              # el grupo se define por OTRA región: se respeta
+            if lugar_provincia and alcance.nivel == "local" and len(lugar_regiones) == 1 and "subregion" not in f:
+                f["subregion"] = [lugar_provincia]
 
     segmentos = {g.clave: banco.segmento(filtros.get(g.clave) or {}) for g in grupos}
     # Los grupos con menos gente en la encuesta eligen primero: los comunes no deben agotarles el segmento
@@ -250,7 +259,7 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
         avisos: List[str] = []
         if len(ids) < g.n:      # segmento agotado: se completa con el resto de adultos del país, sin repetir
             propios = len(ids)
-            if lugar_regiones:                  # primero gente del mismo lugar; solo si no alcanza, del resto del país
+            if lugar_regiones and g.clave not in fuera:   # primero gente del mismo lugar; solo si no alcanza, del resto del país
                 resto_lugar = banco.segmento({"region": list(lugar_regiones)}, minimo=0)
                 ids += banco.muestrear(resto_lugar, g.n - propios, excluidos=usados | set(ids), rng=rng)
             if len(ids) < g.n:

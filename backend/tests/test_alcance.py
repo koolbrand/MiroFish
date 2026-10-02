@@ -281,7 +281,7 @@ def test_alcance_mundial_no_ancla_a_la_encuesta_de_un_pais_y_reparte_culturas(co
     g = _generador({"nivel": "mundial", "lugar": "", "motivo": "app global"})
     ruta = str(tmp_path / "poblacion.json")
     perfiles = g.generate_profiles_from_entities([_entidad(i, grupo=f"G{i}") for i in range(3)], parallel_count=1,
-                                                 poblacion_datos=True, poblacion_pais="ES", pregunta="¿App global?",
+                                                 poblacion_datos=True, pregunta="¿App global?",
                                                  publico_descripcion="Todo el mundo", poblacion_resumen_path=ruta)
     r = json.load(open(ruta, encoding="utf-8"))
     assert r["sin_datos"] is True and "alcance es mundial" in r["motivo"] and r["pais_decidido_por"] == "alcance"
@@ -342,6 +342,25 @@ def test_api_alcance_de_una_simulacion(cliente, storage):   # noqa: F811
     assert cliente.get("/api/simulation/malo/alcance", headers=H).status_code in (400, 404)
 
 
+def test_el_estado_de_una_regeneracion_en_curso_no_dice_listo_por_los_ficheros_viejos(cliente, storage, monkeypatch):   # noqa: F811
+    """«Volver a generar» sobre una simulación ya preparada se daba por terminado a los 2 s, con los datos de antes."""
+    from app.api import simulation as api
+    from app.models.task import TaskManager, TaskStatus
+    sid = "sim_regen1"
+    monkeypatch.setattr(api, "_check_simulation_prepared", lambda s: (True, {"viejo": True}))
+    tm = TaskManager()
+    tarea = tm.create_task(task_type="simulation_prepare", metadata={"simulation_id": sid})
+    tm.update_task(tarea, status=TaskStatus.PROCESSING, progress=15, message="regenerando")
+    d = cliente.post("/api/simulation/prepare/status", json={"task_id": tarea, "simulation_id": sid}, headers=H).get_json()["data"]
+    assert d["status"] == "processing" and d["already_prepared"] is False and d["progress"] == 15
+    tm.update_task(tarea, status=TaskStatus.COMPLETED, progress=100, message="listo")
+    d = cliente.post("/api/simulation/prepare/status", json={"task_id": tarea, "simulation_id": sid}, headers=H).get_json()["data"]
+    assert d["status"] in ("ready", "completed")                                       # terminada: ahora sí vale lo preparado
+    # sin tarea, un público ya preparado sigue dando «listo» (volver a abrir una simulación)
+    d = cliente.post("/api/simulation/prepare/status", json={"simulation_id": sid}, headers=H).get_json()["data"]
+    assert d["status"] == "ready" and d["already_prepared"] is True
+
+
 # ---------------------------------------------------------------- Jev: decisiones cerradas y rápidas (el modelo grande, de respaldo)
 from app.services.poblacion import jev as J          # noqa: E402
 from app.services.poblacion import pais as P          # noqa: E402
@@ -383,7 +402,9 @@ def test_con_jev_el_alcance_local_se_decide_sin_llamar_al_modelo_grande(con_banc
     falso = _JevFalso("local", regiones=["Galicia"], provincia="Pontevedra")
     con_jev.setattr(J, "preguntar", falso)
     a = A.detectar("auto", "pregunta", "Una taberna de Vigo", _sin_llm)
-    assert (a.nivel, a.region, a.provincia, a.lugar) == ("local", "Galicia", "Pontevedra", "Pontevedra") and "Jev" in a.motivo
+    # Jev no extrae el nombre del sitio: nunca se pasa la provincia por «el lugar» (era Vigo y salía Pontevedra)
+    assert (a.nivel, a.region, a.provincia, a.lugar) == ("local", "Galicia", "Pontevedra", "") and "Jev" in a.motivo
+    assert a.descripcion() == "Local · Galicia, Pontevedra"
     state, preguntas = falso.llamadas[0]
     assert state["brief"] == "Una taberna de Vigo" and "nivel" in preguntas and "provincia" in preguntas
     assert {"region::Galicia", "region::Madrid"} <= set(preguntas)                    # una pregunta de sí o no por región del banco
@@ -403,7 +424,7 @@ def test_con_jev_varias_regiones_enteras_y_nacional_sin_lugar(con_banco, con_jev
     assert a.nivel == "regional" and a.regiones == ["Galicia", "Madrid"] and a.region is None and a.provincia is None
     con_jev.setattr(J, "preguntar", _JevFalso("nacional", regiones=["Galicia"], provincia="Pontevedra"))
     n = A.detectar("auto", "p", "b", _sin_llm)
-    assert (n.nivel, n.region, n.regiones, n.provincia, n.lugar) == ("nacional", None, [], None, "España")
+    assert (n.nivel, n.region, n.regiones, n.provincia, n.lugar) == ("nacional", None, [], None, "")   # el país no sale del número de bancos
     con_jev.setattr(J, "preguntar", _JevFalso("mundial"))
     assert A.detectar("auto", "p", "b", _sin_llm).nivel == "mundial"
 
@@ -423,7 +444,8 @@ def test_si_jev_duda_falla_o_es_multinacional_decide_el_modelo_grande(con_banco,
 def test_jev_no_se_pregunta_si_la_persona_fijo_un_alcance_sin_lugar(con_banco, con_jev):
     con_jev.setattr(J, "preguntar", lambda s, q: (_ for _ in ()).throw(AssertionError("no debía preguntarse a Jev")))
     assert A.detectar("mundial", "p", "b", _sin_llm).origen == "pedido"
-    assert A.detectar("nacional", "p", "b", _sin_llm).lugar == "España"
+    n = A.detectar("nacional", "p", "b", _sin_llm)
+    assert (n.nivel, n.lugar, n.origen) == ("nacional", "", "pedido")                  # un público mexicano no es «España» por tener solo ese banco
 
 
 def test_el_cliente_de_jev_trocea_y_si_un_trozo_falla_no_devuelve_nada(monkeypatch):
@@ -468,3 +490,165 @@ def test_el_pais_se_decide_con_jev_o_cae_al_modelo_grande(con_banco, con_jev):
     con_jev.setattr(J, "preguntar", es(0.5))                                           # duda → decide el modelo grande
     d = P.detectar("auto", "pregunta", "brief", lambda p: '{"pais": "ES", "motivo": "modelo grande"}')
     assert d.fuente is not None and d.motivo == "modelo grande"
+
+
+# ---------------------------------------------------------------- correcciones de la revisión adversarial (3-oct-2026)
+def test_sin_nombre_de_sitio_la_pista_y_el_informe_dicen_la_zona_real_no_un_parentesis_vacio():
+    zona = A.Alcance("local", "", "Galicia", "Pontevedra")
+    pista = A.pista_para_persona(zona)
+    assert "LOCAL (Galicia, Pontevedra)" in pista and "al que se refiere el estudio" in pista
+    informe = A.texto_para_informe(zona)
+    assert "Local · Galicia, Pontevedra" in informe and "mercado local (Galicia, Pontevedra)" in informe
+    sin_nada = A.texto_para_informe(A.Alcance("local"))
+    assert "()" not in sin_nada and "(:" not in sin_nada and "ese lugar" in A.pista_para_persona(A.Alcance("local"))
+    # sin lugar, el país del que habla el estudio (no «España» ni «de el país»)
+    assert "el país del que habla el estudio" in A.pista_para_persona(A.Alcance("nacional"))
+
+
+def test_el_informe_local_no_manda_inventar_competencia_ni_estacionalidad():
+    t = A.texto_para_informe(A.Alcance("local", "Vigo", "Galicia"))
+    assert "solo con lo que muestren la simulación y los documentos" in t and "no inventes datos de competencia" in t
+    assert "competencia cercana" not in t and "estacionalidad del sitio" not in t
+
+
+def test_con_jev_una_provincia_clara_manda_sobre_un_si_suelto_a_otra_region(con_banco, con_jev):
+    # Jev dice Pontevedra con claridad y, por ruido, «sí» a Madrid: la región es la de la provincia, no se mezcla otra comunidad
+    con_jev.setattr(J, "preguntar", _JevFalso("local", regiones=["Madrid"], provincia="Pontevedra"))
+    a = A.detectar("auto", "p", "b", _sin_llm)
+    assert (a.region, a.provincia, a.regiones) == ("Galicia", "Pontevedra", [])
+    con_jev.setattr(J, "preguntar", _JevFalso("local", regiones=["Galicia", "Madrid"], provincia="Pontevedra"))
+    assert A.detectar("auto", "p", "b", _sin_llm).region == "Galicia"                 # si una de las regiones sí es la suya, esa
+
+
+def test_si_la_persona_fija_local_o_regional_se_sigue_preguntando_a_jev_donde(con_banco, con_jev):
+    """Antes, fijar «local» con un brief que Jev veía nacional perdía el lugar y no se filtraba nada."""
+    falso = _JevFalso("nacional", regiones=["Galicia"], provincia="Pontevedra")
+    con_jev.setattr(J, "preguntar", falso)
+    a = A.detectar("local", "p", "Taberna de Vigo", _sin_llm)
+    assert (a.nivel, a.region, a.provincia, a.origen) == ("local", "Galicia", "Pontevedra", "pedido")
+    assert "nivel" not in falso.llamadas[0][1]                                        # el nivel ya lo fijó la persona: no se pregunta
+    b = A.detectar("regional", "p", "Taberna de Vigo", _sin_llm)
+    assert (b.nivel, b.region, b.provincia) == ("regional", "Galicia", None)
+
+
+def test_si_la_persona_fija_multinacional_los_paises_los_extrae_el_modelo_grande(con_banco, con_jev):
+    con_jev.setattr(J, "preguntar", lambda s, q: (_ for _ in ()).throw(AssertionError("Jev no extrae países")))
+    llm = _llm(nivel="multinacional", lugar="Iberia", lugares=["España", "Portugal"])
+    a = A.detectar("multinacional", "p", "b", llm)
+    assert (a.nivel, a.lugares, a.origen) == ("multinacional", ["España", "Portugal"], "pedido")   # antes se repartían las 10 culturas
+
+
+def test_la_provincia_sin_region_deriva_la_region_del_banco_y_filtra(con_banco):
+    # el modelo grande da provincia y no región: antes «acotaba» y no filtraba nada (gente de toda España para un proyecto de Vigo)
+    a = A.detectar("auto", "p", "b", _llm(nivel="local", lugar="Vigo", region=None, provincia="Pontevedra"))
+    assert (a.region, a.provincia) == ("Galicia", "Pontevedra")
+    sin_region = A.Alcance("local", "Vigo", None, "Pontevedra")                       # alcance guardado de antes, solo con provincia
+    asig = poblacion.asignar_por_grupos(GRUPOS, "brief", lambda p: "{}", fuente=FUENTES["cis"], alcance=sin_region, rng=random.Random(11))
+    assert {e.region for e in asig.encuestados} == {"Galicia"} and {e.subregion for e in asig.encuestados} == {"Pontevedra"}
+
+
+def test_un_grupo_con_la_misma_region_del_alcance_tambien_recibe_la_provincia(con_banco):
+    al = A.Alcance("local", "Vigo", "Galicia", "Pontevedra")
+    llm = lambda p: json.dumps({"a": {"region": ["Galicia"]}, "b": {}, "c": {}})      # noqa: E731
+    asig = poblacion.asignar_por_grupos(GRUPOS, "brief", llm, fuente=FUENTES["cis"], alcance=al, rng=random.Random(12))
+    assert {e.subregion for e in asig.de_grupo("a")} == {"Pontevedra"}                # antes salía de toda Galicia
+
+
+def test_los_visitantes_de_fuera_no_se_fuerzan_al_lugar_del_alcance(con_banco):
+    al = A.Alcance("local", "Santiago", "Galicia", "Coruña (A)")
+    llm = lambda p: json.dumps({"a": {"fuera_del_lugar": True}, "b": {}, "c": {}})    # noqa: E731
+    asig = poblacion.asignar_por_grupos(GRUPOS, "brief", llm, fuente=FUENTES["cis"], alcance=al, rng=random.Random(13))
+    assert len({e.region for e in asig.de_grupo("a")}) >= 3                          # peregrinos: de todo el país
+    assert {e.region for e in asig.de_grupo("b")} == {"Galicia"}                      # los vecinos, de allí
+    assert "_fuera_del_lugar" not in json.dumps(asig.resumen())                        # la marca interna no sale al resumen
+    assert "fuera_del_lugar" in nota_de_alcance(al)                                   # y el traductor sabe que puede marcarlo
+
+
+def test_el_modelo_grande_con_tipos_raros_no_rompe_la_deteccion(con_banco):
+    # `lugares` como texto se partía en letras y `regiones` no iterable abortaba detectar()
+    a = A.detectar("auto", "p", "b", _llm(nivel="multinacional", lugar="x", lugares="España y Portugal", regiones=5))
+    assert a.nivel == "multinacional" and a.lugares == ["España y Portugal"]
+    b = A.detectar("auto", "p", "b", _llm(nivel="regional", lugar="Galicia", region="Galicia", regiones={"a": 1}))
+    assert (b.nivel, b.region) == ("regional", "Galicia")
+    c = A.detectar("auto", "p", "b", _llm(nivel="multinacional", lugares=[None, {"x": 1}, "Portugal", 3]))
+    assert c.lugares == ["Portugal", "3"]
+
+
+def test_las_culturas_se_reparten_por_orden_entre_las_personas_del_publico(con_banco, tmp_path):
+    """Con un índice de entidad del grafo (instituciones, otros nodos en medio), tres personas podían caer en la misma cultura."""
+    from app.services.zep_entity_reader import EntityNode
+    g = _generador({"nivel": "mundial", "lugar": "", "motivo": "app global"})
+    otras = lambda i: EntityNode(uuid=f"o{i}", name=f"Otro {i}", labels=["Entity", "Org"], summary="x", attributes={})   # noqa: E731
+    entidades = [otras(0), _entidad(1, "G1"), otras(2), otras(3), _entidad(4, "G2"), otras(5), _entidad(6, "G3")]
+    g.generate_profiles_from_entities(entidades, parallel_count=1, poblacion_datos=False, pregunta="¿App?", publico_descripcion="Mundo")
+    import re
+    culturas = [re.search(r"procede de «([^»]+)»", p).group(1) for p in g.client.prompts if "Alcance de la simulación: MUNDIAL" in p]
+    assert len(culturas) == 3 and culturas == list(A.CULTURAS[:3])                    # 0, 1, 2 entre las del público, en orden
+
+
+def test_con_alcance_mundial_la_persona_no_se_sitúa_en_el_pais_del_tema(con_banco):
+    g = _generador({"nivel": "mundial", "lugar": "", "motivo": "app global"})
+    g.generate_profiles_from_entities([_entidad(0)], parallel_count=1, poblacion_datos=False, pregunta="¿App?", publico_descripcion="Mundo")
+    p = [x for x in g.client.prompts if "Alcance de la simulación: MUNDIAL" in x][0]
+    assert "vive en el país o la región de los que habla ese tema" not in p and "procede de «" in p
+    g2 = _generador({"nivel": "local", "lugar": "Vigo", "region": "Galicia", "provincia": "Pontevedra", "motivo": "x"})
+    g2.generate_profiles_from_entities([_entidad(0)], parallel_count=1, poblacion_datos=False, pregunta="¿Café?", publico_descripcion="Vigo")
+    assert any("vive en el país o la región de los que habla ese tema" in x for x in g2.client.prompts)
+
+
+def test_un_pais_elegido_a_mano_manda_sobre_un_alcance_mundial_deducido(con_banco, tmp_path):
+    g = _generador({"nivel": "mundial", "lugar": "", "motivo": "app global"})
+    ruta, ruta_alc = str(tmp_path / "poblacion.json"), str(tmp_path / A.FICHERO)
+    perfiles = g.generate_profiles_from_entities([_entidad(i, grupo=f"G{i}") for i in range(3)], parallel_count=1,
+                                                 poblacion_datos=True, poblacion_pais="ES", pregunta="¿App?",
+                                                 publico_descripcion="Todo el mundo", poblacion_resumen_path=ruta,
+                                                 alcance_path=ruta_alc)
+    guardado = json.load(open(ruta_alc, encoding="utf-8"))
+    assert guardado["nivel"] == "nacional" and guardado["lugar"] == "España" and guardado["origen"] == "pedido"
+    assert all(p.data_source == "CIS" for p in perfiles)                               # personas e informe, de acuerdo
+
+
+def test_con_alcance_mundial_no_se_gasta_la_deteccion_del_pais(con_banco):
+    g = _generador({"nivel": "mundial", "lugar": "", "motivo": "app global"})
+    g.generate_profiles_from_entities([_entidad(0)], parallel_count=1, poblacion_datos=True, pregunta="¿App?", publico_descripcion="Mundo")
+    assert not any("Decide de qué país es el PÚBLICO" in p for p in g.client.prompts)
+
+
+def test_nacional_toma_el_pais_de_la_deteccion_del_pais_no_del_numero_de_bancos(con_banco, tmp_path):
+    g = _generador({"nivel": "nacional", "lugar": "", "motivo": "x"})
+    ruta_alc = str(tmp_path / A.FICHERO)
+    g.generate_profiles_from_entities([_entidad(0), _entidad(1)], parallel_count=1, poblacion_datos=True, pregunta="¿Café?",
+                                      publico_descripcion="Todo el país", alcance_path=ruta_alc)
+    assert json.load(open(ruta_alc, encoding="utf-8"))["lugar"] == "España"           # la detección de país confirmó España
+    g2 = _generador({"nivel": "nacional", "lugar": "", "motivo": "x"})
+    ruta2 = str(tmp_path / "otro.json")
+    g2.generate_profiles_from_entities([_entidad(0)], parallel_count=1, poblacion_datos=False, pregunta="¿Café?",
+                                       publico_descripcion="Todo México", alcance_path=ruta2)
+    assert json.load(open(ruta2, encoding="utf-8"))["lugar"] == ""                    # sin datos reales, ningún país inventado
+
+
+def test_jev_no_reintenta_un_4xx_y_tras_un_fallo_del_servicio_no_vuelve_a_esperar(monkeypatch):
+    import httpx
+    monkeypatch.setattr(Config, "TYPESAFE_API_KEY", "clave-falsa")
+    monkeypatch.setattr(Config, "JEV_ENTITY_FILTER", True)
+    monkeypatch.setattr(J, "_caido_hasta", 0.0)
+    monkeypatch.setattr(J.time, "sleep", lambda s: None)
+    llamadas = []
+
+    class Cliente:
+        def __init__(self, estado):
+            self.estado = estado
+
+        def post(self, url, json=None):
+            llamadas.append(self.estado)
+            if self.estado == "red":
+                raise httpx.ConnectTimeout("lento")
+            return httpx.Response(self.estado, json={"error": "x"}, request=httpx.Request("POST", url))
+
+    assert J._post(Cliente(400), "s", {"q": J.noul("x")}) is None and llamadas == [400]      # no se repite una petición mala
+    assert J.disponible()                                                                  # y no apaga Jev: era un error nuestro
+    llamadas.clear()
+    assert J._post(Cliente("red"), "s", {"q": J.noul("x")}) is None and len(llamadas) == 3  # el servicio no responde: 3 intentos
+    assert not J.disponible()                                                              # las decisiones siguientes van directas al modelo grande
+    monkeypatch.setattr(J, "_caido_hasta", 0.0)
+    assert J.disponible()

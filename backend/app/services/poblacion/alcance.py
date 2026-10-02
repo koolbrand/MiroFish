@@ -78,12 +78,16 @@ class Alcance:
         """Con varios países o con el mundo no hay una encuesta que represente al público: no se ancla a la de un solo país."""
         return self.nivel not in ("multinacional", "mundial")
 
+    @property
+    def zona(self) -> str:
+        """La región(es) y la provincia que el banco entiende; nombra la zona cuando el brief no dio un sitio más concreto."""
+        return ", ".join(x for x in (*self.lista_regiones, self.provincia) if x and x != self.lugar)
+
     def descripcion(self) -> str:
         if self.nivel == DESCONOCIDO:
             return ETIQUETAS[DESCONOCIDO]
-        zona = ", ".join(x for x in (*self.lista_regiones, self.provincia) if x and x != self.lugar)
         sitio = self.lugar or ", ".join(self.lugares)
-        detalle = f"{sitio} ({zona})" if sitio and zona else sitio
+        detalle = f"{sitio} ({self.zona})" if sitio and self.zona else (sitio or self.zona)
         return f"{ETIQUETAS[self.nivel]} · {detalle}" if detalle else ETIQUETAS[self.nivel]
 
 
@@ -167,6 +171,29 @@ def _norm(x) -> str:
     return " ".join(str(x or "").split()).strip()
 
 
+def _lista_texto(x, maximo: int = 12, largo: int = 80) -> List[str]:
+    """Una lista de textos limpia venga como venga del modelo: un texto suelto es UN elemento (no se parte en letras) y lo
+    que no es lista ni texto se ignora."""
+    if isinstance(x, str):
+        x = [x]
+    if not isinstance(x, (list, tuple)):
+        return []
+    return [_norm(i)[:largo] for i in x if isinstance(i, (str, int, float)) and _norm(i)][:maximo]
+
+
+def _regiones_de_provincia(provincia: Optional[str]) -> List[str]:
+    """Las regiones que, según los bancos disponibles, contienen esa provincia (la región la dice el propio banco)."""
+    regs: List[str] = []
+    if not provincia:
+        return regs
+    for f in disponibles():
+        try:
+            regs += [r for r in abrir_banco(f).regiones_de(provincia) if r not in regs]
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"No se pudo mirar la región de {provincia} en {f.id}: {e}")
+    return regs
+
+
 # Con Jev el nivel se decide en ~1 s; por debajo de esta confianza se pregunta además al modelo grande
 CONFIANZA_JEV = 0.6
 UMBRAL_SI = 0.5
@@ -182,20 +209,24 @@ CRITERIOS_NIVEL = {
 }
 
 
-def _detectar_con_jev(pregunta: str, contexto: str) -> Optional[Alcance]:
+def _detectar_con_jev(pregunta: str, contexto: str, nivel_fijado: Optional[str] = None) -> Optional[Alcance]:
     """
     Nivel, región(es) y provincia con Jev, en UNA petición (todas las preguntas se evalúan en paralelo). Devuelve None si Jev no está,
     falla, no está seguro (confianza baja) o el alcance es multinacional (hacen falta los países por su nombre: eso lo extrae el modelo).
+    `nivel_fijado` (local o regional, lo eligió la persona): no se pregunta el nivel, pero sí dónde, para no perder el lugar.
+    Jev no extrae el NOMBRE del sitio (Vigo): da la provincia y la región; el sitio concreto lo conoce quien lee el brief.
     """
     if not jev.disponible() or not (_norm(pregunta) or _norm(contexto)):
         return None
     listas, regiones, provincias = _listas()
     todas_regiones = [r for v in regiones.values() for r in v]
     todas_provincias = [p for v in provincias.values() for p in v]
-    preguntas = {"nivel": jev.choice(
-        "¿Dónde vive el público cuya reacción se quiere simular? Importa dónde vive ese público, no dónde está la empresa ni en qué "
-        "idioma está escrito el texto. Los visitantes, turistas o asistentes a un evento son de donde VIENEN, no del sitio que visitan.",
-        CRITERIOS_NIVEL)}
+    preguntas = {}
+    if not nivel_fijado:
+        preguntas["nivel"] = jev.choice(
+            "¿Dónde vive el público cuya reacción se quiere simular? Importa dónde vive ese público, no dónde está la empresa ni en qué "
+            "idioma está escrito el texto. Los visitantes, turistas o asistentes a un evento son de donde VIENEN, no del sitio que visitan.",
+            CRITERIOS_NIVEL)
     for r in todas_regiones:
         preguntas[f"region::{r}"] = jev.noul(
             f"¿El público del estudio vive en la región «{r}»? Si el estudio es de una ciudad, comarca o provincia de «{r}», sí. Si el "
@@ -205,33 +236,38 @@ def _detectar_con_jev(pregunta: str, contexto: str) -> Optional[Alcance]:
             "Si el público vive en un lugar acotado, ¿en qué provincia está ese lugar? «ninguna» si el público no es de una sola provincia "
             "(región entera, país entero, varios países o el mundo).",
             {**{p: f"La provincia de {p}" for p in todas_provincias}, "ninguna": "No es de una provincia concreta"})
+    if not preguntas:
+        return None
     r = jev.preguntar({"pregunta_del_estudio": _norm(pregunta)[:1500], "brief": (contexto or "").strip()[:4000]}, preguntas)
-    if not r or "nivel" not in r:
+    if not r or (not nivel_fijado and "nivel" not in r):
         return None
-    nivel = r["nivel"].get("choice")
-    if nivel not in NIVELES or float(r["nivel"].get("confidence", 0)) < CONFIANZA_JEV or nivel == "multinacional":
-        return None
-    a = Alcance(nivel=nivel, motivo=f"Decidido con Jev (confianza {float(r['nivel'].get('confidence', 0)):.2f}).")
+    if nivel_fijado:
+        nivel, motivo = nivel_fijado, "Lugar decidido con Jev."
+    else:
+        nivel = r["nivel"].get("choice")
+        confianza = float(r["nivel"].get("confidence", 0))
+        if nivel not in NIVELES or confianza < CONFIANZA_JEV or nivel == "multinacional":
+            return None
+        motivo = f"Decidido con Jev (confianza {confianza:.2f})."
+    a = Alcance(nivel=nivel, motivo=motivo)
     if nivel in ("local", "regional"):
         elegidas = [x for x in todas_regiones if float(r.get(f"region::{x}", {}).get("noul", 0)) >= UMBRAL_SI]
         prov = (r.get("provincia") or {}).get("choice")
         if nivel == "local" and prov in todas_provincias and float((r["provincia"].get("probabilities") or {}).get(prov, 0)) >= UMBRAL_SI:
             a.provincia = prov
-            if not elegidas:                         # la provincia ya dice la región: la dice el propio banco
-                for f in disponibles():
-                    elegidas = abrir_banco(f).regiones_de(prov) or elegidas
-        if len(elegidas) == 1:
-            a.region = elegidas[0]
-        elif len(elegidas) >= 2:
-            a.regiones = elegidas[:12]
-            a.provincia = None
+            regs_prov = _regiones_de_provincia(prov)
+            if regs_prov:                            # la provincia manda: su región la dice el banco, aunque un «sí» suelto diga otra
+                a.region = next((x for x in regs_prov if x in elegidas), regs_prov[0])
+                elegidas = []
+        if a.region is None:
+            if len(elegidas) == 1:
+                a.region = elegidas[0]
+            elif len(elegidas) >= 2:                 # varias regiones enteras (el noroeste): sin «principal» ni provincia
+                a.regiones = elegidas[:12]
+                a.provincia = None
         if nivel == "regional":
             a.provincia = None
-        a.lugar = a.provincia or ", ".join(a.lista_regiones)
-    if nivel == "nacional":
-        paises = [f.pais_nombre for f in disponibles()]
-        a.lugar = paises[0] if len(paises) == 1 else ""
-    return a
+    return a                                          # `lugar` queda vacío: nunca se pasa una provincia por el sitio, ni un país por el banco
 
 
 def detectar(pedido: Optional[str], pregunta: str, contexto: str,
@@ -242,18 +278,15 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
     """
     fijado = str(pedido).strip().lower() if pedido else ""
     fijado = fijado if fijado in NIVELES else ""
-    if fijado == "mundial":                          # lo fijó la persona y no lleva lugar: no hace falta ni preguntar
-        return Alcance("mundial", motivo="Alcance elegido por la persona.", origen="pedido")
-    if fijado == "nacional":
-        paises = [f.pais_nombre for f in disponibles()]
-        return Alcance("nacional", lugar=paises[0] if len(paises) == 1 else "", motivo="Alcance elegido por la persona.",
-                       origen="pedido")
+    if fijado in ("mundial", "nacional"):            # lo fijó la persona y no lleva lugar: no hace falta ni preguntar
+        return Alcance(fijado, motivo="Alcance elegido por la persona.", origen="pedido")
     detectado = Alcance()
     rapido = None
-    try:
-        rapido = _detectar_con_jev(pregunta, contexto)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Jev no pudo decidir el alcance: {e}")
+    if fijado != "multinacional":                    # los países por su nombre solo los extrae el modelo grande
+        try:
+            rapido = _detectar_con_jev(pregunta, contexto, fijado or None)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Jev no pudo decidir el alcance: {e}")
     if rapido is not None:
         detectado = rapido
     elif llm is not None and (_norm(pregunta) or _norm(contexto)):
@@ -270,7 +303,7 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
             todas_provincias = {p for v in provincias.values() for p in v}
             region = _norm(crudo.get("region")) if _norm(crudo.get("region")) in todas_regiones else None
             provincia = _norm(crudo.get("provincia")) if _norm(crudo.get("provincia")) in todas_provincias else None
-            varias = [r for r in dict.fromkeys(_norm(x) for x in (crudo.get("regiones") or [])) if r in todas_regiones]
+            varias = [r for r in dict.fromkeys(_lista_texto(crudo.get("regiones"))) if r in todas_regiones]
             if region and region not in varias:
                 varias.insert(0, region)
             regiones: List[str] = []
@@ -283,9 +316,13 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
                 regiones = []
             if nivel == "regional":
                 provincia = None
-            lugares = [_norm(x)[:60] for x in (crudo.get("lugares") or []) if _norm(x)] if nivel == "multinacional" else []
+            if nivel == "local" and provincia and not regiones:
+                regs_prov = _regiones_de_provincia(provincia)    # la provincia manda: su región la dice el banco
+                if regs_prov:
+                    region = next((x for x in regs_prov if x == region), regs_prov[0])
+            lugares = _lista_texto(crudo.get("lugares"), largo=60) if nivel == "multinacional" else []
             detectado = Alcance(nivel=nivel, lugar=_norm(crudo.get("lugar"))[:80], region=region, regiones=regiones,
-                                provincia=provincia, lugares=lugares[:12], motivo=_norm(crudo.get("motivo"))[:300])
+                                provincia=provincia, lugares=lugares, motivo=_norm(crudo.get("motivo"))[:300])
         else:
             detectado.motivo = "El modelo no dio un alcance válido."
     elif llm is None or not (_norm(pregunta) or _norm(contexto)):
@@ -294,7 +331,7 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
         return detectado
     # La persona lo fijó: manda su nivel. El lugar del modelo solo vale si sigue teniendo sentido en ese nivel.
     mantiene = fijado in ("local", "regional") and detectado.nivel in ("local", "regional", "nacional")
-    a = Alcance(nivel=fijado, lugar=detectado.lugar if mantiene or fijado == "nacional" else "",
+    a = Alcance(nivel=fijado, lugar=detectado.lugar if mantiene else "",
                 region=detectado.region if mantiene else None,
                 regiones=detectado.regiones if mantiene else [],
                 provincia=detectado.provincia if fijado == "local" and mantiene else None,
@@ -305,19 +342,27 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
 
 # ---------------------------------------------------------------- lo que implica cada nivel
 def pista_para_persona(a: Optional[Alcance], indice: int = 0) -> str:
-    """Una frase para el prompt de una persona del público que NO sale de la encuesta, según el alcance."""
+    """
+    Una frase para el prompt de una persona del público que NO sale de la encuesta, según el alcance. `indice` es el orden de la
+    persona ENTRE las del público (no el de la entidad en el grafo): reparte las culturas de forma pareja.
+    """
     if a is None or a.nivel == DESCONOCIDO:
         return ""
     if a.nivel == "local":
-        sitio = a.lugar or a.region or "ese lugar"
-        return (f"Alcance de la simulación: LOCAL ({sitio}). Esta persona vive en {sitio} o muy cerca; usa referencias reales y "
+        if a.lugar:
+            donde = f"vive en {a.lugar} o muy cerca"
+            sitio = a.lugar
+        else:                                        # solo se sabe la zona: el sitio concreto es el que cite el estudio
+            sitio = a.zona or "ese lugar"
+            donde = f"vive en el lugar al que se refiere el estudio, dentro de esta zona: {sitio}"
+        return (f"Alcance de la simulación: LOCAL ({sitio}). Esta persona {donde}; usa referencias reales y "
                 "cotidianas de ese sitio (barrios, costumbres, precios) sin caricaturizarlo ni caer en tópicos.")
     if a.nivel == "regional":
         sitio = a.lugar or ", ".join(a.lista_regiones) or "esa región"
         return (f"Alcance de la simulación: REGIONAL ({sitio}). Esta persona vive en {sitio}, en cualquier ciudad o pueblo de allí "
                 "(si son varias comunidades, varía de una a otra); varía el lugar concreto de una persona a otra.")
     if a.nivel == "nacional":
-        sitio = a.lugar or "el país"
+        sitio = a.lugar or "el país del que habla el estudio"
         return (f"Alcance de la simulación: NACIONAL ({sitio}). Esta persona vive en cualquier parte de {sitio}: varía el lugar de "
                 "una persona a otra (no todas de la capital ni de la misma ciudad) y no la sitúes en la ciudad de la sede o del evento "
                 "por defecto.")
@@ -332,11 +377,13 @@ def texto_para_informe(a: Optional[Alcance]) -> str:
     """Cautelas de alcance para quien escribe el informe (nivel de las conclusiones, estereotipos y límites)."""
     if a is None or a.nivel == DESCONOCIDO:
         return ""
-    sitio = a.lugar or ", ".join(a.lugares) or ""
     base = f"ALCANCE GEOGRÁFICO DE LA SIMULACIÓN: {a.descripcion()}."
     if a.nivel == "local":
-        return (f"{base} Las conclusiones valen para ese lugar: no las extrapoles al país ni a otras ciudades. Contextualiza con el mercado "
-                f"local ({sitio}: competencia cercana, hábitos y estacionalidad del sitio) y no uses estereotipos de otros lugares.")
+        sitio = a.lugar or a.zona
+        sitio_txt = f" ({sitio})" if sitio else ""
+        return (f"{base} Las conclusiones valen para ese lugar: no las extrapoles al país ni a otras ciudades. Contextualiza con el "
+                f"mercado local{sitio_txt} solo con lo que muestren la simulación y los documentos: no inventes datos de competencia, "
+                "precios ni hábitos locales que no tengas, y no uses estereotipos de otros lugares.")
     if a.nivel == "regional":
         return (f"{base} Las conclusiones valen para esa región, no para el país entero. Matiza las diferencias entre sus ciudades y "
                 "comarcas solo si la simulación las muestra, y no uses estereotipos de otras regiones.")

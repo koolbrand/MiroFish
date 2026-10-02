@@ -75,18 +75,18 @@
           <!-- Alcance geográfico: dónde vive el público (un lugar, una región, un país, varios o el mundo). Siempre visible -->
           <div class="alcance-row" data-testid="alcance">
             <label class="cis-pais-label" for="alcance-select">{{ $t('step2.alcanceLabel') }}</label>
-            <select id="alcance-select" v-model="alcanceElegido" class="cis-pais-select" data-testid="alcance-select">
+            <select id="alcance-select" v-model="alcanceElegido" class="cis-pais-select" data-testid="alcance-select" :disabled="ajustesBloqueados">
               <option value="auto">{{ $t('step2.alcanceAuto') }}</option>
               <option v-for="n in NIVELES_ALCANCE" :key="n" :value="n">{{ $t('step2.alcance_' + n) }}</option>
             </select>
-            <span v-if="alcanceTexto" class="alcance-chip" :title="alcance?.motivo || ''" data-testid="alcance-chip">{{ $t('step2.alcanceDetectado', { texto: alcanceTexto }) }}</span>
+            <span v-if="alcanceTexto" class="alcance-chip" :title="alcance?.motivo || ''" data-testid="alcance-chip">{{ $t(alcance?.origen === 'pedido' ? 'step2.alcanceElegidoChip' : 'step2.alcanceDetectado', { texto: alcanceTexto }) }}</span>
             <span class="alcance-hint">{{ $t('step2.alcanceHint') }}</span>
           </div>
 
           <!-- Público con datos reales del país: solo aparece si este servidor tiene algún banco -->
           <div v-if="cisEstado.disponible" class="cis-toggle" data-testid="cis-toggle">
             <label class="cis-toggle-row">
-              <input type="checkbox" v-model="usarCis" class="cis-check" data-testid="cis-checkbox" />
+              <input type="checkbox" v-model="usarCis" class="cis-check" data-testid="cis-checkbox" :disabled="ajustesBloqueados" />
               <span class="cis-toggle-text">
                 <span class="cis-toggle-title">{{ $t('step2.datosToggleTitle') }}</span>
                 <span class="cis-toggle-desc">{{ $t('step2.datosToggleDesc') }}</span>
@@ -94,7 +94,7 @@
             </label>
             <div v-if="usarCis" class="cis-pais">
               <label class="cis-pais-label" for="cis-pais-select">{{ $t('step2.datosPaisLabel') }}</label>
-              <select id="cis-pais-select" v-model="paisElegido" class="cis-pais-select" data-testid="cis-pais">
+              <select id="cis-pais-select" v-model="paisElegido" class="cis-pais-select" data-testid="cis-pais" :disabled="ajustesBloqueados">
                 <option value="auto">{{ $t('step2.datosPaisAuto') }}</option>
                 <option v-for="f in cisEstado.fuentes" :key="f.id" :value="f.pais">{{ f.pais_nombre }} · {{ f.nombre }}</option>
               </select>
@@ -102,7 +102,7 @@
             </div>
           </div>
 
-          <div v-if="ajusteCambiado" class="cis-changed" role="status">
+          <div v-if="ajusteCambiado && !ajustesBloqueados" class="cis-changed" role="status">
             <span>{{ $t('step2.datosToggleChanged') }}</span>
             <button type="button" class="cis-regen" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
           </div>
@@ -1199,13 +1199,18 @@ const alcanceUsado = ref(null)      // valor con el que se lanzó la preparació
 const alcance = ref(null)           // lo que se decidió (alcance.json)
 const alcanceCambiado = computed(() => alcanceUsado.value !== null && alcanceElegido.value !== alcanceUsado.value)
 const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value)
+// Mientras se prepara (o con la simulación ya ejecutada o en el flujo automático) los ajustes no se tocan: cambiar uno y «volver a
+// generar» a mitad lanzaba una segunda preparación sobre los mismos ficheros
+const ajustesBloqueados = computed(() => (phase.value < 4 && !prepareError.value) || alreadyRun.value || autoRunning.value)
 const alcanceTexto = computed(() => {
   const a = alcance.value
   if (!a) return ''
   if (!NIVELES_ALCANCE.includes(a.nivel)) return t('step2.alcance_desconocido')
   const sitio = a.lugar || (a.lugares || []).join(', ')
-  const zona = [a.region, a.provincia].filter(x => x && x !== a.lugar).join(', ')
-  return [t('step2.alcance_' + a.nivel), sitio && (zona ? `${sitio} (${zona})` : sitio)].filter(Boolean).join(' · ')
+  const regiones = (a.regiones && a.regiones.length) ? a.regiones : [a.region]
+  const zona = [...regiones, a.provincia].filter(x => x && x !== a.lugar).join(', ')
+  const detalle = sitio && zona ? `${sitio} (${zona})` : (sitio || zona)
+  return [t('step2.alcance_' + a.nivel), detalle].filter(Boolean).join(' · ')
 })
 const cargarAlcance = async () => {
   if (!props.simulationId) return
@@ -1284,12 +1289,18 @@ const iniciarEstadoCis = async () => {
 }
 
 const regenerarPublico = async () => {
+  if (ajustesBloqueados.value) return
   stopPolling()
   stopProfilesPolling()
   profiles.value = []
   poblacion.value = null
   alcance.value = null
   lastLoggedProfileCount = 0
+  lastLoggedMessage = ''
+  entityFilterLogged = false
+  _simFailedDetected = false
+  prepareError.value = ''           // el aviso rojo de la preparación anterior no se queda mientras se vuelve a generar
+  prepareProgress.value = 0
   await startPrepareSimulation(true)
 }
 
@@ -1468,6 +1479,7 @@ const fetchProfilesRealtime = async () => {
       const prevCount = profiles.value.length
       profiles.value = res.data.profiles || []
       if (!poblacion.value && profiles.value.some(p => p.data_source)) cargarPoblacion()
+      if (!alcance.value && profiles.value.length) cargarAlcance()
       // 只有当 API 返回有效值时才更新，避免覆盖已有的有效值
       if (res.data.total_expected) {
         expectedTotal.value = res.data.total_expected

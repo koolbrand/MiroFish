@@ -762,8 +762,16 @@ def get_prepare_status():
         task_id = data.get('task_id')
         simulation_id = data.get('simulation_id')
         
+        # Con una tarea en curso (p. ej. «volver a generar» sobre una simulación ya preparada) el estado es el de la tarea: los
+        # ficheros de la preparación anterior siguen ahí y darían «listo» a los 2 s, con datos viejos.
+        en_curso = None
+        if task_id:
+            t_prev = TaskManager().get_task(task_id)
+            if t_prev and t_prev.status in (TaskStatus.PENDING, TaskStatus.PROCESSING):
+                en_curso = t_prev
+
         # 如果提供了simulation_id，先检查是否已准备完成
-        if simulation_id:
+        if simulation_id and en_curso is None:
             is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
             if is_prepared:
                 return jsonify({
