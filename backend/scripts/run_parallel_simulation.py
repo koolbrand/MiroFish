@@ -807,6 +807,44 @@ def fetch_new_actions_from_db(
     return actions, new_last_rowid
 
 
+def get_last_trace_rowid(db_path: str) -> int:
+    """
+    Último rowid de la tabla `trace` (0 si no hay base de datos o está vacía).
+
+    Las publicaciones iniciales se anotan a mano en la ronda 0 y además la simulación las deja en `trace`. Si el cursor de
+    `fetch_new_actions_from_db` se queda en 0, la primera ronda con actividad las lee como si fueran nuevas y las anota otra
+    vez: así salían repetidas TODAS las semillas, a la vez y una vez por plataforma. Tras sembrar hay que adelantar el cursor
+    hasta aquí.
+    """
+    if not os.path.exists(db_path):
+        return 0
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            row = conn.execute("SELECT COALESCE(MAX(rowid), 0) FROM trace").fetchone()
+        finally:
+            conn.close()
+        return int(row[0] or 0)
+    except Exception as e:
+        print(f"Fallo al leer el último rowid de la base de datos: {e}")
+        return 0
+
+
+def add_action_for_agent(actions: Dict[Any, Any], agent: Any, action: Any) -> None:
+    """
+    Acumula las acciones de un agente en el diccionario que recibe `env.step`: si ya tenía una, pasa a ser una lista.
+    Con `actions[agent] = action` a secas, un agente con dos publicaciones iniciales se quedaba solo con la última (en
+    Twitter se publicaban 5 de 12 semillas y las otras 7 constaban en el registro como publicadas sin existir).
+    """
+    current = actions.get(agent)
+    if current is None:
+        actions[agent] = action
+    elif isinstance(current, list):
+        current.append(action)
+    else:
+        actions[agent] = [current, action]
+
+
 def _enrich_action_context(
     cursor,
     action_type: str,
@@ -1245,10 +1283,10 @@ async def run_twitter_simulation(
             content = post.get("content", "")
             try:
                 agent = result.env.agent_graph.get_agent(agent_id)
-                initial_actions[agent] = ManualAction(
+                add_action_for_agent(initial_actions, agent, ManualAction(
                     action_type=ActionType.CREATE_POST,
                     action_args={"content": content}
-                )
+                ))
 
                 if action_logger:
                     action_logger.log_action(
@@ -1265,8 +1303,11 @@ async def run_twitter_simulation(
 
         if initial_actions:
             await result.env.step(initial_actions)
-            log_info(f"Se publicaron {len(initial_actions)} publicaciones iniciales")
-    
+            log_info(f"Se publicaron {len(initial_posts)} publicaciones iniciales")
+
+    # Las semillas ya están anotadas en la ronda 0: la primera lectura de la base de datos empieza después de ellas
+    last_rowid = get_last_trace_rowid(db_path)
+
     # 记录 round 0 结束
     if action_logger:
         action_logger.log_round_end(0, initial_action_count)
@@ -1436,19 +1477,11 @@ async def run_reddit_simulation(
             content = post.get("content", "")
             try:
                 agent = result.env.agent_graph.get_agent(agent_id)
-                if agent in initial_actions:
-                    if not isinstance(initial_actions[agent], list):
-                        initial_actions[agent] = [initial_actions[agent]]
-                    initial_actions[agent].append(ManualAction(
-                        action_type=ActionType.CREATE_POST,
-                        action_args={"content": content}
-                    ))
-                else:
-                    initial_actions[agent] = ManualAction(
-                        action_type=ActionType.CREATE_POST,
-                        action_args={"content": content}
-                    )
-                
+                add_action_for_agent(initial_actions, agent, ManualAction(
+                    action_type=ActionType.CREATE_POST,
+                    action_args={"content": content}
+                ))
+
                 if action_logger:
                     action_logger.log_action(
                         round_num=0,
@@ -1464,7 +1497,10 @@ async def run_reddit_simulation(
         
         if initial_actions:
             await result.env.step(initial_actions)
-            log_info(f"Se publicaron {len(initial_actions)} publicaciones iniciales")
+            log_info(f"Se publicaron {len(initial_posts)} publicaciones iniciales")
+
+    # Las semillas ya están anotadas en la ronda 0: la primera lectura de la base de datos empieza después de ellas
+    last_rowid = get_last_trace_rowid(db_path)
 
     # 记录 round 0 结束
     if action_logger:
