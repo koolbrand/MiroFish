@@ -14,6 +14,7 @@ la temperatura del modelo).
 import json
 import os
 import random
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
@@ -43,8 +44,49 @@ def banco_existe() -> bool:
     return bool(disponibles())
 
 
-def construir_ficha(e: Encuestado, fuente: Optional[Fuente] = None, tema: str = "") -> str:
-    return _construir_ficha(e, fuente=fuente, tema=tema)
+def construir_ficha(e: Encuestado, fuente: Optional[Fuente] = None, tema: str = "",
+                    relevantes: Optional[List[str]] = None) -> str:
+    return _construir_ficha(e, fuente=fuente, tema=tema, relevantes=relevantes)
+
+
+PROMPT_RELEVANTES = """Se simula cómo reaccionaría un público a este tema:
+\"\"\"{tema}\"\"\"
+
+De la siguiente lista de preguntas de una encuesta oficial, elige hasta {n} que más ayuden a entender cómo reaccionaría
+una persona real a ESE tema: su situación económica, ingresos y consumo, sus valores y su confianza, sus preocupaciones
+cotidianas. DESCARTA las preguntas sobre noticias o sucesos concretos que no tengan relación con el tema (fronteras,
+incendios, visitas, líderes) y las de trabajo de campo.
+
+Preguntas:
+{lista}
+
+Devuelve SOLO un objeto JSON, sin texto alrededor: {{"indices": [<números de la lista>]}}"""
+
+
+def preguntas_relevantes(banco: Banco, tema: str, llm: Optional[Callable[[str], str]], n: int = 15) -> List[str]:
+    """
+    Qué preguntas de la encuesta llevan a la ficha de cada persona para ESTE tema. Una sola llamada por simulación sobre
+    el catálogo de preguntas de uso general. Sin tema, sin modelo o si algo falla devuelve [] y la ficha usa el orden de
+    siempre (lo que no tiene que ver con el tema no se cuela porque el modelo solo puede ELEGIR de la lista).
+    """
+    if llm is None or not (tema or "").strip():
+        return []
+    try:
+        catalogo = banco.catalogo()
+        if not catalogo:
+            return []
+        lista = "\n".join(f"{i}. {q[:140]}" for i, q in enumerate(catalogo))
+        crudo = llm(PROMPT_RELEVANTES.format(tema=" ".join(tema.split())[:1200], n=n, lista=lista))
+        m = re.search(r"\{.*\}", crudo or "", flags=re.S)
+        indices = json.loads(m.group(0)).get("indices", []) if m else []
+        vistos, elegidas = set(), []
+        for i in indices:
+            if isinstance(i, int) and 0 <= i < len(catalogo) and i not in vistos:
+                vistos.add(i)
+                elegidas.append(catalogo[i])
+        return elegidas[:n]
+    except Exception:
+        return []
 
 
 @dataclass
@@ -206,5 +248,5 @@ def resumen_de_simulacion(simulation_id: str) -> Optional[Dict]:
 
 __all__ = ["FUENTES", "Fuente", "Grupo", "Asignacion", "Banco", "Encuestado", "RESUMEN", "modo_activo",
            "banco_existe", "asignar_por_grupos", "asignar", "construir_ficha", "hechos_memoria", "genero_oasis",
-           "cita_de_simulacion", "resumen_de_simulacion", "disponibles", "fuente_de_pais", "registrar", "ruta_banco",
+           "cita_de_simulacion", "resumen_de_simulacion", "preguntas_relevantes", "disponibles", "fuente_de_pais", "registrar", "ruta_banco",
            "tiene_banco", "abrir_banco", "detectar"]

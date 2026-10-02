@@ -275,6 +275,75 @@ def test_el_tema_de_la_simulacion_manda_en_la_ficha_y_lo_politico_tiene_tope(ban
     assert "limpieza" in F.construir_ficha(e, tema="producto de limpieza").split("incendios")[0]
 
 
+def test_el_catalogo_son_las_preguntas_de_uso_general_no_politicas(banco):
+    cat = banco.catalogo()
+    assert set(cat) == {"¿Cuánto confía en sus vecinos?", "¿Con qué frecuencia hace deporte?", "¿Cómo valora su salud?"}
+
+
+def test_preguntas_relevantes_solo_elige_de_la_lista_y_nunca_rompe(banco):
+    cat = banco.catalogo()
+    assert poblacion.preguntas_relevantes(banco, "tema", lambda p: '{"indices": [1, 0, 1, 99, "x", -1]}') == [cat[1], cat[0]]
+    visto = {}
+    poblacion.preguntas_relevantes(banco, "Subir el café a 3,50", lambda p: visto.setdefault("p", p) and '{"indices": []}')
+    assert "Subir el café a 3,50" in visto["p"] and f"0. {cat[0]}" in visto["p"]
+    assert "DESCARTA las preguntas sobre noticias o sucesos concretos" in visto["p"]
+    assert poblacion.preguntas_relevantes(banco, "tema", None) == []
+    assert poblacion.preguntas_relevantes(banco, "", lambda p: '{"indices": [0]}') == []
+    assert poblacion.preguntas_relevantes(banco, "tema", lambda p: "no es json") == []
+    def roto(p): raise RuntimeError("boom")
+    assert poblacion.preguntas_relevantes(banco, "tema", roto) == []
+
+
+def test_las_preguntas_relevantes_van_primero_en_la_ficha(banco):
+    e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
+    e.respuestas = [{"pregunta": "Grado de preocupación por los incendios forestales", "respuesta": "Mucho", "politica": 0},
+                    {"pregunta": "Valoración de la situación económica personal actual", "respuesta": "Buena", "politica": 0},
+                    {"pregunta": "Nivel de ingresos netos del hogar", "respuesta": "De 1.100 a 1.800 €", "politica": 0}]
+    rel = ["Nivel de ingresos netos del hogar", "Valoración de la situación económica personal actual"]
+    assert [r["pregunta"] for r in F.respuestas_priorizadas(e, relevantes=rel)] == [
+        "Nivel de ingresos netos del hogar", "Valoración de la situación económica personal actual",
+        "Grado de preocupación por los incendios forestales"]
+    ficha = F.construir_ficha(e, relevantes=rel)
+    assert ficha.index("ingresos") < ficha.index("incendios")
+    assert F.hechos_memoria(e, relevantes=rel)[0].startswith("A la pregunta «Nivel de ingresos")
+
+
+def test_con_preguntas_relevantes_solo_entran_unas_pocas_de_las_demas(banco):
+    e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
+    e.respuestas = [{"pregunta": "Nivel de ingresos netos del hogar", "respuesta": "x", "politica": 0}] + [
+        {"pregunta": f"Grado de preocupación por el suceso número {i} del verano", "respuesta": "Mucho", "politica": 0}
+        for i in range(10)]
+    orden = F.respuestas_priorizadas(e, relevantes=["Nivel de ingresos netos del hogar"])
+    assert len(orden) == 1 + F.MAX_OTROS and orden[0]["pregunta"] == "Nivel de ingresos netos del hogar"
+    assert len(F.respuestas_priorizadas(e)) == 11                                   # sin relevantes, todas (hasta el tope de la ficha)
+
+
+def test_el_fichero_final_de_perfiles_conserva_la_marca_de_dato_real(con_banco, tmp_path):
+    """Lo destapó la prueba completa en producción: el guardado final tiraba data_source y las respuestas."""
+    g = _generador()
+    enc = _un_encuestado(con_banco)
+    anclada = g.generate_profile_from_entity(_entidad(1), 1, encuestado=enc, fuente=FUENTES["cis"])
+    libre = g.generate_profile_from_entity(_entidad(2), 2)
+    ruta = str(tmp_path / "reddit_profiles.json")
+    g._save_reddit_json([anclada, libre], ruta)
+    a, b = json.load(open(ruta, encoding="utf-8"))
+    assert a["data_source"] == "CIS" and a["data_ref"] == enc.estudio and a["memory_facts"]
+    assert "data_source" not in b and "memory_facts" not in b                      # sin datos reales, el fichero es el de siempre
+    assert a["age"] == enc.edad and a["user_id"] == 1                              # y los campos que OASIS necesita siguen ahí
+
+
+def test_el_lote_elige_las_preguntas_relevantes_una_vez_y_las_guarda(con_banco, tmp_path):
+    g = _generador()
+    ruta = str(tmp_path / "poblacion.json")
+    g.generate_profiles_from_entities([_entidad(0, grupo="A"), _entidad(1, grupo="A")], parallel_count=1,
+                                      poblacion_datos=True, poblacion_pais="ES", pregunta="¿Subir el precio?",
+                                      publico_descripcion="Clientes", poblacion_resumen_path=ruta)
+    elegir = [p for p in g.client.prompts if "elige hasta" in p]
+    assert len(elegir) == 1                                                        # una sola llamada para toda la simulación
+    r = json.load(open(ruta, encoding="utf-8"))
+    assert len(r["preguntas_relevantes"]) == 2
+
+
 def test_la_ficha_no_lleva_la_provincia(banco):
     """Minimización: la provincia está en el banco ('Subregión X') pero no sale hacia el modelo."""
     e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
@@ -343,6 +412,7 @@ def test_el_filtro_solo_acota_lo_que_el_texto_dice_y_nombra_el_pais(dos_paises):
                     lambda p: vistos.append(p) or "{}", FUENTES["gss"])
     p = vistos[0]
     assert "NO deduzcas edad, sexo, estudios ni ingresos de aficiones" in p
+    assert "Un LUGAR nombrado" in p and "la región de la lista que lo contiene" in p
     assert "Estados Unidos (GSS)" in p
     assert "Texas" in p and "Galicia" not in p                                           # las regiones válidas son las de ese país
 
@@ -372,6 +442,9 @@ class _LLMFalso:
             contenido = self.detector or '{"pais": null, "motivo": "no claro"}'
         elif "traduce la descripción" in prompt:
             contenido = "{}"
+        elif "elige hasta" in prompt:
+            contenido = '{"indices": [0, 1]}'
+
         else:
             contenido = ('{"bio": "Bio", "persona": "Persona redactada", "profession": "jubilado", "interested_topics": '
                          '["salud"], "age": 3, "gender": "male", "mbti": "INTJ", "country": "Japón"}')

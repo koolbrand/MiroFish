@@ -36,6 +36,7 @@ REGLAS = """Reglas:
 - Pon un filtro SOLO si la descripción lo afirma o lo exige por definición («jubilados» → situación laboral «jubilado»;
   «madres» → sexo «Mujer»; «estudiantes universitarios» → estudiante y estudios universitarios; «del <nombre de una
   región de la lista>» → esa región). NO deduzcas edad, sexo, estudios ni ingresos de aficiones, productos, profesiones sueltas o tópicos.
+- Un LUGAR nombrado (ciudad, comarca, región) sí es explícito: filtra por la región de la lista que lo contiene.
 - Si el grupo no es del país de la encuesta o no se puede acotar, devuelve {{}} para ese grupo."""
 
 PROMPT_UNO = """Eres un asistente que traduce la descripción de un público objetivo a filtros sobre una encuesta
