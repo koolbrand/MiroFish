@@ -193,3 +193,18 @@ export const deleteSimulation = (simulationId) => {
   return service.delete(`/api/simulation/${simulationId}`)
 }
 
+
+/**
+ * ¿Hay banco de datos reales (CIS) en este servidor? { disponible, por_defecto, estudios, fuente }
+ */
+export const getPoblacionEstado = () => {
+  return service.get('/api/simulation/poblacion/estado')
+}
+
+/**
+ * Reparto (edad, sexo, región) y filtros del público anclado al CIS de una simulación; data: null si no lo usó
+ * @param {string} simulationId
+ */
+export const getPoblacionSimulacion = (simulationId) => {
+  return service.get(`/api/simulation/${simulationId}/poblacion`)
+}
