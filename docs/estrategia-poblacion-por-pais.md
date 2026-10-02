@@ -141,6 +141,51 @@ excluyen sociodemografía y trabajo de campo), 300 llamadas, ≈ 0,64 $ por pasa
 
 **Personas generadas desde fichas reales.** Con un brief de producto de limpieza, tres personas (dos amas de casa de 80 y 64 años, un jubilado de 65) salieron distintas entre sí y coherentes con su ficha. Antes de que el tema mandara en la ficha, una de ellas giraba en torno a Ceuta, los incendios y los ministros porque eso preguntó el barómetro; ahora gira en torno al brief. Los temas de interés ya no incluyen cocina para el ama de casa ni bricolaje para el jubilado. Siguen quedando matices que no vienen del dato («tiene sus marcas de referencia», «rezando por los suyos»): el prompt los frena, no los elimina, y por eso la lectura humana de la fase 3.
 
+### Antes y después con el mismo público (40 personas, mismo código de producción)
+
+Diez grupos cuya descripción no dice nada de edad ni de sexo («quienes toman café a diario», «sensibles al precio»…) × 4 personas, mismo brief y
+mismo modelo; solo cambia el interruptor. Frente a la población adulta real de España (CIS):
+
+| | Inventadas por el modelo | Ancladas a datos reales |
+|---|---|---|
+| De 25 a 34 años | **45 %** (real: 12 %) | 15 % |
+| Mujeres | 72 % (real: 50 %) | 40 % (dentro del ruido de una muestra de 40) |
+| Distancia de edad con España (JSD) | 0,116 (ruido esperable 0,094) | **0,018** |
+| Dispersión de edad | 14,3 (real: 16,3) | 16,8 |
+| Profesiones más repetidas | «diseñadora gráfica freelance», «desarrollador web freelance» | «jubilado» (6, el 25 % real son 65+) |
+
+En las personas que ya había en producción (proyectos northkin y cafetería) el sesgo era mayor: entre el 79 y el 88 % de 25 a 34 años y entre el 74 y el 82 % mujeres,
+pero eran públicos acotados por el brief, así que esa cifra por sí sola no prueba el sesgo.
+
+## Prueba completa en producción con el Kool Café (2-oct-2026)
+
+Flujo entero (brief → ontología → grafo → preparación → 10 rondas → informe → PDF) en producción, cuatro pasadas con el mismo brief: una **sin** datos reales y tres **con**
+ellos. Después, jueces independientes **a ciegas** (3 por dimensión, orden A/B alternado, sin saber cuál es la «nueva»).
+
+**Lo que destapó, ya corregido** (PR #67–#70): el fichero final de perfiles perdía la marca de dato real; con un tema que la encuesta no cubre (el precio del café) los agentes
+hablaban de lo que preguntó el barómetro (Ceuta, incendios, el Papa) → ahora un modelo ELIGE, una vez por simulación y solo de la lista de preguntas, las 15 relevantes;
+el modelo de razonamiento devolvía vacío 4 de cada 6 veces → reintento con más espacio; «Universidad de Vigo» salía como una jubilada de 80 años → las instituciones no se anclan;
+la cita «Fuente de datos» no salía en pantalla en el informe (sí en el PDF); el interruptor aparecía apagado al volver a una simulación ya preparada con datos reales.
+
+**Veredicto de los jueces a ciegas** (versión sin datos reales contra cada versión con datos reales):
+
+| Dimensión | Con datos reales (1.ª) | Con datos reales (versión final) |
+|---|---|---|
+| Personas: menos tópicos y más variedad | **3 de 3** | **3 de 3** |
+| Informe: más creíble y útil para decidir el precio | 0 de 3 | 0 de 3 |
+| Global: refleja mejor a la gente de Vigo | 1 de 3 | 0 de 3 |
+
+**Cómo leerlo, sin adornos.**
+- Las personas con datos reales son menos tópicas y más variadas, y los jueces lo ven los seis de seis.
+- Pero el informe y el conjunto lo prefieren, también por unanimidad en el informe, con las personas inventadas: más color local (barrios, alquileres, apellidos gallegos), reacciones más viscerales y
+  menos «consenso amable». **El color inventado no es realismo**: los 280 € de alquiler o el gato «Rust» no vienen de ningún dato. Los jueces premian lo que suena a Vigo, no lo que es cierto.
+- Falla algo real: el banco es **nacional** y el brief es **local**. Con datos reales salió una teletrabajadora de Extremadura y una estudiante de Madrid como público de un café de Vigo. Solo se filtra
+  por región cuando el nombre del grupo cita un lugar, y si el segmento queda corto la región es lo primero que se relaja.
+- Límites: una ejecución por brazo, jueces que son modelos (con sesgo a favor de lo vistoso), muestras de 3 a 4 personas de público, y que la ontología cambia de una ejecución a otra (9, 10 y 6 agentes).
+
+**Siguientes pasos, sin implementar:** (1) aplicar a **todos** los grupos la región que sitúa el brief y bajar el mínimo de casos para no relajarla; (2) probar la hipótesis de dar a cada agente la
+**distribución real de su segmento** en las preguntas cercanas al tema; (3) pedir a Jev que no marque instituciones como público; (4) repetir con más agentes y con un segundo brief.
+
 ## 8. Cómo sabremos que funciona (criterios de aceptación)
 
 Criterios de aceptación de la fase 1 (se fijan *antes* de mirar los resultados):

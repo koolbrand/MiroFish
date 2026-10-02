@@ -381,6 +381,8 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 
 **Con datos reales (2-oct-2026):** banco de 20.128 encuestados y 156 preguntas de 5 estudios del CIS. Lo que hay que saber: (1) el modelo con las respuestas reales mejora al modelo con solo demografía (+6 puntos) pero **no supera a la respuesta más común del grupo sexo × edad** — por eso Simuloo es un ensayo, no una predicción; (2) la ficha pone primero lo que tiene que ver con el tema del brief y deja las políticas, los nombres propios y los elementos de batería sin enunciado al final (máx. 4); (3) los paradatos del trabajo de campo no entran en el banco. Detalle y cifras en `docs/estrategia-poblacion-por-pais.md` §7.
 
+**Prueba completa en producción (2-oct-2026, Kool Café) — lo que hay que saber:** con datos reales las personas son menos tópicas y más variadas (jueces a ciegas, 6 de 6), pero informe y conjunto los prefirieron con personas inventadas (más color local); el color inventado no es realismo. Límite abierto: el banco es nacional y el brief puede ser local (salió una teletrabajadora de Extremadura para un café de Vigo): falta aplicar la región del brief a todos los grupos. La ficha lleva primero las 15 preguntas que un modelo elige como relevantes para el tema (una llamada por simulación, solo puede elegir de la lista); las instituciones no se anclan; `_llm_texto` repite con más espacio porque el modelo de razonamiento devuelve vacío. Cifras y límites en `docs/estrategia-poblacion-por-pais.md`.
+
 **Construir el banco del CIS** (ZIP en cis.es; el formulario solo exige el correo; en 2-oct-2026 están en `~/dev-worktrees/cis-zips/`, fuera del repo):
 
 ```bash
