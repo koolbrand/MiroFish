@@ -36,6 +36,7 @@ from app.config import Config                                  # noqa: E402
 from app.services.poblacion.banco import Banco                   # noqa: E402
 from app.services.poblacion.ficha import lineas_sociodemografia, _recortar  # noqa: E402
 from app.services.poblacion.fuentes import FUENTES, abrir_banco, ruta_banco, tiene_banco  # noqa: E402
+from app.services.poblacion.metricas import jsd                  # noqa: E402,F401  (misma medida que la calidad de la muestra)
 
 # MiniMax-M3 (producción): 0,30 $/M entrada · 1,20 $/M salida
 PRECIO_ENTRADA, PRECIO_SALIDA = 0.30 / 1e6, 1.20 / 1e6
@@ -44,17 +45,6 @@ CHARS_POR_TOKEN = 3.6
 
 
 # ---------------------------------------------------------------- métricas (puras)
-def jsd(p: Dict[str, float], q: Dict[str, float]) -> float:
-    """Jensen–Shannon en base 2 (0 = iguales, 1 = disjuntas) entre dos distribuciones sobre las mismas claves."""
-    claves = set(p) | set(q)
-    sp, sq = sum(p.values()) or 1.0, sum(q.values()) or 1.0
-    P = {k: p.get(k, 0) / sp for k in claves}
-    Q = {k: q.get(k, 0) / sq for k in claves}
-    M = {k: (P[k] + Q[k]) / 2 for k in claves}
-    kl = lambda A, B: sum(A[k] * math.log2(A[k] / B[k]) for k in claves if A[k] > 0)  # noqa: E731
-    return max(0.0, (kl(P, M) + kl(Q, M)) / 2)
-
-
 def distribucion(respuestas: List[Optional[str]], pesos: List[float], opciones: List[str]) -> Dict[str, float]:
     d = {o: 0.0 for o in opciones}
     for r, w in zip(respuestas, pesos):

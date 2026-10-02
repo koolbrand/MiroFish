@@ -4,9 +4,12 @@ Añadir un país = una entrada aquí + un constructor offline (`scripts/poblacio
 con el esquema común de `banco.py` en `POBLACION_BANCOS_DIR/<fichero>`. El resto del sistema (detección del país,
 asignación por grupos, ficha, prompt, interfaz, cita) no sabe de España: lee de aquí.
 
-LICENCIAS: ninguna de las fuentes que miramos autoriza expresamente el uso comercial sin permiso (ver la estrategia en
-`docs/estrategia-poblacion-por-pais.md`). Por eso toda fuente nace como `solo_investigacion` (uso interno de I+D) y solo
-pasa a `autorizada` cuando hay autorización ESCRITA de su titular; mientras tanto la interfaz lo dice.
+LICENCIAS (verificadas en páginas oficiales el 2-oct-2026; detalle y enlaces en `docs/estrategia-poblacion-por-pais.md`):
+solo el CIS (y el INE) publican microdatos con reutilización comercial, y el CIS tiene además una Orden de 2008 que exige
+autorización expresa para el uso comercial: dos textos que se contradicen. El resto (ESS, WVS/EVS, Latinobarómetro,
+LAPOP, Eurobarómetro) es solo investigación; GSS y ANES no lo dicen. Por eso toda fuente nace como `solo_investigacion`
+(uso interno de I+D) y solo pasa a `autorizada` cuando hay autorización ESCRITA de su titular; mientras tanto la
+interfaz lo dice. `licencia_nota` guarda en una frase el estado de cada una.
 """
 
 import os
@@ -37,6 +40,7 @@ class Fuente:
     regiones: Tuple[str, ...]     # valores válidos del filtro «region» en esta fuente
     etiqueta_region: str          # cómo se llama la región en este país: 'Comunidad autónoma', 'Estado'…
     licencia: str = LICENCIA_INVESTIGACION
+    licencia_nota: str = ""
 
     @property
     def cita(self) -> str:
@@ -63,6 +67,8 @@ registrar(Fuente(
     id="cis", pais="ES", pais_nombre="España", nombre="CIS",
     nombre_largo="Centro de Investigaciones Sociológicas", fichero="banco_cis.sqlite",
     regiones=REGIONES_ES, etiqueta_region="Comunidad autónoma",
+    licencia_nota="Las condiciones de reutilización del CIS permiten el uso comercial citando la fuente; la Orden "
+                  "PRE/3188/2008 (art. 6) exige autorización expresa. Pendiente de confirmación escrita del CIS.",
 ))
 
 

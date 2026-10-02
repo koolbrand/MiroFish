@@ -30,6 +30,7 @@ from app.services.poblacion.vocabulario import tramo_de_edad        # noqa: E402
 
 TITULOS = {
     "3535": ("Encuesta sobre tendencias sociales V", "2026-01"),
+    "3577": ("Barómetro de septiembre 2026", "2026-09"),
     "3571": ("Barómetro de julio 2026", "2026-07"),
     "3530": ("Barómetro de noviembre 2025", "2025-11"),
     "3505": ("Barómetro de abril 2025", "2025-04"),

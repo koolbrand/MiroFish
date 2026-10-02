@@ -23,6 +23,7 @@ from .banco import Banco, Encuestado, Segmento
 from .ficha import construir_ficha as _construir_ficha
 from .ficha import genero_oasis, hechos_memoria
 from .filtros import traducir_grupos
+from .metricas import CAMPOS_CALIDAD, calidad_de_grupo
 from .fuentes import (FUENTES, Fuente, abrir_banco, disponibles, fuente_de_pais, registrar, ruta_banco,
                       tiene_banco)
 from .pais import Deteccion, detectar
@@ -60,6 +61,7 @@ class GrupoAsignado:
     segmento: Segmento
     encuestados: List[Encuestado] = field(default_factory=list)
     avisos: List[str] = field(default_factory=list)
+    calidad: Optional[Dict] = None      # ¿la gente elegida se parece al segmento del que salió? (metricas.py)
 
     def resumen(self) -> Dict:
         return {
@@ -67,6 +69,7 @@ class GrupoAsignado:
             "filtros_pedidos": self.segmento.filtros_pedidos, "filtros_aplicados": self.segmento.filtros_aplicados,
             "relajado": self.segmento.relajado, "casos_segmento": len(self.segmento.ids),
             "avisos": self.segmento.avisos + self.avisos,
+            "calidad": self.calidad,
         }
 
 
@@ -101,6 +104,12 @@ class Asignacion:
             "region": {k: round(v / n * 100) for k, v in region.most_common(6)},
         }
 
+    def calidad(self) -> Dict:
+        """Resumen de la comprobación de cada grupo: ¿se ha deformado o aplanado a alguien al elegir?"""
+        evaluados = [g.calidad for g in self.por_grupo.values() if g.calidad]
+        avisos = [a for q in evaluados for a in q["avisos"]]
+        return {"grupos_evaluados": len(evaluados), "representativa": not avisos, "avisos": avisos}
+
     def resumen(self) -> Dict:
         estudios = sorted({e.estudio for e in self.encuestados})
         grupos = [g.resumen() for g in self.por_grupo.values()]
@@ -114,6 +123,7 @@ class Asignacion:
             "grupos": grupos, "relajado": any(g["relajado"] for g in grupos),
             "avisos": [a for g in grupos for a in g["avisos"]],
             "reparto": self.reparto(),
+            "calidad": self.calidad(),
         }
 
 
@@ -153,7 +163,14 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
             avisos.append(f"«{g.nombre}»: el segmento solo tenía {propios} personas distintas para {g.n}; "
                           "se completó con población general.")
         usados.update(ids)
-        elegidos[g.clave] = GrupoAsignado(g, seg, [banco.encuestado(i) for i in ids], avisos)
+        calidad = None
+        if not avisos and len(ids) >= 5:          # solo si todo salió del segmento: si se completó, ya lo dice el aviso
+            try:
+                campos = CAMPOS_CALIDAD + ("edad",)
+                calidad = calidad_de_grupo(banco.columnas(ids, campos), banco.columnas(seg.ids, campos), seg.pesos)
+            except Exception:
+                calidad = None
+        elegidos[g.clave] = GrupoAsignado(g, seg, [banco.encuestado(i) for i in ids], avisos, calidad)
     return Asignacion(fuente, banco, {g.clave: elegidos[g.clave] for g in grupos}, deteccion)
 
 

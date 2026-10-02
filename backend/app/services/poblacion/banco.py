@@ -83,6 +83,7 @@ class Banco:
         self.path = path
         self.fuente = fuente
         self._conn: Optional[sqlite3.Connection] = None
+        self._tabla: Optional[Dict[int, Dict]] = None
 
     # ---- disponibilidad -------------------------------------------------
     @staticmethod
@@ -194,6 +195,14 @@ class Banco:
         ).fetchall()
         d = {k: r[k] for k in r.keys()}
         return Encuestado(respuestas=[dict(x) for x in resp], **d)
+
+    def columnas(self, ids: Sequence[int], campos: Sequence[str]) -> Dict[str, List]:
+        """Valores de `campos` para esos ids (sin respuestas), en el mismo orden. Para medir la calidad de una muestra."""
+        if self._tabla is None:
+            cols = ("id", "sexo", "tramo", "region", "sitlab", "estudios", "edad")
+            self._tabla = {r["id"]: dict(zip(cols[1:], tuple(r)[1:]))
+                           for r in self.conn.execute(f"SELECT {','.join(cols)} FROM encuestados")}
+        return {c: [self._tabla[i][c] for i in ids if i in self._tabla] for c in campos}
 
     def titulo_estudio(self, estudio: str) -> str:
         r = self.conn.execute("SELECT titulo FROM estudios WHERE id = ?", (estudio,)).fetchone()

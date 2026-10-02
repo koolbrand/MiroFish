@@ -1244,7 +1244,8 @@ def poblacion_estado():
             continue
         info["fuentes"].append({
             "id": f.id, "pais": f.pais, "pais_nombre": f.pais_nombre, "nombre": f.nombre, "cita": f.cita,
-            "uso_interno": f.uso_interno, "estudios": estudios,
+            "uso_interno": f.uso_interno, "licencia": f.licencia, "licencia_nota": f.licencia_nota,
+            "etiqueta_region": f.etiqueta_region, "estudios": estudios,
         })
     if info["fuentes"]:
         info["disponible"] = True

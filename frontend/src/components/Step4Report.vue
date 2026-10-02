@@ -2215,14 +2215,19 @@ const stopPolling = () => {
 }
 
 // Lifecycle
-// «Fuente de datos: CIS (estudio NNNN)» si el público de esta simulación se ancló a datos reales
+// «Fuente de datos: <fuente> (estudio NNNN)» si el público de esta simulación se ancló a datos reales de su país
 const cisCita = ref('')
 const cargarCitaCis = async () => {
   if (!props.simulationId) return
   try {
     const res = await getPoblacionSimulacion(props.simulationId)
-    const est = res?.data?.estudios || []
-    cisCita.value = res.success && res.data ? t('step2.cisSource', { ref: est.join(', ') }) : ''
+    const d = res?.data
+    const est = d?.estudios || []
+    const source = d?.fuente || ''
+    // sin_datos = se pidió pero no se aplicó: no se cita una fuente que no se usó
+    cisCita.value = res.success && d && !d.sin_datos
+      ? (est.length ? t('step2.datosSource', { source, ref: est.join(', ') }) : t('step2.datosSourceShort', { source }))
+      : ''
   } catch (e) {
     cisCita.value = ''
   }
