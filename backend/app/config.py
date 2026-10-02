@@ -161,13 +161,14 @@ class Config:
     AUDIENCE_MAX_EXTRA = env_int('AUDIENCE_MAX_EXTRA', 20, minimum=0)
     AUDIENCE_MAX_VARIANTS = env_int('AUDIENCE_MAX_VARIANTS', 4, minimum=1)
 
-    # Público con datos reales (CIS): cada persona simulada del público se ancla a un encuestado real y
-    # anónimo del banco. Uso interno de I+D hasta tener la autorización escrita del CIS. Apagado por defecto.
-    POBLACION_CIS = env_bool('POBLACION_CIS', False)
-    POBLACION_BANCO_PATH = env_str(
-        'POBLACION_BANCO_PATH',
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'poblacion', 'banco_cis.sqlite'),
-    )
+    # Público con datos reales: cada persona simulada del público se ancla a un encuestado real y anónimo de la
+    # encuesta oficial del PAÍS del público (CIS para España; se añaden más en `services/poblacion/fuentes.py`).
+    # Uso interno de I+D hasta tener la autorización escrita de cada titular. Apagado por defecto.
+    POBLACION_DATOS_REALES = env_bool('POBLACION_DATOS_REALES', False) or env_bool('POBLACION_CIS', False)
+    POBLACION_CIS = POBLACION_DATOS_REALES        # nombre antiguo del mismo interruptor
+    _POBLACION_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'poblacion')
+    POBLACION_BANCOS_DIR = env_str('POBLACION_BANCOS_DIR', _POBLACION_DIR)
+    POBLACION_BANCO_PATH = env_str('POBLACION_BANCO_PATH', os.path.join(POBLACION_BANCOS_DIR, 'banco_cis.sqlite'))
 
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph

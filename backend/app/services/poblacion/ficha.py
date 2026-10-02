@@ -1,9 +1,12 @@
 """«Ficha de datos reales»: lo que se sabe de un encuestado, en texto, para el prompt y la memoria del agente."""
 
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .banco import Encuestado
 from .vocabulario import ETIQUETAS, ETIQUETAS_VALOR
+
+if TYPE_CHECKING:
+    from .fuentes import Fuente
 
 MAX_CHARS = 1800          # tope de la ficha entera
 MAX_RESPUESTA = 160       # una respuesta larguísima no entra entera
@@ -13,15 +16,16 @@ def _valor(campo: str, v) -> str:
     return ETIQUETAS_VALOR.get(v, str(v)) if v is not None else ""
 
 
-def lineas_sociodemografia(e: Encuestado) -> List[str]:
+def lineas_sociodemografia(e: Encuestado, fuente: Optional["Fuente"] = None) -> List[str]:
+    etiqueta_region = fuente.etiqueta_region if fuente else ETIQUETAS["region"]
     out = []
     if e.sexo:
         out.append(f"{ETIQUETAS['sexo']}: {e.sexo}")
     if e.edad:
         out.append(f"{ETIQUETAS['edad']}: {e.edad} años")
-    if e.ccaa:
-        prov = f" (provincia de {e.provincia})" if e.provincia else ""
-        out.append(f"{ETIQUETAS['ccaa']}: {e.ccaa}{prov}")
+    if e.region:
+        sub = f" ({e.subregion})" if e.subregion else ""
+        out.append(f"{etiqueta_region}: {e.region}{sub}")
     for campo in ("tamuni", "estudios", "sitlab", "estcivil"):
         v = getattr(e, campo)
         if v:
@@ -41,8 +45,8 @@ def respuestas_priorizadas(e: Encuestado) -> List[Dict]:
     return no_pol + pol
 
 
-def construir_ficha(e: Encuestado, max_chars: int = MAX_CHARS) -> str:
-    partes = ["Datos sociodemográficos:"] + [f"- {l}" for l in lineas_sociodemografia(e)]
+def construir_ficha(e: Encuestado, max_chars: int = MAX_CHARS, fuente: Optional["Fuente"] = None) -> str:
+    partes = ["Datos sociodemográficos:"] + [f"- {l}" for l in lineas_sociodemografia(e, fuente)]
     cabecera = "\n".join(partes)
     resp_txt = ["Lo que respondió en la encuesta:"]
     usado = len(cabecera) + len(resp_txt[0]) + 2

@@ -9,6 +9,7 @@ OASIS Agent Profile生成器
 """
 
 import json
+import re
 import random
 import time
 from typing import Dict, Any, List, Optional
@@ -227,7 +228,8 @@ class OasisProfileGenerator:
         entity: EntityNode, 
         user_id: int,
         use_llm: bool = True,
-        encuestado=None
+        encuestado=None,
+        fuente=None
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -236,8 +238,9 @@ class OasisProfileGenerator:
             entity: Zep实体节点
             user_id: 用户ID（用于OASIS）
             use_llm: 是否使用LLM生成详细人设
-            encuestado: encuestado real (CIS) al que se ancla el agente; solo para el público.
-                Si es None el comportamiento es el de siempre.
+            encuestado: encuestado real (de la encuesta oficial del país del público) al que se ancla el agente;
+                solo para el público. Si es None el comportamiento es el de siempre.
+            fuente: la fuente de ese encuestado (CIS…): país, cita y nombre de la región.
             
         Returns:
             OasisAgentProfile
@@ -259,7 +262,8 @@ class OasisProfileGenerator:
         topic = raw_attrs.get('__simuloo_topic')
         prompt_attrs = {k: v for k, v in raw_attrs.items() if not str(k).startswith('__')}
         summary = entity.summary or ''
-        if force_individual:
+        anclado = encuestado is not None and force_individual and fuente is not None
+        if force_individual and not anclado:
             summary += (
                 "\n\nGenera UNA persona concreta y creíble que pertenece a este público "
                 "(nombre propio, edad, situación familiar y laboral, lo que le preocupa y cómo "
@@ -271,15 +275,18 @@ class OasisProfileGenerator:
                     "la región de los que habla ese tema (no la sitúes por defecto en España "
                     "si el tema es de otro mercado)."
                 )
-        if variant:
+        elif anclado and topic:
+            # Con encuestado real la ficha ya fija edad, situación y lugar: aquí no se pide inventar nada de eso
+            summary += f"\n\nLa simulación trata sobre: «{topic}»."
+        if variant and not anclado:
             summary += (
                 f"\nEsta es la persona n.º {variant} de este grupo: tiene que ser claramente "
                 "distinta de las demás (otra edad, otra situación, otra opinión y otro tono)."
             )
-        
+
         ficha = None
-        if encuestado is not None and force_individual:
-            ficha = poblacion.construir_ficha(encuestado)
+        if anclado:
+            ficha = poblacion.construir_ficha(encuestado, fuente=fuente)
         else:
             encuestado = None
 
@@ -292,7 +299,8 @@ class OasisProfileGenerator:
                 entity_attributes=prompt_attrs,
                 context=context,
                 force_individual=force_individual,
-                cis_ficha=ficha,
+                ficha=ficha,
+                fuente=fuente if anclado else None,
             )
         else:
             # 使用规则生成基础人设
@@ -309,9 +317,9 @@ class OasisProfileGenerator:
             # Lo medido manda sobre lo que el modelo haya escrito: edad, género y región son del dato real
             profile_data["age"] = encuestado.edad
             profile_data["gender"] = poblacion.genero_oasis(encuestado) or profile_data.get("gender")
-            profile_data["country"] = "España"
+            profile_data["country"] = fuente.pais_nombre
             profile_data["mbti"] = None
-            profile_data["data_source"] = poblacion.FUENTE
+            profile_data["data_source"] = fuente.nombre
             profile_data["data_ref"] = encuestado.estudio
             profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado)
 
@@ -567,7 +575,8 @@ class OasisProfileGenerator:
         entity_attributes: Dict[str, Any],
         context: str,
         force_individual: bool = False,
-        cis_ficha: Optional[str] = None,
+        ficha: Optional[str] = None,
+        fuente=None,
     ) -> Dict[str, Any]:
         """
         使用LLM生成非常详细的人设
@@ -579,9 +588,9 @@ class OasisProfileGenerator:
         
         is_individual = force_individual or self._is_individual_entity(entity_type)
         
-        if cis_ficha:
-            prompt = self._build_cis_persona_prompt(
-                entity_name, entity_summary, entity_attributes, context, cis_ficha
+        if ficha and fuente is not None:
+            prompt = self._build_encuesta_persona_prompt(
+                entity_name, entity_summary, entity_attributes, context, ficha, fuente
             )
         elif is_individual:
             prompt = self._build_individual_persona_prompt(
@@ -822,15 +831,16 @@ Rules:
 - age must be a valid integer.
 """
 
-    def _build_cis_persona_prompt(
+    def _build_encuesta_persona_prompt(
         self,
         entity_name: str,
         entity_summary: str,
         entity_attributes: Dict[str, Any],
         context: str,
-        ficha: str
+        ficha: str,
+        fuente
     ) -> str:
-        """Persona anclada a un encuestado REAL y anónimo (CIS): el modelo la redacta, no la inventa."""
+        """Persona anclada a un encuestado REAL y anónimo de una encuesta oficial: el modelo la redacta, no la inventa."""
         attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "N/A"
         context_str = context[:2000] if context else "No additional context"
         lang_instruction = get_language_instruction()
@@ -838,7 +848,13 @@ Rules:
         return f"""{lang_instruction}
 IMPORTANT: All free-text field values below (bio, persona, profession, interested_topics) MUST be written in the target language specified above. Do NOT output Chinese unless the target language is Chinese.
 
-You are writing the social-media persona of ONE REAL, anonymous person who answered an official survey of the Spanish population (CIS). The DATA SHEET below is true and fixed: do NOT contradict it, do NOT change their age, sex, region, studies or employment, and do NOT invent a personality type or other hard facts that clash with it. You may only add plausible everyday colour (tone, habits, how they would talk online) that is consistent with the data sheet.
+You are writing the social-media persona of ONE REAL, anonymous person who answered an official survey of the population of {fuente.pais_nombre} ({fuente.nombre}). The DATA SHEET below is true and fixed: do NOT contradict it, do NOT change their age, sex, {fuente.etiqueta_region.lower()}, studies or employment, and do NOT invent a personality type or other hard facts that clash with it. You may only add plausible everyday colour (tone, habits, how they would talk online) that is consistent with the data sheet.
+
+AVOID STEREOTYPES (this matters more than being vivid):
+- This is an individual, not a typical member of their group. Do NOT infer traits, hobbies, income, politics, taste or speech from their sex, age, region, studies or job alone. They may think and behave in ways that are NOT what is expected of someone like them.
+- Do NOT use clichés or caricature: no exaggerated regional speech, no gender or age tropes, no "typical" opinions attributed to the group.
+- The survey answers are the main evidence of what this person thinks. Where the data sheet is silent, stay neutral or say the person has no strong view; do not fill the gap with a group stereotype.
+- Where the sheet gives no basis for the topic of the simulation, infer a tentative stance from their related answers and keep it tentative; never invent a firm opinion or personal fact.
 
 DATA SHEET (real data):
 {ficha}
@@ -1008,8 +1024,10 @@ Rules:
         parallel_count: int = 5,
         realtime_output_path: Optional[str] = None,
         output_platform: str = "reddit",
-        poblacion_cis: Optional[bool] = None,
+        poblacion_datos: Optional[bool] = None,
+        poblacion_pais: Optional[str] = None,
         publico_descripcion: str = "",
+        pregunta: str = "",
         poblacion_resumen_path: Optional[str] = None
     ) -> List[OasisAgentProfile]:
         """
@@ -1070,25 +1088,48 @@ Rules:
                 except Exception as e:
                     logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
-        # Público con datos reales (CIS): se eligen de antemano, sin repetir, tantos encuestados como
-        # personas del público haya. Apagado o sin banco = nada de esto corre y todo sale como siempre.
+        # Público con datos reales: se eligen de antemano, sin repetir, tantos encuestados como personas tenga cada
+        # GRUPO del público (la entidad y sus variantes), del país del público. Apagado, sin banco o sin país claro =
+        # nada de esto corre y todo sale como siempre; en ese caso se deja escrito por qué para decírselo a la persona.
         encuestados_por_idx: Dict[int, Any] = {}
-        if poblacion.modo_activo(poblacion_cis):
+        fuente_poblacion = None
+        if poblacion.modo_activo(poblacion_datos):
             try:
-                idx_publico = [i for i, e in enumerate(entities)
-                               if (e.attributes or {}).get('__simuloo_individual')]
-                if idx_publico:
-                    asignacion = poblacion.asignar(
-                        len(idx_publico), publico_descripcion, llm=self._llm_texto
-                    )
-                    encuestados_por_idx = dict(zip(idx_publico, asignacion.encuestados))
+                grupos: Dict[str, Dict[str, Any]] = {}
+                for i, e in enumerate(entities):
+                    attrs = e.attributes or {}
+                    if not attrs.get('__simuloo_individual'):
+                        continue
+                    clave = str(attrs.get('__simuloo_group') or e.uuid)
+                    nombre = re.sub(r'\s·\s\d+$', '', e.name or '')
+                    g = grupos.setdefault(clave, {'idx': [], 'nombre': nombre, 'descripcion': e.summary or ''})
+                    g['idx'].append(i)
+                if grupos:
+                    deteccion = poblacion.detectar(poblacion_pais, pregunta, publico_descripcion, self._llm_texto)
+                    asignacion = None
+                    if deteccion.fuente is not None:
+                        asignacion = poblacion.asignar_por_grupos(
+                            [poblacion.Grupo(k, v['nombre'], v['descripcion'], len(v['idx'])) for k, v in grupos.items()],
+                            general=publico_descripcion, llm=self._llm_texto, pregunta=pregunta,
+                            fuente=deteccion.fuente, deteccion=deteccion)
+                    if asignacion is not None:
+                        fuente_poblacion = asignacion.fuente
+                        for k, v in grupos.items():
+                            for i, enc in zip(v['idx'], asignacion.de_grupo(k)):
+                                encuestados_por_idx[i] = enc
+                        resumen = asignacion.resumen()
+                        logger.info(f"Público con datos reales ({fuente_poblacion.nombre}, {fuente_poblacion.pais_nombre}): "
+                                    f"{len(encuestados_por_idx)} personas ancladas en {len(grupos)} grupos")
+                    else:
+                        resumen = {"sin_datos": True, "motivo": deteccion.motivo, "pais_decidido_por": deteccion.origen}
+                        logger.info(f"Público con datos reales: no se aplica ({deteccion.motivo})")
                     if poblacion_resumen_path:
                         with open(poblacion_resumen_path, 'w', encoding='utf-8') as f:
-                            json.dump(asignacion.resumen(), f, ensure_ascii=False, indent=2)
-                    logger.info(f"Público con datos reales (CIS): {len(encuestados_por_idx)} personas ancladas")
+                            json.dump(resumen, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                logger.warning(f"No se pudo anclar el público al CIS, se genera como siempre: {e}")
+                logger.warning(f"No se pudo anclar el público a datos reales, se genera como siempre: {e}")
                 encuestados_por_idx = {}
+                fuente_poblacion = None
 
         # Capture locale before spawning thread pool workers
         current_locale = get_locale()
@@ -1103,7 +1144,8 @@ Rules:
                     entity=entity,
                     user_id=idx,
                     use_llm=use_llm,
-                    encuestado=encuestados_por_idx.get(idx)
+                    encuestado=encuestados_por_idx.get(idx),
+                    fuente=fuente_poblacion
                 )
                 
                 # 实时输出生成的人设到控制台和日志

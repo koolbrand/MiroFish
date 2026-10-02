@@ -33,8 +33,9 @@ from typing import Callable, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.config import Config                                  # noqa: E402
-from app.services.poblacion.banco import BancoCIS               # noqa: E402
+from app.services.poblacion.banco import Banco                   # noqa: E402
 from app.services.poblacion.ficha import lineas_sociodemografia, _recortar  # noqa: E402
+from app.services.poblacion.fuentes import FUENTES, abrir_banco, ruta_banco, tiene_banco  # noqa: E402
 
 # MiniMax-M3 (producción): 0,30 $/M entrada · 1,20 $/M salida
 PRECIO_ENTRADA, PRECIO_SALIDA = 0.30 / 1e6, 1.20 / 1e6
@@ -63,7 +64,7 @@ def distribucion(respuestas: List[Optional[str]], pesos: List[float], opciones: 
 
 
 # ---------------------------------------------------------------- preparación
-def cargar_muestra(banco: BancoCIS, estudio: str, n: int, semilla: int):
+def cargar_muestra(banco: Banco, estudio: str, n: int, semilla: int):
     ids = [r[0] for r in banco.conn.execute(
         "SELECT id FROM encuestados WHERE estudio=? AND edad>=18 ORDER BY id", (estudio,)).fetchall()]
     random.Random(semilla).shuffle(ids)
@@ -88,9 +89,10 @@ def elegir_preguntas(muestra, cuantas: int = 10, min_cobertura: float = 0.8):
     return [(q, ops) for _, q, ops in cand[:cuantas]]
 
 
-def prompt_persona(e, ocultas: set, con_respuestas: bool, preguntas) -> str:
-    partes = ["Eres una persona real que respondió a una encuesta del CIS en España. Datos:"]
-    partes += [f"- {l}" for l in lineas_sociodemografia(e)]
+def prompt_persona(e, ocultas: set, con_respuestas: bool, preguntas, fuente=None) -> str:
+    fuente = fuente or FUENTES["cis"]
+    partes = [f"Eres una persona real que respondió a una encuesta de {fuente.nombre} en {fuente.pais_nombre}. Datos:"]
+    partes += [f"- {l}" for l in lineas_sociodemografia(e, fuente)]
     if con_respuestas:
         previas = [r for r in e.respuestas if r["pregunta"] not in ocultas]
         previas.sort(key=lambda r: r["politica"])
@@ -104,12 +106,12 @@ def prompt_persona(e, ocultas: set, con_respuestas: bool, preguntas) -> str:
     return "\n".join(partes)
 
 
-def estimar_coste(muestra, preguntas, salida_tokens: int = SALIDA_ESTIMADA) -> Dict:
+def estimar_coste(muestra, preguntas, salida_tokens: int = SALIDA_ESTIMADA, fuente=None) -> Dict:
     ocultas = {q for q, _ in preguntas}
     ent = sal = 0
     for e in muestra:
         for con in (False, True):
-            ent += int(len(prompt_persona(e, ocultas, con, preguntas)) / CHARS_POR_TOKEN)
+            ent += int(len(prompt_persona(e, ocultas, con, preguntas, fuente)) / CHARS_POR_TOKEN)
             sal += salida_tokens
     usd = ent * PRECIO_ENTRADA + sal * PRECIO_SALIDA
     return {"llamadas": len(muestra) * 2, "tokens_entrada": ent, "tokens_salida": sal, "usd": round(usd, 3)}
@@ -144,7 +146,7 @@ def llm_por_defecto() -> Callable[[str], str]:
     return llm
 
 
-def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1) -> Dict:
+def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fuente=None) -> Dict:
     ocultas = {q for q, _ in preguntas}
     pesos = [max(e.peso, 1e-9) for e in muestra]
     real = {q: [next((r["respuesta"] for r in e.respuestas if r["pregunta"] == q), None) for e in muestra]
@@ -152,7 +154,7 @@ def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1) -> 
     pred = {"a": {q: [] for q, _ in preguntas}, "b": {q: [] for q, _ in preguntas}}
     for e in muestra:
         for cond, con in (("a", False), ("b", True)):
-            res = parsear(llm(prompt_persona(e, ocultas, con, preguntas)), preguntas)
+            res = parsear(llm(prompt_persona(e, ocultas, con, preguntas, fuente)), preguntas)
             for i, (q, _) in enumerate(preguntas, 1):
                 pred[cond][q].append(res[i])
     # línea base: moda del grupo (sexo × tramo), sin contarse a sí mismo
@@ -193,15 +195,16 @@ def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1) -> 
     return cond_res
 
 
-def informe_md(estudio, n, preguntas, res, coste) -> str:
+def informe_md(estudio, n, preguntas, res, coste, fuente=None) -> str:
+    fuente = fuente or FUENTES["cis"]
     f = lambda x: f"{x * 100:.1f} %"  # noqa: E731
     filas = "\n".join(
         f"| {n_} | {f(v['acierto'])} | {f(v['acierto_ponderado'])} | {v['jsd_medio']:.3f} |"
         for n_, v in res.items())
     qs = "\n".join(f"- {q} ({' / '.join(ops)})" for q, ops in preguntas)
-    return f"""# Fidelidad con datos del CIS — estudio {estudio}
+    return f"""# Fidelidad con datos de {fuente.nombre} ({fuente.pais_nombre}) — estudio {estudio}
 
-*Fuente de datos: CIS (estudio {estudio}). Uso interno de I+D.*
+*{fuente.cita} (estudio {estudio}). Uso interno de I+D.*
 
 {n} encuestados reales · {len(preguntas)} preguntas de actitud escondidas · coste real aproximado {coste['usd']} $ ({coste['llamadas']} llamadas).
 
@@ -230,6 +233,7 @@ que aporta el modelo.
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--fuente", default="cis", help="id de la fuente registrada en fuentes.py (por defecto: cis)")
     ap.add_argument("--estudio", default="3535")
     ap.add_argument("--n", type=int, default=150)
     ap.add_argument("--preguntas", type=int, default=10)
@@ -239,14 +243,17 @@ def main(argv=None):
     ap.add_argument("--max-usd", type=float, default=1.0)
     ap.add_argument("--salida", default="")
     a = ap.parse_args(argv)
-    if not BancoCIS.disponible(Config.POBLACION_BANCO_PATH):
-        raise SystemExit("No hay banco: construye uno con build_banco_cis.py (POBLACION_BANCO_PATH).")
-    banco = BancoCIS(Config.POBLACION_BANCO_PATH)
+    fuente = FUENTES.get(a.fuente)
+    if fuente is None:
+        raise SystemExit(f"Fuente desconocida {a.fuente!r}. Registradas: {', '.join(FUENTES)}.")
+    if not tiene_banco(fuente):
+        raise SystemExit(f"No hay banco de {fuente.nombre}: constrúyelo con su script de scripts/poblacion/.")
+    banco = abrir_banco(fuente)
     muestra = cargar_muestra(banco, a.estudio, a.n, a.semilla)
     preguntas = elegir_preguntas(muestra, a.preguntas)
     if len(muestra) < 30 or len(preguntas) < 3:
         raise SystemExit(f"Muestra insuficiente ({len(muestra)} personas, {len(preguntas)} preguntas aptas).")
-    coste = estimar_coste(muestra, preguntas)
+    coste = estimar_coste(muestra, preguntas, fuente=fuente)
     print(f"{len(muestra)} personas · {len(preguntas)} preguntas escondidas")
     print(f"Coste estimado: {coste['usd']} $ ({coste['llamadas']} llamadas, {coste['tokens_entrada']:,} tokens de entrada, "
           f"~{coste['tokens_salida']:,} de salida) con MiniMax-M3")
@@ -254,9 +261,9 @@ def main(argv=None):
         return
     if coste["usd"] > a.max_usd:
         raise SystemExit(f"El coste estimado supera --max-usd={a.max_usd}. No se lanza.")
-    res = evaluar(muestra, preguntas, llm_por_defecto(), a.semilla)
-    md = informe_md(a.estudio, len(muestra), preguntas, res, coste)
-    salida = a.salida or os.path.join(os.path.dirname(Config.POBLACION_BANCO_PATH), "fidelidad.md")
+    res = evaluar(muestra, preguntas, llm_por_defecto(), a.semilla, fuente)
+    md = informe_md(a.estudio, len(muestra), preguntas, res, coste, fuente)
+    salida = a.salida or os.path.join(os.path.dirname(ruta_banco(fuente)), f"fidelidad-{fuente.id}.md")
     Path(salida).write_text(md, encoding="utf-8")
     print(md)
     print(f"Informe guardado en {salida}")

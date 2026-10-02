@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services.poblacion.banco import BancoCIS
+from app.services.poblacion.banco import Banco
 from poblacion_fixture import crear_banco
 
 RUTA = Path(__file__).resolve().parents[1] / "scripts" / "poblacion" / "fidelidad.py"
@@ -31,7 +31,7 @@ def test_distribucion_con_pesos():
 
 @pytest.fixture()
 def muestra(tmp_path):
-    banco = BancoCIS(crear_banco(str(tmp_path / "b.sqlite"), n=120))
+    banco = Banco(crear_banco(str(tmp_path / "b.sqlite"), n=120))
     return fd.cargar_muestra(banco, "9001", 50, 1)
 
 

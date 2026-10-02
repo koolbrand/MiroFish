@@ -1,7 +1,9 @@
-"""Banco de encuestados reales (CIS) en SQLite: lectura, filtrado y muestreo ponderado.
+"""Banco de encuestados reales (una encuesta oficial por fichero) en SQLite: lectura, filtrado y muestreo ponderado.
 
-El banco lo construye `scripts/poblacion/build_banco_cis.py` y vive FUERA del repo (ruta ignorada por git,
-`POBLACION_BANCO_PATH`). Aquí solo se lee. Nada se reidentifica ni se cruza con otros datos.
+Cada fuente (CIS, y las que se añadan por país) tiene su propio fichero, construido OFFLINE por un script de
+`scripts/poblacion/` y guardado FUERA del repo (ruta ignorada por git, `POBLACION_BANCOS_DIR`). Todos comparten este
+esquema, así que el resto del sistema no sabe de qué país es cada banco. Aquí solo se lee. Nada se reidentifica ni se
+cruza con otros datos.
 """
 
 import math
@@ -9,15 +11,18 @@ import os
 import random
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence
 
-from .vocabulario import CAMPOS_EDAD, CAMPOS_LISTA, ORDEN_RELAJAR
+from .vocabulario import COLUMNAS_FILTRABLES, ORDEN_RELAJAR
+
+if TYPE_CHECKING:
+    from .fuentes import Fuente
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS estudios (id TEXT PRIMARY KEY, titulo TEXT, fecha TEXT);
 CREATE TABLE IF NOT EXISTS encuestados (
-  id INTEGER PRIMARY KEY, estudio TEXT NOT NULL, sexo TEXT, edad INTEGER, tramo TEXT, ccaa TEXT, provincia TEXT,
+  id INTEGER PRIMARY KEY, estudio TEXT NOT NULL, sexo TEXT, edad INTEGER, tramo TEXT, region TEXT, subregion TEXT,
   tamuni TEXT, estudios TEXT, sitlab TEXT, estcivil TEXT, peso REAL NOT NULL DEFAULT 1.0
 );
 CREATE TABLE IF NOT EXISTS respuestas (
@@ -38,8 +43,8 @@ class Encuestado:
     sexo: Optional[str]
     edad: Optional[int]
     tramo: Optional[str]
-    ccaa: Optional[str]
-    provincia: Optional[str]
+    region: Optional[str]
+    subregion: Optional[str]
     tamuni: Optional[str]
     estudios: Optional[str]
     sitlab: Optional[str]
@@ -64,14 +69,19 @@ def abrir(path: str) -> sqlite3.Connection:
     return conn
 
 
-def crear_esquema(conn: sqlite3.Connection) -> None:
+def crear_esquema(conn: sqlite3.Connection, fuente_id: str = "", pais: str = "") -> None:
+    """Crea las tablas y, si se dice, deja escrito en el propio fichero de qué fuente y país es."""
     conn.executescript(SCHEMA)
+    for k, v in (("fuente", fuente_id), ("pais", pais)):
+        if v:
+            conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (k, v))
     conn.commit()
 
 
-class BancoCIS:
-    def __init__(self, path: str):
+class Banco:
+    def __init__(self, path: str, fuente: Optional["Fuente"] = None):
         self.path = path
+        self.fuente = fuente
         self._conn: Optional[sqlite3.Connection] = None
 
     # ---- disponibilidad -------------------------------------------------
@@ -106,7 +116,7 @@ class BancoCIS:
     # ---- filtrado -------------------------------------------------------
     def _where(self, filtros: Dict, estudios: Optional[Sequence[str]]):
         cond, par = ["1=1"], []
-        for campo in CAMPOS_LISTA:
+        for campo in COLUMNAS_FILTRABLES:
             vals = filtros.get(campo)
             if vals:
                 cond.append(f"{campo} IN ({','.join('?' * len(vals))})")

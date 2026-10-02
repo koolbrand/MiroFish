@@ -15,6 +15,7 @@ from enum import Enum
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
+from . import poblacion
 from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
@@ -249,7 +250,8 @@ class SimulationManager:
         use_llm_for_profiles: bool = True,
         progress_callback: Optional[callable] = None,
         parallel_profile_count: int = 3,
-        poblacion_cis: Optional[bool] = None
+        poblacion_datos: Optional[bool] = None,
+        poblacion_pais: Optional[str] = None
     ) -> SimulationState:
         """
         准备模拟环境（全程自动化）
@@ -393,9 +395,13 @@ class SimulationManager:
                 parallel_count=parallel_profile_count,  # 并行生成数量
                 realtime_output_path=realtime_output_path,  # 实时保存路径
                 output_platform=realtime_platform,  # 输出格式
-                poblacion_cis=poblacion_cis,
-                publico_descripcion=simulation_requirement,
-                poblacion_resumen_path=os.path.join(sim_dir, "poblacion_cis.json"),
+                poblacion_datos=poblacion_datos,
+                poblacion_pais=poblacion_pais,
+                # El país y los grupos del público se deciden con el brief (de ahí sale quién es el público), no solo
+                # con la pregunta de la simulación, que casi nunca dice de dónde es.
+                publico_descripcion=(document_text or "")[:4000],
+                pregunta=simulation_requirement,
+                poblacion_resumen_path=os.path.join(sim_dir, poblacion.RESUMEN),
             )
             
             state.profiles_count = len(profiles)

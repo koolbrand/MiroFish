@@ -26,7 +26,7 @@ from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.services.poblacion import banco as B                      # noqa: E402
-from app.services.poblacion.vocabulario import CCAA, tramo_de_edad  # noqa: E402
+from app.services.poblacion.vocabulario import tramo_de_edad        # noqa: E402
 
 TITULOS = {
     "3535": ("Encuesta sobre tendencias sociales V", "2026-01"),
@@ -38,7 +38,7 @@ TITULOS = {
 # Nombre de la variable en cada estudio. Se prueban en orden y sin distinguir mayúsculas; se pueden fijar
 # a mano por estudio en MAPEOS_ESTUDIO tras mirar su codebook (los nombres cambian de un estudio a otro).
 CANDIDATAS = {
-    "sexo": ["SEXO"], "edad": ["EDAD"], "ccaa": ["CCAA"], "provincia": ["PROV", "PROVINCIA"],
+    "sexo": ["SEXO"], "edad": ["EDAD"], "region": ["CCAA"], "subregion": ["PROV", "PROVINCIA"],
     "tamuni": ["TAMUNI", "TAMUNI2"], "estudios": ["ESTUDIOS", "ESTUDIOS_REC", "NIVELESTUDIOS"],
     "sitlab": ["SITLAB", "SITLAB_REC", "RELLAB"], "estcivil": ["ECIVIL", "ESTCIVIL", "ESTADOCIVIL"],
     "peso": ["PESO", "PESOCCAA", "PESOSEXO", "PONDERA", "PESOFINAL"],
@@ -217,11 +217,11 @@ def cargar_zip(zip_path: str, estudio: str, conn, verbose: bool = True) -> Dict:
             if not peso == peso or peso <= 0:
                 peso = 1.0
         g = lambda campo, f: f(row[var[campo]]) if var[campo] else None  # noqa: E731
-        prov = row[var["provincia"]] if var["provincia"] else None
+        prov = row[var["subregion"]] if var["subregion"] else None
         cur = conn.execute(
-            "INSERT INTO encuestados (estudio,sexo,edad,tramo,ccaa,provincia,tamuni,estudios,sitlab,estcivil,peso) "
+            "INSERT INTO encuestados (estudio,sexo,edad,tramo,region,subregion,tamuni,estudios,sitlab,estcivil,peso) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (estudio, g("sexo", norm_sexo), edad, tramo_de_edad(edad), g("ccaa", norm_ccaa),
+            (estudio, g("sexo", norm_sexo), edad, tramo_de_edad(edad), g("region", norm_ccaa),
              (str(prov) if prov not in (None, "") and str(prov) != "nan" else None),
              g("tamuni", norm_tamuni), g("estudios", norm_estudios), g("sitlab", norm_sitlab),
              g("estcivil", norm_estcivil), peso),
@@ -252,7 +252,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     if a.reemplazar and os.path.exists(a.salida):
         os.remove(a.salida)
     conn = B.abrir(a.salida)
-    B.crear_esquema(conn)
+    B.crear_esquema(conn, "cis", "ES")           # el propio fichero dice de qué fuente y país es
     for z in a.zips:
         m = re.search(r"MD?(\d{4})", os.path.basename(z), re.I)
         if not m:

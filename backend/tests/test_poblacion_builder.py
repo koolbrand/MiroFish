@@ -61,8 +61,8 @@ def test_ida_y_vuelta_con_sav_sintetico(tmp_path):
     from app.services.poblacion import banco as B
     salida = tmp_path / "b.sqlite"
     bc.main([str(zp), "--salida", str(salida)])
-    banco = B.BancoCIS(str(salida))
-    assert B.BancoCIS.disponible(str(salida))
+    banco = B.Banco(str(salida))
+    assert B.Banco.disponible(str(salida))
     assert banco.estudios()[0]["n"] == 3                      # el de 17 años no entra
     e = banco.encuestado(1)
     assert (e.sexo, e.edad, e.ccaa, e.tramo) == ("Hombre", 30, "Galicia", "25-34")
