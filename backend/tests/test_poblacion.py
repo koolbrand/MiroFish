@@ -332,6 +332,36 @@ def test_el_fichero_final_de_perfiles_conserva_la_marca_de_dato_real(con_banco, 
     assert a["age"] == enc.edad and a["user_id"] == 1                              # y los campos que OASIS necesita siguen ahí
 
 
+def test_llm_texto_repite_con_mas_espacio_si_el_modelo_devuelve_vacio(con_banco):
+    """Un modelo de razonamiento puede gastar todo el presupuesto pensando y devolver contenido vacío."""
+    g = _generador()
+    llamadas = []
+
+    def create(**kw):
+        llamadas.append(kw["max_tokens"])
+        contenido = "" if len(llamadas) == 1 else '{"indices": [1]}'
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=contenido), finish_reason="stop")])
+
+    g.client.chat.completions.create = create
+    assert g._llm_texto("pregunta") == '{"indices": [1]}'
+    assert llamadas == [4096, 16384]                                                # la segunda con el cuádruple de espacio
+
+
+def test_una_institucion_no_se_ancla_a_un_encuestado(con_banco, tmp_path):
+    """Lo destapó la prueba en producción: «Universidad de Vigo» salía como una jubilada de 80 años."""
+    from app.services.zep_entity_reader import EntityNode
+    g = _generador()
+    uni = EntityNode(uuid="u9", name="Universidad de Vigo", labels=["Entity", "University"], summary="Universidad pública",
+                     attributes={"__simuloo_individual": True, "__simuloo_group": "U"})
+    persona = _entidad(1, grupo="P")
+    perfiles = g.generate_profiles_from_entities([uni, persona], parallel_count=1, poblacion_datos=True,
+                                                 poblacion_pais="ES", pregunta="x", publico_descripcion="y",
+                                                 poblacion_resumen_path=str(tmp_path / "poblacion.json"))
+    assert perfiles[0].data_source is None and perfiles[1].data_source == "CIS"
+    r = json.load(open(tmp_path / "poblacion.json", encoding="utf-8"))
+    assert [x["nombre"] for x in r["grupos"]] == ["Persona 1"]                       # la institución ni cuenta como grupo
+
+
 def test_el_lote_elige_las_preguntas_relevantes_una_vez_y_las_guarda(con_banco, tmp_path):
     g = _generador()
     ruta = str(tmp_path / "poblacion.json")
