@@ -1004,14 +1004,25 @@ Rules:
                 "interested_topics": ["General", "Social Issues"],
             }
     
-    def _llm_texto(self, prompt: str) -> str:
-        """Llamada de texto simple (traducir el público a filtros del banco)."""
-        resp = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-        )
-        return strip_reasoning(resp.choices[0].message.content)
+    def _llm_texto(self, prompt: str, max_tokens: int = 4096) -> str:
+        """
+        Llamada de texto simple (país del público, filtros del banco, preguntas relevantes). Un modelo de razonamiento puede
+        gastar todo su presupuesto pensando y devolver el contenido VACÍO (pasaba en 4 de cada 6 llamadas con la lista larga
+        de preguntas): si eso ocurre se repite con más espacio, igual que hace utils/llm_client.
+        """
+        texto = ""
+        for _ in range(3):
+            resp = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=max_tokens,
+            )
+            texto = strip_reasoning(resp.choices[0].message.content)
+            if texto.strip() and resp.choices[0].finish_reason != "length":
+                return texto
+            max_tokens = min(max_tokens * 4, Config.LLM_MAX_TOKENS_CAP)
+        return texto
 
     def set_graph_id(self, graph_id: str):
         """设置图谱ID用于Zep检索"""
@@ -1102,6 +1113,10 @@ Rules:
                 for i, e in enumerate(entities):
                     attrs = e.attributes or {}
                     if not attrs.get('__simuloo_individual'):
+                        continue
+                    # Una universidad, un ayuntamiento o una empresa no es una persona: un encuestado (una jubilada de 80
+                    # años, un profesor de Valencia) no puede representarla. Esas entidades se generan como siempre.
+                    if self._is_group_entity(e.get_entity_type() or ""):
                         continue
                     clave = str(attrs.get('__simuloo_group') or e.uuid)
                     nombre = re.sub(r'\s·\s\d+$', '', e.name or '')

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 from ...config import Config
+from ...utils.logger import get_logger
 from .banco import Banco, Encuestado, Segmento
 from .ficha import construir_ficha as _construir_ficha
 from .ficha import genero_oasis, hechos_memoria
@@ -29,6 +30,8 @@ from .fuentes import (FUENTES, Fuente, abrir_banco, disponibles, fuente_de_pais,
                       tiene_banco)
 from .pais import Deteccion, detectar
 from .vocabulario import TRAMOS
+
+logger = get_logger('mirofish.poblacion')
 
 RESUMEN = "poblacion.json"
 RESUMEN_ANTIGUO = "poblacion_cis.json"        # nombre de antes de que hubiera más de un país
@@ -84,8 +87,11 @@ def preguntas_relevantes(banco: Banco, tema: str, llm: Optional[Callable[[str], 
             if isinstance(i, int) and 0 <= i < len(catalogo) and i not in vistos:
                 vistos.add(i)
                 elegidas.append(catalogo[i])
+        if not elegidas:
+            logger.warning("Preguntas relevantes: el modelo no eligió ninguna válida (respuesta: %r)", (crudo or "")[:120])
         return elegidas[:n]
-    except Exception:
+    except Exception as e:
+        logger.warning("Preguntas relevantes: no se pudieron elegir (%s); la ficha usa el orden de siempre", e)
         return []
 
 
