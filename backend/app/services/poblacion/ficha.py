@@ -1,5 +1,6 @@
 """«Ficha de datos reales»: lo que se sabe de un encuestado, en texto, para el prompt y la memoria del agente."""
 
+import re
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .banco import Encuestado
@@ -39,11 +40,20 @@ def _recortar(texto: str, n: int) -> str:
     return texto if len(texto) <= n else texto[: n - 1].rstrip() + "…"
 
 
+# «Sara Aagesen», «José Manuel Albares»…: las encuestas preguntan si conoces a cada ministro o líder y lo guardan con el
+# nombre propio como pregunta. Llenarían la ficha sin decir nada de la persona: van al final, con las políticas.
+_NOMBRE_PROPIO = re.compile(r"^[A-ZÁÉÍÓÚÑ][\wáéíóúñü.\-]*(\s+(de|del|la|las|los|y|i)?\s*[A-ZÁÉÍÓÚÑ][\wáéíóúñü.\-]*){1,3}$")
+
+
+def _es_nombre_propio(pregunta: str) -> bool:
+    return bool(_NOMBRE_PROPIO.match((pregunta or "").strip()))
+
+
 def respuestas_priorizadas(e: Encuestado) -> List[Dict]:
-    """Primero las no políticas (dan color de vida cotidiana y valores); luego las políticas."""
-    no_pol = [r for r in e.respuestas if not r.get("politica")]
-    pol = [r for r in e.respuestas if r.get("politica")]
-    return no_pol + pol
+    """Primero las que dan color de vida cotidiana y valores; luego las políticas y las de personas con nombre propio."""
+    def al_final(r: Dict) -> bool:
+        return bool(r.get("politica")) or _es_nombre_propio(r.get("pregunta", ""))
+    return [r for r in e.respuestas if not al_final(r)] + [r for r in e.respuestas if al_final(r)]
 
 
 def construir_ficha(e: Encuestado, max_chars: int = MAX_CHARS, fuente: Optional["Fuente"] = None) -> str:

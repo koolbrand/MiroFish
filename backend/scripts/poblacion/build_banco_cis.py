@@ -51,9 +51,17 @@ EXCLUIR = re.compile(r"^(ESTUDIO|CUES|REGISTRO|ENTREV\w*|FECHA\w*|HORA\w*|DURACI
                      r"MUN|MUNI\w*|SECC\w*|DIST\w*|ID\w*|NUM\w*|TAMUNI\w*|CCAA|PROV\w*|SEXO|EDAD\w*)$", re.I)
 SIN_RESPUESTA = re.compile(r"^(n\.?\s?s\.?|n\.?\s?c\.?|ns/nc|no sabe|no contesta|no recuerda|no procede|"
                            r"n\.?\s?p\.?|no mencionado|no aplicable|\s*)$", re.I)
+# Paradatos del trabajo de campo (cómo, cuándo y con quién se hizo la entrevista): no son respuestas de la persona y
+# no deben llegar a su ficha ni a su memoria
+PARADATOS = re.compile(r"tipo de telefono|mes de realizacion|hora de realizacion|^capital$|rechaz|desconfianza hacia las encuestas|"
+                       r"falta de interes por hacer|no le gusta|incapacidad para responder|sinceridad .*entrevistador|"
+                       r"no verifica|no lee el protocolo|no se realiza en un telefono|contactos fallidos|telefono apagado|"
+                       r"duracion de la entrevista|numero de entrevista", re.I)
 POLITICA = re.compile(r"\b(partido|voto|votar|votaría|elecciones|ideolog\w*|izquierda|derecha|gobierno|presidente|"
                       r"pol[ií]tic\w*|ministr\w*|l[ií]der|parlament\w*|diputad\w*|oposici[oó]n|monarqu\w*|"
-                      r"republic\w*|independen\w*|nacionalis\w*|inmigra\w*|constituci[oó]n)\b", re.I)
+                      r"republic\w*|independen\w*|nacionalis\w*|inmigra\w*|constituci[oó]n|"
+                      r"sanchez|feijoo|abascal|yolanda diaz|puigdemont|ayuso|trump|netanyahu|putin|zelensk\w*|"
+                      r"pp|psoe|vox|sumar|podemos|erc|junts|pnv)\b", re.I)
 
 
 # ---------------------------------------------------------------- normalización (puro, sin pandas)
@@ -104,7 +112,7 @@ def norm_estudios(v) -> Optional[str]:
         return "sin_estudios"
     if "primaria" in p or "primarios" in p or "1ª etapa" in p and "secund" not in p:
         return "primarios"
-    if "profesional" in p or p.startswith("fp") or "grado medio" in p or "grado superior" in p and "universit" not in p:
+    if re.sub(r"[^a-z]", "", p) == "fp" or "profesional" in p or p.startswith("fp") or "grado medio" in p or "grado superior" in p and "universit" not in p:
         return "fp"
     if "superior" in p or "universit" in p or "licenciad" in p or "grado" in p or "doctor" in p or "diplomad" in p:
         return "universitarios"
@@ -115,9 +123,11 @@ def norm_estudios(v) -> Optional[str]:
 
 def norm_sitlab(v) -> Optional[str]:
     p = _plano(v)
+    if SIN_RESPUESTA.match(p.strip()):
+        return None
     if "jubilad" in p or "pensionista" in p:
         return "jubilado"
-    if "parad" in p or "desemple" in p or "primer empleo" in p:
+    if "parad" in p or "desemple" in p or "primer empleo" in p or re.search(r"\ben paro\b", p):
         return "parado"
     if "estudiante" in p or "estudia" in p:
         return "estudiante"
@@ -145,6 +155,10 @@ def norm_estcivil(v) -> Optional[str]:
 
 def es_politica(pregunta: str) -> bool:
     return bool(POLITICA.search(_plano(pregunta)))
+
+
+def es_paradato(pregunta: str) -> bool:
+    return bool(PARADATOS.search(_plano(pregunta).strip()))
 
 
 def limpiar_pregunta(etiqueta: str) -> str:
@@ -201,6 +215,11 @@ def cargar_zip(zip_path: str, estudio: str, conn, verbose: bool = True) -> Dict:
             continue
         candidatas.append(c)
 
+    # El texto de cada pregunta se limpia y se clasifica una vez (no una por persona); los paradatos quedan fuera
+    textos = {}
+    for c in candidatas:
+        q = limpiar_pregunta(etiquetas.get(c) or c)
+        textos[c] = (None, 0) if es_paradato(q) else (q, 1 if es_politica(q) else 0)
     n = 0
     for row in df.to_dict("records"):
         try:
@@ -232,8 +251,10 @@ def cargar_zip(zip_path: str, estudio: str, conn, verbose: bool = True) -> Dict:
             r = respuesta_valida(row[c])
             if r is None:
                 continue
-            p = limpiar_pregunta(etiquetas.get(c) or c)
-            conn.execute("INSERT INTO respuestas VALUES (?,?,?,?)", (eid, p, r, 1 if es_politica(p) else 0))
+            p, pol = textos[c]
+            if p is None:
+                continue
+            conn.execute("INSERT INTO respuestas VALUES (?,?,?,?)", (eid, p, r, pol))
         n += 1
     conn.commit()
     if verbose:

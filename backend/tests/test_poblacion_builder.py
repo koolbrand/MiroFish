@@ -36,11 +36,38 @@ def test_normalizadores():
     assert bc.norm_estcivil("Casado/a") == "casado" and bc.norm_estcivil("Soltero/a") == "soltero"
 
 
+def test_normalizadores_con_las_etiquetas_reales_del_cis():
+    """Etiquetas copiadas de los ficheros reales (MD3505, MD3535, MD3571, MD3577). Antes «F.P.» salía sin categoría y
+    «En paro y ha trabajado antes» salía como «trabaja»: el primer volcado con datos reales lo destapó."""
+    assert [bc.norm_estudios(x) for x in ("Superiores", "F.P.", "Secundaria 2ª etapa", "Secundaria 1ª etapa",
+                                          "Primaria", "Sin estudios")] == \
+        ["universitarios", "fp", "secundarios", "secundarios", "primarios", "sin_estudios"]
+    assert bc.norm_estudios("N.C.") is None and bc.norm_estudios("Otros") is None
+    assert [bc.norm_sitlab(x) for x in (
+        "Trabaja", "Jubilado/a o pensionista (anteriormente ha trabajado)", "En paro y ha trabajado antes",
+        "Estudiante", "Trabajo doméstico no remunerado", "Pensionista (anteriormente no ha trabajado)",
+        "Otra situación", "En paro y busca su primer empleo")] == \
+        ["trabaja", "jubilado", "parado", "estudiante", "labores_hogar", "jubilado", "otra", "parado"]
+    assert bc.norm_sitlab("N.C.") is None
+    assert [bc.norm_estcivil(x) for x in ("Casado/a", "Soltero/a", "Divorciado/a", "Viudo/a", "Separado/a")] == \
+        ["casado", "soltero", "separado_divorciado", "viudo", "separado_divorciado"]
+    assert [bc.norm_tamuni(x) for x in (
+        "Menos o igual a 2.000 habitantes", "2.001 a 10.000 habitantes", "10.001 a 50.000 habitantes",
+        "50.001 a 100.000 habitantes", "100.001 a 400.000 habitantes", "400.001 a 1.000.000 habitantes",
+        "Más de 1.000.000 habitantes")] == ["rural", "pequeño", "mediano", "mediano", "grande", "grande", "grande"]
+
+
 def test_respuestas_sin_ns_nc_y_preguntas_limpias():
     assert bc.respuesta_valida("N.S.") is None and bc.respuesta_valida("N.C.") is None
     assert bc.respuesta_valida("No sabe") is None and bc.respuesta_valida("  ") is None
     assert bc.respuesta_valida("Mucho") == "Mucho"
     assert bc.limpiar_pregunta("P7. Satisfacción con la vida") == "Satisfacción con la vida"
+    # paradatos del trabajo de campo (salen en TODOS los estudios reales) fuera; los líderes y partidos cuentan como política
+    assert all(bc.es_paradato(x) for x in ("Tipo de teléfono", "Hora de realización", "Capital", "Rechazo por desconfianza hacia las encuestas",
+                                           "Grado de sinceridad de la persona entrevistada según el/la entrevistador/a"))
+    assert not bc.es_paradato("Grado de preocupación por el cambio climático") and not bc.es_paradato("Capital social")
+    assert bc.es_politica("Pedro Sánchez") and bc.es_politica("Alberto Núñez Feijóo") and bc.es_politica("Voto en el PP")
+    assert not bc.es_politica("Grado de preocupación por los incendios") and not bc.es_politica("Valoración de la situación económica personal")
     assert bc.es_politica("Voto en las últimas elecciones") and not bc.es_politica("Cuánto confía en sus vecinos")
 
 

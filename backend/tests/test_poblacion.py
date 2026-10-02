@@ -247,6 +247,17 @@ def test_ficha_nombra_la_region_como_se_llama_en_cada_pais(dos_paises):
     assert "Estado:" in F.construir_ficha(e_us, fuente=FUENTES["gss"])
 
 
+def test_las_preguntas_con_nombre_propio_van_al_final_de_la_ficha(banco):
+    e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
+    e.respuestas = [{"pregunta": "Sara Aagesen", "respuesta": "No conoce", "politica": 0},
+                    {"pregunta": "José Manuel Albares", "respuesta": "Conoce", "politica": 0},
+                    {"pregunta": "Grado de preocupación por el cambio climático", "respuesta": "Bastante", "politica": 0},
+                    {"pregunta": "Capital", "respuesta": "Otros municipios", "politica": 0}]
+    orden = [r["pregunta"] for r in F.respuestas_priorizadas(e)]
+    assert orden[:2] == ["Grado de preocupación por el cambio climático", "Capital"]
+    assert set(orden[2:]) == {"Sara Aagesen", "José Manuel Albares"}
+
+
 def test_la_ficha_no_lleva_la_provincia(banco):
     """Minimización: la provincia está en el banco ('Subregión X') pero no sale hacia el modelo."""
     e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
