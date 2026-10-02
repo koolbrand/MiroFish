@@ -53,10 +53,17 @@ SIN_RESPUESTA = re.compile(r"^(n\.?\s?s\.?|n\.?\s?c\.?|ns/nc|no sabe|no contesta
                            r"n\.?\s?p\.?|no mencionado|no aplicable|\s*)$", re.I)
 # Paradatos del trabajo de campo (cómo, cuándo y con quién se hizo la entrevista): no son respuestas de la persona y
 # no deben llegar a su ficha ni a su memoria
-PARADATOS = re.compile(r"tipo de telefono|mes de realizacion|hora de realizacion|^capital$|rechaz|desconfianza hacia las encuestas|"
-                       r"falta de interes por hacer|no le gusta|incapacidad para responder|sinceridad .*entrevistador|"
-                       r"no verifica|no lee el protocolo|no se realiza en un telefono|contactos fallidos|telefono apagado|"
-                       r"duracion de la entrevista|numero de entrevista", re.I)
+PARADATOS = re.compile(
+    r"tipo de telefono|mes de realizacion|ano de realizacion|hora de realizacion|dia de realizacion|dia de la semana|"
+    r"^capital$|rechaz|rehusa|desconfianza hacia (las encuestas|el cis)|falta de interes por hacer|no le gusta|"
+    r"incapacidad para responder|sinceridad .*entrevistador|supervis|resulta demasiado larga|otras incidencias|^otras$|"
+    r"no sabe lo suficiente|no elegible|^no contesta$|^n\.?c\.?$|perdida de tiempo|el tema no le interesa|"
+    r"entrevista (valida|modificada|con aplazamientos|interrumpida)|deseo de abandonar|prisa por acabar|"
+    r"terceras personas|incomoda por el tema de la entrevista|garantia de la priva|difitultad|dificultad con el idioma|"
+    r"interrupcion llamada|contacto fallido|resultado final|no quiere colaborar|no respeta las normas|no recoge|"
+    r"no realizada a la persona|no lee (literalmente|el protocolo)|no hay grabacion|no formula|no codifica|no aplica|"
+    r"no verifica|no se realiza en un telefono|contactos fallidos|telefono apagado|error al iniciar|falta de tiempo|"
+    r"duracion de la entrevista|numero de entrevista", re.I)
 POLITICA = re.compile(r"\b(partido|voto|votar|votaría|elecciones|ideolog\w*|izquierda|derecha|gobierno|presidente|"
                       r"pol[ií]tic\w*|ministr\w*|l[ií]der|parlament\w*|diputad\w*|oposici[oó]n|monarqu\w*|"
                       r"republic\w*|independen\w*|nacionalis\w*|inmigra\w*|constituci[oó]n|"
@@ -170,7 +177,9 @@ def respuesta_valida(v) -> Optional[str]:
     if v is None:
         return None
     t = " ".join(str(v).split())
-    if t.lower() == "nan" or SIN_RESPUESTA.match(t):
+    # «(NO LEER)» es una instrucción para quien entrevista, no parte de la respuesta: «(NO LEER) N.S., duda» es un no sabe
+    t = re.sub(r"^\(\s*no leer\s*\)\s*", "", t, flags=re.I)
+    if t.lower() == "nan" or SIN_RESPUESTA.match(t) or re.match(r"^n\.?\s?s\.?\s*[,/]?\s*(duda|n\.?\s?c\.?)", t, re.I):
         return None
     return t[:300]
 

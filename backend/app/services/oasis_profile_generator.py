@@ -286,7 +286,7 @@ class OasisProfileGenerator:
 
         ficha = None
         if anclado:
-            ficha = poblacion.construir_ficha(encuestado, fuente=fuente)
+            ficha = poblacion.construir_ficha(encuestado, fuente=fuente, tema=topic or '')
         else:
             encuestado = None
 
@@ -321,7 +321,7 @@ class OasisProfileGenerator:
             profile_data["mbti"] = None
             profile_data["data_source"] = fuente.nombre
             profile_data["data_ref"] = encuestado.estudio
-            profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado)
+            profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado, tema=topic or '')
 
         return OasisAgentProfile(
             user_id=user_id,
@@ -855,6 +855,7 @@ AVOID STEREOTYPES (this matters more than being vivid):
 - Do NOT use clichés or caricature: no exaggerated regional speech, no gender or age tropes, no "typical" opinions attributed to the group.
 - The survey answers are the main evidence of what this person thinks. Where the data sheet is silent, stay neutral or say the person has no strong view; do not fill the gap with a group stereotype.
 - Where the sheet gives no basis for the topic of the simulation, infer a tentative stance from their related answers and keep it tentative; never invent a firm opinion or personal fact.
+- The topic of the simulation decides what to foreground. Use the answers that relate to it. Do NOT build the persona around current-affairs topics of the survey that have nothing to do with it (borders, fires, ministers, a pope's visit...), and do NOT turn party or leader ratings into a political caricature: a person is not their vote.
 
 DATA SHEET (real data):
 {ficha}
@@ -870,7 +871,7 @@ Return a JSON object with these fields:
 1. bio: social-media bio, roughly 150 characters.
 2. persona: one coherent paragraph, roughly 1200 characters: who they are according to the data sheet, how their answers shape their opinions about the topic of the simulation, their social-media behaviour and tone of voice. Do not mention that they are a survey respondent or a data sheet.
 3. profession: occupation consistent with their employment situation and studies (e.g. "jubilado", "estudiante", "administrativa").
-4. interested_topics: array of 3 to 6 topics.
+4. interested_topics: array of 3 to 6 topics taken from the data sheet and from the topic of the simulation. NOT from what is "typical" for their sex, age or job (no cooking for a housewife, no DIY for a retired man).
 
 Rules:
 - All values must be strings (or an array of strings) without unescaped newlines.

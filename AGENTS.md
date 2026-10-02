@@ -379,7 +379,9 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 
 **Reglas de datos:** los microdatos **nunca** van al repo (es público) ni a la imagen Docker (`.gitignore`/`.dockerignore` cubren `backend/data/`, `*.sqlite`, `MD35*.zip`). Los tests usan bancos **sintéticos inventados**. No cruzar con datos personales ni reidentificar. No usar SDV (licencia BSL). Varias fuentes prohíben ceder los ficheros a terceros o investigar a individuos concretos: antes de enviar un registro individual a un modelo externo, la autorización escrita tiene que cubrir ese uso.
 
-**Construir el banco del CIS** (los ZIP los descarga Adrián en cis.es: MD3535, MD3577, MD3571, MD3530, MD3505):
+**Con datos reales (2-oct-2026):** banco de 20.128 encuestados y 156 preguntas de 5 estudios del CIS. Lo que hay que saber: (1) el modelo con las respuestas reales mejora al modelo con solo demografía (+6 puntos) pero **no supera a la respuesta más común del grupo sexo × edad** — por eso Simuloo es un ensayo, no una predicción; (2) la ficha pone primero lo que tiene que ver con el tema del brief y deja las políticas, los nombres propios y los elementos de batería sin enunciado al final (máx. 4); (3) los paradatos del trabajo de campo no entran en el banco. Detalle y cifras en `docs/estrategia-poblacion-por-pais.md` §7.
+
+**Construir el banco del CIS** (ZIP en cis.es; el formulario solo exige el correo; en 2-oct-2026 están en `~/dev-worktrees/cis-zips/`, fuera del repo):
 
 ```bash
 cd backend && uv run --with pyreadstat --with pandas python scripts/poblacion/build_banco_cis.py ~/Downloads/MD35*.zip --reemplazar

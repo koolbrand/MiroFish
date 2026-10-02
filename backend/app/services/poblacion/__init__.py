@@ -43,8 +43,8 @@ def banco_existe() -> bool:
     return bool(disponibles())
 
 
-def construir_ficha(e: Encuestado, fuente: Optional[Fuente] = None) -> str:
-    return _construir_ficha(e, fuente=fuente)
+def construir_ficha(e: Encuestado, fuente: Optional[Fuente] = None, tema: str = "") -> str:
+    return _construir_ficha(e, fuente=fuente, tema=tema)
 
 
 @dataclass

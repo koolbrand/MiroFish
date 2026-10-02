@@ -84,8 +84,26 @@ def test_evaluar_un_oraculo_gana_al_azar_y_al_modelo_ciego(muestra):
         return json.dumps(out)
 
     res = fd.evaluar(muestra, qs, llm)
-    assert set(res) == {"a_sociodemografia", "b_con_respuestas", "moda_del_grupo", "azar"}
+    assert set(res) == {"a_sociodemografia", "b_con_respuestas", "moda_del_grupo", "azar", "diferencias"}
+    lo, hi = res["b_con_respuestas"]["ic95"]
+    assert lo <= res["b_con_respuestas"]["acierto"] <= hi
     assert res["b_con_respuestas"]["acierto"] >= res["a_sociodemografia"]["acierto"]
     assert res["b_con_respuestas"]["jsd_medio"] <= res["a_sociodemografia"]["jsd_medio"] + 1e-9
     md = fd.informe_md("9001", len(muestra), qs, res, {"usd": 0.1, "llamadas": 100})
-    assert "Fuente de datos: CIS" in md and "| azar |" in md
+    assert "Fuente de datos: CIS" in md and "| azar |" in md and "Intervalo del 95 %" in md
+
+
+def test_intervalos_bootstrap():
+    assert fd.ic95([None]) is None
+    lo, hi = fd.ic95([0.0, 1.0] * 50)
+    assert lo < 0.5 < hi and hi - lo < 0.3
+    media, lo, hi = fd.ic95_diferencia([1.0] * 40, [0.0] * 40)
+    assert (media, lo, hi) == (1.0, 1.0, 1.0)                   # siempre mejor: el intervalo no incluye el cero
+    media, lo, hi = fd.ic95_diferencia([1.0, 0.0] * 30, [0.0, 1.0] * 30)
+    assert lo < 0 < hi                                           # ruido: sí lo incluye
+
+
+def test_las_preguntas_elegidas_no_son_una_bateria(muestra):
+    qs = fd.elegir_preguntas(muestra, 10, max_por_escala=1)
+    escalas = [tuple(ops) for _, ops in qs]
+    assert len(escalas) == len(set(escalas))

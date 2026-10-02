@@ -1,6 +1,6 @@
 # Estrategia · Público con datos reales por país
 
-*Simuloo · 2-oct-2026 · rama `feat/poblacion-por-pais` · estado: aplicado en el código, pendiente de datos y de autorizaciones.*
+*Simuloo · 2-oct-2026 · rama `feat/poblacion-por-pais` · estado: aplicado en el código y probado con los datos reales del CIS (5 estudios); pendiente de la autorización escrita del CIS y de llevar el banco a producción.*
 
 ## 1. El problema, en una frase
 
@@ -62,10 +62,11 @@ grafo ──► Jev marca el público ──► expand_audience (variantes) ─�
 | API y interfaz (selector de país, «uso interno», aviso de «sin datos») | `api/simulation.py`, `Step2EnvSetup.vue`, `Step4Report.vue` |
 | Constructor y medición de fidelidad | `scripts/poblacion/build_banco_cis.py`, `fidelidad.py` |
 
-Comprobado: 526 pruebas pasan, incluidas las de **dos países sintéticos** que demuestran que cada país usa su banco, sus
+Comprobado: las pruebas pasan, incluidas las de **dos países sintéticos** que demuestran que cada país usa su banco, sus
 regiones y su ficha, y que la misma descripción («mujeres de 25 a 64») da gente distinta según el país. La interfaz se
-revisó con la API simulada (escritorio, móvil, español e inglés). **No se ha probado con datos reales del CIS**: no
-están descargados.
+revisó con la API simulada (escritorio, móvil, español e inglés). **Con datos reales** (sección 7): banco de 20.128
+encuestados y 1,4 millones de respuestas de 5 estudios del CIS, personas generadas desde fichas reales y medición con el
+modelo de producción.
 
 ## 5. Fuentes por país y licencias (leídas en páginas oficiales el 2-oct-2026)
 
@@ -101,27 +102,59 @@ Enlaces de las condiciones: [ESS](https://www.europeansocialsurvey.org/data/data
 | Fase | Qué | Quién | Estado |
 |---|---|---|---|
 | **0** | Capa por país aplicada a la generación de agentes, con CIS como primera fuente y pruebas con dos países sintéticos | Claude | ✅ en esta rama (PR abierto, sin desplegar) |
-| **1** | Descargar los ZIP del CIS (MD3577, MD3535, MD3571, MD3530, MD3505; el formulario pide datos personales), construir el banco, **revisar los normalizadores con los ficheros reales** y medir la fidelidad (`fidelidad.py --estimar`, luego `--ejecutar` con OK de coste) | Adrián descarga · Claude construye y mide | ⏳ bloqueado por la descarga |
+| **1** | Descargar los ZIP del CIS (MD3577, MD3535, MD3571, MD3530, MD3505), construir el banco, **revisar los normalizadores con los ficheros reales** y medir la fidelidad | Claude, con el correo de Adrián en el formulario del CIS | ✅ hecho el 2-oct-2026 (sección 7) |
 | **2** | Pedir al CIS **confirmación escrita** del uso comercial ([contacto](https://www.cis.es/es/sala-prensa/contacto)). Mientras tanto, uso interno | Adrián decide · Claude redacta | ⏳ |
-| **3** | Antes/después con los dos proyectos reales de producción (northkin y la cafetería): diversidad y distancia a los marginales de España con y sin datos reales; lectura humana de una muestra (Víctor) con la lista «¿la persona dice algo que su ficha no respalda?» | Claude + Víctor | ⏳ tras la fase 1 |
+| **3** | Antes/después con los dos proyectos reales de producción (northkin y la cafetería): diversidad y distancia a los marginales de España con y sin datos reales; lectura humana de una muestra (Víctor) con la lista «¿la persona dice algo que su ficha no respalda?»; probar la hipótesis de la distribución real del segmento (sección 7) | Claude + Víctor | ⏳ falta llevar el banco a producción |
 | **4** | Segundo país: **EE. UU.** (es el contraste del ejemplo del ama de casa). GSS (`WRKSTAT`, `SEX`, `AGE`, `DEGREE`, `MARITAL`, `XNORCSIZ`, `REGION`, peso `WTSSNRPS`); permiso de NORC. Ojo: su región son solo 4 | Claude construye · Adrián pide permiso | ⏳ |
 | **5** | Latinoamérica (México, Argentina, Chile, Colombia) con Latinobarómetro (una sola entidad para los cuatro) y licencia comercial | Adrián | ⏳ |
 | **6** | Europa con el ESS (un constructor cubre ~30 países). Requiere que un banco pueda tener **varios países** (hoy: un banco por fuente y país) y licencia | Claude + Adrián | ⏳ |
 
-## 7. Cómo sabremos que funciona
+## 7. Resultados con datos reales del CIS (2-oct-2026)
+
+**Banco.** 5 estudios (3505, 3530, 3535, 3571, 3577), 20.128 encuestados de 18 años o más, 156 preguntas distintas, 1,4 millones
+de respuestas. Las 19 comunidades y ciudades autónomas están presentes.
+
+**Lo que destapó el primer volcado con ficheros reales** (los normalizadores se habían escrito con etiquetas supuestas):
+«F.P.» salía sin categoría de estudios; «En paro y ha trabajado antes» salía como «trabaja» (el paro quedaba en 77 de 20.128
+y ahora son 1.633); y el trabajo de campo (hora, día y mes de la entrevista, tipo de teléfono, rechazos, supervisión) entraba
+como si fueran respuestas de la persona. Corregido y con pruebas hechas con las etiquetas reales. También: «(NO LEER) N.S.,
+duda» ya cuenta como no sabe, las preguntas que son solo un nombre propio («Sara Aagesen → Conoce») o sin enunciado
+(«La bandera → Mucho») van al final de la ficha, y de las respuestas políticas entran como mucho cuatro.
+
+**Fidelidad con el modelo de producción (MiniMax-M3).** 150 encuestados del 3535, 8 preguntas de actitud escondidas (se
+excluyen sociodemografía y trabajo de campo), 300 llamadas, ≈ 0,64 $ por pasada (estimado por el script, no medido):
+
+| Condición | Acierto | Intervalo del 95 % |
+|---|---|---|
+| Modelo con solo sociodemografía | 31,1 % | 28,2 – 33,7 |
+| Modelo con sociodemografía **y el resto de sus respuestas reales** | 36,9 % | 34,2 – 39,8 |
+| **Sin modelo:** la respuesta más común de su grupo (sexo × edad) | **43,5 %** | 40,0 – 46,7 |
+| Azar | 22,9 % | — |
+
+- Anclar a las respuestas reales **sí mejora** al modelo con solo demografía: +6,1 puntos (intervalo +3,1 a +9,2).
+- **Pero el modelo no supera a la respuesta más común del grupo**, ni con las respuestas reales (−6,4 puntos; intervalo −10,0 a −3,0) ni sin ellas (−12,5). En distancia entre distribuciones (Jensen–Shannon) el modelo queda peor incluso que el azar (0,21–0,28 frente a 0,14): sus respuestas se concentran en pocas opciones, el aplanamiento que avisa la bibliografía.
+- Coincide con la advertencia de Wang (LSE): una línea base sin modelo puede ganar al modelo. **Es la razón por la que Simuloo no se vende como predicción.**
+- Las dos mediciones anteriores se descartaron: la primera eligió como «preguntas» el día de la semana de la entrevista y los ingresos, y la segunda repetía siete veces la misma batería y no traía intervalos. Con ellas el orden de las condiciones era el mismo.
+- Límites: un solo estudio, ocho preguntas casi todas sobre tecnología y trabajo, la línea base sale de las otras 149 personas de la muestra (con todo el banco sería más fuerte), y las cifras no son comparables con las de Park et al., que están normalizadas por la propia repetición de cada persona.
+
+**Qué implica para el diseño.** Donde el CIS ya preguntó, se usan las respuestas **reales** de esa persona (no las inferidas por el modelo); eso es lo que aporta el anclaje. Para lo que el CIS no preguntó, el modelo no mejora al promedio de su grupo: hipótesis a probar (no implementada) es dar a cada agente la **distribución real de su segmento** en las preguntas cercanas al tema del brief, en lugar de dejar que el modelo la invente.
+
+**Personas generadas desde fichas reales.** Con un brief de producto de limpieza, tres personas (dos amas de casa de 80 y 64 años, un jubilado de 65) salieron distintas entre sí y coherentes con su ficha. Antes de que el tema mandara en la ficha, una de ellas giraba en torno a Ceuta, los incendios y los ministros porque eso preguntó el barómetro; ahora gira en torno al brief. Los temas de interés ya no incluyen cocina para el ama de casa ni bricolaje para el jubilado. Siguen quedando matices que no vienen del dato («tiene sus marcas de referencia», «rezando por los suyos»): el prompt los frena, no los elimina, y por eso la lectura humana de la fase 3.
+
+## 8. Cómo sabremos que funciona (criterios de aceptación)
 
 Criterios de aceptación de la fase 1 (se fijan *antes* de mirar los resultados):
 
 1. **Marginales:** Jensen–Shannon de sexo, edad, región, estudios y situación laboral de un público sin filtros frente al país, dentro del ruido de muestreo esperable (`metricas.umbral_ruido`).
 2. **Variedad:** dispersión de edad dentro de cada grupo ≥ la que corresponde a su segmento (el aviso «aplanado» no salta).
-3. **Fidelidad con LLM** (`fidelidad.py`): la condición b (con respuestas) supera a la a (solo demografía), y las dos a la **línea base sin modelo** (moda del grupo) y al azar. Si el modelo no gana a la moda, no aporta y se dice.
+3. **Fidelidad con LLM** (`fidelidad.py`): la condición b (con respuestas) supera a la a (solo demografía) ✅ y las dos a la **línea base sin modelo** (moda del grupo) ❌ (resultado de la sección 7). Si el modelo no gana a la moda, no aporta y se dice.
 4. **Sin tópicos:** en una muestra leída por una persona, ninguna persona afirma nada que su ficha no respalde.
 5. **Por subgrupo, no solo en media:** el acierto no cae en mujeres, mayores o regiones pequeñas más que en el resto.
 
 Ya se mide en cada generación: `poblacion.json → calidad` (por grupo y global). El coste de una medición con LLM se calcula con
 `--estimar` antes de gastar nada; no se ha ejecutado ninguna.
 
-## 8. Qué NO hace (y lo que desconocemos)
+## 9. Qué NO hace (y lo que desconocemos)
 
 - **No predice a individuos**: la evidencia dice que la recuperación individual es casi nula. Se presenta como ensayo de reacciones.
 - **No hay evidencia publicada con datos de España**: hasta medirlo con el CIS, que funcione aquí es una hipótesis.
@@ -131,10 +164,10 @@ Ya se mide en cada generación: `poblacion.json → calidad` (por grupo y global
 - El texto de la persona sigue escribiéndolo un modelo: las reglas lo frenan, no lo eliminan. Por eso la lectura humana de la fase 3.
 - Minimización de datos: la ficha que llega al modelo lleva la **región** (comunidad autónoma) pero **no la provincia**, que se queda en el banco. Junto a edad, sexo, estudios y respuestas sería un cuasi-identificador de más (decidido el 2-oct-2026).
 
-## 9. Decisiones que necesito de Adrián
+## 10. Decisiones que necesito de Adrián
 
 1. **¿Pido al CIS confirmación escrita?** Redacto el correo; no sale nada sin su «sí, envíalo».
-2. **Descargar los ZIP del CIS** (MD3577 más los cuatro anteriores). Sin ellos no hay fase 1.
+2. **Llevar el banco (117 MB, en tu Mac) a producción.** No tengo SSH al servidor de Coolify; ¿lo subimos por el almacenamiento persistente de Coolify o me das acceso? Sin ello el interruptor no aparece en producción.
 3. **País siguiente:** recomiendo EE. UU. (contraste directo con España). ¿O Latinoamérica antes?
 4. **¿La etiqueta «Uso interno de I+D» la ve todo el mundo o solo el administrador?** Ahora la ve todo el mundo.
 5. **Para las fuentes con cláusula de «solo agregados»:** ¿pedimos permiso que cubra el uso, o pasamos a perfiles recombinados?

@@ -23,6 +23,7 @@ import argparse
 import json
 import math
 import os
+from concurrent.futures import ThreadPoolExecutor
 import random
 import re
 import sys
@@ -61,12 +62,21 @@ def cargar_muestra(banco: Banco, estudio: str, n: int, semilla: int):
     return [banco.encuestado(i) for i in ids[:n]]
 
 
-def elegir_preguntas(muestra, cuantas: int = 10, min_cobertura: float = 0.8):
-    """Preguntas de actitud NO políticas, respondidas por casi todos, con 3–7 opciones y sin una moda aplastante."""
+# Lo que NO es una actitud: sociodemografía que el modelo ya recibe o puede deducir, y el trabajo de campo. Esconder
+# «nivel de ingresos» o «día de la semana de la entrevista» y medir el acierto no dice nada de si se capta la persona.
+NO_ACTITUD = re.compile(r"ingresos|clase social|identificaci[oó]n subjetiva de clase|religios|estudios|escolariz|ocupaci[oó]n|"
+                        r"situaci[oó]n profesional|poblaci[oó]n activa|nacionalidad|nacimiento|etnic|raza|participaci[oó]n|"
+                        r"\bvoto\b|ideol[oó]g|d[ií]a de|d[ií]a internacional|a[nñ]o de|mes de|hora de", re.I)
+
+
+def elegir_preguntas(muestra, cuantas: int = 10, min_cobertura: float = 0.8, max_por_escala: int = 2):
+    """Preguntas de actitud NO políticas, respondidas por casi todos, con 3–7 opciones y sin una moda aplastante.
+    Una batería («Mucho/Bastante/Poco» sobre siete tecnologías) son preguntas casi iguales: se admiten `max_por_escala`
+    con las mismas opciones para que la medición no sea siete veces lo mismo."""
     por_p = defaultdict(list)
     for e in muestra:
         for r in e.respuestas:
-            if not r["politica"]:
+            if not r["politica"] and not NO_ACTITUD.search(r["pregunta"]) and len(r["pregunta"].split()) >= 4:
                 por_p[r["pregunta"]].append(r["respuesta"])
     cand = []
     for q, rs in por_p.items():
@@ -76,7 +86,35 @@ def elegir_preguntas(muestra, cuantas: int = 10, min_cobertura: float = 0.8):
             entropia = -sum(v / len(rs) * math.log2(v / len(rs)) for v in c.values())
             cand.append((entropia, q, sorted(c)))
     cand.sort(reverse=True)
-    return [(q, ops) for _, q, ops in cand[:cuantas]]
+    elegidas, por_escala = [], Counter()
+    for _, q, ops in cand:
+        if por_escala[tuple(ops)] >= max_por_escala:
+            continue
+        por_escala[tuple(ops)] += 1
+        elegidas.append((q, ops))
+        if len(elegidas) == cuantas:
+            break
+    return elegidas
+
+
+def ic95(valores: List[Optional[float]], semilla: int = 1, remuestreos: int = 2000):
+    """Intervalo del 95 % de la media remuestreando PERSONAS (las preguntas de una misma persona no son independientes)."""
+    vals = [v for v in valores if v is not None]
+    if len(vals) < 2:
+        return None
+    rng = random.Random(semilla)
+    medias = sorted(sum(rng.choice(vals) for _ in vals) / len(vals) for _ in range(remuestreos))
+    return (medias[int(0.025 * remuestreos)], medias[int(0.975 * remuestreos) - 1])
+
+
+def ic95_diferencia(x: List[Optional[float]], y: List[Optional[float]], semilla: int = 1, remuestreos: int = 2000):
+    """Media de x − y por persona (pareado) con su intervalo del 95 %."""
+    par = [a - b for a, b in zip(x, y) if a is not None and b is not None]
+    if len(par) < 2:
+        return None
+    rng = random.Random(semilla)
+    medias = sorted(sum(rng.choice(par) for _ in par) / len(par) for _ in range(remuestreos))
+    return (sum(par) / len(par), medias[int(0.025 * remuestreos)], medias[int(0.975 * remuestreos) - 1])
 
 
 def prompt_persona(e, ocultas: set, con_respuestas: bool, preguntas, fuente=None) -> str:
@@ -136,17 +174,25 @@ def llm_por_defecto() -> Callable[[str], str]:
     return llm
 
 
-def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fuente=None) -> Dict:
+def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fuente=None, trabajadores: int = 1) -> Dict:
     ocultas = {q for q, _ in preguntas}
     pesos = [max(e.peso, 1e-9) for e in muestra]
     real = {q: [next((r["respuesta"] for r in e.respuestas if r["pregunta"] == q), None) for e in muestra]
             for q, _ in preguntas}
     pred = {"a": {q: [] for q, _ in preguntas}, "b": {q: [] for q, _ in preguntas}}
-    for e in muestra:
-        for cond, con in (("a", False), ("b", True)):
-            res = parsear(llm(prompt_persona(e, ocultas, con, preguntas, fuente)), preguntas)
-            for i, (q, _) in enumerate(preguntas, 1):
-                pred[cond][q].append(res[i])
+    # Las llamadas son independientes: se lanzan en paralelo (un modelo de razonamiento tarda ~20 s por llamada) y se
+    # recogen en el mismo orden que la muestra
+    trabajos = [(cond, e, con) for e in muestra for cond, con in (("a", False), ("b", True))]
+
+    def una(t):
+        _, e, con = t
+        return parsear(llm(prompt_persona(e, ocultas, con, preguntas, fuente)), preguntas)
+
+    with ThreadPoolExecutor(max_workers=max(1, trabajadores)) as pool:
+        resultados = list(pool.map(una, trabajos))
+    for (cond, _, _), res in zip(trabajos, resultados):
+        for i, (q, _) in enumerate(preguntas, 1):
+            pred[cond][q].append(res[i])
     # línea base: moda del grupo (sexo × tramo), sin contarse a sí mismo
     grupo = lambda e: (e.sexo, e.tramo)  # noqa: E731
     base = {q: [] for q, _ in preguntas}
@@ -158,8 +204,14 @@ def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fue
             base[q].append(c.most_common(1)[0][0] if c else None)
     rng = random.Random(semilla)
     cond_res = {}
+    por_persona: Dict[str, List[Optional[float]]] = {}
     for nombre, preds in (("a_sociodemografia", pred["a"]), ("b_con_respuestas", pred["b"]), ("moda_del_grupo", base)):
         aciertos = []; aciertos_w = []; dist = []; sin_resp = 0
+        pp: List[Optional[float]] = []
+        for k in range(len(muestra)):
+            v = [1.0 if preds[q][k] == real[q][k] else 0.0 for q, _ in preguntas if real[q][k] is not None]
+            pp.append(sum(v) / len(v) if v else None)
+        por_persona[nombre] = pp
         for q, ops in preguntas:
             for r, p, w in zip(real[q], preds[q], pesos):
                 if r is None:
@@ -175,6 +227,7 @@ def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fue
             "acierto": sum(aciertos) / len(aciertos) if aciertos else 0.0,
             "acierto_ponderado": sum(a * w for a, w in aciertos_w) / (sum(w for _, w in aciertos_w) or 1),
             "jsd_medio": sum(dist) / len(dist) if dist else 1.0, "sin_respuesta": sin_resp,
+            "ic95": ic95(pp, semilla),
         }
     azar_acierto = sum(1 / len(ops) for _, ops in preguntas) / len(preguntas)
     azar_jsd = []
@@ -182,15 +235,26 @@ def evaluar(muestra, preguntas, llm: Callable[[str], str], semilla: int = 1, fue
         validos = [(r, w) for r, w in zip(real[q], pesos) if r is not None]
         azar_jsd.append(jsd({o: 1.0 for o in ops}, distribucion([r for r, _ in validos], [w for _, w in validos], ops)))
     cond_res["azar"] = {"acierto": azar_acierto, "acierto_ponderado": azar_acierto, "jsd_medio": sum(azar_jsd) / len(azar_jsd), "sin_respuesta": 0}
+    cond_res["diferencias"] = {
+        f"{a} − {b}": ic95_diferencia(por_persona[a], por_persona[b], semilla)
+        for a, b in (("b_con_respuestas", "a_sociodemografia"), ("b_con_respuestas", "moda_del_grupo"),
+                     ("a_sociodemografia", "moda_del_grupo"))
+    }
     return cond_res
 
 
 def informe_md(estudio, n, preguntas, res, coste, fuente=None) -> str:
     fuente = fuente or FUENTES["cis"]
     f = lambda x: f"{x * 100:.1f} %"  # noqa: E731
+    def ic(v):
+        return f"{f(v['ic95'][0])} – {f(v['ic95'][1])}" if v.get("ic95") else "—"
     filas = "\n".join(
-        f"| {n_} | {f(v['acierto'])} | {f(v['acierto_ponderado'])} | {v['jsd_medio']:.3f} |"
-        for n_, v in res.items())
+        f"| {n_} | {f(v['acierto'])} | {ic(v)} | {f(v['acierto_ponderado'])} | {v['jsd_medio']:.3f} |"
+        for n_, v in res.items() if n_ != "diferencias")
+    difs = "\n".join(
+        f"| {k} | {d[0] * 100:+.1f} puntos | {d[1] * 100:+.1f} a {d[2] * 100:+.1f} | "
+        f"{'sí' if d[1] > 0 or d[2] < 0 else 'no'} |"
+        for k, d in (res.get("diferencias") or {}).items() if d)
     qs = "\n".join(f"- {q} ({' / '.join(ops)})" for q, ops in preguntas)
     return f"""# Fidelidad con datos de {fuente.nombre} ({fuente.pais_nombre}) — estudio {estudio}
 
@@ -200,9 +264,15 @@ def informe_md(estudio, n, preguntas, res, coste, fuente=None) -> str:
 
 ## Resultado
 
-| Condición | Acierto individual | Acierto ponderado | Distancia JS media (0 = igual) |
-|---|---|---|---|
+| Condición | Acierto individual | Intervalo del 95 % | Acierto ponderado | Distancia JS media (0 = igual) |
+|---|---|---|---|---|
 {filas}
+
+Diferencias entre condiciones (misma gente, por persona; «distinta» = el intervalo del 95 % no incluye el cero):
+
+| Comparación | Diferencia | Intervalo del 95 % | ¿Distinta de cero? |
+|---|---|---|---|
+{difs}
 
 Referencia (Park et al., Stanford 2024, arXiv 2411.10109): 74 % con solo demografía, 82 % con encuesta, 86 % con
 encuesta y entrevista, frente a lo que la misma persona repite a las dos semanas. Otro estudio (arXiv 2509.19088):
@@ -231,6 +301,7 @@ def main(argv=None):
     ap.add_argument("--estimar", action="store_true", help="solo calcula el coste y sale")
     ap.add_argument("--ejecutar", action="store_true", help="lanza las llamadas (cuesta dinero real)")
     ap.add_argument("--max-usd", type=float, default=1.0)
+    ap.add_argument("--paralelo", type=int, default=8, help="llamadas simultáneas al modelo")
     ap.add_argument("--salida", default="")
     a = ap.parse_args(argv)
     fuente = FUENTES.get(a.fuente)
@@ -251,7 +322,7 @@ def main(argv=None):
         return
     if coste["usd"] > a.max_usd:
         raise SystemExit(f"El coste estimado supera --max-usd={a.max_usd}. No se lanza.")
-    res = evaluar(muestra, preguntas, llm_por_defecto(), a.semilla, fuente)
+    res = evaluar(muestra, preguntas, llm_por_defecto(), a.semilla, fuente, a.paralelo)
     md = informe_md(a.estudio, len(muestra), preguntas, res, coste, fuente)
     salida = a.salida or os.path.join(os.path.dirname(ruta_banco(fuente)), f"fidelidad-{fuente.id}.md")
     Path(salida).write_text(md, encoding="utf-8")

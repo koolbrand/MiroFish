@@ -252,10 +252,27 @@ def test_las_preguntas_con_nombre_propio_van_al_final_de_la_ficha(banco):
     e.respuestas = [{"pregunta": "Sara Aagesen", "respuesta": "No conoce", "politica": 0},
                     {"pregunta": "José Manuel Albares", "respuesta": "Conoce", "politica": 0},
                     {"pregunta": "Grado de preocupación por el cambio climático", "respuesta": "Bastante", "politica": 0},
-                    {"pregunta": "Capital", "respuesta": "Otros municipios", "politica": 0}]
+                    {"pregunta": "La bandera", "respuesta": "Mucho", "politica": 0}]
     orden = [r["pregunta"] for r in F.respuestas_priorizadas(e)]
-    assert orden[:2] == ["Grado de preocupación por el cambio climático", "Capital"]
-    assert set(orden[2:]) == {"Sara Aagesen", "José Manuel Albares"}
+    assert orden[0] == "Grado de preocupación por el cambio climático"
+    assert set(orden[1:]) == {"Sara Aagesen", "José Manuel Albares", "La bandera"}   # sin enunciado propio: ambiguas
+
+
+def test_el_tema_de_la_simulacion_manda_en_la_ficha_y_lo_politico_tiene_tope(banco):
+    e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
+    e.respuestas = (
+        [{"pregunta": f"Valoración de la política número {i} del partido", "respuesta": "Mala", "politica": 1} for i in range(8)]
+        + [{"pregunta": "Grado de preocupación por los incendios forestales", "respuesta": "Mucho", "politica": 0},
+           {"pregunta": "Frecuencia con la que compra productos de limpieza para el hogar", "respuesta": "A diario", "politica": 0},
+           {"pregunta": "Opinión sobre el precio de los productos de limpieza", "respuesta": "Caros", "politica": 0}])
+    orden = [r["pregunta"] for r in F.respuestas_priorizadas(e, tema="Un nuevo producto de limpieza para el hogar")]
+    assert set(orden[:2]) == {"Frecuencia con la que compra productos de limpieza para el hogar",
+                              "Opinión sobre el precio de los productos de limpieza"}
+    assert orden[2] == "Grado de preocupación por los incendios forestales"
+    assert len(orden) == 3 + F.MAX_AL_FINAL                       # ocho políticas, pero solo entran cuatro
+    sin_tema = [r["pregunta"] for r in F.respuestas_priorizadas(e)]
+    assert sin_tema[0] == "Grado de preocupación por los incendios forestales"   # sin tema, el orden del estudio
+    assert "limpieza" in F.construir_ficha(e, tema="producto de limpieza").split("incendios")[0]
 
 
 def test_la_ficha_no_lleva_la_provincia(banco):
@@ -404,6 +421,8 @@ def test_el_prompt_anclado_prohibe_el_estereotipo_y_no_pide_inventar(con_banco):
     g.generate_profile_from_entity(ent, 1, encuestado=enc, fuente=FUENTES["cis"])
     prompt = g.client.prompts[-1]
     assert "AVOID STEREOTYPES" in prompt and "Do NOT infer traits" in prompt
+    assert "The topic of the simulation decides what to foreground" in prompt and "a person is not their vote" in prompt
+    assert "NOT from what is \"typical\" for their sex, age or job" in prompt
     assert "population of España (CIS)" in prompt
     # con un encuestado real no se le pide al modelo que invente edad, familia ni que sea «distinta» de las demás
     assert "situación familiar" not in prompt and "claramente distinta" not in prompt and "persona n.º" not in prompt

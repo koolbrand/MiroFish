@@ -65,7 +65,13 @@ def test_respuestas_sin_ns_nc_y_preguntas_limpias():
     # paradatos del trabajo de campo (salen en TODOS los estudios reales) fuera; los líderes y partidos cuentan como política
     assert all(bc.es_paradato(x) for x in ("Tipo de teléfono", "Hora de realización", "Capital", "Rechazo por desconfianza hacia las encuestas",
                                            "Grado de sinceridad de la persona entrevistada según el/la entrevistador/a"))
+    assert all(bc.es_paradato(x) for x in ("Día de realización", "Día de la semana que se realiza la entrevista", "Valoración de la supervisión",
+                                           "Entrevista válida", "Rehúsa porque su pareja/familia/hogar no quiere", "Supervisor",
+                                           "Ha tenido prisa por acabar la entrevista", "Dificultad con el idioma", "N.C."))
     assert not bc.es_paradato("Grado de preocupación por el cambio climático") and not bc.es_paradato("Capital social")
+    assert not bc.es_paradato("Nivel de ingresos netos del hogar") and not bc.es_paradato("Religiosidad de la persona entrevistada")
+    assert bc.respuesta_valida("(NO LEER) N.S., duda") is None and bc.respuesta_valida("(NO LEER) N.S./N.C.") is None
+    assert bc.respuesta_valida("(NO LEER) Ninguno") == "Ninguno" and bc.respuesta_valida("Mucho") == "Mucho"
     assert bc.es_politica("Pedro Sánchez") and bc.es_politica("Alberto Núñez Feijóo") and bc.es_politica("Voto en el PP")
     assert not bc.es_politica("Grado de preocupación por los incendios") and not bc.es_politica("Valoración de la situación económica personal")
     assert bc.es_politica("Voto en las últimas elecciones") and not bc.es_politica("Cuánto confía en sus vecinos")
