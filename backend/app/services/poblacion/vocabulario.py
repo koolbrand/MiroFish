@@ -21,10 +21,11 @@ CAMPOS_COMUNES = {
 }
 CAMPOS_EDAD = ("edad_min", "edad_max")
 # Columnas del banco por las que se puede filtrar (el orden no importa; sí el nombre: son columnas de SQLite)
-COLUMNAS_FILTRABLES = tuple(CAMPOS_COMUNES) + ("region",)
+# («subregion» = provincia: no la propone el modelo al traducir un grupo, la pone el ALCANCE de la simulación cuando es local)
+COLUMNAS_FILTRABLES = tuple(CAMPOS_COMUNES) + ("region", "subregion")
 
 # Orden en que se relajan los filtros cuando el segmento queda corto (lo más accesorio primero)
-ORDEN_RELAJAR = ("tamuni", "estcivil", "region", "estudios", "sitlab", "sexo", "tramo", "edad_min", "edad_max")
+ORDEN_RELAJAR = ("subregion", "tamuni", "estcivil", "region", "estudios", "sitlab", "sexo", "tramo", "edad_min", "edad_max")
 
 ETIQUETAS = {
     "sexo": "Sexo", "edad": "Edad", "region": "Región", "subregion": "Provincia",

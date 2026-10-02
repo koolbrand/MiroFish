@@ -25,6 +25,7 @@ from ..utils.locale import get_language_instruction, get_locale, set_locale, t
 from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
 from . import poblacion
+from .poblacion import alcance as alcance_mod
 
 logger = get_logger('mirofish.oasis_profile')
 
@@ -230,7 +231,9 @@ class OasisProfileGenerator:
         use_llm: bool = True,
         encuestado=None,
         fuente=None,
-        relevantes=None
+        relevantes=None,
+        alcance=None,
+        indice_alcance: Optional[int] = None
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -271,11 +274,19 @@ class OasisProfileGenerator:
                 "lo resuelve hoy), no una cuenta colectiva que represente al grupo."
             )
             if topic:
-                summary += (
-                    f"\nLa simulación trata sobre: «{topic}». La persona vive en el país o "
-                    "la región de los que habla ese tema (no la sitúes por defecto en España "
-                    "si el tema es de otro mercado)."
-                )
+                if alcance is not None and not alcance.permite_anclar:
+                    # Varios países o el mundo: el lugar lo da la pista del alcance (una cultura por persona), no «el país del tema»
+                    summary += f"\nLa simulación trata sobre: «{topic}»."
+                else:
+                    summary += (
+                        f"\nLa simulación trata sobre: «{topic}». La persona vive en el país o "
+                        "la región de los que habla ese tema (no la sitúes por defecto en España "
+                        "si el tema es de otro mercado)."
+                    )
+            # Alcance de la simulación (local, regional, nacional, multinacional, mundial): dónde vive esta persona
+            pista = alcance_mod.pista_para_persona(alcance, user_id if indice_alcance is None else indice_alcance)
+            if pista:
+                summary += "\n" + pista
         elif anclado and topic:
             # Con encuestado real la ficha ya fija edad, situación y lugar: aquí no se pide inventar nada de eso
             summary += f"\n\nLa simulación trata sobre: «{topic}»."
@@ -1041,7 +1052,9 @@ Rules:
         poblacion_pais: Optional[str] = None,
         publico_descripcion: str = "",
         pregunta: str = "",
-        poblacion_resumen_path: Optional[str] = None
+        poblacion_resumen_path: Optional[str] = None,
+        alcance_pedido: Optional[str] = None,
+        alcance_path: Optional[str] = None
     ) -> List[OasisAgentProfile]:
         """
         批量从实体生成Agent Profile（支持并行生成）
@@ -1101,12 +1114,39 @@ Rules:
                 except Exception as e:
                     logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
+        # Alcance geográfico (local, regional, nacional, multinacional, mundial): se decide UNA vez por simulación, siempre (también
+        # sin datos reales) porque manda sobre dónde vive el público, sobre a quién se busca en la encuesta y sobre el informe.
+        try:
+            alcance = alcance_mod.detectar(alcance_pedido, pregunta, publico_descripcion, self._llm_texto)
+        except Exception as e:
+            logger.warning(f"No se pudo decidir el alcance: {e}")
+            alcance = alcance_mod.Alcance()
+        pais_elegido = bool(poblacion_pais) and str(poblacion_pais).strip().lower() not in ("auto", "automatico", "automático")
+        if pais_elegido and alcance.origen != "pedido" and not alcance.permite_anclar:
+            # La persona dijo de qué país es el público y el alcance lo dedujo la máquina como de varios países o del mundo:
+            # manda la persona. Si no, personas e informe se contradirían (datos de un país con cautelas de «mundial»).
+            fuente_elegida = poblacion.fuente_de_pais(poblacion_pais)
+            alcance = alcance_mod.Alcance(
+                "nacional", lugar=fuente_elegida.pais_nombre if fuente_elegida else "",
+                motivo="La persona eligió el país del público.", origen="pedido")
+        logger.info(f"Alcance de la simulación: {alcance.descripcion()} ({alcance.origen})")
+        if alcance_path:
+            try:
+                alcance_mod.guardar(alcance_path, alcance)
+            except OSError as e:
+                logger.warning(f"No se pudo guardar el alcance: {e}")
+
         # Público con datos reales: se eligen de antemano, sin repetir, tantos encuestados como personas tenga cada
         # GRUPO del público (la entidad y sus variantes), del país del público. Apagado, sin banco o sin país claro =
         # nada de esto corre y todo sale como siempre; en ese caso se deja escrito por qué para decírselo a la persona.
         encuestados_por_idx: Dict[int, Any] = {}
         fuente_poblacion = None
         relevantes: List[str] = []
+        # Orden de cada persona del público (sin contar instituciones ni entidades que no son público): reparte las culturas parejo
+        orden_publico: Dict[int, int] = {}
+        for i, e in enumerate(entities):
+            if (e.attributes or {}).get('__simuloo_individual') and not self._is_group_entity(e.get_entity_type() or ""):
+                orden_publico[i] = len(orden_publico)
         if poblacion.modo_activo(poblacion_datos):
             try:
                 grupos: Dict[str, Dict[str, Any]] = {}
@@ -1123,15 +1163,29 @@ Rules:
                     g = grupos.setdefault(clave, {'idx': [], 'nombre': nombre, 'descripcion': e.summary or ''})
                     g['idx'].append(i)
                 if grupos:
-                    deteccion = poblacion.detectar(poblacion_pais, pregunta, publico_descripcion, self._llm_texto)
                     asignacion = None
+                    if not alcance.permite_anclar:
+                        # Varios países o el mundo: la encuesta de UN país sesgaría a todo el público hacia él. Ni se gasta la
+                        # detección del país.
+                        deteccion = poblacion.Deteccion(
+                            None, (f"El alcance es {alcance.nivel}: no hay una encuesta que represente a ese público y "
+                                   "anclarlo a la de un solo país lo sesgaría. Las personas se generan repartiendo culturas."), "alcance")
+                    else:
+                        deteccion = poblacion.detectar(poblacion_pais, pregunta, publico_descripcion, self._llm_texto)
                     if deteccion.fuente is not None:
                         asignacion = poblacion.asignar_por_grupos(
                             [poblacion.Grupo(k, v['nombre'], v['descripcion'], len(v['idx'])) for k, v in grupos.items()],
                             general=publico_descripcion, llm=self._llm_texto, pregunta=pregunta,
-                            fuente=deteccion.fuente, deteccion=deteccion)
+                            fuente=deteccion.fuente, deteccion=deteccion, alcance=alcance)
                     if asignacion is not None:
                         fuente_poblacion = asignacion.fuente
+                        if alcance.nivel == "nacional" and not alcance.lugar:      # el país lo confirmó la detección del país
+                            alcance.lugar = fuente_poblacion.pais_nombre
+                            if alcance_path:
+                                try:
+                                    alcance_mod.guardar(alcance_path, alcance)
+                                except OSError:
+                                    pass
                         # Qué respuestas de la encuesta importan para ESTE tema (una llamada por simulación)
                         relevantes = poblacion.preguntas_relevantes(
                             asignacion.banco, "\n".join(x for x in (pregunta, (publico_descripcion or "")[:600]) if x),
@@ -1169,7 +1223,9 @@ Rules:
                     use_llm=use_llm,
                     encuestado=encuestados_por_idx.get(idx),
                     fuente=fuente_poblacion,
-                    relevantes=relevantes
+                    relevantes=relevantes,
+                    alcance=alcance,
+                    indice_alcance=orden_publico.get(idx)
                 )
                 
                 # 实时输出生成的人设到控制台和日志

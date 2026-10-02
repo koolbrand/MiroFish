@@ -15,6 +15,9 @@ PREGUNTAS_POL = [("¿A qué partido votaría?", ["Partido A", "Partido B"]),
                  ("¿Dónde se sitúa en la escala de ideología?", ["Izquierda", "Centro", "Derecha"])]
 
 REGIONES_ES_TEST = ["Madrid", "Galicia", "Cataluña", "Andalucía"]
+# Provincias de cada región del banco sintético (la provincia sale de la región, como en la encuesta real)
+PROVINCIAS_ES_TEST = {"Madrid": ["Madrid"], "Galicia": ["Pontevedra", "Coruña (A)"], "Cataluña": ["Barcelona"],
+                      "Andalucía": ["Sevilla"]}
 REGIONES_US_TEST = ["Texas", "Ohio", "California", "Florida"]
 
 
@@ -36,10 +39,12 @@ def crear_banco(path: str, n: int = 120, semilla: int = 7, fuente_id: str = "cis
             sitlab = rng.choice(sitlab_mujeres)
         else:
             sitlab = "jubilado" if edad >= 66 else rng.choice(["trabaja", "parado", "estudiante"])
+        region = rng.choice(regiones)
+        provincia = rng.choice(PROVINCIAS_ES_TEST.get(region, ["Subregión X"]))
         cur = conn.execute(
             "INSERT INTO encuestados (estudio,sexo,edad,tramo,region,subregion,tamuni,estudios,sitlab,estcivil,peso) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (estudio, sexo, edad, tramo_de_edad(edad), rng.choice(regiones), "Subregión X",
+            (estudio, sexo, edad, tramo_de_edad(edad), region, provincia,
              rng.choice(["rural", "pequeño", "mediano", "grande"]),
              rng.choice(["primarios", "secundarios", "universitarios"]), sitlab,
              rng.choice(["soltero", "casado"]), rng.uniform(0.4, 2.5)),

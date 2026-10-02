@@ -211,3 +211,12 @@ export const getPoblacionEstado = () => {
 export const getPoblacionSimulacion = (simulationId) => {
   return service.get(`/api/simulation/${simulationId}/poblacion`)
 }
+
+/**
+ * Alcance geográfico decidido para una simulación: { nivel: local|regional|nacional|multinacional|mundial|desconocido, lugar,
+ * region, provincia, lugares, motivo, origen: automatico|pedido, etiqueta }; data: null si todavía no se ha preparado
+ * @param {string} simulationId
+ */
+export const getAlcanceSimulacion = (simulationId) => {
+  return service.get(`/api/simulation/${simulationId}/alcance`)
+}

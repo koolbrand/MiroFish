@@ -72,10 +72,21 @@
             {{ $t('step2.generateAgentPersonaDesc') }}
           </p>
 
+          <!-- Alcance geográfico: dónde vive el público (un lugar, una región, un país, varios o el mundo). Siempre visible -->
+          <div class="alcance-row" data-testid="alcance">
+            <label class="cis-pais-label" for="alcance-select">{{ $t('step2.alcanceLabel') }}</label>
+            <select id="alcance-select" v-model="alcanceElegido" class="cis-pais-select" data-testid="alcance-select" :disabled="ajustesBloqueados">
+              <option value="auto">{{ $t('step2.alcanceAuto') }}</option>
+              <option v-for="n in NIVELES_ALCANCE" :key="n" :value="n">{{ $t('step2.alcance_' + n) }}</option>
+            </select>
+            <span v-if="alcanceTexto" class="alcance-chip" :title="alcance?.motivo || ''" data-testid="alcance-chip">{{ $t(alcance?.origen === 'pedido' ? 'step2.alcanceElegidoChip' : 'step2.alcanceDetectado', { texto: alcanceTexto }) }}</span>
+            <span class="alcance-hint">{{ $t('step2.alcanceHint') }}</span>
+          </div>
+
           <!-- Público con datos reales del país: solo aparece si este servidor tiene algún banco -->
           <div v-if="cisEstado.disponible" class="cis-toggle" data-testid="cis-toggle">
             <label class="cis-toggle-row">
-              <input type="checkbox" v-model="usarCis" class="cis-check" data-testid="cis-checkbox" />
+              <input type="checkbox" v-model="usarCis" class="cis-check" data-testid="cis-checkbox" :disabled="ajustesBloqueados" />
               <span class="cis-toggle-text">
                 <span class="cis-toggle-title">{{ $t('step2.datosToggleTitle') }}</span>
                 <span class="cis-toggle-desc">{{ $t('step2.datosToggleDesc') }}</span>
@@ -83,16 +94,17 @@
             </label>
             <div v-if="usarCis" class="cis-pais">
               <label class="cis-pais-label" for="cis-pais-select">{{ $t('step2.datosPaisLabel') }}</label>
-              <select id="cis-pais-select" v-model="paisElegido" class="cis-pais-select" data-testid="cis-pais">
+              <select id="cis-pais-select" v-model="paisElegido" class="cis-pais-select" data-testid="cis-pais" :disabled="ajustesBloqueados">
                 <option value="auto">{{ $t('step2.datosPaisAuto') }}</option>
                 <option v-for="f in cisEstado.fuentes" :key="f.id" :value="f.pais">{{ f.pais_nombre }} · {{ f.nombre }}</option>
               </select>
               <span v-if="fuenteInterna" class="cis-interno" :title="$t('step2.datosInternoHint')" data-testid="cis-interno">{{ $t('step2.datosInterno') }}</span>
             </div>
-            <div v-if="cisCambiado" class="cis-changed" role="status">
-              <span>{{ $t('step2.datosToggleChanged') }}</span>
-              <button type="button" class="cis-regen" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
-            </div>
+          </div>
+
+          <div v-if="ajusteCambiado && !ajustesBloqueados" class="cis-changed" role="status">
+            <span>{{ $t('step2.datosToggleChanged') }}</span>
+            <button type="button" class="cis-regen" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
           </div>
 
           <!-- Se pidieron datos reales pero no se pudieron aplicar: se dice, no se disimula -->
@@ -837,7 +849,8 @@ import {
   getSimulation,
   getRunStatus,
   getPoblacionEstado,
-  getPoblacionSimulacion
+  getPoblacionSimulacion,
+  getAlcanceSimulacion
 } from '../api/simulation'
 import { usePipeline } from '../composables/usePipeline'
 import { MiniMarkdown } from '../lib/miniMarkdown'
@@ -1178,6 +1191,41 @@ const paisUsado = ref(null)
 const poblacion = ref(null)         // resumen de poblacion.json (país, reparto, grupos, avisos o sin_datos)
 const cisCambiado = computed(() => cisEstado.value.disponible && cisUsado.value !== null &&
   (usarCis.value !== cisUsado.value || (usarCis.value && paisElegido.value !== paisUsado.value)))
+
+// ---- Alcance geográfico de la simulación (local · regional · nacional · multinacional · mundial) ----
+const NIVELES_ALCANCE = ['local', 'regional', 'nacional', 'multinacional', 'mundial']
+const alcanceElegido = ref('auto')  // 'auto' = lo decide el modelo leyendo el brief
+const alcanceUsado = ref(null)      // valor con el que se lanzó la preparación en curso
+const alcance = ref(null)           // lo que se decidió (alcance.json)
+const alcanceCambiado = computed(() => alcanceUsado.value !== null && alcanceElegido.value !== alcanceUsado.value)
+const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value)
+// Mientras se prepara (o con la simulación ya ejecutada o en el flujo automático) los ajustes no se tocan: cambiar uno y «volver a
+// generar» a mitad lanzaba una segunda preparación sobre los mismos ficheros
+const ajustesBloqueados = computed(() => (phase.value < 4 && !prepareError.value) || alreadyRun.value || autoRunning.value)
+const alcanceTexto = computed(() => {
+  const a = alcance.value
+  if (!a) return ''
+  if (!NIVELES_ALCANCE.includes(a.nivel)) return t('step2.alcance_desconocido')
+  const sitio = a.lugar || (a.lugares || []).join(', ')
+  const regiones = (a.regiones && a.regiones.length) ? a.regiones : [a.region]
+  const zona = [...regiones, a.provincia].filter(x => x && x !== a.lugar).join(', ')
+  const detalle = sitio && zona ? `${sitio} (${zona})` : (sitio || zona)
+  return [t('step2.alcance_' + a.nivel), detalle].filter(Boolean).join(' · ')
+})
+const cargarAlcance = async () => {
+  if (!props.simulationId) return
+  try {
+    const res = await getAlcanceSimulacion(props.simulationId)
+    alcance.value = (res.success && res.data) ? res.data : null
+    if (alcance.value) {   // al volver, el selector refleja lo que se usó: lo fijado a mano, o «automático»
+      const usado = alcance.value.origen === 'pedido' ? alcance.value.nivel : 'auto'
+      alcanceElegido.value = usado
+      alcanceUsado.value = usado
+    }
+  } catch (e) {
+    alcance.value = null
+  }
+}
 // ¿Los datos que se van a usar están en «uso interno»? (todas las fuentes nacen así hasta tener autorización escrita)
 const fuenteInterna = computed(() => {
   const fuentes = cisEstado.value.fuentes || []
@@ -1241,11 +1289,18 @@ const iniciarEstadoCis = async () => {
 }
 
 const regenerarPublico = async () => {
+  if (ajustesBloqueados.value) return
   stopPolling()
   stopProfilesPolling()
   profiles.value = []
   poblacion.value = null
+  alcance.value = null
   lastLoggedProfileCount = 0
+  lastLoggedMessage = ''
+  entityFilterLogged = false
+  _simFailedDetected = false
+  prepareError.value = ''           // el aviso rojo de la preparación anterior no se queda mientras se vuelve a generar
+  prepareProgress.value = 0
   await startPrepareSimulation(true)
 }
 
@@ -1268,6 +1323,8 @@ const startPrepareSimulation = async (force = false) => {
       use_llm_for_profiles: true,
       parallel_profile_count: 5
     }
+    peticion.alcance = alcanceElegido.value
+    alcanceUsado.value = alcanceElegido.value
     if (cisEstado.value.disponible) {
       peticion.poblacion_datos = usarCis.value
       peticion.poblacion_pais = paisElegido.value
@@ -1422,6 +1479,7 @@ const fetchProfilesRealtime = async () => {
       const prevCount = profiles.value.length
       profiles.value = res.data.profiles || []
       if (!poblacion.value && profiles.value.some(p => p.data_source)) cargarPoblacion()
+      if (!alcance.value && profiles.value.length) cargarAlcance()
       // 只有当 API 返回有效值时才更新，避免覆盖已有的有效值
       if (res.data.total_expected) {
         expectedTotal.value = res.data.total_expected
@@ -1563,6 +1621,7 @@ const loadPreparedData = async () => {
   // 最后获取一次 Profiles
   await fetchProfilesRealtime()
   await cargarPoblacion()
+  await cargarAlcance()
   addLog(t('log.loadedAgentProfiles', { count: profiles.value.length }))
 
   // 获取配置（使用实时接口）
@@ -2022,6 +2081,9 @@ const reasoningBlocks = computed(() => reasoningSections(simulationConfig.value?
 .cis-filters, .cis-relaxed { margin: 10px 0 0; font-size: 12px; color: var(--kb-text-2); }
 .cis-relaxed { font-weight: 600; color: var(--kb-text); }
 .cis-tag { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--kb-text-on-soft); background: var(--kb-soft); border: 1px solid var(--kb-control-line); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+.alcance-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 14px 0; }
+.alcance-chip { display: inline-block; font-size: 12px; font-weight: 600; color: var(--kb-text-on-soft); background: var(--kb-soft); border-radius: 999px; padding: 2px 10px; }
+.alcance-hint { flex-basis: 100%; font-size: 12px; color: var(--kb-text-2); line-height: 1.45; }
 .cis-pais { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--kb-control-line); }
 .cis-pais-label { font-size: 12.5px; font-weight: 600; color: var(--kb-text); }
 .cis-pais-select { min-height: 36px; padding: 4px 28px 4px 12px; border: 1px solid var(--kb-control-line); border-radius: 8px; background: #FFF; color: var(--kb-text); font: inherit; font-size: 13px; }

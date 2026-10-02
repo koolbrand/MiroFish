@@ -94,7 +94,7 @@ def test_filtrado_por_sexo_y_edad(banco):
 
 def test_segmento_corto_se_relaja_y_lo_dice(banco):
     seg = banco.segmento({"sexo": ["Mujer"], "region": ["Galicia"], "estudios": ["universitarios"],
-                          "tramo": ["25-34"], "estcivil": ["casado"], "tamuni": ["rural"]}, minimo=30)
+                          "tramo": ["25-34"], "estcivil": ["casado"], "tamuni": ["rural"]}, minimo=30, proteger=())
     assert seg.relajado
     assert len(seg.ids) >= 30
     assert seg.avisos and "filtro" in seg.avisos[0]
@@ -377,9 +377,9 @@ def test_el_lote_elige_las_preguntas_relevantes_una_vez_y_las_guarda(con_banco, 
 def test_la_ficha_no_lleva_la_provincia(banco):
     """Minimización: la provincia está en el banco ('Subregión X') pero no sale hacia el modelo."""
     e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
-    assert e.subregion == "Subregión X"
+    assert e.subregion in ("Madrid", "Pontevedra", "Coruña (A)", "Barcelona", "Sevilla")
     ficha = F.construir_ficha(e)
-    assert "Subregión X" not in ficha and e.region in ficha
+    assert f"({e.subregion})" not in ficha and e.region in ficha                     # la región sí, la provincia no
 
 
 def test_ficha_recorta_respuestas_larguisimas(banco):

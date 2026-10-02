@@ -34,6 +34,7 @@ from ..utils.locale import (
 from ..utils.security import validate_storage_id, is_valid_storage_id
 from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
 from .simulation_runner import SimulationRunner
+from .poblacion import alcance as alcance_mod
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -933,6 +934,13 @@ class ReportAgent:
         
         self.llm = llm_client or LLMClient()
         self.zep_tools = zep_tools or ZepToolsService()
+        # Alcance geográfico de la simulación (local, regional, nacional, multinacional, mundial): decide hasta dónde valen las
+        # conclusiones y qué estereotipos son lícitos. Sin alcance decidido, el informe sale como siempre.
+        try:
+            self.alcance_texto = alcance_mod.texto_para_informe(alcance_mod.cargar(simulation_id))
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"No se pudo cargar el alcance de {simulation_id}: {e}")
+            self.alcance_texto = ""
         
         # 工具定义
         self.tools = self._define_tools()
@@ -947,6 +955,10 @@ class ReportAgent:
         
         logger.info(t('report.agentInitDone', graphId=graph_id, simulationId=simulation_id))
     
+    def _nota_de_alcance(self) -> str:
+        """Bloque con las cautelas de alcance para añadir a los prompts de sistema ('' si no hay alcance decidido)."""
+        return f"\n\n[Alcance geográfico]\n{self.alcance_texto}\n" if getattr(self, "alcance_texto", "") else ""
+
     def _define_tools(self) -> Dict[str, Dict[str, Any]]:
         """Define available tools (LLM-facing schema in Spanish)."""
         return {
@@ -1311,7 +1323,7 @@ class ReportAgent:
         if progress_callback:
             progress_callback("planning", 30, t('progress.generatingOutline'))
         
-        system_prompt = f"{get_language_instruction()}\n\n{PLAN_SYSTEM_PROMPT}"
+        system_prompt = f"{get_language_instruction()}\n\n{PLAN_SYSTEM_PROMPT}{self._nota_de_alcance()}"
         user_prompt = PLAN_USER_PROMPT_TEMPLATE.format(
             simulation_requirement=self.simulation_requirement,
             total_nodes=context.get('graph_statistics', {}).get('total_nodes', 0),
@@ -1430,7 +1442,7 @@ class ReportAgent:
             section_title=section.title,
             tools_description=self._get_tools_description(),
         )
-        system_prompt = f"{get_language_instruction()}\n\n{section_system_prompt}"
+        system_prompt = f"{get_language_instruction()}\n\n{section_system_prompt}{self._nota_de_alcance()}"
 
         # 构建用户prompt - 每个已完成章节各传入最大4000字
         if previous_sections:
@@ -2184,7 +2196,7 @@ class ReportAgent:
             report_content=report_content if report_content else "(no report available yet)",
             tools_description=self._get_tools_description(),
         )
-        system_prompt = f"{get_language_instruction()}\n\n{chat_system_prompt}"
+        system_prompt = f"{get_language_instruction()}\n\n{chat_system_prompt}{self._nota_de_alcance()}"
 
         # 构建消息
         messages = [{"role": "system", "content": system_prompt}]

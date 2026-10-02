@@ -34,6 +34,10 @@ CREATE INDEX IF NOT EXISTS ix_enc_estudio ON encuestados(estudio);
 
 # Mínimo de casos para dar un segmento por bueno; por debajo se relajan los filtros (y se avisa)
 MIN_CASOS = 30
+# Cuando el segmento está acotado por un LUGAR (alcance local o regional) el lugar es lo último que se suelta: se acepta un
+# segmento más corto antes que mandar a un vecino de Extremadura a opinar de un café de Vigo
+MIN_CASOS_LUGAR = 10
+LUGAR = ("region",)
 
 
 @dataclass
@@ -152,21 +156,40 @@ class Banco:
         return ids, pesos
 
     def segmento(self, filtros: Optional[Dict] = None, minimo: int = MIN_CASOS,
-                 estudios: Optional[Sequence[str]] = None) -> Segmento:
-        """Casos que cumplen los filtros; si son pocos, relaja uno a uno (ORDEN_RELAJAR) y lo dice."""
+                 estudios: Optional[Sequence[str]] = None, proteger: Sequence[str] = LUGAR,
+                 minimo_lugar: int = MIN_CASOS_LUGAR) -> Segmento:
+        """
+        Casos que cumplen los filtros; si son pocos, relaja uno a uno (ORDEN_RELAJAR) y lo dice. Los campos de `proteger` (el
+        lugar) se sueltan los últimos y, mientras se conserven, basta con `minimo_lugar` casos.
+        """
         pedidos = {k: v for k, v in (filtros or {}).items() if v not in (None, [], "")}
         aplicados = dict(pedidos)
         avisos: List[str] = []
         ids, pesos = self._normalizados(aplicados, estudios)
+
+        def objetivo() -> int:
+            return min(minimo, minimo_lugar) if any(c in aplicados for c in proteger) else minimo
+
+        def soltar(campo: str) -> None:
+            nonlocal ids, pesos
+            avisos.append(f"Segmento corto ({len(ids)} casos): se quita el filtro «{campo}».")
+            aplicados.pop(campo)
+            ids, pesos = self._normalizados(aplicados, estudios)
+
         for campo in ORDEN_RELAJAR:
-            if len(ids) >= minimo:
+            if len(ids) >= objetivo():
+                break
+            if campo in aplicados and campo not in proteger:
+                soltar(campo)
+        for campo in ORDEN_RELAJAR:                         # lo último, y solo si ni así se llega al mínimo
+            if len(ids) >= objetivo():
                 break
             if campo in aplicados:
-                avisos.append(f"Segmento corto ({len(ids)} casos): se quita el filtro «{campo}».")
-                aplicados.pop(campo)
-                ids, pesos = self._normalizados(aplicados, estudios)
-        if len(ids) < minimo:
-            avisos.append(f"Ni sin filtros hay {minimo} casos: el banco solo tiene {len(ids)} adultos.")
+                soltar(campo)
+        if len(ids) < objetivo():
+            avisos.append(f"Ni sin filtros hay {objetivo()} casos: el banco solo tiene {len(ids)} adultos.")
+        elif len(ids) < minimo:
+            avisos.append(f"Segmento acotado por lugar con pocos casos ({len(ids)}): se prefiere a mezclar con gente de otros sitios.")
         return Segmento(ids, pesos, pedidos, aplicados, aplicados != pedidos, avisos)
 
     # ---- muestreo -------------------------------------------------------
@@ -212,6 +235,16 @@ class Banco:
             "SELECT pregunta, COUNT(*) c FROM respuestas WHERE politica = 0 GROUP BY pregunta HAVING c >= ? ORDER BY c DESC, pregunta",
             (int(total * min_cobertura),)).fetchall()
         return [r["pregunta"] for r in filas]
+
+    def subregiones(self) -> List[str]:
+        """Provincias presentes en el banco (para que el alcance local pueda nombrarlas con el texto exacto)."""
+        return [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT subregion FROM encuestados WHERE subregion IS NOT NULL AND subregion != '' ORDER BY 1")]
+
+    def regiones_de(self, provincia: str) -> List[str]:
+        """Región o regiones a las que pertenece una provincia según el propio banco."""
+        return [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT region FROM encuestados WHERE subregion = ? AND region IS NOT NULL", (provincia,))]
 
     def titulo_estudio(self, estudio: str) -> str:
         r = self.conn.execute("SELECT titulo FROM estudios WHERE id = ?", (estudio,)).fetchone()

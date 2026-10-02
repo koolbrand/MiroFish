@@ -31,13 +31,17 @@ def _nombres(fuente):
     return fuente.pais_nombre, fuente.nombre
 
 
+FUERA_DEL_LUGAR = "_fuera_del_lugar"      # marca interna: el grupo no es del lugar del alcance (la quita quien la consume)
+
 REGLAS = """Reglas:
 - Usa solo los valores listados, tal cual. Si la descripción no dice nada de un campo, NO lo incluyas.
 - Pon un filtro SOLO si la descripción lo afirma o lo exige por definición («jubilados» → situación laboral «jubilado»;
   «madres» → sexo «Mujer»; «estudiantes universitarios» → estudiante y estudios universitarios; «del <nombre de una
   región de la lista>» → esa región). NO deduzcas edad, sexo, estudios ni ingresos de aficiones, productos, profesiones sueltas o tópicos.
 - Un LUGAR nombrado (ciudad, comarca, región) sí es explícito: filtra por la región de la lista que lo contiene.
-- Si el grupo no es del país de la encuesta o no se puede acotar, devuelve {{}} para ese grupo."""
+- Si el grupo no es del país de la encuesta o no se puede acotar, devuelve {{}} para ese grupo.
+- Si hay un alcance de lugar y el grupo es de FUERA de ese lugar por definición (visitantes, turistas, peregrinos, asistentes que
+  llegan de otros sitios), añade "fuera_del_lugar": true para que no se le aplique el lugar del alcance."""
 
 PROMPT_UNO = """Eres un asistente que traduce la descripción de un público objetivo a filtros sobre una encuesta
 de población adulta de {pais} ({fuente}). Devuelve SOLO un objeto JSON, sin texto alrededor.
@@ -66,6 +70,7 @@ Campos admitidos en cada grupo:
 
 Contexto general del público (aplica a todos; no lo repitas en cada grupo salvo que el grupo lo diga):
 \"\"\"{general}\"\"\"
+{alcance}
 
 Grupos:
 {grupos}
@@ -123,7 +128,22 @@ def traducir_publico(descripcion: str, llm: Optional[Callable[[str], str]], fuen
         return {}
 
 
-def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[str], str]], fuente=None) -> Dict[str, Dict]:
+def nota_de_alcance(alcance) -> str:
+    """Qué debe saber el traductor de filtros sobre el ALCANCE: el lugar lo pone el alcance, no cada grupo."""
+    if alcance is None:
+        return ""
+    if getattr(alcance, "acota_por_lugar", False):
+        return (f"Alcance de la simulación: {alcance.descripcion()}. Ese lugar ya acota a TODOS los grupos; no lo repitas: "
+                "filtra por región solo si el grupo se define por OTRO lugar; los visitantes o turistas de fuera llevan \"fuera_del_lugar\": true.\n")
+    if getattr(alcance, "nivel", "") in ("nacional", "multinacional", "mundial"):
+        return ("Alcance de la simulación: NACIONAL o mayor. La gente es de todo el país: NO filtres por región ni por tamaño de "
+                "municipio salvo que el nombre o la descripción del propio grupo se defina por un lugar (aunque el brief cite una "
+                "ciudad como sede o como sitio de un evento).\n")
+    return ""
+
+
+def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[str], str]], fuente=None,
+                    alcance=None) -> Dict[str, Dict]:
     """
     Filtros de varios grupos en UNA sola llamada. `grupos` = [{"clave": "g0", "nombre": ..., "descripcion": ...}].
     Devuelve {clave: filtros validados}; un grupo que el modelo no devuelve, o devuelve mal, queda en {} (sin filtros).
@@ -138,10 +158,18 @@ def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[st
     )
     try:
         prompt = PROMPT_GRUPOS.format(pais=pais, fuente=nombre, schema=_esquema_txt(fuente),
-                                      general=(general or "").strip()[:2000] or "(sin contexto general)", grupos=lista)
+                                      general=(general or "").strip()[:2000] or "(sin contexto general)", grupos=lista,
+                                      alcance=nota_de_alcance(alcance))
         crudo = _extraer_json(llm(prompt))
     except Exception:
         return vacio
     if not isinstance(crudo, dict):
         return vacio
-    return {g["clave"]: validar(crudo.get(g["clave"]), fuente) for g in grupos}
+    resultado = {}
+    for g in grupos:
+        bruto = crudo.get(g["clave"])
+        f = validar(bruto, fuente)
+        if isinstance(bruto, dict) and bruto.get("fuera_del_lugar") is True:
+            f[FUERA_DEL_LUGAR] = True
+        resultado[g["clave"]] = f
+    return resultado
