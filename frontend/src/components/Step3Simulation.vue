@@ -27,7 +27,7 @@
             </span>
             <span class="stat">
               <span class="stat-label">{{ $t('step3.statActs') }}</span>
-              <span class="stat-value mono">{{ runStatus.twitter_actions_count || 0 }}</span>
+              <span class="stat-value mono">{{ shownCount('twitter') }}</span>
             </span>
           </div>
           <!-- 可用动作提示 -->
@@ -63,7 +63,7 @@
             </span>
             <span class="stat">
               <span class="stat-label">{{ $t('step3.statActs') }}</span>
-              <span class="stat-value mono">{{ runStatus.reddit_actions_count || 0 }}</span>
+              <span class="stat-value mono">{{ shownCount('reddit') }}</span>
             </span>
           </div>
           <!-- 可用动作提示 -->
@@ -216,6 +216,9 @@
             {{ $t('step3.clearFilters') }}
           </button>
         </div>
+        <button v-if="repeatsGrouped > 0 || showRepeats" type="button" class="repeat-toggle" @click="showRepeats = !showRepeats">
+          {{ showRepeats ? $t('step3.repeatsGroup') : $t('step3.repeatsGrouped', { n: repeatsGrouped }) }}
+        </button>
       </div>
       
       <!-- Si falla el arranque o la ejecución: una frase clara y el detalle técnico plegado (no tapa lo ya simulado) -->
@@ -231,7 +234,26 @@
       <!-- Timeline Feed -->
       <div class="timeline-feed">
         <div class="timeline-axis"></div>
-        
+
+        <!-- Qué es cada mitad: las dos plataformas simuladas (antes solo se distinguían por dos iconos sueltos) -->
+        <div v-if="feedFilters.platform === 'all' && feedItems.length" class="feed-columns">
+          <div class="feed-col twitter">
+            <span class="feed-col-name">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              {{ $t('step3.platformTwitter') }}
+            </span>
+            <span class="feed-col-hint">{{ $t('step3.platformTwitterHint') }}</span>
+          </div>
+          <div class="feed-col reddit">
+            <span class="feed-col-name">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+              {{ $t('step3.platformReddit') }}
+            </span>
+            <span class="feed-col-hint">{{ $t('step3.platformRedditHint') }}</span>
+          </div>
+          <p class="feed-columns-note">{{ $t('step3.platformsNote') }}</p>
+        </div>
+
         <button v-if="hiddenActionsCount > 0" type="button" class="feed-earlier" @click="showAllActions = true">
           {{ $t('step3.showEarlier', { n: hiddenActionsCount }) }}
         </button>
@@ -257,7 +279,7 @@
                   <div class="platform-indicator" :title="platformName(action.platform)">
                     <svg v-if="action.platform === 'twitter'" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                     <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                    <span class="sr-only">{{ platformName(action.platform) }}</span>
+                    <span class="platform-label">{{ action._platforms && action._platforms.length > 1 ? $t('step3.bothPlatforms') : platformName(action.platform) }}</span>
                   </div>
                   <div class="action-badge" :class="getActionTypeClass(action.action_type)">
                     {{ getActionTypeLabel(action.action_type) }}
@@ -356,6 +378,8 @@
               </div>
 
               <div class="card-footer">
+                <span v-if="action._seed" class="repeat-tag">{{ action._platforms.length > 1 ? $t('step3.seedTagBoth') : $t('step3.seedTag') }}</span>
+                <span v-else-if="action._repeats > 1" class="repeat-tag">{{ action._platforms.length > 1 ? $t('step3.repeatTagBoth', { n: action._repeats }) : $t('step3.repeatTag', { n: action._repeats }) }}</span>
                 <span class="time-tag">{{ $t('step3.roundShort', { n: action.round_num }) }} · {{ formatActionTime(action.timestamp) }}</span>
                 <!-- Platform tag removed as it is in header now -->
               </div>
@@ -511,10 +535,10 @@ const chronologicalActions = computed(() => {
   const q = query.trim()
 
   if (platform === 'all' && !group && !q) {
-    return allActions.value
+    return realActions.value
   }
 
-  return allActions.value.filter(action => {
+  return realActions.value.filter(action => {
     if (platform !== 'all' && action.platform !== platform) return false
     if (group && !group.has(action.action_type)) return false
     if (q && !matchesQuery(action, q)) return false
@@ -524,25 +548,86 @@ const chronologicalActions = computed(() => {
 
 // 各平台动作计数
 const twitterActionsCount = computed(() => {
-  return allActions.value.filter(a => a.platform === 'twitter').length
+  return realActions.value.filter(a => a.platform === 'twitter').length
 })
 
 const redditActionsCount = computed(() => {
-  return allActions.value.filter(a => a.platform === 'reddit').length
+  return realActions.value.filter(a => a.platform === 'reddit').length
 })
 
 // 当过滤器生效时，显示的数量
 const filteredActionsCount = computed(() => chronologicalActions.value.length)
 
+// Mensajes iniciales (semillas): el sistema los publica al empezar (ronda 0) para arrancar la conversación.
+// - Las simulaciones guardadas antes del arreglo #63 llevan copias que NO son hechos: el diario volvía a anotar cada
+//   semilla en la primera ronda con actividad (en la base de datos cada una existe una vez por plataforma). Esas copias
+//   no se enseñan ni se cuentan.
+// - La semilla de las dos plataformas es UN mensaje publicado a propósito en las dos: una sola tarjeta que lo dice.
+const isSeed = (a) => a.action_type === 'CREATE_POST' && (a.round_num || 0) === 0
+const textOf = (a) => {
+  const g = a.action_args || {}
+  return String(g.content || g.quote_content || '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+const ghostIds = computed(() => {
+  const seeds = new Set()
+  for (const a of allActions.value) if (isSeed(a)) seeds.add(`${a.platform}|${a.agent_id}|${textOf(a)}`)
+  const ids = new Set()
+  if (!seeds.size) return ids
+  for (const a of allActions.value) {
+    if (a.action_type === 'CREATE_POST' && !isSeed(a) && seeds.has(`${a.platform}|${a.agent_id}|${textOf(a)}`)) ids.add(a._uniqueId)
+  }
+  return ids
+})
+const ghostByPlatform = computed(() => {
+  const n = { twitter: 0, reddit: 0 }
+  if (!ghostIds.value.size) return n
+  for (const a of allActions.value) if (ghostIds.value.has(a._uniqueId) && a.platform in n) n[a.platform] += 1
+  return n
+})
+// Lo que se enseña y se cuenta: el diario sin esas copias
+const realActions = computed(() => (ghostIds.value.size ? allActions.value.filter(a => !ghostIds.value.has(a._uniqueId)) : allActions.value))
+const shownCount = (platform) => Math.max(0, (runStatus.value[`${platform}_actions_count`] || 0) - ghostByPlatform.value[platform])
+
 // Pintar miles de tarjetas a la vez (con 3.000 acciones eran ~75.000 nodos y 2,7 s de hilo bloqueado en 14 s) es lo
 // que hacía lenta la pantalla en simulaciones largas: se pintan las últimas y el resto, a un clic
 const FEED_LIMIT = 300
 const showAllActions = ref(false)
+
+// Un mismo agente puede repetir un mensaje (en otra ronda, o en las dos plataformas): una sola tarjeta con «se repite N
+// veces» y un interruptor para verlas todas. (Hasta ahora no ha pasado en ninguna simulación medida; lo que parecía
+// repetición eran las semillas, que se fusionan siempre.)
+const REPEATABLE = new Set(['CREATE_POST', 'QUOTE_POST', 'CREATE_COMMENT'])
+const showRepeats = ref(false)
+const groupedFeed = computed(() => {
+  const list = chronologicalActions.value
+  const seen = new Map()
+  const items = []
+  let grouped = 0
+  for (const a of list) {
+    const text = REPEATABLE.has(a.action_type) ? textOf(a) : ''
+    if (!text) { items.push(a); continue }
+    const seed = isSeed(a)
+    if (showRepeats.value && !seed) { items.push(a); continue }
+    const key = seed ? `seed|${a.agent_id}|${text}` : `${a.agent_id}|${a.action_type}|${text}`
+    const first = seen.get(key)
+    if (!first) {
+      const item = { ...a, _repeats: 1, _platforms: [a.platform], _seed: seed }
+      seen.set(key, item)
+      items.push(item)
+    } else {
+      if (!seed) { first._repeats += 1; grouped += 1 }
+      if (!first._platforms.includes(a.platform)) first._platforms.push(a.platform)
+    }
+  }
+  return { items, grouped }
+})
+const feedItems = computed(() => groupedFeed.value.items)
+const repeatsGrouped = computed(() => groupedFeed.value.grouped)
 const visibleActions = computed(() => {
-  const all = chronologicalActions.value
+  const all = feedItems.value
   return showAllActions.value || all.length <= FEED_LIMIT ? all : all.slice(-FEED_LIMIT)
 })
-const hiddenActionsCount = computed(() => chronologicalActions.value.length - visibleActions.value.length)
+const hiddenActionsCount = computed(() => feedItems.value.length - visibleActions.value.length)
 const hasActiveFilters = computed(() => {
   const { platform, actionGroup, query } = feedFilters.value
   return platform !== 'all' || actionGroup !== 'all' || query.trim() !== ''
@@ -1604,6 +1689,39 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* Cabecera de las dos mitades: qué es cada plataforma */
+.feed-columns {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0;
+  margin: 0 0 22px;
+  padding-bottom: 12px;
+  background: #FFF;
+  border-bottom: 1px solid var(--kb-line);
+}
+.feed-col { display: grid; gap: 2px; padding: 0 32px; min-width: 0; }
+.feed-col.twitter { justify-items: end; text-align: right; }
+.feed-col.reddit { justify-items: start; text-align: left; }
+.feed-col-name {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 11px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--kb-text);
+}
+.feed-col-hint { font-size: 12px; line-height: 1.4; color: var(--kb-muted); text-wrap: pretty; }
+.feed-columns-note {
+  grid-column: 1 / -1; margin: 10px 0 0; padding: 0 32px; text-align: center;
+  font-size: 12px; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty;
+}
+.platform-label { margin-left: 6px; font: 500 11px var(--kb-font-mono); letter-spacing: 0.04em; color: var(--kb-muted); white-space: nowrap; }
+.repeat-tag { margin-right: auto; font: 500 11px var(--kb-font-mono); color: var(--kb-muted); text-wrap: balance; }
+.time-tag { white-space: nowrap; }
+.repeat-toggle {
+  margin-left: auto; padding: 4px 0; border: 0; background: none; cursor: pointer;
+  font: 500 12px var(--kb-font-mono); color: var(--kb-text); text-decoration: underline; text-underline-offset: 3px;
+}
+.repeat-toggle:hover { text-decoration-thickness: 2px; }
+
 .timeline-axis {
   position: absolute;
   left: 50%;
@@ -1827,7 +1945,10 @@ onUnmounted(() => {
 .card-footer {
   margin-top: 12px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: baseline;
+  gap: 4px 12px;
   font-size: 12px;
   color: var(--kb-muted);
   font-family: var(--kb-font-mono);
@@ -1965,6 +2086,9 @@ onUnmounted(() => {
   .feed-error { margin: 12px 14px 0; }
   .timeline-axis { left: 22px; transform: none; }
   .timeline-marker { left: 22px; }
+  .feed-columns { grid-template-columns: 1fr; row-gap: 8px; margin: 0 14px 18px; padding-bottom: 10px; }
+  .feed-col, .feed-col.twitter, .feed-col.reddit { padding: 0; justify-items: start; text-align: left; }
+  .feed-columns-note { padding: 0; text-align: left; margin-top: 2px; }
   .timeline-item.twitter,
   .timeline-item.reddit { justify-content: stretch; padding: 0 14px 0 44px; margin-bottom: 20px; }
   .timeline-item.twitter .timeline-card,
@@ -1982,6 +2106,9 @@ onUnmounted(() => {
 }
 
 .feed-earlier {
+  /* por encima de la línea central: antes la raya cruzaba el botón y su píxel central no recibía el clic */
+  position: relative;
+  z-index: 3;
   display: block;
   margin: 0 auto 12px;
   padding: 8px 14px;

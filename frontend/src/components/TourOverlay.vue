@@ -473,25 +473,17 @@ const onBackdropClick = () => {
   position: fixed;
   pointer-events: none;
   border: 2px solid var(--kb-accent-line);
-  box-shadow:
-    0 0 0 2px rgba(204, 230, 115, 0.25),
-    0 0 28px 4px rgba(204, 230, 115, 0.45);
+  /* Un aro quieto y suave: antes llevaba un resplandor fuerte que latía sin parar y, al cambiar de paso, se apagaba
+     y volvía a encenderse de golpe (se veía como un destello). */
+  box-shadow: 0 0 0 3px rgba(204, 230, 115, 0.22);
   border-radius: 6px;
   opacity: 0;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.32s ease;
 }
 .tour-ring.animate {
-  transition: opacity 0.18s ease, left var(--tour-move), top var(--tour-move), width var(--tour-move), height var(--tour-move);
+  transition: opacity 0.32s ease, left var(--tour-move), top var(--tour-move), width var(--tour-move), height var(--tour-move);
 }
-.tour-ring.on {
-  opacity: 1;
-  animation: tour-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes tour-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(204, 230, 115, 0.25), 0 0 28px 4px rgba(204, 230, 115, 0.45); }
-  50%      { box-shadow: 0 0 0 4px rgba(204, 230, 115, 0.18), 0 0 40px 8px rgba(204, 230, 115, 0.55); }
-}
+.tour-ring.on { opacity: 1; }
 
 /* Entrada y salida del tutorial entero */
 .tour-fade-enter-active { transition: opacity 0.22s ease; }
@@ -667,6 +659,5 @@ const onBackdropClick = () => {
   .tour-card,
   .tour-fade-enter-active,
   .tour-fade-leave-active { transition: none; }
-  .tour-ring.on { animation: none; }
 }
 </style>

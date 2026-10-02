@@ -825,7 +825,7 @@ import {
 } from '../api/simulation'
 import { usePipeline } from '../composables/usePipeline'
 import { MiniMarkdown } from '../lib/miniMarkdown'
-import { MANUAL_MAX_ROUNDS, SERVER_MAX_ROUNDS, roundsMinutes } from '../lib/rounds'
+import { MANUAL_MAX_ROUNDS, SERVER_MAX_ROUNDS, roundsMinutes, rememberedRounds } from '../lib/rounds'
 import { entityLabel } from '../lib/typeLabels'
 
 const { t, te } = useI18n()
@@ -894,7 +894,7 @@ let lastLoggedConfigStage = ''
 // Personalizado por defecto: la app ya recomienda reducir rondas en las primeras
 // pruebas (el automático puede dar 168 y tardar horas).
 const useCustomRounds = ref(true)
-const customMaxRounds = ref(40)   // 默认推荐40轮
+const customMaxRounds = ref(rememberedRounds() ?? 40)   // lo elegido en la portada; si no, 40
 const AGENTS_PREVIEW = 6
 const showAllAgents = ref(false)
 const roundsSection = ref(null)

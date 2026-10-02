@@ -190,8 +190,8 @@
                 <p v-if="canSubmit || launching" class="composer-note">{{ readyNote }}</p>
               </div>
             </div>
-            <!-- Solo en automático: cuánto dura la conversación simulada (paso a paso lo eliges en el paso 2) -->
-            <div v-if="runMode === 'auto'" class="rounds-pick" role="radiogroup" :aria-label="$t('home.roundsLabel')" data-tour="home-rounds">
+            <!-- Cuánto dura la conversación simulada, desde el principio y en los dos modos (en paso a paso se puede afinar luego en el paso 2) -->
+            <div class="rounds-pick" role="radiogroup" :aria-label="$t('home.roundsLabel')" data-tour="home-rounds">
               <p class="rounds-title">{{ $t('home.roundsLabel') }}</p>
               <!-- «Ronda» no se explica sola: qué es y cuánto tiempo de conversación equivale -->
               <p class="rounds-hint rounds-what">{{ $t('home.roundsWhat') }}</p>
@@ -204,6 +204,7 @@
                 </label>
               </div>
               <p class="rounds-hint">{{ $t('home.roundsHint') }}</p>
+              <p v-if="runMode === 'manual'" class="rounds-hint">{{ $t('home.roundsHintManual', { max: MANUAL_MAX_ROUNDS }) }}</p>
             </div>
             <!-- Investigación opcional: busca contexto en internet (polémicas, noticias, actores) y lo suma al material -->
             <label class="research-opt" :class="{ on: webResearch }" data-tour="home-research">
@@ -374,7 +375,7 @@ import { useTutorial } from '../composables/useTutorial'
 import { getTour } from '../tours/tours'
 import { useAuth } from '../composables/useAuth'
 import { pb } from '../lib/pocketbase'
-import { ROUNDS_CHOICES, DEFAULT_ROUNDS, normalizeRounds, roundsMinutes } from '../lib/rounds'
+import { ROUNDS_CHOICES, DEFAULT_ROUNDS, MANUAL_MAX_ROUNDS, normalizeRounds, roundsMinutes, rememberRounds } from '../lib/rounds'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -739,6 +740,7 @@ const scrollToForm = () => {
 // Guarda lo que hay en el formulario para que sobreviva al paso por el login
 // (vive en memoria: los archivos no se pueden guardar en el navegador).
 const stashForm = () => {
+  rememberRounds(rounds.value)
   setPendingUpload(
     files.value,
     formData.value.simulationRequirement,
