@@ -126,7 +126,13 @@ def markdown_to_html(markdown_text: str) -> str:
 
 def _css(locale: str, fuente: str = "") -> str:
     t = _texts(locale)
-    fuente_css = fuente.replace('\\', '').replace('"', '').replace('\n', ' ')
+    # «Fuente de datos: …» en el pie de cada página si el público se ancló a datos reales. Se calcula fuera del
+    # f-string: Python 3.11 (el del CI) no admite barras invertidas dentro de sus expresiones.
+    fuente_css = fuente.replace(chr(92), "").replace('"', "").replace(chr(10), " ")
+    pie_centro = (
+        '@bottom-center { content: "' + fuente_css + '"; font: 400 7.5pt \'JBM-500\', \'DejaVu Sans Mono\', monospace; '
+        'color: ' + GRAY + '; }'
+    ) if fuente_css else ""
     pre, mid, post = t["page"]
     fonts = FONT_DIR.as_uri()
     faces = "".join(
@@ -146,7 +152,7 @@ def _css(locale: str, fuente: str = "") -> str:
   @top-right {{ content: "{t['kind']}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; letter-spacing: .12em;
                 text-transform: uppercase; color: {GRAY}; vertical-align: middle; }}
   @bottom-left {{ content: "{t['footer']}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; color: {GRAY}; }}
-  {('@bottom-center { content: "' + fuente_css + '"; font: 400 7.5pt \'JBM-500\', \'DejaVu Sans Mono\', monospace; color: ' + GRAY + '; }') if fuente_css else ''}
+  {pie_centro}
   @bottom-right {{ content: "{pre}" counter(page) "{mid}" counter(pages) "{post}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; color: {GRAY}; }}
 }}
 @page :first {{ margin-top: 0; @top-left {{ content: none; }} @top-right {{ content: none; }} }}
