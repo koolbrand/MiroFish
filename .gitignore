@@ -58,3 +58,10 @@ backend/uploads/
 
 # Docker 数据
 data/
+# Población con datos reales (CIS): los microdatos NUNCA van al repo (es público) ni a la imagen
+backend/data/
+*.sqlite
+*.sqlite3
+MD35*.zip
+MD35*/
+poblacion_cis_raw/

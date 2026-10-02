@@ -508,6 +508,10 @@ def prepare_simulation():
         
         entity_types_list = data.get('entity_types')
         use_llm_for_profiles = data.get('use_llm_for_profiles', True)
+        # Interruptor «Público con datos reales · España (CIS)»: None = lo que diga POBLACION_CIS
+        poblacion_cis = data.get('poblacion_cis')
+        if poblacion_cis is not None:
+            poblacion_cis = bool(poblacion_cis)
         try:
             parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
         except (TypeError, ValueError):
@@ -659,7 +663,8 @@ def prepare_simulation():
                     defined_entity_types=entity_types_list,
                     use_llm_for_profiles=use_llm_for_profiles,
                     progress_callback=progress_callback,
-                    parallel_profile_count=parallel_profile_count
+                    parallel_profile_count=parallel_profile_count,
+                    poblacion_cis=poblacion_cis
                 )
                 
                 # 任务完成
@@ -1218,6 +1223,32 @@ def get_simulation_profiles(simulation_id: str):
             "error": str(e),
             **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
+
+
+@simulation_bp.route('/poblacion/estado', methods=['GET'])
+def poblacion_estado():
+    """¿Hay banco del CIS en este servidor? Lo usa la interfaz para mostrar el interruptor y su valor por defecto."""
+    from ..services import poblacion
+    info = {"disponible": False, "por_defecto": bool(Config.POBLACION_CIS), "estudios": [], "fuente": poblacion.CITA}
+    if poblacion.banco_existe():
+        try:
+            info["estudios"] = poblacion.BancoCIS(Config.POBLACION_BANCO_PATH).estudios()
+            info["disponible"] = True
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"No se pudo leer el banco del CIS: {e}")
+    return jsonify({"success": True, "data": info})
+
+
+@simulation_bp.route('/<simulation_id>/poblacion', methods=['GET'])
+def poblacion_de_simulacion(simulation_id: str):
+    """Reparto (edad, sexo, región) y filtros del público anclado al CIS; `data: null` si esa simulación no lo usó."""
+    import json
+    validate_storage_id(simulation_id, "sim_")
+    ruta = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id, "poblacion_cis.json")
+    if not os.path.isfile(ruta):
+        return jsonify({"success": True, "data": None})
+    with open(ruta, encoding="utf-8") as f:
+        return jsonify({"success": True, "data": json.load(f)})
 
 
 @simulation_bp.route('/<simulation_id>/profiles/realtime', methods=['GET'])

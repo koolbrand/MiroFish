@@ -124,8 +124,9 @@ def markdown_to_html(markdown_text: str) -> str:
 
 # ============== Maquetación ==============
 
-def _css(locale: str) -> str:
+def _css(locale: str, fuente: str = "") -> str:
     t = _texts(locale)
+    fuente_css = fuente.replace('\\', '').replace('"', '').replace('\n', ' ')
     pre, mid, post = t["page"]
     fonts = FONT_DIR.as_uri()
     faces = "".join(
@@ -145,6 +146,7 @@ def _css(locale: str) -> str:
   @top-right {{ content: "{t['kind']}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; letter-spacing: .12em;
                 text-transform: uppercase; color: {GRAY}; vertical-align: middle; }}
   @bottom-left {{ content: "{t['footer']}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; color: {GRAY}; }}
+  {('@bottom-center { content: "' + fuente_css + '"; font: 400 7.5pt \'JBM-500\', \'DejaVu Sans Mono\', monospace; color: ' + GRAY + '; }') if fuente_css else ''}
   @bottom-right {{ content: "{pre}" counter(page) "{mid}" counter(pages) "{post}"; font: 400 7.5pt 'JBM-500', 'DejaVu Sans Mono', monospace; color: {GRAY}; }}
 }}
 @page :first {{ margin-top: 0; @top-left {{ content: none; }} @top-right {{ content: none; }} }}
@@ -252,7 +254,7 @@ def build_html(*, title: str, summary: str, question: str, body_html: str, meta:
     )
     return f"""<!doctype html>
 <html lang="{html.escape((locale or 'es')[:2])}"><head><meta charset="utf-8"><title>{html.escape(title or kind)}</title>
-<style>{_css(locale)}</style></head>
+<style>{_css(locale, meta.get('fuente_datos') or '')}</style></head>
 <body>
 <div id="running-logo">{_logo()}</div>
 <header class="cover-band">{_logo()}<div class="cover-tag">{html.escape(kind)}</div></header>
@@ -261,7 +263,7 @@ def build_html(*, title: str, summary: str, question: str, body_html: str, meta:
 {('<div class="stats">' + stats_html + '</div>') if stats_html else ''}
 {question_html}{summary_html}
 <main class="body">{body_html}</main>
-{('<aside class="note"><div class="label">' + html.escape(t['note_title']) + '</div><p>' + html.escape(t['note']) + '</p></aside>') if show_note else ''}
+{('<aside class="note"><div class="label">' + html.escape(t['note_title']) + '</div><p>' + html.escape(t['note']) + ((' ' + html.escape(meta['fuente_datos'])) if meta.get('fuente_datos') else '') + '</p></aside>') if show_note else ''}
 </body></html>"""
 
 

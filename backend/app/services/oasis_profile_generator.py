@@ -23,6 +23,7 @@ from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, get_locale, set_locale, t
 from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
+from . import poblacion
 
 logger = get_logger('mirofish.oasis_profile')
 
@@ -52,6 +53,11 @@ class OasisAgentProfile:
     country: Optional[str] = None
     profession: Optional[str] = None
     interested_topics: List[str] = field(default_factory=list)
+
+    # Datos reales (CIS): solo si el agente está anclado a un encuestado real; si no, todo queda vacío
+    data_source: Optional[str] = None
+    data_ref: Optional[str] = None
+    memory_facts: List[str] = field(default_factory=list)
     
     # 来源实体信息
     source_entity_uuid: Optional[str] = None
@@ -84,6 +90,10 @@ class OasisAgentProfile:
             profile["profession"] = self.profession
         if self.interested_topics:
             profile["interested_topics"] = self.interested_topics
+        if self.data_source:
+            profile["data_source"] = self.data_source
+            profile["data_ref"] = self.data_ref
+            profile["memory_facts"] = self.memory_facts
         
         return profile
     
@@ -135,6 +145,9 @@ class OasisAgentProfile:
             "country": self.country,
             "profession": self.profession,
             "interested_topics": self.interested_topics,
+            "data_source": self.data_source,
+            "data_ref": self.data_ref,
+            "memory_facts": self.memory_facts,
             "source_entity_uuid": self.source_entity_uuid,
             "source_entity_type": self.source_entity_type,
             "created_at": self.created_at,
@@ -213,7 +226,8 @@ class OasisProfileGenerator:
         self, 
         entity: EntityNode, 
         user_id: int,
-        use_llm: bool = True
+        use_llm: bool = True,
+        encuestado=None
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -222,6 +236,8 @@ class OasisProfileGenerator:
             entity: Zep实体节点
             user_id: 用户ID（用于OASIS）
             use_llm: 是否使用LLM生成详细人设
+            encuestado: encuestado real (CIS) al que se ancla el agente; solo para el público.
+                Si es None el comportamiento es el de siempre.
             
         Returns:
             OasisAgentProfile
@@ -261,6 +277,12 @@ class OasisProfileGenerator:
                 "distinta de las demás (otra edad, otra situación, otra opinión y otro tono)."
             )
         
+        ficha = None
+        if encuestado is not None and force_individual:
+            ficha = poblacion.construir_ficha(encuestado)
+        else:
+            encuestado = None
+
         if use_llm:
             # 使用LLM生成详细人设
             profile_data = self._generate_profile_with_llm(
@@ -270,6 +292,7 @@ class OasisProfileGenerator:
                 entity_attributes=prompt_attrs,
                 context=context,
                 force_individual=force_individual,
+                cis_ficha=ficha,
             )
         else:
             # 使用规则生成基础人设
@@ -279,7 +302,19 @@ class OasisProfileGenerator:
                 entity_summary=entity.summary,
                 entity_attributes=prompt_attrs
             )
-        
+            if ficha:
+                profile_data["persona"] = f"{profile_data.get('persona', '')}\n\n{ficha}".strip()
+
+        if encuestado is not None:
+            # Lo medido manda sobre lo que el modelo haya escrito: edad, género y región son del dato real
+            profile_data["age"] = encuestado.edad
+            profile_data["gender"] = poblacion.genero_oasis(encuestado) or profile_data.get("gender")
+            profile_data["country"] = "España"
+            profile_data["mbti"] = None
+            profile_data["data_source"] = poblacion.FUENTE
+            profile_data["data_ref"] = encuestado.estudio
+            profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado)
+
         return OasisAgentProfile(
             user_id=user_id,
             user_name=user_name,
@@ -296,6 +331,9 @@ class OasisProfileGenerator:
             country=profile_data.get("country"),
             profession=profile_data.get("profession"),
             interested_topics=profile_data.get("interested_topics", []),
+            data_source=profile_data.get("data_source"),
+            data_ref=profile_data.get("data_ref"),
+            memory_facts=profile_data.get("memory_facts", []),
             source_entity_uuid=entity.uuid,
             source_entity_type=entity_type,
         )
@@ -529,6 +567,7 @@ class OasisProfileGenerator:
         entity_attributes: Dict[str, Any],
         context: str,
         force_individual: bool = False,
+        cis_ficha: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         使用LLM生成非常详细的人设
@@ -540,7 +579,11 @@ class OasisProfileGenerator:
         
         is_individual = force_individual or self._is_individual_entity(entity_type)
         
-        if is_individual:
+        if cis_ficha:
+            prompt = self._build_cis_persona_prompt(
+                entity_name, entity_summary, entity_attributes, context, cis_ficha
+            )
+        elif is_individual:
             prompt = self._build_individual_persona_prompt(
                 entity_name, entity_type, entity_summary, entity_attributes, context
             )
@@ -779,6 +822,45 @@ Rules:
 - age must be a valid integer.
 """
 
+    def _build_cis_persona_prompt(
+        self,
+        entity_name: str,
+        entity_summary: str,
+        entity_attributes: Dict[str, Any],
+        context: str,
+        ficha: str
+    ) -> str:
+        """Persona anclada a un encuestado REAL y anónimo (CIS): el modelo la redacta, no la inventa."""
+        attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "N/A"
+        context_str = context[:2000] if context else "No additional context"
+        lang_instruction = get_language_instruction()
+
+        return f"""{lang_instruction}
+IMPORTANT: All free-text field values below (bio, persona, profession, interested_topics) MUST be written in the target language specified above. Do NOT output Chinese unless the target language is Chinese.
+
+You are writing the social-media persona of ONE REAL, anonymous person who answered an official survey of the Spanish population (CIS). The DATA SHEET below is true and fixed: do NOT contradict it, do NOT change their age, sex, region, studies or employment, and do NOT invent a personality type or other hard facts that clash with it. You may only add plausible everyday colour (tone, habits, how they would talk online) that is consistent with the data sheet.
+
+DATA SHEET (real data):
+{ficha}
+
+Public this person belongs to: {entity_name}
+Public description: {entity_summary}
+Attributes: {attrs_str}
+
+Context of the simulation:
+{context_str}
+
+Return a JSON object with these fields:
+1. bio: social-media bio, roughly 150 characters.
+2. persona: one coherent paragraph, roughly 1200 characters: who they are according to the data sheet, how their answers shape their opinions about the topic of the simulation, their social-media behaviour and tone of voice. Do not mention that they are a survey respondent or a data sheet.
+3. profession: occupation consistent with their employment situation and studies (e.g. "jubilado", "estudiante", "administrativa").
+4. interested_topics: array of 3 to 6 topics.
+
+Rules:
+- All values must be strings (or an array of strings) without unescaped newlines.
+- Do NOT output age, gender, country or mbti: they come from the real data.
+"""
+
     def _build_group_persona_prompt(
         self,
         entity_name: str,
@@ -904,6 +986,15 @@ Rules:
                 "interested_topics": ["General", "Social Issues"],
             }
     
+    def _llm_texto(self, prompt: str) -> str:
+        """Llamada de texto simple (traducir el público a filtros del banco)."""
+        resp = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+        return strip_reasoning(resp.choices[0].message.content)
+
     def set_graph_id(self, graph_id: str):
         """设置图谱ID用于Zep检索"""
         self.graph_id = graph_id
@@ -916,7 +1007,10 @@ Rules:
         graph_id: Optional[str] = None,
         parallel_count: int = 5,
         realtime_output_path: Optional[str] = None,
-        output_platform: str = "reddit"
+        output_platform: str = "reddit",
+        poblacion_cis: Optional[bool] = None,
+        publico_descripcion: str = "",
+        poblacion_resumen_path: Optional[str] = None
     ) -> List[OasisAgentProfile]:
         """
         批量从实体生成Agent Profile（支持并行生成）
@@ -976,6 +1070,26 @@ Rules:
                 except Exception as e:
                     logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
+        # Público con datos reales (CIS): se eligen de antemano, sin repetir, tantos encuestados como
+        # personas del público haya. Apagado o sin banco = nada de esto corre y todo sale como siempre.
+        encuestados_por_idx: Dict[int, Any] = {}
+        if poblacion.modo_activo(poblacion_cis):
+            try:
+                idx_publico = [i for i, e in enumerate(entities)
+                               if (e.attributes or {}).get('__simuloo_individual')]
+                if idx_publico:
+                    asignacion = poblacion.asignar(
+                        len(idx_publico), publico_descripcion, llm=self._llm_texto
+                    )
+                    encuestados_por_idx = dict(zip(idx_publico, asignacion.encuestados))
+                    if poblacion_resumen_path:
+                        with open(poblacion_resumen_path, 'w', encoding='utf-8') as f:
+                            json.dump(asignacion.resumen(), f, ensure_ascii=False, indent=2)
+                    logger.info(f"Público con datos reales (CIS): {len(encuestados_por_idx)} personas ancladas")
+            except Exception as e:
+                logger.warning(f"No se pudo anclar el público al CIS, se genera como siempre: {e}")
+                encuestados_por_idx = {}
+
         # Capture locale before spawning thread pool workers
         current_locale = get_locale()
 
@@ -988,7 +1102,8 @@ Rules:
                 profile = self.generate_profile_from_entity(
                     entity=entity,
                     user_id=idx,
-                    use_llm=use_llm
+                    use_llm=use_llm,
+                    encuestado=encuestados_por_idx.get(idx)
                 )
                 
                 # 实时输出生成的人设到控制台和日志

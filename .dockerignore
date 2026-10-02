@@ -21,3 +21,10 @@ frontend/dist
 frontend/.vite
 
 backend/uploads
+
+# Microdatos del CIS: nunca en la imagen (van por volumen)
+backend/data
+*.sqlite
+*.sqlite3
+MD35*.zip
+poblacion_cis_raw

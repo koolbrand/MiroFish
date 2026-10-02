@@ -161,6 +161,14 @@ class Config:
     AUDIENCE_MAX_EXTRA = env_int('AUDIENCE_MAX_EXTRA', 20, minimum=0)
     AUDIENCE_MAX_VARIANTS = env_int('AUDIENCE_MAX_VARIANTS', 4, minimum=1)
 
+    # Público con datos reales (CIS): cada persona simulada del público se ancla a un encuestado real y
+    # anónimo del banco. Uso interno de I+D hasta tener la autorización escrita del CIS. Apagado por defecto.
+    POBLACION_CIS = env_bool('POBLACION_CIS', False)
+    POBLACION_BANCO_PATH = env_str(
+        'POBLACION_BANCO_PATH',
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'poblacion', 'banco_cis.sqlite'),
+    )
+
     # Graphiti-specific LLM config (knowledge graph extraction).
     # Uses a DIFFERENT provider/model than the simulation LLM because graph
     # extraction needs reliable structured output (response_format=json_schema).
