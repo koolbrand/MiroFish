@@ -247,6 +247,14 @@ def test_ficha_nombra_la_region_como_se_llama_en_cada_pais(dos_paises):
     assert "Estado:" in F.construir_ficha(e_us, fuente=FUENTES["gss"])
 
 
+def test_la_ficha_no_lleva_la_provincia(banco):
+    """Minimización: la provincia está en el banco ('Subregión X') pero no sale hacia el modelo."""
+    e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
+    assert e.subregion == "Subregión X"
+    ficha = F.construir_ficha(e)
+    assert "Subregión X" not in ficha and e.region in ficha
+
+
 def test_ficha_recorta_respuestas_larguisimas(banco):
     e = banco.encuestado(banco.segmento({}, minimo=1).ids[0])
     e.respuestas = [{"pregunta": "P", "respuesta": "x" * 900, "politica": 0}]

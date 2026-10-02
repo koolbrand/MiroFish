@@ -24,8 +24,9 @@ def lineas_sociodemografia(e: Encuestado, fuente: Optional["Fuente"] = None) -> 
     if e.edad:
         out.append(f"{ETIQUETAS['edad']}: {e.edad} años")
     if e.region:
-        sub = f" ({e.subregion})" if e.subregion else ""
-        out.append(f"{etiqueta_region}: {e.region}{sub}")
+        # Solo la región. La provincia queda en el banco pero no sale hacia el modelo: junto a edad, sexo, estudios
+        # y respuestas sería un cuasi-identificador de más (minimización de datos).
+        out.append(f"{etiqueta_region}: {e.region}")
     for campo in ("tamuni", "estudios", "sitlab", "estcivil"):
         v = getattr(e, campo)
         if v:

@@ -129,7 +129,7 @@ Ya se mide en cada generación: `poblacion.json → calidad` (por grupo y global
 - Las respuestas son de la fecha de cada estudio; el mundo se mueve. Cada ficha cita su estudio.
 - Una encuesta solo contiene lo que preguntó: si el tema del brief no está en ella, la ficha calla y la persona queda neutral.
 - El texto de la persona sigue escribiéndolo un modelo: las reglas lo frenan, no lo eliminan. Por eso la lectura humana de la fase 3.
-- La ficha lleva la provincia junto a edad, sexo, estudios y respuestas. El CIS publica esos datos anonimizados y aquí no se cruzan con nada; aun así, es una decisión consciente (ver sección 9).
+- Minimización de datos: la ficha que llega al modelo lleva la **región** (comunidad autónoma) pero **no la provincia**, que se queda en el banco. Junto a edad, sexo, estudios y respuestas sería un cuasi-identificador de más (decidido el 2-oct-2026).
 
 ## 9. Decisiones que necesito de Adrián
 
@@ -137,5 +137,4 @@ Ya se mide en cada generación: `poblacion.json → calidad` (por grupo y global
 2. **Descargar los ZIP del CIS** (MD3577 más los cuatro anteriores). Sin ellos no hay fase 1.
 3. **País siguiente:** recomiendo EE. UU. (contraste directo con España). ¿O Latinoamérica antes?
 4. **¿La etiqueta «Uso interno de I+D» la ve todo el mundo o solo el administrador?** Ahora la ve todo el mundo.
-5. **¿Quitamos la provincia de la ficha?** Reduce el riesgo de reidentificación; se pierde color local.
-6. **Para las fuentes con cláusula de «solo agregados»:** ¿pedimos permiso que cubra el uso, o pasamos a perfiles recombinados?
+5. **Para las fuentes con cláusula de «solo agregados»:** ¿pedimos permiso que cubra el uso, o pasamos a perfiles recombinados?
