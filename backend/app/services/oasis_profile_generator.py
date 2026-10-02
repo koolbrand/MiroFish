@@ -25,6 +25,7 @@ from ..utils.locale import get_language_instruction, get_locale, set_locale, t
 from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
 from . import poblacion
+from .poblacion import alcance as alcance_mod
 
 logger = get_logger('mirofish.oasis_profile')
 
@@ -230,7 +231,8 @@ class OasisProfileGenerator:
         use_llm: bool = True,
         encuestado=None,
         fuente=None,
-        relevantes=None
+        relevantes=None,
+        alcance=None
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -276,6 +278,10 @@ class OasisProfileGenerator:
                     "la región de los que habla ese tema (no la sitúes por defecto en España "
                     "si el tema es de otro mercado)."
                 )
+            # Alcance de la simulación (local, regional, nacional, multinacional, mundial): dónde vive esta persona
+            pista = alcance_mod.pista_para_persona(alcance, user_id)
+            if pista:
+                summary += "\n" + pista
         elif anclado and topic:
             # Con encuestado real la ficha ya fija edad, situación y lugar: aquí no se pide inventar nada de eso
             summary += f"\n\nLa simulación trata sobre: «{topic}»."
@@ -1041,7 +1047,9 @@ Rules:
         poblacion_pais: Optional[str] = None,
         publico_descripcion: str = "",
         pregunta: str = "",
-        poblacion_resumen_path: Optional[str] = None
+        poblacion_resumen_path: Optional[str] = None,
+        alcance_pedido: Optional[str] = None,
+        alcance_path: Optional[str] = None
     ) -> List[OasisAgentProfile]:
         """
         批量从实体生成Agent Profile（支持并行生成）
@@ -1101,6 +1109,20 @@ Rules:
                 except Exception as e:
                     logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
+        # Alcance geográfico (local, regional, nacional, multinacional, mundial): se decide UNA vez por simulación, siempre (también
+        # sin datos reales) porque manda sobre dónde vive el público, sobre a quién se busca en la encuesta y sobre el informe.
+        try:
+            alcance = alcance_mod.detectar(alcance_pedido, pregunta, publico_descripcion, self._llm_texto)
+        except Exception as e:
+            logger.warning(f"No se pudo decidir el alcance: {e}")
+            alcance = alcance_mod.Alcance()
+        logger.info(f"Alcance de la simulación: {alcance.descripcion()} ({alcance.origen})")
+        if alcance_path:
+            try:
+                alcance_mod.guardar(alcance_path, alcance)
+            except OSError as e:
+                logger.warning(f"No se pudo guardar el alcance: {e}")
+
         # Público con datos reales: se eligen de antemano, sin repetir, tantos encuestados como personas tenga cada
         # GRUPO del público (la entidad y sus variantes), del país del público. Apagado, sin banco o sin país claro =
         # nada de esto corre y todo sale como siempre; en ese caso se deja escrito por qué para decírselo a la persona.
@@ -1125,11 +1147,17 @@ Rules:
                 if grupos:
                     deteccion = poblacion.detectar(poblacion_pais, pregunta, publico_descripcion, self._llm_texto)
                     asignacion = None
+                    if not alcance.permite_anclar:
+                        # Varios países o el mundo: la encuesta de UN país sesgaría a todo el público hacia él
+                        deteccion.fuente = None
+                        deteccion.motivo = (f"El alcance es {alcance.nivel}: no hay una encuesta que represente a ese público y "
+                                            "anclarlo a la de un solo país lo sesgaría. Las personas se generan repartiendo culturas.")
+                        deteccion.origen = "alcance"
                     if deteccion.fuente is not None:
                         asignacion = poblacion.asignar_por_grupos(
                             [poblacion.Grupo(k, v['nombre'], v['descripcion'], len(v['idx'])) for k, v in grupos.items()],
                             general=publico_descripcion, llm=self._llm_texto, pregunta=pregunta,
-                            fuente=deteccion.fuente, deteccion=deteccion)
+                            fuente=deteccion.fuente, deteccion=deteccion, alcance=alcance)
                     if asignacion is not None:
                         fuente_poblacion = asignacion.fuente
                         # Qué respuestas de la encuesta importan para ESTE tema (una llamada por simulación)
@@ -1169,7 +1197,8 @@ Rules:
                     use_llm=use_llm,
                     encuestado=encuestados_por_idx.get(idx),
                     fuente=fuente_poblacion,
-                    relevantes=relevantes
+                    relevantes=relevantes,
+                    alcance=alcance
                 )
                 
                 # 实时输出生成的人设到控制台和日志

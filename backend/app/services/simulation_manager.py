@@ -251,7 +251,8 @@ class SimulationManager:
         progress_callback: Optional[callable] = None,
         parallel_profile_count: int = 3,
         poblacion_datos: Optional[bool] = None,
-        poblacion_pais: Optional[str] = None
+        poblacion_pais: Optional[str] = None,
+        alcance: Optional[str] = None
     ) -> SimulationState:
         """
         准备模拟环境（全程自动化）
@@ -402,6 +403,9 @@ class SimulationManager:
                 publico_descripcion=(document_text or "")[:4000],
                 pregunta=simulation_requirement,
                 poblacion_resumen_path=os.path.join(sim_dir, poblacion.RESUMEN),
+                # Alcance geográfico: lo fija la persona o lo decide el modelo con el brief; queda en alcance.json
+                alcance_pedido=alcance,
+                alcance_path=os.path.join(sim_dir, poblacion.alcance.FICHERO),
             )
             
             state.profiles_count = len(profiles)

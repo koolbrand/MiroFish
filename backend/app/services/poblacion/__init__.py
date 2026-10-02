@@ -24,6 +24,8 @@ from ...utils.logger import get_logger
 from .banco import Banco, Encuestado, Segmento
 from .ficha import construir_ficha as _construir_ficha
 from .ficha import genero_oasis, hechos_memoria
+from . import jev
+from .alcance import Alcance
 from .filtros import traducir_grupos
 from .metricas import CAMPOS_CALIDAD, calidad_de_grupo
 from .fuentes import (FUENTES, Fuente, abrir_banco, disponibles, fuente_de_pais, registrar, ruta_banco,
@@ -66,17 +68,40 @@ Preguntas:
 Devuelve SOLO un objeto JSON, sin texto alrededor: {{"indices": [<números de la lista>]}}"""
 
 
+def _relevantes_con_jev(catalogo: List[str], tema: str, n: int) -> List[str]:
+    """Una pregunta de sí o no por cada pregunta de la encuesta: ordenadas por probabilidad, las `n` mejores con al menos 0,5. Si salen
+    menos de 5 (o Jev no responde) devuelve [] y decide el modelo grande."""
+    if not jev.disponible():
+        return []
+    preguntas = {f"q{i}": jev.noul(
+        f"Una persona real contestó esta pregunta de una encuesta: «{q[:200]}». ¿Ayuda su respuesta a entender cómo reaccionaría esa persona al "
+        "tema del estudio? SÍ si trata de su situación económica, ingresos, consumo, valores, confianza o preocupaciones cotidianas "
+        "relacionadas con el tema. NO si trata de noticias o sucesos concretos sin relación con el tema (fronteras, incendios, visitas, "
+        "líderes políticos) o del trabajo de campo.") for i, q in enumerate(catalogo)}
+    r = jev.preguntar({"tema_del_estudio": " ".join(tema.split())[:1200]}, preguntas)
+    if not r:
+        return []
+    puntos = sorted(((float(r.get(f"q{i}", {}).get("noul", 0)), i) for i in range(len(catalogo))), reverse=True)
+    elegidas = [catalogo[i] for p, i in puntos if p >= 0.5][:n]
+    return elegidas if len(elegidas) >= 5 else []
+
+
 def preguntas_relevantes(banco: Banco, tema: str, llm: Optional[Callable[[str], str]], n: int = 15) -> List[str]:
     """
     Qué preguntas de la encuesta llevan a la ficha de cada persona para ESTE tema. Una sola llamada por simulación sobre
     el catálogo de preguntas de uso general. Sin tema, sin modelo o si algo falla devuelve [] y la ficha usa el orden de
     siempre (lo que no tiene que ver con el tema no se cuela porque el modelo solo puede ELEGIR de la lista).
     """
-    if llm is None or not (tema or "").strip():
+    if not (tema or "").strip():
         return []
     try:
         catalogo = banco.catalogo()
         if not catalogo:
+            return []
+        rapidas = _relevantes_con_jev(catalogo, tema, n)       # Jev: ~1 s, una decisión por pregunta, todas en una petición
+        if rapidas:
+            return rapidas
+        if llm is None:
             return []
         lista = "\n".join(f"{i}. {q[:140]}" for i, q in enumerate(catalogo))
         crudo = llm(PROMPT_RELEVANTES.format(tema=" ".join(tema.split())[:1200], n=n, lista=lista))
@@ -125,11 +150,12 @@ class Asignacion:
     """Resultado de elegir encuestados reales para una simulación (sin repetir a nadie)."""
 
     def __init__(self, fuente: Fuente, banco: Banco, por_grupo: Dict[str, GrupoAsignado],
-                 deteccion: Optional[Deteccion] = None):
+                 deteccion: Optional[Deteccion] = None, alcance: Optional[Alcance] = None):
         self.fuente = fuente
         self.banco = banco
         self.por_grupo = por_grupo
         self.deteccion = deteccion
+        self.alcance = alcance
 
     def de_grupo(self, clave: str) -> List[Encuestado]:
         g = self.por_grupo.get(clave)
@@ -168,6 +194,7 @@ class Asignacion:
             "etiqueta_region": self.fuente.etiqueta_region,
             "pais_decidido_por": self.deteccion.origen if self.deteccion else "pedido",
             "pais_motivo": self.deteccion.motivo if self.deteccion else "",
+            "alcance": self.alcance.a_dict() if self.alcance else None,
             "grupos": grupos, "relajado": any(g["relajado"] for g in grupos),
             "avisos": [a for g in grupos for a in g["avisos"]],
             "reparto": self.reparto(),
@@ -177,10 +204,13 @@ class Asignacion:
 
 def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Callable[[str], str]] = None,
                        pais: Optional[str] = None, pregunta: str = "", rng: Optional[random.Random] = None,
-                       fuente: Optional[Fuente] = None, deteccion: Optional[Deteccion] = None) -> Optional[Asignacion]:
+                       fuente: Optional[Fuente] = None, deteccion: Optional[Deteccion] = None,
+                       alcance: Optional[Alcance] = None) -> Optional[Asignacion]:
     """
     Elige los encuestados de cada grupo. Devuelve None si no hay país claro o no hay banco de ese país (entonces el
     público se genera como siempre). `fuente` fuerza una fuente concreta y se salta la detección del país.
+    `alcance`: si es local o regional, TODOS los grupos se acotan al lugar (provincia y región); si es nacional, no se acota
+    por lugar (gente de todo el país).
     """
     grupos = [g for g in grupos if g.n > 0]
     if not grupos:
@@ -193,7 +223,21 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
 
     banco = abrir_banco(fuente)
     filtros = traducir_grupos(
-        [{"clave": g.clave, "nombre": g.nombre, "descripcion": g.descripcion} for g in grupos], general, llm, fuente)
+        [{"clave": g.clave, "nombre": g.nombre, "descripcion": g.descripcion} for g in grupos], general, llm, fuente, alcance)
+
+    # El lugar del alcance se aplica a todos los grupos (salvo al que ya se define por otro lugar) y solo con valores que ESTE
+    # banco conoce: la región tiene que ser de la lista de la fuente y la provincia, del banco
+    lugar_regiones: List[str] = []
+    lugar_provincia: Optional[str] = None
+    if alcance is not None and alcance.acota_por_lugar:
+        lugar_regiones = [r for r in alcance.lista_regiones if r in fuente.regiones]
+        lugar_provincia = alcance.provincia if alcance.provincia in banco.subregiones() else None
+        for g in grupos:
+            f = filtros.setdefault(g.clave, {})
+            if lugar_regiones and "region" not in f:
+                f["region"] = list(lugar_regiones)
+                if lugar_provincia and alcance.nivel == "local" and len(lugar_regiones) == 1:
+                    f["subregion"] = [lugar_provincia]
 
     segmentos = {g.clave: banco.segmento(filtros.get(g.clave) or {}) for g in grupos}
     # Los grupos con menos gente en la encuesta eligen primero: los comunes no deben agotarles el segmento
@@ -206,10 +250,14 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
         avisos: List[str] = []
         if len(ids) < g.n:      # segmento agotado: se completa con el resto de adultos del país, sin repetir
             propios = len(ids)
-            resto = banco.segmento({}, minimo=0)
-            ids += banco.muestrear(resto, g.n - propios, excluidos=usados | set(ids), rng=rng)
+            if lugar_regiones:                  # primero gente del mismo lugar; solo si no alcanza, del resto del país
+                resto_lugar = banco.segmento({"region": list(lugar_regiones)}, minimo=0)
+                ids += banco.muestrear(resto_lugar, g.n - propios, excluidos=usados | set(ids), rng=rng)
+            if len(ids) < g.n:
+                resto = banco.segmento({}, minimo=0)
+                ids += banco.muestrear(resto, g.n - len(ids), excluidos=usados | set(ids), rng=rng)
             avisos.append(f"«{g.nombre}»: el segmento solo tenía {propios} personas distintas para {g.n}; "
-                          "se completó con población general.")
+                          f"se completó con población general{' de la misma región' if lugar_regiones else ''}.")
         usados.update(ids)
         calidad = None
         if not avisos and len(ids) >= 5:          # solo si todo salió del segmento: si se completó, ya lo dice el aviso
@@ -219,7 +267,7 @@ def asignar_por_grupos(grupos: List[Grupo], general: str = "", llm: Optional[Cal
             except Exception:
                 calidad = None
         elegidos[g.clave] = GrupoAsignado(g, seg, [banco.encuestado(i) for i in ids], avisos, calidad)
-    return Asignacion(fuente, banco, {g.clave: elegidos[g.clave] for g in grupos}, deteccion)
+    return Asignacion(fuente, banco, {g.clave: elegidos[g.clave] for g in grupos}, deteccion, alcance)
 
 
 def asignar(n: int, descripcion: str = "", llm: Optional[Callable[[str], str]] = None,

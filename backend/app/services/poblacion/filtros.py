@@ -66,6 +66,7 @@ Campos admitidos en cada grupo:
 
 Contexto general del público (aplica a todos; no lo repitas en cada grupo salvo que el grupo lo diga):
 \"\"\"{general}\"\"\"
+{alcance}
 
 Grupos:
 {grupos}
@@ -123,7 +124,22 @@ def traducir_publico(descripcion: str, llm: Optional[Callable[[str], str]], fuen
         return {}
 
 
-def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[str], str]], fuente=None) -> Dict[str, Dict]:
+def nota_de_alcance(alcance) -> str:
+    """Qué debe saber el traductor de filtros sobre el ALCANCE: el lugar lo pone el alcance, no cada grupo."""
+    if alcance is None:
+        return ""
+    if getattr(alcance, "acota_por_lugar", False):
+        return (f"Alcance de la simulación: {alcance.descripcion()}. Ese lugar ya acota a TODOS los grupos; no lo repitas: "
+                "filtra por región solo si el grupo se define por OTRO lugar.\n")
+    if getattr(alcance, "nivel", "") in ("nacional", "multinacional", "mundial"):
+        return ("Alcance de la simulación: NACIONAL o mayor. La gente es de todo el país: NO filtres por región ni por tamaño de "
+                "municipio salvo que el nombre o la descripción del propio grupo se defina por un lugar (aunque el brief cite una "
+                "ciudad como sede o como sitio de un evento).\n")
+    return ""
+
+
+def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[str], str]], fuente=None,
+                    alcance=None) -> Dict[str, Dict]:
     """
     Filtros de varios grupos en UNA sola llamada. `grupos` = [{"clave": "g0", "nombre": ..., "descripcion": ...}].
     Devuelve {clave: filtros validados}; un grupo que el modelo no devuelve, o devuelve mal, queda en {} (sin filtros).
@@ -138,7 +154,8 @@ def traducir_grupos(grupos: List[Dict], general: str, llm: Optional[Callable[[st
     )
     try:
         prompt = PROMPT_GRUPOS.format(pais=pais, fuente=nombre, schema=_esquema_txt(fuente),
-                                      general=(general or "").strip()[:2000] or "(sin contexto general)", grupos=lista)
+                                      general=(general or "").strip()[:2000] or "(sin contexto general)", grupos=lista,
+                                      alcance=nota_de_alcance(alcance))
         crudo = _extraer_json(llm(prompt))
     except Exception:
         return vacio

@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
+from . import jev
 from .fuentes import Fuente, disponibles, fuente_de_pais
 
 PROMPT = """Decide de qué país es el PÚBLICO objetivo de este estudio (las personas cuya opinión se quiere simular).
@@ -68,6 +69,28 @@ def _extraer(texto: str) -> dict:
         return {}
 
 
+def _detectar_con_jev(pregunta: str, contexto: str, quedan: List[Fuente]) -> Optional[Deteccion]:
+    """
+    ¿De cuál de los países con banco es el público? Una pregunta de sí o no por país, todas en UNA petición a Jev (~1 s). Devuelve None
+    si Jev no está, falla o no está seguro (entonces decide el modelo grande); «ninguno» solo si todas las respuestas son un no claro.
+    """
+    if not jev.disponible() or not ((pregunta or "").strip() or (contexto or "").strip()):
+        return None
+    preguntas = {f"pais::{f.pais}": jev.noul(
+        f"¿El público cuya reacción se quiere simular vive en {f.pais_nombre}? Importa dónde vive ese público, no dónde está la empresa ni "
+        "en qué idioma está escrito el texto. Si el público es de varios países o de todo el mundo, no.") for f in quedan}
+    r = jev.preguntar({"pregunta_del_estudio": (pregunta or "").strip()[:1500], "brief": (contexto or "").strip()[:4000]}, preguntas)
+    if not r:
+        return None
+    p = {f: float(r.get(f"pais::{f.pais}", {}).get("noul", 0)) for f in quedan}
+    mejor = max(p, key=p.get)
+    if p[mejor] >= 0.65 and all(v < 0.5 for f, v in p.items() if f is not mejor):
+        return Deteccion(mejor, f"El público parece de {mejor.pais_nombre} (Jev, probabilidad {p[mejor]:.2f}).", "automatico")
+    if all(v < 0.35 for v in p.values()):
+        return Deteccion(None, "El público no parece de ninguno de los países con datos reales (Jev).", "ninguno")
+    return None
+
+
 def detectar(pedido: Optional[str], pregunta: str, contexto: str,
              llm: Optional[Callable[[str], str]]) -> Deteccion:
     """`pedido`: código ISO elegido por la persona, 'auto'/None = decidir según el texto."""
@@ -81,6 +104,12 @@ def detectar(pedido: Optional[str], pregunta: str, contexto: str,
             return Deteccion(f, f"País elegido por la persona: {f.pais_nombre}.", "pedido")
         return Deteccion(None, f"No hay datos reales para el país pedido ({pedido}).", "ninguno")
 
+    try:
+        rapido = _detectar_con_jev(pregunta, contexto, quedan)
+    except Exception:  # noqa: BLE001 — sin Jev se sigue con el modelo grande
+        rapido = None
+    if rapido is not None:
+        return rapido
     if llm is None or not (pregunta or contexto):
         return Deteccion(None, "No hay texto para decidir el país.", "ninguno")
     try:

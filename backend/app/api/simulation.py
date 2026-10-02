@@ -17,6 +17,7 @@ from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
+from ..services.poblacion import alcance as poblacion_alcance
 from ..services.auto_pipeline import get_pipeline_summary
 from ..utils.logger import get_logger
 from ..utils.access import visible_project_id
@@ -515,6 +516,10 @@ def prepare_simulation():
             poblacion_datos = bool(poblacion_datos)
         poblacion_pais = data.get('poblacion_pais')
         poblacion_pais = poblacion_pais.strip()[:8] if isinstance(poblacion_pais, str) and poblacion_pais.strip() else None
+        # Alcance geográfico de la simulación: «auto» (lo decide el modelo con el brief) o uno de poblacion.alcance.NIVELES
+        alcance = data.get('alcance')
+        alcance = alcance.strip().lower() if isinstance(alcance, str) and alcance.strip().lower() in (
+            'auto',) + tuple(poblacion_alcance.NIVELES) else None
         try:
             parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
         except (TypeError, ValueError):
@@ -668,7 +673,8 @@ def prepare_simulation():
                     progress_callback=progress_callback,
                     parallel_profile_count=parallel_profile_count,
                     poblacion_datos=poblacion_datos,
-                    poblacion_pais=poblacion_pais
+                    poblacion_pais=poblacion_pais,
+                    alcance=alcance
                 )
                 
                 # 任务完成
@@ -1252,6 +1258,15 @@ def poblacion_estado():
         info["fuente"] = info["fuentes"][0]["cita"]                      # compatibilidad con la interfaz anterior
         info["estudios"] = info["fuentes"][0]["estudios"]
     return jsonify({"success": True, "data": info})
+
+
+@simulation_bp.route('/<simulation_id>/alcance', methods=['GET'])
+def alcance_de_simulacion(simulation_id: str):
+    """Alcance geográfico decidido para esta simulación (local, regional, nacional, multinacional, mundial) y el lugar; `data: null`
+    si todavía no se ha preparado. Es lo que mira el informe y lo que acota a quién se busca en la encuesta."""
+    validate_storage_id(simulation_id, "sim_")
+    a = poblacion_alcance.cargar(simulation_id)
+    return jsonify({"success": True, "data": a.a_dict() if a else None})
 
 
 @simulation_bp.route('/<simulation_id>/poblacion', methods=['GET'])
