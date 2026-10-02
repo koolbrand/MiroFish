@@ -2233,8 +2233,11 @@ const cargarCitaCis = async () => {
   }
 }
 
+// La página del informe conoce la simulación DESPUÉS de montarse (la saca del informe): pedir la cita solo al montar la
+// dejaba sin «Fuente de datos» en pantalla. Se pide cuando llega el id y se vuelve a pedir si cambia.
+watch(() => props.simulationId, () => cargarCitaCis(), { immediate: true })
+
 onMounted(() => {
-  cargarCitaCis()
   if (props.reportId) {
     addLog(`Report Agent initialized: ${props.reportId}`)
     startPolling()
