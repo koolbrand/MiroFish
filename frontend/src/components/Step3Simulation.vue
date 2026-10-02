@@ -216,6 +216,9 @@
             {{ $t('step3.clearFilters') }}
           </button>
         </div>
+        <button v-if="repeatsGrouped > 0 || showRepeats" type="button" class="repeat-toggle" @click="showRepeats = !showRepeats">
+          {{ showRepeats ? $t('step3.repeatsGroup') : $t('step3.repeatsGrouped', { n: repeatsGrouped }) }}
+        </button>
       </div>
       
       <!-- Si falla el arranque o la ejecución: una frase clara y el detalle técnico plegado (no tapa lo ya simulado) -->
@@ -231,7 +234,26 @@
       <!-- Timeline Feed -->
       <div class="timeline-feed">
         <div class="timeline-axis"></div>
-        
+
+        <!-- Qué es cada mitad: las dos plataformas simuladas (antes solo se distinguían por dos iconos sueltos) -->
+        <div v-if="feedFilters.platform === 'all' && feedItems.length" class="feed-columns">
+          <div class="feed-col twitter">
+            <span class="feed-col-name">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              {{ $t('step3.platformTwitter') }}
+            </span>
+            <span class="feed-col-hint">{{ $t('step3.platformTwitterHint') }}</span>
+          </div>
+          <div class="feed-col reddit">
+            <span class="feed-col-name">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+              {{ $t('step3.platformReddit') }}
+            </span>
+            <span class="feed-col-hint">{{ $t('step3.platformRedditHint') }}</span>
+          </div>
+          <p class="feed-columns-note">{{ $t('step3.platformsNote') }}</p>
+        </div>
+
         <button v-if="hiddenActionsCount > 0" type="button" class="feed-earlier" @click="showAllActions = true">
           {{ $t('step3.showEarlier', { n: hiddenActionsCount }) }}
         </button>
@@ -257,7 +279,7 @@
                   <div class="platform-indicator" :title="platformName(action.platform)">
                     <svg v-if="action.platform === 'twitter'" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                     <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                    <span class="sr-only">{{ platformName(action.platform) }}</span>
+                    <span class="platform-label">{{ platformName(action.platform) }}</span>
                   </div>
                   <div class="action-badge" :class="getActionTypeClass(action.action_type)">
                     {{ getActionTypeLabel(action.action_type) }}
@@ -356,6 +378,7 @@
               </div>
 
               <div class="card-footer">
+                <span v-if="action._repeats > 1" class="repeat-tag">{{ action._platforms.length > 1 ? $t('step3.repeatTagBoth', { n: action._repeats }) : $t('step3.repeatTag', { n: action._repeats }) }}</span>
                 <span class="time-tag">{{ $t('step3.roundShort', { n: action.round_num }) }} · {{ formatActionTime(action.timestamp) }}</span>
                 <!-- Platform tag removed as it is in header now -->
               </div>
@@ -538,11 +561,44 @@ const filteredActionsCount = computed(() => chronologicalActions.value.length)
 // que hacía lenta la pantalla en simulaciones largas: se pintan las últimas y el resto, a un clic
 const FEED_LIMIT = 300
 const showAllActions = ref(false)
+
+// Un mismo agente publica a veces el mismo texto varias veces: en otra ronda, o a la vez en las dos plataformas (en una
+// simulación real de 20 rondas, 12 textos repetidos eran el 22 % de lo que se enseñaba). Se muestra una sola tarjeta con
+// «se repite N veces», y un interruptor para verlas todas.
+const REPEATABLE = new Set(['CREATE_POST', 'QUOTE_POST', 'CREATE_COMMENT'])
+const normText = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()
+const showRepeats = ref(false)
+const groupedFeed = computed(() => {
+  const list = chronologicalActions.value
+  if (showRepeats.value) return { items: list, grouped: 0 }
+  const seen = new Map()
+  const items = []
+  let grouped = 0
+  for (const a of list) {
+    const args = a.action_args || {}
+    const text = REPEATABLE.has(a.action_type) ? normText(args.content || args.quote_content) : ''
+    if (!text) { items.push(a); continue }
+    const key = `${a.agent_id}|${a.action_type}|${text}`
+    const first = seen.get(key)
+    if (!first) {
+      const item = { ...a, _repeats: 1, _platforms: [a.platform] }
+      seen.set(key, item)
+      items.push(item)
+    } else {
+      first._repeats += 1
+      grouped += 1
+      if (!first._platforms.includes(a.platform)) first._platforms.push(a.platform)
+    }
+  }
+  return { items, grouped }
+})
+const feedItems = computed(() => groupedFeed.value.items)
+const repeatsGrouped = computed(() => groupedFeed.value.grouped)
 const visibleActions = computed(() => {
-  const all = chronologicalActions.value
+  const all = feedItems.value
   return showAllActions.value || all.length <= FEED_LIMIT ? all : all.slice(-FEED_LIMIT)
 })
-const hiddenActionsCount = computed(() => chronologicalActions.value.length - visibleActions.value.length)
+const hiddenActionsCount = computed(() => feedItems.value.length - visibleActions.value.length)
 const hasActiveFilters = computed(() => {
   const { platform, actionGroup, query } = feedFilters.value
   return platform !== 'all' || actionGroup !== 'all' || query.trim() !== ''
@@ -1604,6 +1660,39 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* Cabecera de las dos mitades: qué es cada plataforma */
+.feed-columns {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0;
+  margin: 0 0 22px;
+  padding-bottom: 12px;
+  background: #FFF;
+  border-bottom: 1px solid var(--kb-line);
+}
+.feed-col { display: grid; gap: 2px; padding: 0 32px; min-width: 0; }
+.feed-col.twitter { justify-items: end; text-align: right; }
+.feed-col.reddit { justify-items: start; text-align: left; }
+.feed-col-name {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 11px var(--kb-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--kb-text);
+}
+.feed-col-hint { font-size: 12px; line-height: 1.4; color: var(--kb-muted); text-wrap: pretty; }
+.feed-columns-note {
+  grid-column: 1 / -1; margin: 10px 0 0; padding: 0 32px; text-align: center;
+  font-size: 12px; line-height: 1.45; color: var(--kb-muted); text-wrap: pretty;
+}
+.platform-label { margin-left: 6px; font: 500 11px var(--kb-font-mono); letter-spacing: 0.04em; color: var(--kb-muted); white-space: nowrap; }
+.repeat-tag { margin-right: auto; font: 500 11px var(--kb-font-mono); color: var(--kb-muted); text-wrap: balance; }
+.time-tag { white-space: nowrap; }
+.repeat-toggle {
+  margin-left: auto; padding: 4px 0; border: 0; background: none; cursor: pointer;
+  font: 500 12px var(--kb-font-mono); color: var(--kb-text); text-decoration: underline; text-underline-offset: 3px;
+}
+.repeat-toggle:hover { text-decoration-thickness: 2px; }
+
 .timeline-axis {
   position: absolute;
   left: 50%;
@@ -1827,7 +1916,10 @@ onUnmounted(() => {
 .card-footer {
   margin-top: 12px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: baseline;
+  gap: 4px 12px;
   font-size: 12px;
   color: var(--kb-muted);
   font-family: var(--kb-font-mono);
@@ -1965,6 +2057,9 @@ onUnmounted(() => {
   .feed-error { margin: 12px 14px 0; }
   .timeline-axis { left: 22px; transform: none; }
   .timeline-marker { left: 22px; }
+  .feed-columns { grid-template-columns: 1fr; row-gap: 8px; margin: 0 14px 18px; padding-bottom: 10px; }
+  .feed-col, .feed-col.twitter, .feed-col.reddit { padding: 0; justify-items: start; text-align: left; }
+  .feed-columns-note { padding: 0; text-align: left; margin-top: 2px; }
   .timeline-item.twitter,
   .timeline-item.reddit { justify-content: stretch; padding: 0 14px 0 44px; margin-bottom: 20px; }
   .timeline-item.twitter .timeline-card,

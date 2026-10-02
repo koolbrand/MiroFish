@@ -21,6 +21,19 @@ const MINUTES_PER_ROUND = 35 / 60
 
 export const roundsMinutes = (rounds) => Math.round(rounds * MINUTES_PER_ROUND)
 
+// Lo elegido en la portada se recuerda mientras dure la sesión del navegador: en «paso a paso» el paso 2 arranca con
+// eso en el deslizador, en vez de enseñar una cifra que nadie ha pedido.
+const PREF_KEY = 'simuloo_rounds_pref'
+export const rememberRounds = (rounds) => {
+  try { sessionStorage.setItem(PREF_KEY, String(normalizeRounds(rounds))) } catch (_) { /* sin almacenamiento: se usa el de por defecto */ }
+}
+export const rememberedRounds = () => {
+  try {
+    const n = Number(sessionStorage.getItem(PREF_KEY))
+    return ROUNDS_CHOICES.some((c) => c.rounds === n) ? n : null
+  } catch (_) { return null }
+}
+
 // Un número de rondas válido para el modo automático; si no lo es, el de por defecto.
 export const normalizeRounds = (value) => {
   const n = Number(value)

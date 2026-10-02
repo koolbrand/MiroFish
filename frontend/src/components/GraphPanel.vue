@@ -1050,9 +1050,12 @@ defineExpose({ fit: fitView })
 .conn-item {
   width: 100%;
   display: grid;
-  grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr);
+  /* Dos filas: la relación (a veces una frase larga) arriba y el nombre debajo, cada uno con el ancho entero.
+     Con tres columnas, una relación larga se comía el panel y el nombre quedaba a 0 px, partido letra a letra. */
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: baseline;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 1px;
   padding: 7px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -1064,9 +1067,9 @@ defineExpose({ fit: fitView })
 }
 .conn-item:hover { background: var(--cream-100); border-color: var(--kb-line); }
 .conn-item:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 0; }
-.conn-arrow { font-family: var(--kb-font-mono); color: var(--gray-600); }
-.conn-rel { font: 500 12px var(--kb-font-mono); color: var(--gray-600); overflow-wrap: anywhere; }
-.conn-name { font-weight: 600; color: var(--kb-text); overflow-wrap: anywhere; }
+.conn-arrow { grid-column: 1; grid-row: 1; font-family: var(--kb-font-mono); color: var(--gray-600); }
+.conn-rel { grid-column: 2; grid-row: 1; min-width: 0; font: 500 12px var(--kb-font-mono); color: var(--gray-600); overflow-wrap: anywhere; }
+.conn-name { grid-column: 2; grid-row: 2; min-width: 0; font-weight: 600; color: var(--kb-text); overflow-wrap: anywhere; }
 
 .properties-list { margin: 0; display: grid; gap: 6px; }
 .property-item { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
