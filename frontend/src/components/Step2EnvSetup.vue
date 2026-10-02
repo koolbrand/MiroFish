@@ -1216,6 +1216,13 @@ const cargarPoblacion = async () => {
   try {
     const res = await getPoblacionSimulacion(props.simulationId)
     poblacion.value = (res.success && res.data) ? res.data : null
+    // Al volver a una simulación ya preparada, el interruptor y el país reflejan lo que SE USÓ, no el valor por defecto del
+    // servidor (si no, parecía apagado con un público anclado y pedía «volver a generar» sin que nadie hubiera tocado nada)
+    const p = poblacion.value
+    if (p) {
+      const pais = !p.sin_datos && p.pais_decidido_por === 'pedido' && p.pais ? p.pais : 'auto'
+      usarCis.value = true; cisUsado.value = true; paisElegido.value = pais; paisUsado.value = pais
+    }
   } catch (e) {
     poblacion.value = null
   }
