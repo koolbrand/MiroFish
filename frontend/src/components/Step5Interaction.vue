@@ -119,6 +119,7 @@
               data-tour="int-tab-report"
               :class="{ active: activeTab === 'chat' && chatTarget === 'report_agent' }"
               :aria-pressed="activeTab === 'chat' && chatTarget === 'report_agent'"
+              :title="$t('step5.tipChatReport')"
               @click="selectReportAgentChat"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -133,7 +134,7 @@
                 :class="{ active: activeTab === 'chat' && chatTarget === 'agent' }"
                 :aria-expanded="showAgentDropdown"
                 aria-haspopup="true"
-                :title="selectedAgent ? selectedAgent.username : $t('step5.chatWithAgent')"
+                :title="selectedAgent ? `${selectedAgent.username} · ${$t('step5.tipChatAgent')}` : $t('step5.tipChatAgent')"
                 @click="toggleAgentDropdown"
                 ref="agentPillRef"
               >
@@ -174,6 +175,7 @@
               data-tour="int-tab-explorer"
               :class="{ active: activeTab === 'explorer' }"
               :aria-pressed="activeTab === 'explorer'"
+              :title="$t('step5.tipExplorer')"
               @click="selectExplorerTab"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -190,6 +192,7 @@
               data-tour="int-tab-survey"
               :class="{ active: activeTab === 'survey' }"
               :aria-pressed="activeTab === 'survey'"
+              :title="$t('step5.tipSurvey')"
               @click="selectSurveyTab"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
