@@ -343,3 +343,36 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 
 **Last Updated**: 2026-09-30
 **Maintained by**: Adrian (adrian@koolbrand.com)
+
+## 🇪🇸 Público con datos reales (CIS) — `backend/app/services/poblacion/`
+
+> **Uso interno de I+D** hasta tener la **autorización escrita del CIS** (Orden PRE/3188/2008, art. 6: prohíbe el uso comercial y ceder los datos sin permiso). Nada de esto se vende a un cliente hasta entonces. Cita obligada: «Fuente de datos: CIS (estudio NNNN)» (ya sale en perfiles, reparto, informe en pantalla y PDF).
+
+Qué hace: las personas del **público** (entidades marcadas por `entity_role_filter` con `__simuloo_individual`) dejan de ser inventadas por el modelo y se anclan a un **encuestado real y anónimo** del CIS. Empresas, medios y competidores siguen como siempre.
+
+| Pieza | Dónde |
+|---|---|
+| Banco SQLite (lectura, segmento con relajación de filtros, muestreo ponderado sin repetir) | `services/poblacion/banco.py` |
+| Vocabulario cerrado (sexo, tramo, CCAA, tamaño de municipio, estudios, situación laboral…) | `services/poblacion/vocabulario.py` |
+| Descripción del público → filtros (el LLM propone, se valida; si falla, «sin filtros») | `services/poblacion/filtros.py` |
+| «Ficha de datos reales» y hechos de memoria | `services/poblacion/ficha.py` |
+| Fachada: `modo_activo()`, `asignar()`, `cita_de_simulacion()` | `services/poblacion/__init__.py` |
+| Integración (prompt `_build_cis_persona_prompt`; edad, género y región del dato real; sin MBTI inventado; `data_source`/`data_ref`/`memory_facts`) | `services/oasis_profile_generator.py` |
+| Constructor OFFLINE del banco | `backend/scripts/poblacion/build_banco_cis.py` |
+| Medición de fidelidad (a solo demografía · b con respuestas · moda del grupo · azar; acierto + Jensen–Shannon) | `backend/scripts/poblacion/fidelidad.py` |
+| API | `GET /api/simulation/poblacion/estado` · `GET /api/simulation/<id>/poblacion` · `poblacion_cis` en `POST /prepare` |
+| UI | interruptor + reparto + etiqueta en `Step2EnvSetup.vue`, cita en `Step4Report.vue`; textos `step2.cis*` en es/en/zh |
+
+**Variables:** `POBLACION_CIS` (`true/false`, por defecto `false`; es el valor por defecto del interruptor de la interfaz) · `POBLACION_BANCO_PATH` (por defecto `backend/data/poblacion/banco_cis.sqlite`). **Sin banco o con el modo apagado el comportamiento es idéntico al de siempre** (el interruptor ni aparece sin banco).
+
+**Reglas de datos:** los microdatos **nunca** van al repo (es público) ni a la imagen Docker (`.gitignore`/`.dockerignore` cubren `backend/data/`, `*.sqlite`, `MD35*.zip`). Los tests usan un banco **sintético inventado** (`tests/poblacion_fixture.py`). No cruzar con datos personales ni reidentificar. No usar SDV (licencia BSL).
+
+**Construir el banco** (los ZIP los descarga Adrián en cis.es: MD3535, MD3571, MD3530, MD3505):
+
+```bash
+cd backend && uv run --with pyreadstat --with pandas python scripts/poblacion/build_banco_cis.py ~/Downloads/MD35*.zip --reemplazar
+```
+
+⚠️ Los nombres de variable cambian entre estudios: `build_banco_cis.py` prueba candidatos (`CANDIDATAS`) y se fijan a mano por estudio en `MAPEOS_ESTUDIO` tras mirar el codebook. Los normalizadores (CCAA, tamaño, estudios…) se probaron con etiquetas **supuestas** del CIS, no con los ficheros reales: revisar el primer volcado.
+
+**Producción:** el banco llega al volumen por SSH a koollab, **no por GitHub**; despliegue solo con OK de Adrián.

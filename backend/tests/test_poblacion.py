@@ -226,3 +226,55 @@ def test_cita_de_simulacion(con_banco, tmp_path, monkeypatch):
     (tmp_path / "sim_x").mkdir()
     (tmp_path / "sim_x" / "poblacion_cis.json").write_text('{"estudios": ["3535"]}', encoding="utf-8")
     assert poblacion.cita_de_simulacion("sim_x") == "Fuente de datos: CIS (estudio 3535)"
+
+
+# ---------------------------------------------------------------- API
+from test_pipeline import storage  # noqa: E402,F401
+
+
+@pytest.fixture()
+def cliente(storage, monkeypatch):   # noqa: F811
+    from app import create_app
+    monkeypatch.setattr(Config, "API_AUTH_REQUIRED", True)
+    monkeypatch.setattr(Config, "API_AUTH_TOKEN", "tok")
+    app = create_app()
+    app.config["TESTING"] = True
+    app.config["RATELIMIT_ENABLED"] = False
+    return app.test_client()
+
+
+H = {"Authorization": "Bearer tok"}
+
+
+def test_api_estado_sin_banco(cliente, monkeypatch, tmp_path):
+    monkeypatch.setattr(Config, "POBLACION_BANCO_PATH", str(tmp_path / "no.sqlite"))
+    d = cliente.get("/api/simulation/poblacion/estado", headers=H).get_json()["data"]
+    assert d["disponible"] is False and d["estudios"] == []
+
+
+def test_api_estado_con_banco_y_por_defecto(cliente, con_banco, monkeypatch):
+    monkeypatch.setattr(Config, "POBLACION_CIS", True)
+    d = cliente.get("/api/simulation/poblacion/estado", headers=H).get_json()["data"]
+    assert d["disponible"] and d["por_defecto"] is True and len(d["estudios"]) == 2
+    assert d["fuente"] == "Fuente de datos: CIS"
+
+
+def test_api_poblacion_de_una_simulacion(cliente, storage, monkeypatch):   # noqa: F811
+    sid = "sim_abc123"
+    assert cliente.get(f"/api/simulation/{sid}/poblacion", headers=H).get_json() == {"success": True, "data": None}
+    import json, os
+    carpeta = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, sid)
+    os.makedirs(carpeta, exist_ok=True)
+    json.dump({"estudios": ["3535"], "reparto": {"n": 5}}, open(os.path.join(carpeta, "poblacion_cis.json"), "w"))
+    d = cliente.get(f"/api/simulation/{sid}/poblacion", headers=H).get_json()["data"]
+    assert d["estudios"] == ["3535"]
+    assert cliente.get("/api/simulation/malo/poblacion", headers=H).status_code in (400, 404)
+
+
+def test_pdf_lleva_la_fuente_en_pie_y_nota():
+    from app.services import report_pdf as rp
+    html = rp.build_html(title="T", summary="", question="", body_html="<p>x</p>", locale="es",
+                         meta={"fuente_datos": "Fuente de datos: CIS (estudio 3535)"})
+    assert html.count("Fuente de datos: CIS (estudio 3535)") == 2     # pie de página (@bottom-center) y nota
+    sin = rp.build_html(title="T", summary="", question="", body_html="<p>x</p>", locale="es", meta={})
+    assert "Fuente de datos" not in sin
