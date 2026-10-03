@@ -191,7 +191,7 @@
     "howTitleHl": "群体",
     "resultsKicker": "你将得到",
     "resultsTitle": "不只凭感觉，更用论据决策。",
-    "deliverable1Title": "一份预测报告",
+    "deliverable1Title": "一份模拟报告",
     "deliverable1Desc": "分析师回顾模拟全过程，并引用模拟人物的原话撰写结论。",
     "deliverable2Title": "哪些论点占上风",
     "deliverable2Desc": "什么能打动人、什么让人却步、谁改变了主意——结合每一轮的实际经过来讲述。",
@@ -248,7 +248,7 @@
     "figureUnitPeople": "位模拟人物",
     "figureUnitNetworks": "个社交平台",
     "figureUnitSteps": "步",
-    "reportKicker": "预测报告",
+    "reportKicker": "模拟报告",
     "reportExampleTag": "示例",
     "reportVerdictLabel": "结论",
     "reportGroupsLabel": "各群体反应（支持）",
@@ -842,7 +842,7 @@
     "collapse": "收起 ▲",
     "expandAll": "展开全部 {count} 条 ▼",
     "expandAllEntities": "展开全部 {count} 个 ▼",
-    "scenarioLabel": "预测场景: ",
+    "scenarioLabel": "模拟场景: ",
     "tabKeyFacts": "当前关键记忆 ({count})",
     "tabCoreEntities": "核心实体 ({count})",
     "tabRelationChains": "关系链 ({count})",
@@ -1482,11 +1482,11 @@
     "redirectToQuickSearch": "search_graph 已重定向到 quick_search",
     "redirectToInsightForge": "get_simulation_context 已重定向到 insight_forge",
     "defaultReportTitle": "模拟分析报告",
-    "fallbackOutlineTitle": "未来预测报告",
-    "fallbackOutlineSummary": "基于模拟预测的未来趋势与风险分析",
-    "fallbackSection1": "预测场景与核心发现",
-    "fallbackSection2": "人群行为预测分析",
-    "fallbackSection3": "趋势展望与风险提示"
+    "fallbackOutlineTitle": "模拟报告",
+    "fallbackOutlineSummary": "基于模拟的趋势与风险分析",
+    "fallbackSection1": "模拟场景与核心发现",
+    "fallbackSection2": "人群行为模拟分析",
+    "fallbackSection3": "观察到的趋势与风险提示"
   },
   "console": {
     "zepToolsInitialized": "ZepToolsService 初始化完成",
@@ -1666,7 +1666,7 @@
     "retry": "重试"
   },
   "ui": {
-    "predictionReport": "预测报告",
+    "predictionReport": "模拟报告",
     "sections": "章节",
     "elapsed": "用时",
     "tools": "工具",

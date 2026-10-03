@@ -191,7 +191,7 @@
     "howTitleHl": "crowd",
     "resultsKicker": "What you get",
     "resultsTitle": "Arguments to decide with, not just a hunch.",
-    "deliverable1Title": "A prediction report",
+    "deliverable1Title": "A simulation report",
     "deliverable1Desc": "An analyst reviews everything that happened and writes conclusions quoting what the simulated people said.",
     "deliverable2Title": "Which arguments win",
     "deliverable2Desc": "What convinces, what holds people back and who changes their mind, told through what happened in each round.",
@@ -248,7 +248,7 @@
     "figureUnitPeople": "simulated people",
     "figureUnitNetworks": "social networks",
     "figureUnitSteps": "steps",
-    "reportKicker": "Prediction report",
+    "reportKicker": "Simulation report",
     "reportExampleTag": "Example",
     "reportVerdictLabel": "Verdict",
     "reportGroupsLabel": "Reactions by group (in favour)",
@@ -1482,11 +1482,11 @@
     "redirectToQuickSearch": "search_graph redirected to quick_search",
     "redirectToInsightForge": "get_simulation_context redirected to insight_forge",
     "defaultReportTitle": "Simulation Analysis Report",
-    "fallbackOutlineTitle": "Future Prediction Report",
-    "fallbackOutlineSummary": "Future trends and risk analysis based on predictive simulation",
-    "fallbackSection1": "Prediction Scenarios and Key Findings",
-    "fallbackSection2": "Predicted Population Behaviour Analysis",
-    "fallbackSection3": "Trend Outlook and Risk Advisories"
+    "fallbackOutlineTitle": "Simulation Report",
+    "fallbackOutlineSummary": "Trends and risk analysis based on the simulation",
+    "fallbackSection1": "Simulated Scenarios and Key Findings",
+    "fallbackSection2": "Simulated Population Behaviour Analysis",
+    "fallbackSection3": "Observed Trends and Risk Advisories"
   },
   "console": {
     "zepToolsInitialized": "ZepToolsService initialized",
@@ -1666,7 +1666,7 @@
     "retry": "Try again"
   },
   "ui": {
-    "predictionReport": "Prediction Report",
+    "predictionReport": "Simulation Report",
     "sections": "Sections",
     "elapsed": "Elapsed",
     "tools": "Tools",

@@ -171,11 +171,11 @@ class InsightForgeResult:
     def to_text(self) -> str:
         """转换为详细的文本格式，供LLM理解"""
         text_parts = [
-            f"## Análisis profundo de predicción",
+            f"## Análisis profundo de la simulación",
             f"Pregunta de análisis: {self.query}",
-            f"Escenario predicho: {self.simulation_requirement}",
-            f"\n### Estadísticas de los datos predichos",
-            f"- Hechos predichos relevantes: {self.total_facts}",
+            f"Escenario simulado: {self.simulation_requirement}",
+            f"\n### Estadísticas de los datos simulados",
+            f"- Hechos simulados relevantes: {self.total_facts}",
             f"- Entidades involucradas: {self.total_entities}",
             f"- Cadenas de relación: {self.total_relationships}"
         ]

@@ -346,4 +346,4 @@ def test_draft_as_pdf_uses_the_brief_layout(client):
     assert r.status_code == 200 and r.mimetype == "application/pdf" and r.data.startswith(b"%PDF-")
     text = fitz.open(stream=r.data, filetype="pdf")[0].get_text()
     assert "Brief" in text and "Notas de la plantilla que no se pueden perder." in text
-    assert "Cómo leer este informe" not in text and "Informe de predicción" not in text      # nada de lo del informe
+    assert "Cómo leer este informe" not in text and "Informe de simulación" not in text      # nada de lo del informe

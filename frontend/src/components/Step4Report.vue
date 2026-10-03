@@ -613,12 +613,12 @@ const parseInsightForge = (text) => {
     const queryMatch = text.match(/(?:分析问题|Pregunta de análisis):\s*(.+?)(?:\n|$)/)
     if (queryMatch) result.query = queryMatch[1].trim()
 
-    // Extract prediction scenario
-    const reqMatch = text.match(/(?:预测场景|Escenario predicho):\s*(.+?)(?:\n|$)/)
+    // Extract simulated scenario (los informes guardados antes de «ensayo» dicen «Escenario predicho»)
+    const reqMatch = text.match(/(?:预测场景|Escenario predicho|Escenario simulado):\s*(.+?)(?:\n|$)/)
     if (reqMatch) result.simulationRequirement = reqMatch[1].trim()
 
     // Extract stats — match both Chinese and Spanish labels
-    const factMatch = text.match(/(?:相关预测事实|Hechos predichos relacionados|Hechos relacionados):\s*(\d+)/)
+    const factMatch = text.match(/(?:相关预测事实|Hechos predichos relacionados|Hechos predichos relevantes|Hechos simulados relevantes|Hechos relacionados):\s*(\d+)/)
     const entityMatch = text.match(/(?:涉及实体|Entidades involucradas|Entidades relacionadas):\s*(\d+)/)
     const relMatch = text.match(/(?:关系链|Cadenas de relación|Relaciones):\s*(\d+)/)
     if (factMatch) result.stats.facts = parseInt(factMatch[1])
