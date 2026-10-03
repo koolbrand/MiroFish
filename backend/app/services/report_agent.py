@@ -1189,6 +1189,12 @@ class ReportAgent:
     )
     # Menos que esto (sin espacios) no es una sección: es un resto
     MIN_SECTION_CHARS = 30
+    # Razonamiento interno del modelo («Tengo información suficiente… Procedo al Final Answer.») que, sin la marca real, acababa
+    # guardado como cuerpo de una sección (visto en producción el 3-oct-2026: la sección «Reacciones previstas» quedó vacía)
+    _META_RAZONAMIENTO_RE = re.compile(
+        r"final answer|tengo (la )?informaci[óo]n suficiente|i have (enough|sufficient) information|procedo a (redactar|escribir)",
+        re.IGNORECASE)
+    MAX_META_CHARS = 600
 
     def _strip_tool_call_residue(self, text: str) -> str:
         """Quita de un texto los bloques de llamada a herramienta y los JSON con forma de llamada."""
@@ -1221,6 +1227,8 @@ class ReportAgent:
             return None
         if len(re.sub(r'\s+', '', cleaned)) < self.MIN_SECTION_CHARS:
             return None
+        if len(cleaned) < self.MAX_META_CHARS and self._META_RAZONAMIENTO_RE.search(cleaned):
+            return None          # un texto corto que habla de «la respuesta final» es el razonamiento del modelo, no una sección
         return cleaned
 
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:

@@ -504,7 +504,9 @@ def test_sin_nombre_de_sitio_la_pista_y_el_informe_dicen_la_zona_real_no_un_pare
     pista = A.pista_para_persona(zona)
     assert "LOCAL (Galicia, Pontevedra)" in pista and "al que se refiere el estudio" in pista
     informe = A.texto_para_informe(zona)
-    assert "Local · Galicia, Pontevedra" in informe and "mercado local (Galicia, Pontevedra)" in informe
+    # sin el nombre del sitio, la provincia NO se presenta como «la ciudad» (un informe sobre Vigo salió titulado «en Pontevedra»)
+    assert "LOCAL, en la zona de Galicia, Pontevedra" in informe and "usa SIEMPRE ese nombre" in informe
+    assert "no lo sustituyas por la provincia" in informe and "Local · Galicia" not in informe and "mercado local (Galicia" not in informe
     sin_nada = A.texto_para_informe(A.Alcance("local"))
     assert "()" not in sin_nada and "(:" not in sin_nada and "ese lugar" in A.pista_para_persona(A.Alcance("local"))
     # sin lugar, el país del que habla el estudio (no «España» ni «de el país»)
@@ -672,3 +674,12 @@ def test_api_prepare_acepta_audience_size_acotado():
     """`audience_size` llega al gestor solo si es un entero de 5 a 150; cualquier otra cosa se ignora."""
     from app.api.simulation import _normalizar_audience_size as norm
     assert [norm(x) for x in (70, 5, 150, 4, 151, True, "70", 70.0, None, -3)] == [70, 5, 150, None, None, None, None, None, None, None]
+
+
+def test_con_nombre_de_sitio_el_informe_lo_nombra_y_sin_el_no_inventa_ciudad():
+    con = A.texto_para_informe(A.Alcance("local", "Vigo", "Galicia", "Pontevedra"))
+    assert "Local · Vigo (Galicia, Pontevedra)" in con and "mercado local (Vigo)" in con
+    sin = A.texto_para_informe(A.Alcance("local", "", "Galicia", "Pontevedra"))
+    assert "Vigo" not in sin and "las conclusiones valen para ese lugar".lower() in sin.lower()
+    assert "no las extrapoles al país" in sin and "no inventes datos de competencia" in sin
+    assert "no lo cambies por la provincia" in A.pista_para_persona(A.Alcance("local", "", "Galicia", "Pontevedra"))
