@@ -117,7 +117,9 @@ def test_string_and_float_ids_are_accepted(gen, agents):
     assert [p["poster_agent_id"] for p in out] == [16, 13]
 
 
-def test_output_carries_the_real_agent_not_what_the_model_said(gen, agents):
+def test_contradictory_type_requires_a_new_author_decision(gen, agents, monkeypatch):
+    monkeypatch.setattr(gen, "_call_llm_with_retry", lambda *_: {"assignments": [
+        {"post_index": 0, "poster_name": "Gremio del taxi", "poster_agent_id": 4}]})
     posts = [{"content": TAXI, "poster_name": "gremio del taxi", "poster_type": "Official"}]
     post = assign(gen, agents, posts)[0]
     assert post == {"content": TAXI, "poster_type": "TransportAssociation",
@@ -211,10 +213,11 @@ def test_model_failure_drops_the_ambiguous_posts_but_keeps_the_rest(gen, agents,
     assert [p["poster_agent_id"] for p in out] == [3]
 
 
-def test_made_up_name_with_a_valid_id_and_matching_type_uses_the_id(gen, agents):
+def test_made_up_name_with_a_valid_id_and_matching_type_is_not_trusted(gen, agents, monkeypatch):
+    monkeypatch.setattr(gen, "_call_llm_with_retry", lambda *_: {"assignments": []})
     posts = [{"content": TAXI, "poster_name": "Sindicato de taxistas del mundo", "poster_agent_id": 4,
               "poster_type": "TransportAssociation"}]
-    assert assign(gen, agents, posts)[0]["poster_agent_id"] == 4
+    assert assign(gen, agents, posts) == []
 
 
 # ---------- datos raros ----------
@@ -232,11 +235,12 @@ def test_no_posts_or_no_agents(gen, agents):
     assert assign(gen, [], [{"content": TAXI, "poster_name": "Gremio del taxi"}]) == []
 
 
-def test_same_name_twice_is_resolved_by_id(gen):
+def test_same_name_twice_needs_an_id_to_disambiguate(gen, monkeypatch):
+    monkeypatch.setattr(gen, "_call_llm_with_retry", lambda *_: {"assignments": []})
     agents = [AgentActivityConfig(0, "u0", "María", "Person"), AgentActivityConfig(1, "u1", "María", "Person")]
     posts = [{"content": "a", "poster_name": "María", "poster_agent_id": 1},
              {"content": "b", "poster_name": "María"}]
-    assert [p["poster_agent_id"] for p in assign(gen, agents, posts)] == [1, 0]
+    assert [p["poster_agent_id"] for p in assign(gen, agents, posts)] == [1]
 
 
 # ---------- lo que ve el modelo al escribir los mensajes ----------
@@ -280,3 +284,38 @@ def test_norm_helpers():
     assert scg._norm("  Ñandú — «Bici»! ") == "nandu bici"
     assert scg._norm_type("Transport_Association") == "transportassociation"
     assert scg._as_agent_id(True) is None and scg._as_agent_id("x") is None and scg._as_agent_id("07") == 7
+
+
+@pytest.mark.parametrize('post', [
+    {'content': TAXI, 'poster_agent_id': 4, 'poster_type': 'ImaginaryType'},
+    {'content': TAXI, 'poster_agent_id': 99, 'poster_type': 'GovernmentAgency'},
+    {'content': TAXI, 'poster_name': 'Gremio', 'poster_agent_id': 4, 'poster_type': 'TransportAssociation'},
+])
+def test_invalid_explicit_hints_do_not_fall_back_to_another_identity(gen, agents, monkeypatch, post):
+    monkeypatch.setattr(gen, '_call_llm_with_retry', lambda *_: {'assignments': []})
+    assert assign(gen, agents, [post]) == []
+
+
+def test_original_brief_survives_a_large_derived_graph_before_event_generation(gen, monkeypatch):
+    entities = [entity(f'Actor {i}', f'Type{i}', 'Texto derivado ' * 100) for i in range(146)]
+    brief = ('Hechos proporcionados. ' * 200 +
+             '\nLa convocatoria es hipotética. La decisión y la huelga están pendientes; no han ocurrido.')
+    context = gen._build_context('Qué pasaría si se celebraran elecciones hoy', brief, entities)
+    seen = {}
+
+    def capture(prompt, system_prompt):
+        seen.update(prompt=prompt, system=system_prompt)
+        return {'initial_posts': []}
+
+    monkeypatch.setattr(gen, '_call_llm_with_retry', capture)
+    gen._generate_event_config(context, 'Qué pasaría si se celebraran elecciones hoy', entities)
+    assert brief in seen['prompt']
+    assert context.index('Contenido del documento original') < context.index('Información de entidades')
+    assert 'Preserve pending, hypothetical and disputed status explicitly' in seen['system']
+    assert 'no fija de antemano el ganador' in seen['prompt']
+    assert len(context) <= gen.MAX_CONTEXT_LENGTH
+
+
+def test_generation_version_is_serialized_only_on_new_configurations():
+    params = scg.SimulationParameters('sim_test', 'proj_test', 'graph_test', 'escenario')
+    assert params.to_dict()['generation_version'] == scg.GENERATION_VERSION == 2

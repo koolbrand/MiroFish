@@ -35,6 +35,10 @@ from ..utils.security import validate_storage_id, is_valid_storage_id
 from ..utils.fs import atomic_write_json, atomic_write_text, read_json_or_none
 from .simulation_runner import SimulationRunner
 from .poblacion import alcance as alcance_mod
+from .report_evidence import (
+    RULES as EVIDENCE_RULES, load_evidence, prompt_context, render_record,
+    prepare_section, validate_electoral_claims,
+)
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -474,6 +478,8 @@ class Report:
     # Non-fatal warnings surfaced during generation (e.g. sections that were
     # force-generated after hitting the max ReACT iterations). Non-blocking.
     warnings: List[str] = field(default_factory=list)
+    # Only new reports carry this deterministic run record; old artifacts stay intact.
+    evidence: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -488,6 +494,7 @@ class Report:
             "completed_at": self.completed_at,
             "error": self.error,
             "warnings": list(self.warnings),
+            "evidence": self.evidence,
         }
 
 
@@ -973,12 +980,29 @@ class ReportAgent:
         # Titles of sections that were force-generated (max iterations hit
         # without a proper Final Answer). Reset per `generate_report` call.
         self._forced_sections: List[str] = []
+        self._evidence_bundle = None
+        self._planning_warning = None
         
         logger.info(t('report.agentInitDone', graphId=graph_id, simulationId=simulation_id))
     
     def _nota_de_alcance(self) -> str:
         """Bloque con las cautelas de alcance para añadir a los prompts de sistema ('' si no hay alcance decidido)."""
         return f"\n\n[Alcance geográfico]\n{self.alcance_texto}\n" if getattr(self, "alcance_texto", "") else ""
+
+    def _evidence_context(self) -> str:
+        return prompt_context(getattr(self, "_evidence_bundle", None))
+
+    def _validate_claims(self, content: str) -> None:
+        validate_electoral_claims(content, getattr(self, "simulation_requirement", None))
+
+    @staticmethod
+    def _validate_section_content(content: str) -> None:
+        """A provider/format failure placeholder is not a completed section."""
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("El modelo no entregó contenido para la sección")
+        placeholders = (t('report.sectionGenFailedContent'), t('report.sectionGenLeakContent'))
+        if content.strip() in placeholders or not re.sub(r"[\s#>*_`-]", "", content):
+            raise ValueError("La sección no pudo redactarse; el informe está incompleto")
 
     def _define_tools(self) -> Dict[str, Dict[str, Any]]:
         """Define available tools (LLM-facing schema in Spanish)."""
@@ -1352,7 +1376,7 @@ class ReportAgent:
         if progress_callback:
             progress_callback("planning", 30, t('progress.generatingOutline'))
         
-        system_prompt = f"{get_language_instruction()}\n\n{PLAN_SYSTEM_PROMPT}{self._nota_de_alcance()}"
+        system_prompt = f"{get_language_instruction()}\n\n{PLAN_SYSTEM_PROMPT}{self._nota_de_alcance()}\n{EVIDENCE_RULES}"
         user_prompt = PLAN_USER_PROMPT_TEMPLATE.format(
             simulation_requirement=self.simulation_requirement,
             total_nodes=context.get('graph_statistics', {}).get('total_nodes', 0),
@@ -1361,6 +1385,7 @@ class ReportAgent:
             total_entities=context.get('total_entities', 0),
             related_facts_json=json.dumps(context.get('related_facts', [])[:10], ensure_ascii=False, indent=2),
         )
+        user_prompt += self._evidence_context()
 
         try:
             response = self.llm.chat_json(
@@ -1375,16 +1400,23 @@ class ReportAgent:
                 progress_callback("planning", 80, t('progress.parsingOutline'))
             
             # 解析大纲
+            if not isinstance(response, dict) or not isinstance(response.get("sections"), list) or not 2 <= len(response["sections"]) <= 5:
+                raise ValueError("El esquema no contiene entre dos y cinco secciones")
+            self._validate_claims(str(response.get("title", "")))
+            self._validate_claims(str(response.get("summary", "")))
             sections = []
             for section_data in response.get("sections", []):
+                if not isinstance(section_data, dict) or not isinstance(section_data.get("title"), str) or not section_data["title"].strip():
+                    raise ValueError("El esquema contiene una sección sin título")
+                self._validate_claims(str(section_data["title"]))
                 sections.append(ReportSection(
-                    title=section_data.get("title", ""),
+                    title=prepare_section(section_data["title"], getattr(self, "_evidence_bundle", None), get_locale()),
                     content=""
                 ))
             
             outline = ReportOutline(
-                title=response.get("title", t('report.defaultReportTitle')),
-                summary=response.get("summary", ""),
+                title=prepare_section(str(response.get("title", t('report.defaultReportTitle'))), getattr(self, "_evidence_bundle", None), get_locale()),
+                summary=prepare_section(str(response.get("summary", "")), getattr(self, "_evidence_bundle", None), get_locale()),
                 sections=sections
             )
             
@@ -1396,6 +1428,7 @@ class ReportAgent:
             
         except Exception as e:
             logger.error(t('report.outlinePlanFailed', error=str(e)))
+            self._planning_warning = "No se pudo obtener un esquema válido; se utilizó una estructura de respaldo."
             # 返回默认大纲（3个章节，作为fallback）
             return ReportOutline(
                 title=t('report.fallbackOutlineTitle'),
@@ -1415,7 +1448,10 @@ class ReportAgent:
         last_error: Optional[Exception] = None
         for attempt in range(self.SECTION_ATTEMPTS):
             try:
-                return self._generate_section_react(**kwargs)
+                content = self._generate_section_react(**kwargs)
+                self._validate_section_content(content)
+                self._validate_claims(content)
+                return content
             except FileNotFoundError:
                 raise                       # el informe se borró mientras se escribía: no hay nada que reintentar
             except Exception as exc:  # noqa: BLE001
@@ -1471,7 +1507,7 @@ class ReportAgent:
             section_title=section.title,
             tools_description=self._get_tools_description(),
         )
-        system_prompt = f"{get_language_instruction()}\n\n{section_system_prompt}{self._nota_de_alcance()}"
+        system_prompt = f"{get_language_instruction()}\n\n{section_system_prompt}{self._nota_de_alcance()}\n{EVIDENCE_RULES}"
 
         # 构建用户prompt - 每个已完成章节各传入最大4000字
         if previous_sections:
@@ -1488,6 +1524,7 @@ class ReportAgent:
             previous_content=previous_content,
             section_title=section.title,
         )
+        user_prompt += self._evidence_context()
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -1962,6 +1999,7 @@ class ReportAgent:
         self._forced_sections = []
         # Track locale-repair events so we can surface them as warnings.
         self._locale_repair_warnings = []
+        self._planning_warning = None
 
         # 已完成的章节标题列表（用于进度追踪）
         completed_section_titles = []
@@ -1969,6 +2007,8 @@ class ReportAgent:
         try:
             # 初始化：创建报告文件夹并保存初始状态
             ReportManager._ensure_report_folder(report_id)
+            self._evidence_bundle = load_evidence(self.simulation_id, self.graph_id, self.simulation_requirement)
+            report.evidence = self._evidence_bundle["metrics"]
             
             # 初始化日志记录器（结构化日志 agent_log.jsonl）
             self.report_logger = ReportLogger(report_id)
@@ -2005,6 +2045,12 @@ class ReportAgent:
                     progress_callback(stage, prog // 5, msg) if progress_callback else None
             )
             report.outline = outline
+            if self._planning_warning:
+                report.warnings.append(self._planning_warning)
+            if not 2 <= len(outline.sections) <= 5:
+                raise ValueError("El informe necesita entre dos y cinco secciones")
+            for text in (outline.title, outline.summary, *(s.title for s in outline.sections)):
+                self._validate_claims(text)
             
             # 记录规划完成日志
             self.report_logger.log_planning_complete(outline.to_dict())
@@ -2069,6 +2115,11 @@ class ReportAgent:
                 if locale_warning:
                     self._locale_repair_warnings.append(locale_warning)
 
+                # Locale repair is also model output: validate again before publishing.
+                self._validate_section_content(section_content)
+                self._validate_claims(section_content)
+                section_content = prepare_section(section_content, self._evidence_bundle, get_locale())
+
                 section.content = section_content
                 generated_sections.append(f"## {section.title}\n\n{section_content}")
 
@@ -2107,7 +2158,7 @@ class ReportAgent:
             )
             
             # 使用ReportManager组装完整报告
-            report.markdown_content = ReportManager.assemble_full_report(report_id, outline)
+            report.markdown_content = ReportManager.assemble_full_report(report_id, outline, evidence=report.evidence)
             report.status = ReportStatus.COMPLETED
             report.completed_at = datetime.now().isoformat()
 
@@ -2225,10 +2276,13 @@ class ReportAgent:
             report_content=report_content if report_content else "(no report available yet)",
             tools_description=self._get_tools_description(),
         )
-        system_prompt = f"{get_language_instruction()}\n\n{chat_system_prompt}{self._nota_de_alcance()}"
+        system_prompt = f"{get_language_instruction()}\n\n{chat_system_prompt}{self._nota_de_alcance()}\n{EVIDENCE_RULES}"
 
         # 构建消息
         messages = [{"role": "system", "content": system_prompt}]
+        if self._evidence_bundle is None:
+            self._evidence_bundle = load_evidence(self.simulation_id, self.graph_id, self.simulation_requirement)
+        messages.append({"role": "user", "content": self._evidence_context()})
         
         # 添加历史对话
         for h in chat_history[-10:]:  # 限制历史长度
@@ -2259,7 +2313,7 @@ class ReportAgent:
                 clean_response = re.sub(r'\[TOOL_CALL\].*?\)', '', clean_response)
                 
                 return {
-                    "response": clean_response.strip(),
+                    "response": self._prepare_chat_response(clean_response),
                     "tool_calls": tool_calls_made,
                     "sources": [tc.get("parameters", {}).get("query", "") for tc in tool_calls_made]
                 }
@@ -2295,10 +2349,14 @@ class ReportAgent:
         clean_response = re.sub(r'\[TOOL_CALL\].*?\)', '', clean_response)
         
         return {
-            "response": clean_response.strip(),
+            "response": self._prepare_chat_response(clean_response),
             "tool_calls": tool_calls_made,
             "sources": [tc.get("parameters", {}).get("query", "") for tc in tool_calls_made]
         }
+
+    def _prepare_chat_response(self, content: str) -> str:
+        self._validate_claims(content)
+        return prepare_section(content.strip(), self._evidence_bundle, get_locale())
 
 
 class ReportManager:
@@ -2541,6 +2599,7 @@ class ReportManager:
 
         # 构建章节Markdown内容 - 清理可能存在的重复标题
         cleaned_content = cls._clean_section_content(section.content, section.title)
+        ReportAgent._validate_section_content(cleaned_content)
         md_content = f"## {section.title}\n\n"
         if cleaned_content:
             md_content += f"{cleaned_content}\n\n"
@@ -2755,7 +2814,7 @@ class ReportManager:
         return sections
     
     @classmethod
-    def assemble_full_report(cls, report_id: str, outline: ReportOutline) -> str:
+    def assemble_full_report(cls, report_id: str, outline: ReportOutline, evidence: Optional[Dict[str, Any]] = None) -> str:
         """
         组装完整报告
         
@@ -2767,9 +2826,17 @@ class ReportManager:
         md_content = f"# {outline.title}\n\n"
         md_content += f"> {outline.summary}\n\n"
         md_content += f"---\n\n"
+        if evidence:
+            md_content += render_record(evidence, get_locale())
         
         # 按顺序读取所有章节文件
         sections = cls.get_generated_sections(report_id)
+        if evidence:
+            if [s['section_index'] for s in sections] != list(range(1, len(outline.sections) + 1)):
+                raise ValueError("Faltan secciones del informe; no se puede completar")
+            for section_info in sections:
+                body = re.sub(r"\A##[^\n]*\n+", "", section_info["content"])
+                ReportAgent._validate_section_content(body)
         for section_info in sections:
             md_content += section_info["content"]
         
@@ -2984,6 +3051,7 @@ class ReportManager:
             completed_at=data.get('completed_at', ''),
             error=data.get('error'),
             warnings=list(data.get('warnings') or []),
+            evidence=data.get('evidence') if isinstance(data.get('evidence'), dict) else None,
         )
     
     @classmethod

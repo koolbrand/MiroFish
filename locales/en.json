@@ -1,4 +1,28 @@
 {
+  "evidence": {
+    "title": "Scope of this simulation",
+    "conversation": "Explores simulated conversations. Posts and reactions are not survey responses and do not guarantee real outcomes.",
+    "legacy": "This result was prepared without the current audience, author or evidence checks. It remains as generated; repeating the test with these checks requires a new preparation.",
+    "durationPreview": "Plan: {plannedRounds} rounds ({plannedHours} simulated hours). This limit will run up to {rounds} rounds ({hours} simulated hours).",
+    "durationResult": "Executed: {rounds} rounds ({hours} simulated hours), out of the planned {plannedRounds} rounds ({plannedHours} hours).",
+    "missingPeaks": "This run leaves out these planned peak activity hours: {hours}.",
+    "statusUnavailable": "Could not check whether the simulation has already run. Reload the page to check its status before preparing it again.",
+    "recordTitle": "Run record and scope",
+    "agents": "Agents",
+    "anchored": "With survey profiles",
+    "active": "Agents with activity",
+    "events": "Recorded events",
+    "roundsRecorded": "Executed / configured rounds",
+    "hoursRecorded": "Executed / configured hours",
+    "originalMaterial": "Original material",
+    "characters": "characters",
+    "boundedExcerpt": "Bounded excerpt",
+    "sourceMissing": "Original material is unavailable.",
+    "profileSource": "Profile source",
+    "method": "Figures come from this run’s record, without model estimates. Original material is supplied context, not independent verification. Survey profiles provide historical context; they do not validate the results on their own.",
+    "yes": "Yes",
+    "no": "No"
+  },
   "login": {
     "email": "Email Address",
     "password": "Password",

@@ -75,6 +75,17 @@ def poblacion_cita(simulation_id) -> str:
 
 def _pdf_meta(report) -> dict:
     """Personas, rondas y acciones de la simulación para la portada del PDF (los que falten, no se pintan)."""
+    evidence = getattr(report, 'evidence', None)
+    if isinstance(evidence, dict) and evidence.get('version') == 1:
+        meta = {
+            'people': evidence.get('agents', {}).get('total'),
+            'rounds': evidence.get('execution', {}).get('executed_rounds'),
+            'actions': evidence.get('actions', {}).get('total'),
+        }
+        citation = evidence.get('agents', {}).get('population_citation')
+        if citation:
+            meta['fuente_datos'] = citation
+        return meta
     meta = {}
     try:
         sim_state = SimulationManager().get_simulation(report.simulation_id)

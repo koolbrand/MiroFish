@@ -22,11 +22,22 @@ from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale, t
 from ..utils.security import validate_platform, validate_storage_id
-from ..utils.fs import atomic_write_json
+from ..utils.fs import atomic_write_json, read_json_or_none
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
 logger = get_logger('mirofish.simulation_runner')
+
+
+def interview_target_count(interviews: List[Dict], platform=None, config=None) -> int:
+    """Tope por entrevista efectiva: sin plataforma, OASIS entrevista en ambas.
+
+    Si una configuración antigua no declara plataformas, reservar ambas es el
+    límite conservador; una plataforma explícita o única consume una por persona.
+    """
+    config = config or {}
+    platforms = sum(bool(config.get(f"{name}_config")) for name in ("twitter", "reddit")) or 2
+    return sum(1 if item.get("platform") or platform else platforms for item in interviews)
 
 # 标记是否已注册清理函数
 _cleanup_registered = False
@@ -1761,6 +1772,11 @@ class SimulationRunner:
         if not os.path.exists(sim_dir):
             raise ValueError(f"La simulación no existe: {simulation_id}")
 
+        config = read_json_or_none(os.path.join(sim_dir, "simulation_config.json"))
+        config = config if isinstance(config, dict) else None
+        if interview_target_count(interviews, platform, config) > Config.MAX_INTERVIEWS_PER_REQUEST:
+            raise ValueError(t('api.tooManyInterviews', max=Config.MAX_INTERVIEWS_PER_REQUEST))
+
         ipc_client = SimulationIPCClient(sim_dir)
 
         if not ipc_client.check_env_alive():
@@ -1826,8 +1842,9 @@ class SimulationRunner:
         if not os.path.exists(config_path):
             raise ValueError(f"La configuración de la simulación no existe: {simulation_id}")
 
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        config = read_json_or_none(config_path)
+        if not isinstance(config, dict) or not config:
+            raise ValueError(t('api.configNotFound'))
 
         agent_configs = config.get("agent_configs", [])
         if not agent_configs:
@@ -1843,6 +1860,10 @@ class SimulationRunner:
                     "prompt": prompt
                 })
 
+        # Defensa también al expandir la orden, por si la configuración cambió desde
+        # la validación HTTP o se invocó directamente este método.
+        if interview_target_count(interviews, platform, config) > Config.MAX_INTERVIEWS_PER_REQUEST:
+            raise ValueError(t('api.tooManyInterviews', max=Config.MAX_INTERVIEWS_PER_REQUEST))
         logger.info(f"Enviando comando de Interview global: simulation_id={simulation_id}, agent_count={len(interviews)}, platform={platform}")
 
         return cls.interview_agents_batch(

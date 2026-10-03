@@ -1,5 +1,6 @@
 <template>
   <div class="simulation-panel">
+    <SimulationEvidenceNotice :simulation-id="simulationId" :run-status="runStatus" />
     <!-- Top Control Bar -->
     <div class="control-bar" data-tour="run-control-bar">
       <div class="status-group">
@@ -423,6 +424,7 @@
 </template>
 
 <script setup>
+import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
@@ -684,6 +686,7 @@ const resetAllState = () => {
 // reconecta a una run en curso o carga la run completada existente sin
 // reiniciar nada.
 const doStartSimulation = async ({ force = false } = {}) => {
+  if (unmounted) return
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     return
@@ -823,6 +826,7 @@ const fetchRunStatus = async () => {
   
   try {
     const res = await getRunStatus(props.simulationId)
+    if (unmounted) return
     
     if (res.success && res.data) {
       const data = res.data
@@ -1093,6 +1097,7 @@ const initSimulationView = async () => {
 
   try {
     const res = await getRunStatus(props.simulationId)
+    if (unmounted) return
     if (res?.success && res.data) {
       const data = res.data
       const hasFailed = data.runner_status === 'failed' || data.status === 'failed'
@@ -1112,6 +1117,7 @@ const initSimulationView = async () => {
         prevRedditRound.value = data.reddit_current_round || 0
         emit('update-status', 'processing')
         await fetchRunStatusDetail()
+        if (unmounted) return
         startStatusPolling()
         startDetailPolling()
         return
@@ -1145,6 +1151,7 @@ const initSimulationView = async () => {
   for (let i = 0; i < 25 && !props.projectData?.project_id && !unmounted; i++) await new Promise(r => setTimeout(r, 200))
   if (unmounted) return
   if (props.projectData?.project_id) await refreshPipeline().catch(() => {})
+  if (unmounted) return
   if (autoRunning.value) {
     if (!unmounted) waitTimer = setTimeout(initSimulationView, 3000)
     return

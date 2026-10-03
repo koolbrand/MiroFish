@@ -14,6 +14,7 @@
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
+            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
             <div class="header-divider"></div>
           </div>
 
@@ -529,6 +530,7 @@
 </template>
 
 <script setup>
+import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { chatWithReport, getReport, getAgentLog } from '../api/report'
@@ -581,6 +583,8 @@ const surveyError = ref('')
 // Report Data
 const reportLoaded = ref(false)      // la carga terminó (con o sin índice)
 const reportLoadError = ref('')      // detalle técnico si falló
+const reportEvidence = ref(null)
+const reportChecked = ref(false)
 const reportOutline = ref(null)
 const generatedSections = ref({})
 const collapsedSections = ref(new Set())
@@ -993,6 +997,8 @@ const loadReportData = async () => {
     // Get report info
     const reportRes = await getReport(props.reportId)
     if (reportRes.success && reportRes.data) {
+      reportEvidence.value = reportRes.data.evidence || null
+      reportChecked.value = true
       // Load agent logs to get report outline and sections
       await loadAgentLogs()
     }
@@ -1068,6 +1074,8 @@ onUnmounted(() => {
 })
 
 watch(() => props.reportId, (newId) => {
+  reportEvidence.value = null
+  reportChecked.value = false
   if (newId) {
     loadReportData()
   }

@@ -326,10 +326,12 @@ class SimulationManager:
                 progress_callback("reading", 100, t('progress.jevFilterRunning', count=filtered.filtered_count))
             role_result = filter_entities(filtered.entities, simulation_requirement)
             state.entity_filter = role_result.summary()
+            # Siempre limpia marcas poblacionales residuales; sin clasificador no
+            # queda autorizado sustituir actores por microdatos de otra persona.
+            filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement,
+                                                target_size=audience_size)
             if role_result.applied:
                 # Audiencia como personas individuales y, si falta, ampliada
-                filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement,
-                                                        target_size=audience_size)
                 state.entity_filter = role_result.summary()
                 filtered.filtered_count = len(filtered.entities)
                 state.entities_count = filtered.filtered_count
@@ -588,8 +590,8 @@ class SimulationManager:
         if not os.path.exists(config_path):
             return None
         
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        config = read_json_or_none(config_path)
+        return config if isinstance(config, dict) else None
     
     def get_run_instructions(self, simulation_id: str) -> Dict[str, str]:
         """获取运行说明"""

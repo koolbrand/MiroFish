@@ -15,6 +15,7 @@
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
             <p v-if="cisCita" class="cis-source-line" data-testid="cis-source">{{ cisCita }}</p>
+            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
             <div class="header-divider"></div>
           </div>
 
@@ -431,6 +432,7 @@
 </template>
 
 <script setup>
+import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
@@ -479,6 +481,8 @@ const lastLog = computed(() => {
 })
 const agentLogLine = ref(0)
 const consoleLogLine = ref(0)
+const reportEvidence = ref(null)
+const reportChecked = ref(false)
 const reportOutline = ref(null)
 const currentSectionIndex = ref(null)
 const generatedSections = ref({})
@@ -2101,6 +2105,7 @@ const checkReportStatus = async () => {
   try {
     const res = await getReport(props.reportId)
     const report = res?.data
+    if (res?.success && report) { reportEvidence.value = report.evidence || null; reportChecked.value = true }
     if (report?.status === 'failed') failReport(report.error)
   } catch (err) {
     if (err?.response?.status === 404) failReport(t('step4.reportNotFound'))
@@ -2254,6 +2259,8 @@ watch(() => props.reportId, (newId) => {
     consoleLogs.value = []
     agentLogLine.value = 0
     consoleLogLine.value = 0
+    reportEvidence.value = null
+    reportChecked.value = false
     reportOutline.value = null
     currentSectionIndex.value = null
     generatedSections.value = {}

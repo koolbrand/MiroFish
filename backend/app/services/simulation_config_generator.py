@@ -27,6 +27,7 @@ from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.simulation_config')
+GENERATION_VERSION = 2  # colectivos separados de personas nombradas, autores comprobados y brief prioritario
 
 # 中国作息时间配置（北京时间）
 CHINA_TIMEZONE_CONFIG = {
@@ -215,6 +216,7 @@ class SimulationParameters:
     # 生成元数据
     generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     generation_reasoning: str = ""  # LLM的推理说明
+    generation_version: int = GENERATION_VERSION
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -233,6 +235,7 @@ class SimulationParameters:
             "llm_base_url": self.llm_base_url,
             "generated_at": self.generated_at,
             "generation_reasoning": self.generation_reasoning,
+            "generation_version": self.generation_version,
         }
     
     def to_json(self, indent: int = 2) -> str:
@@ -438,10 +441,7 @@ class SimulationConfigGenerator:
         entity_summary = self._summarize_entities(entities)
         
         # 构建上下文
-        context_parts = [
-            f"## Requisitos de simulación\n{simulation_requirement}",
-            f"\n## Información de entidades ({len(entities)} en total)\n{entity_summary}",
-        ]
+        context_parts = [f"## Requisitos de simulación\n{simulation_requirement}"]
         
         current_length = sum(len(p) for p in context_parts)
         remaining_length = self.MAX_CONTEXT_LENGTH - current_length - 500  # 留500字符余量
@@ -451,8 +451,11 @@ class SimulationConfigGenerator:
             if len(document_text) > remaining_length:
                 doc_text += "\n...(documento truncado)"
             context_parts.append(f"\n## Contenido del documento original\n{doc_text}")
-        
-        return "\n".join(context_parts)
+
+        # El brief va ANTES del resumen derivado. Con muchos agentes, el recorte de 8.000
+        # caracteres para eventos antes eliminaba las incertidumbres y cifras originales.
+        context_parts.append(f"\n## Información de entidades ({len(entities)} en total)\n{entity_summary}")
+        return "\n".join(context_parts)[:self.MAX_CONTEXT_LENGTH]
     
     def _summarize_entities(self, entities: List[EntityNode]) -> str:
         """生成实体摘要"""
@@ -731,6 +734,10 @@ Por favor genera el JSON de configuración de eventos:
 - Diseña el contenido de las publicaciones iniciales; **cada publicación la escribe UN agente concreto de la lista de arriba**
 
 **Importante**:
+- El documento original es la referencia factual; los resúmenes del grafo no lo sustituyen. Conserva fechas, cifras y sujetos.
+- Una hipótesis, una petición, una ponencia, un anuncio o un hecho pendiente NO es un hecho ocurrido: conserva su condición explícita en cada mensaje. No conviertas una posible convocatoria en convocada ni una ponencia en sentencia.
+- Si el escenario es «qué pasaría si», formula las semillas condicionalmente. No inventes encuestas, resultados, probabilidades, enlaces ni consensos ausentes del material.
+- `narrative_direction` describe tensiones abiertas a explorar; no fija de antemano el ganador ni el resultado que deben producir los agentes.
 - Indica quién la escribe con `poster_name` (el nombre EXACTO del agente, copiado de la lista) y `poster_agent_id` (su id). El tipo por sí solo no basta: hay varios agentes del mismo tipo.
 - El autor tiene que ser coherente con lo que dice el mensaje: si el texto habla en nombre de un colectivo o se presenta como una persona de cierto perfil (edad, oficio, situación), el autor es el agente de la lista que representa a ese colectivo o a ese perfil. Nunca atribuyas a un agente un mensaje que se presente como de otro.
 - Reparte los mensajes entre agentes distintos siempre que puedas, y no inventes agentes que no estén en la lista.
@@ -756,6 +763,9 @@ Formato de salida JSON (sin markdown):
             "The 'poster_type' value MUST be that agent's entity type, in English PascalCase exactly as listed.\n\n"
             "You are a public-opinion analysis expert. Return pure JSON. "
             "Each initial post must be written by one specific agent from the list, and the author must be consistent with what the post says."
+            " The original brief controls factual claims. Preserve pending, hypothetical and disputed status explicitly. "
+            "Never turn a proposal into a final decision, nor seed an unsupported prediction as an established fact. "
+            "Do not invent polls, URLs or outcomes. Narrative direction must not predetermine the result."
         )
 
         try:
@@ -820,12 +830,12 @@ Formato de salida JSON (sin markdown):
         named = [(a, _norm(a.entity_name)) for a in agents]
         same = [a for a, n in named if n == key]
         if same:
-            return next((a for a in same if a.agent_id == id_hint), same[0])
+            return next((a for a in same if a.agent_id == id_hint), same[0] if len(same) == 1 else None)
         if len(key) < 4:
             return None
-        # El modelo a veces añade el tipo o recorta el nombre («Plataforma ciclista (TransportAssociation)»):
-        # vale solo si hay un único agente que case así.
-        near = [a for a, n in named if len(n) >= 4 and (n in key or key in n)]
+        # Solo se tolera el tipo añadido («Plataforma ciclista (TransportAssociation)»).
+        # Una subcadena no es identidad: «Electorado» no equivale a «Electorado · 12».
+        near = [a for a, n in named if key == f"{n} {_norm(a.entity_type)}"]
         return near[0] if len(near) == 1 else None
 
     def _resolve_poster(
@@ -842,19 +852,29 @@ Formato de salida JSON (sin markdown):
         gremio del taxi a la plataforma ciclista.
         """
         id_hint = _as_agent_id(post.get("poster_agent_id"))
+        if post.get("poster_agent_id") is not None and id_hint is None:
+            return None, ""
 
         agent = self._find_by_name(post.get("poster_name"), id_hint, agents)
         if agent is not None:
+            if post.get("poster_type") and _norm_type(post["poster_type"]) != _norm_type(agent.entity_type):
+                return None, ""
             if id_hint is not None and id_hint != agent.agent_id:
                 logger.info(f"El id {id_hint} no coincide con el nombre '{agent.entity_name}' (id {agent.agent_id}); manda el nombre")
             return agent, "nombre"
 
+        # Un nombre explícito que no coincide con nadie no puede desaparecer en favor
+        # de un id válido (era posible atribuir el PSOE a CC por su id y tipo comunes).
+        if _norm(post.get("poster_name")):
+            return None, ""
+
         candidates = self._type_candidates(post.get("poster_type"), agents)
         by_id = next((a for a in agents if a.agent_id == id_hint), None) if id_hint is not None else None
-        if by_id is not None and (not candidates or by_id in candidates):
+        if by_id is not None and (not post.get("poster_type")
+                                  or _norm_type(post["poster_type"]) == _norm_type(by_id.entity_type)):
             return by_id, "id"
 
-        if len(candidates) == 1:
+        if id_hint is None and len(candidates) == 1:
             return candidates[0], "tipo único"
         return None, ""
 
@@ -1150,4 +1170,3 @@ Formato de salida JSON (sin markdown):
                 "influence_weight": 1.0
             }
     
-

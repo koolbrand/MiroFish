@@ -1,4 +1,28 @@
 {
+  "evidence": {
+    "title": "本次模拟的范围",
+    "conversation": "探索模拟对话。帖子和互动不等于调查回答，也不能保证真实结果。",
+    "legacy": "该结果生成时尚未采用当前的受众、作者或证据检查。原始结果保持不变；如需使用这些检查重新试验，必须重新准备。",
+    "durationPreview": "计划：{plannedRounds} 轮（{plannedHours} 个模拟小时）。按当前上限最多运行 {rounds} 轮（{hours} 个模拟小时）。",
+    "durationResult": "已执行 {rounds} 轮（{hours} 个模拟小时），原计划为 {plannedRounds} 轮（{plannedHours} 小时）。",
+    "missingPeaks": "此次运行未覆盖以下计划活动高峰时段：{hours}。",
+    "statusUnavailable": "无法确认模拟是否已经运行。请重新加载页面并检查状态后再准备。",
+    "recordTitle": "运行记录与范围",
+    "agents": "代理",
+    "anchored": "使用调查资料",
+    "active": "有活动的代理",
+    "events": "记录事件",
+    "roundsRecorded": "已执行 / 已配置轮次",
+    "hoursRecorded": "已执行 / 已配置小时",
+    "originalMaterial": "原始材料",
+    "characters": "字符",
+    "boundedExcerpt": "限定摘录",
+    "sourceMissing": "无原始材料。",
+    "profileSource": "资料来源",
+    "method": "这些数字来自本次运行的记录，并非模型估算。原始材料是提供的背景，未经独立核实。调查资料提供历史背景，本身不能验证结果。",
+    "yes": "是",
+    "no": "否"
+  },
   "login": {
     "email": "电子邮件",
     "password": "密码",

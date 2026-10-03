@@ -1,4 +1,28 @@
 {
+  "evidence": {
+    "title": "Alcance de esta simulación",
+    "conversation": "Explora conversaciones simuladas. Las publicaciones y reacciones no equivalen a respuestas de una encuesta ni garantizan resultados reales.",
+    "legacy": "Este resultado se preparó sin los controles actuales de público, autores o evidencia. Se conserva como fue generado; para repetir la prueba con estos controles hace falta una nueva preparación.",
+    "durationPreview": "Plan: {plannedRounds} rondas ({plannedHours} h simuladas). Con este límite se ejecutarán hasta {rounds} rondas ({hours} h simuladas).",
+    "durationResult": "Ejecutadas: {rounds} rondas ({hours} h simuladas), de las {plannedRounds} rondas ({plannedHours} h) del plan.",
+    "missingPeaks": "Este recorrido deja fuera estas horas de máxima actividad del plan: {hours}.",
+    "statusUnavailable": "No se pudo comprobar si la simulación ya se ejecutó. Recarga la página para consultar su estado antes de preparar de nuevo.",
+    "recordTitle": "Registro y límites del ensayo",
+    "agents": "Agentes",
+    "anchored": "Con perfiles de encuesta",
+    "active": "Agentes con actividad",
+    "events": "Eventos registrados",
+    "roundsRecorded": "Rondas ejecutadas / configuradas",
+    "hoursRecorded": "Horas ejecutadas / configuradas",
+    "originalMaterial": "Material original",
+    "characters": "caracteres",
+    "boundedExcerpt": "Fragmento acotado",
+    "sourceMissing": "No se dispone del material original.",
+    "profileSource": "Fuente de perfiles",
+    "method": "Las cifras proceden del registro de esta ejecución, sin estimarlas con un modelo. El material original es contexto aportado y no una comprobación independiente. Los perfiles de encuesta aportan contexto histórico; por sí solos no validan los resultados.",
+    "yes": "Sí",
+    "no": "No"
+  },
   "login": {
     "email": "Correo electrónico",
     "password": "Contraseña",

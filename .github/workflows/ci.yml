@@ -75,6 +75,9 @@ jobs:
       - name: Instalar
         working-directory: frontend
         run: npm ci
+      - name: Regresiones de interfaz y ciclo de vida
+        working-directory: frontend
+        run: node --test tests/*.test.js
       - name: Compilar
         working-directory: frontend
         run: npm run build

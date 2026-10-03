@@ -8,6 +8,8 @@ comprueba qué texto sale hacia él por cada camino y qué trae la respuesta HTT
 puesta lo mide `scripts/entrevista/evaluar_cifras.py`.
 """
 
+import os
+
 import pytest
 
 from app import create_app
@@ -22,6 +24,7 @@ from app.services.simulation_manager import SimulationManager
 from app.services.simulation_runner import SimulationRunner
 from app.services.zep_tools import ZepToolsService
 from app.utils.cifras import cifras_sin_respaldo, extraer_cifras
+from app.utils.fs import atomic_write_json
 
 from test_pipeline import storage  # noqa: F401
 
@@ -88,7 +91,14 @@ def post(client, ruta, **cuerpo):
 @pytest.fixture
 def sid(storage):
     project = ProjectManager.create_project(name="P", owner_id=None)
-    return SimulationManager().create_simulation(project_id=project.project_id, graph_id="mirofish_g00000000001").simulation_id
+    simulation_id = SimulationManager().create_simulation(project_id=project.project_id, graph_id="mirofish_g00000000001").simulation_id
+    # Un entorno vivo procede de una preparación con configuración persistida;
+    # «a todos» debe conocer el número efectivo de entrevistas antes de enviarlas.
+    atomic_write_json(os.path.join(SimulationManager.SIMULATION_DATA_DIR, simulation_id, "simulation_config.json"), {
+        "agent_configs": [{"agent_id": 0}, {"agent_id": 1}],
+        "reddit_config": {"platform": "reddit"}, "twitter_config": {"platform": "twitter"},
+    })
+    return simulation_id
 
 
 @pytest.fixture

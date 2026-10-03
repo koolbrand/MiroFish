@@ -11,6 +11,7 @@ fracción de céntimo). Reglas:
 - Una petición por entidad, en paralelo (un state = un asunto).
 - Solo se descarta la infraestructura con confianza alta; lo dudoso se queda.
 - Si Jev no está configurado o falla, no se descarta nada (fail-open).
+- Ampliar/anclar requiere confirmar un colectivo poblacional (fail-closed).
 """
 
 import time
@@ -68,9 +69,15 @@ NATURE_QUESTION = {
         "Fíjate en lo que es, no en a quién afecta."
     ),
     "criteria": {
-        "personas": (
-            "Una persona concreta o un colectivo de personas físicas: clientes, vecinos, estudiantes, "
-            "teletrabajadores, votantes, familias, pacientes, un influencer o periodista a título personal"
+        "colectivo_personas": (
+            "Un grupo poblacional de personas físicas anónimas: clientes, vecinos, estudiantes, "
+            "teletrabajadores, votantes, familias, pacientes. Puede muestrearse con distintas personas "
+            "sin perder su identidad. No es una persona concreta ni una organización."
+        ),
+        "persona_identificada": (
+            "Una persona concreta identificada por su nombre, apellido o cargo individual: "
+            "un juez, una política, un influencer o periodista a título personal. Aunque el tema "
+            "le afecte, no es un colectivo poblacional ni puede sustituirse por encuestados anónimos."
         ),
         "organizacion": (
             "Una organización o institución con personalidad propia: empresa, marca, negocio, universidad, "
@@ -88,6 +95,7 @@ INSTITUTION_ROLE = "implicado"        # adónde pasa una organización que Jev h
 DROP_ROLE = "infraestructura"
 ORGANIZATION_MIN_PROB = 0.6           # probabilidad de «organización» a partir de la cual deja de ser audiencia
 NON_SPEAKING_MIN_PROB = 0.8           # probabilidad de «lugar o cosa» a partir de la cual no se crea un agente (no tiene voz)
+POPULATION_MIN_PROB = 0.65          # ampliar/anclar requiere confirmar que es un colectivo, no solo «personas»
 
 
 @dataclass
@@ -101,6 +109,8 @@ class EntityRoleResult:
     roles_by_uuid: Dict[str, str] = field(default_factory=dict)
     audience_expanded: int = 0
     reclassified: List[str] = field(default_factory=list)   # organizaciones que no se tratan como audiencia
+    population_group_ids: List[str] = field(default_factory=list)
+    population_unconfirmed: List[str] = field(default_factory=list)
 
     @property
     def audience_ratio(self) -> Optional[float]:
@@ -123,6 +133,8 @@ class EntityRoleResult:
             ),
             "audience_expanded": self.audience_expanded,
             "reclassified": self.reclassified,
+            "population_groups": len(self.population_group_ids),
+            "population_unconfirmed": self.population_unconfirmed,
         }
 
 
@@ -155,7 +167,10 @@ def _ask_jev(client: httpx.Client, entity, topic: str) -> Optional[Dict]:
             probs = naturaleza.get("probabilities") or {}
             org = float(probs.get("organizacion", 0) or 0)
             cosa = float(probs.get("lugar_o_cosa", 0) or 0)
-            return {"role": answer["choice"], "confidence": float(answer.get("confidence", 0)), "organization": org, "thing": cosa}
+            return {"role": answer["choice"], "confidence": float(answer.get("confidence", 0)),
+                    "organization": org, "thing": cosa,
+                    "population_group": float(probs.get("colectivo_personas", 0) or 0),
+                    "named_person": float(probs.get("persona_identificada", 0) or 0)}
         except Exception as e:  # noqa: BLE001 — fail-open: sin respuesta, la entidad se queda
             if attempt == 2:
                 logger.warning(f"Jev no clasificó '{entity.name}': {type(e).__name__}: {str(e)[:120]}")
@@ -190,6 +205,19 @@ def filter_entities(entities: list, topic: str) -> EntityRoleResult:
             # Una universidad, un ayuntamiento o una empresa no es una persona ni un grupo de personas: no se genera como una
             role = INSTITUTION_ROLE
             result.reclassified.append(entity.name)
+        elif role == AUDIENCE_ROLE:
+            # Fallar al clasificar NO borra al actor; sí impide cambiar su identidad por microdatos.
+            # La antigua clase «personas» mezclaba jueces nombrados y electorado anónimo.
+            collective = float(answer.get("population_group", 0) or 0)
+            named = float(answer.get("named_person", 0) or 0)
+            if (collective >= POPULATION_MIN_PROB and collective > named
+                    and float(answer.get("thing", 0) or 0) < NON_SPEAKING_MIN_PROB
+                    and answer["confidence"] >= POPULATION_MIN_PROB):
+                result.population_group_ids.append(str(getattr(entity, "uuid", entity.name)))
+            else:
+                # Puede ser un consumidor concreto y seguir siendo audiencia; se conserva
+                # su papel e identidad, pero no se le sustituye por personas anónimas.
+                result.population_unconfirmed.append(entity.name)
         result.roles_by_uuid[getattr(entity, "uuid", entity.name)] = role
         result.roles[role] = result.roles.get(role, 0) + 1
         if role == DROP_ROLE and answer["confidence"] >= Config.JEV_DROP_CONFIDENCE:
@@ -232,7 +260,7 @@ MAX_AUDIENCE_SIZE = 150      # tope duro de `target_size` (cada persona es una l
 def expand_audience(entities: list, result: EntityRoleResult, topic: str = "", target_size: Optional[int] = None) -> list:
     """Convierte la audiencia en personas y la amplía si queda por debajo del mínimo.
 
-    - Toda entidad con papel «audiencia» se marca para generarse como persona
+    - Solo colectivos poblacionales confirmados se marcan para generarse como persona
       individual (no como cuenta colectiva «que representa a…»).
     - Si la audiencia es < JEV_MIN_AUDIENCE_RATIO, cada grupo de audiencia se
       desdobla en variantes (personas distintas dentro del grupo) hasta el
@@ -243,9 +271,18 @@ def expand_audience(entities: list, result: EntityRoleResult, topic: str = "", t
     import copy
     import math
 
+    for e in entities:
+        # Incluso sin Jev: una preparación nueva no arrastra permiso de una
+        # clasificación anterior. Solo se repone tras confirmar un colectivo.
+        attributes = dict(getattr(e, "attributes", None) or {})
+        for key in (INDIVIDUAL_FLAG, GROUP_KEY, VARIANT_HINT, TOPIC_HINT):
+            attributes.pop(key, None)
+        e.attributes = attributes
     if not result.applied:
         return entities
-    audience = [e for e in entities if result.roles_by_uuid.get(getattr(e, "uuid", e.name)) == AUDIENCE_ROLE]
+    groups = set(result.population_group_ids)
+    audience = [e for e in entities if str(getattr(e, "uuid", e.name)) in groups
+                and result.roles_by_uuid.get(getattr(e, "uuid", e.name)) == AUDIENCE_ROLE]
     for e in audience:
         e.attributes = dict(e.attributes or {})
         e.attributes[INDIVIDUAL_FLAG] = True

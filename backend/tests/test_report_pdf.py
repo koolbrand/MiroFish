@@ -75,7 +75,7 @@ def test_render_pdf_has_cover_pages_and_embedded_fonts(tmp_path):
     import fitz
     doc = fitz.open(stream=pdf, filetype="pdf")
     first = doc[0].get_text()
-    assert "Predicción" in first and "23" in first and "PERSONAS SIMULADAS" in first.upper()
+    assert "Predicción" in first and "23" in first and "AGENTES SIMULADOS" in first.upper()
     assert "29 de septiembre de 2026" in first.lower()   # la fecha va en mayúsculas por CSS
     assert "Página 1 de" in first
     fonts = {f[3] for page in doc for f in page.get_fonts()}

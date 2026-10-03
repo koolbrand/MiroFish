@@ -17,7 +17,7 @@ class Entity:
 
 ENTITIES = [Entity("Madres y padres"), Entity("Cozi"), Entity("iCloud"), Entity("App Store"), Entity("Wander")]
 ANSWERS = {
-    "Madres y padres": {"role": "audiencia", "confidence": 0.97},
+    "Madres y padres": {"role": "audiencia", "confidence": 0.97, "population_group": 0.98},
     "Cozi": {"role": "competidor", "confidence": 0.95},
     "iCloud": {"role": "infraestructura", "confidence": 0.93},
     "App Store": {"role": "infraestructura", "confidence": 0.6},   # dudosa: se queda
@@ -74,7 +74,7 @@ def test_audience_becomes_individuals_and_expands(monkeypatch):
         e.uuid = f"u{i}"
         e.attributes = {}
     roles = {"Madres y padres": "audiencia", "Padres separados": "audiencia", "Periodistas": "voz_influyente"}
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9, "population_group": 0.95})
     result = erf.filter_entities(ents, "lanzamiento")
     out = erf.expand_audience(result.kept, result)
     summary = result.summary()
@@ -96,7 +96,7 @@ def test_expansion_is_capped(monkeypatch):
     ents = [Entity(f"E{i}") for i in range(30)]
     for i, e in enumerate(ents):
         e.uuid, e.attributes = f"u{i}", {}
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "audiencia" if e.name == "E0" else "competidor", "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "audiencia" if e.name == "E0" else "competidor", "confidence": 0.9, "population_group": 0.95})
     result = erf.filter_entities(ents, "x")
     out = erf.expand_audience(result.kept, result)
     assert len(out) == 33            # tope total: +3
@@ -109,7 +109,7 @@ def test_an_organization_is_not_audience_even_if_it_serves_people(monkeypatch):
     for i, e in enumerate(ents):
         e.uuid, e.attributes = f"u{i}", {}
     respuestas = {
-        "Estudiantes de la Universidad de Vigo": {"role": "audiencia", "confidence": 1.0, "organization": 0.0},
+        "Estudiantes de la Universidad de Vigo": {"role": "audiencia", "confidence": 1.0, "organization": 0.0, "population_group": 0.95},
         "Universidad de Vigo": {"role": "audiencia", "confidence": 0.93, "organization": 1.0},        # el fallo real, medido con Jev
         "Marta Ruiz": {"role": "implicado", "confidence": 0.99, "organization": 0.05},
         "Bar Paco": {"role": "competidor", "confidence": 0.5, "organization": 1.0},
@@ -127,7 +127,7 @@ def test_an_organization_is_not_audience_even_if_it_serves_people(monkeypatch):
 
 
 def test_the_nature_question_goes_in_the_same_request(monkeypatch):
-    """Una petición con las dos preguntas (se evalúan en paralelo); si Jev no trae la de naturaleza, todo sigue como antes."""
+    """Una petición con las dos preguntas (se evalúan en paralelo); si falta naturaleza, no se autoriza ampliar ni anclar."""
     enviado = {}
 
     class Cliente:
@@ -163,7 +163,7 @@ def test_target_size_fills_the_audience_to_that_number_split_by_group(monkeypatc
     monkeypatch.setattr(Config, "AUDIENCE_MAX_EXTRA", 3)           # los topes de la configuración no cuentan con target_size
     monkeypatch.setattr(Config, "AUDIENCE_MAX_VARIANTS", 2)
     ents, roles = _audiencia(1, 9)
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9, "population_group": 0.95})
     result = erf.filter_entities(ents, "elecciones")
     out = erf.expand_audience(result.kept, result, "elecciones", target_size=60)
     pers = [e for e in out if e.attributes.get(erf.INDIVIDUAL_FLAG)]
@@ -172,7 +172,7 @@ def test_target_size_fills_the_audience_to_that_number_split_by_group(monkeypatc
     assert result.summary()["audience_expanded"] == 59
     # varios grupos: reparto por igual
     ents, roles = _audiencia(3, 4)
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9, "population_group": 0.95})
     result = erf.filter_entities(ents, "x")
     out = erf.expand_audience(result.kept, result, "x", target_size=12)
     por_grupo = {}
@@ -184,7 +184,7 @@ def test_target_size_fills_the_audience_to_that_number_split_by_group(monkeypatc
 
 def test_target_size_has_a_hard_cap_and_never_shrinks(monkeypatch):
     ents, roles = _audiencia(2, 3)
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9, "population_group": 0.95})
     result = erf.filter_entities(ents, "x")
     out = erf.expand_audience(result.kept, result, "x", target_size=10_000)
     assert sum(1 for e in out if e.attributes.get(erf.INDIVIDUAL_FLAG)) == erf.MAX_AUDIENCE_SIZE
@@ -218,5 +218,5 @@ def test_what_cannot_speak_is_pruned_with_a_high_threshold(monkeypatch):
     assert [d["name"] for d in result.dropped] == ["Asturias", "Real Decreto-ley 25/2026"]
     assert all(d.get("motivo") == "no habla" for d in result.dropped)
     # y si faltara la respuesta de naturaleza, no se poda nada
-    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "implicado", "confidence": 0.9})
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "implicado", "confidence": 0.9, "population_group": 0.95})
     assert len(erf.filter_entities(ents, "x").kept) == len(ents)

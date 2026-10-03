@@ -16,7 +16,7 @@ from ..config import Config
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
-from ..services.simulation_runner import SimulationRunner, RunnerStatus
+from ..services.simulation_runner import SimulationRunner, RunnerStatus, interview_target_count
 from ..services.poblacion import alcance as poblacion_alcance
 from ..services.auto_pipeline import get_pipeline_summary
 from ..services.interview_guard import (  # noqa: F401 — INTERVIEW_PROMPT_PREFIX se re-exporta
@@ -2805,6 +2805,13 @@ def interview_agents_batch():
                     "error": t('api.interviewListInvalidPlatform', index=i+1)
                 }), 400
 
+        config = SimulationManager().get_simulation_config(simulation_id)
+        if interview_target_count(interviews, platform, config) > Config.MAX_INTERVIEWS_PER_REQUEST:
+            return jsonify({
+                "success": False,
+                "error": t('api.tooManyInterviews', max=Config.MAX_INTERVIEWS_PER_REQUEST)
+            }), 400
+
         # Si la simulación ya terminó → fallback directo con LLM usando el perfil del agente
         if not SimulationRunner.check_env_alive(simulation_id):
             return _interview_batch_llm_fallback(simulation_id, interviews)
@@ -2915,6 +2922,22 @@ def interview_all_agents():
             return jsonify({
                 "success": False,
                 "error": t('api.invalidInterviewPlatform')
+            }), 400
+
+        # «Todos» se expande en el servidor: no puede eludir el tope del lote.
+        config = SimulationManager().get_simulation_config(simulation_id)
+        if not config:
+            return jsonify({"success": False, "error": t('api.configNotFound')}), 400
+        agent_configs = config.get("agent_configs", [])
+        if not isinstance(agent_configs, list):
+            return jsonify({"success": False, "error": t('api.configNotFound')}), 400
+        targets = [{"agent_id": agent["agent_id"]} for agent in agent_configs
+                   if isinstance(agent, dict) and agent.get("agent_id") is not None]
+        count = interview_target_count(targets, platform, config)
+        if count > Config.MAX_INTERVIEWS_PER_REQUEST:
+            return jsonify({
+                "success": False,
+                "error": t('api.tooManyInterviews', max=Config.MAX_INTERVIEWS_PER_REQUEST)
             }), 400
 
         # 检查环境状态
