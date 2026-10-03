@@ -1210,6 +1210,7 @@
     "briefDraftFailed": "No se pudo preparar el documento. Inténtalo de nuevo.",
     "tooManyInterviews": "Se pueden hacer como máximo {max} entrevistas por petición",
     "interviewPromptTooLong": "Cada pregunta puede tener como máximo {max} caracteres",
+    "queryTooLong": "La consulta puede tener como máximo {max} caracteres",
     "simConfigMissing": "No se encontró la configuración de simulación. Llama primero al endpoint /prepare.",
     "simNotFound": "La simulación no existe: {simulationId}",
     "simNotRunning": "La simulación no está en ejecución: {simulationId} (estado={status})",

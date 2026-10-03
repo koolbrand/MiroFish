@@ -275,6 +275,7 @@ class Config:
     MAX_ACTIVE_PIPELINES = env_int('MAX_ACTIVE_PIPELINES', 3, minimum=1)
     MAX_ACTIVE_PIPELINES_PER_USER = env_int('MAX_ACTIVE_PIPELINES_PER_USER', 2, minimum=1)
     MAX_INTERVIEW_PROMPT_CHARS = 2000
+    MAX_SEARCH_QUERY_CHARS = 1000        # consulta de búsqueda en el grafo (herramientas del informe)
     MAX_PARALLEL_PROFILES = 8
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
     # Credencial de SOLO LECTURA para `GET /api/backup/export` (copia de seguridad que recoge otra máquina). Vacía o de

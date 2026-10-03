@@ -21,7 +21,7 @@ from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..utils.access import can_see, current_identity, visible_task
 from ..utils.locale import t, get_locale, set_locale
-from ..utils.security import validate_upload_content, sanitize_user_text, is_valid_storage_id
+from ..utils.security import validate_upload_content, sanitize_user_text, is_valid_storage_id, clamp_limit
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
 
@@ -171,7 +171,7 @@ def list_projects():
     """
     列出所有项目
     """
-    limit = request.args.get('limit', 50, type=int)
+    limit = clamp_limit(request.args.get('limit', 50, type=int), default=50, high=200)
     # Aislamiento por usuario: primero se filtra y después se corta (cortar antes dejaría fuera lo propio)
     identity = current_identity()
     projects = [p for p in ProjectManager.list_projects(limit=100000) if can_see(identity, p.owner_id)][:limit]
@@ -207,7 +207,7 @@ def update_project(project_id: str):
         }), 400
 
     # Sanitizar: trim + limitar longitud a 120 chars
-    new_name = str(new_name).strip()
+    new_name = sanitize_user_text(str(new_name)[:200], max_chars=200, field='name').strip()     # sin caracteres de control
     if not new_name:
         return jsonify({
             "success": False,
@@ -858,7 +858,7 @@ def build_graph():
                 project.error = None
 
             # 获取配置
-            graph_name = data.get('graph_name', project.name or 'Simuloo Graph')
+            graph_name = sanitize_user_text(str(data.get('graph_name') or project.name or 'Simuloo Graph')[:200], max_chars=200, field='graph_name')
             chunk_size = requested_size if requested_size is not None else (project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
             chunk_overlap = requested_overlap if requested_overlap is not None else (project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
             if not _chunk_params_ok(chunk_size, chunk_overlap):          # lo guardado en el proyecto también

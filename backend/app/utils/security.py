@@ -235,3 +235,13 @@ def validate_upload_content(file_storage, extension: str) -> None:
 
     if not any(head.startswith(sig) for sig in signatures):
         raise ValueError(f"El contenido del archivo no coincide con la extensión .{extension}")
+
+
+def clamp_limit(value, default: int = 10, high: int = 100, low: int = 1) -> int:
+    """`limit` de una consulta que manda el cliente: sin tope, un número enorme carga de golpe todo lo que haya.
+    Un valor que no es un entero (o que falta) vuelve al por defecto."""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(n, high))
