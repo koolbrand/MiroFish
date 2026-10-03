@@ -473,7 +473,13 @@ def test_preguntas_relevantes_con_jev_ordena_por_probabilidad_y_pide_al_menos_ci
     assert len(cat) == 3
     visto = {}
     # tres preguntas en el banco sintético: con menos de 5 elegidas Jev no basta y se pasa al modelo grande
-    con_jev.setattr(J, "preguntar", lambda s, q: visto.setdefault("q", q) and {k: {"noul": 0.9} for k in q})
+    # la pregunta «¿el tema es político?» también pasa por Jev: aquí, que no (es un café); y el resto, todo «sí»
+    def jev(state, q):
+        if "q0" in q:
+            visto.setdefault("q", q)
+        return {k: {"noul": 0.05 if k == "politico" else 0.9} for k in q}
+
+    con_jev.setattr(J, "preguntar", jev)
     llm = lambda p: '{"indices": [2]}'                                               # noqa: E731
     assert poblacion.preguntas_relevantes(banco, "Subir el café", llm) == [cat[2]]
     assert all(f"«{q}»" in visto["q"][f"q{i}"]["instructions"] for i, q in enumerate(cat))   # la pregunta de la encuesta va en la pregunta a Jev
@@ -652,3 +658,17 @@ def test_jev_no_reintenta_un_4xx_y_tras_un_fallo_del_servicio_no_vuelve_a_espera
     assert not J.disponible()                                                              # las decisiones siguientes van directas al modelo grande
     monkeypatch.setattr(J, "_caido_hasta", 0.0)
     assert J.disponible()
+
+
+def test_con_pocas_personas_las_primeras_culturas_ya_incluyen_oriente_y_occidente():
+    """Con 3 personas solo se usan las 3 primeras culturas: antes eran Europa, Norteamérica y Latinoamérica (todo occidental)."""
+    assert len(set(A.CULTURAS)) == len(A.CULTURAS) == 10
+    assert A.CULTURAS[:3] == ("Europa occidental", "Asia oriental", "Latinoamérica")
+    assert any("Asia" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(3))
+    assert any("Asia oriental" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(2))
+
+
+def test_api_prepare_acepta_audience_size_acotado():
+    """`audience_size` llega al gestor solo si es un entero de 5 a 150; cualquier otra cosa se ignora."""
+    from app.api.simulation import _normalizar_audience_size as norm
+    assert [norm(x) for x in (70, 5, 150, 4, 151, True, "70", 70.0, None, -3)] == [70, 5, 150, None, None, None, None, None, None, None]

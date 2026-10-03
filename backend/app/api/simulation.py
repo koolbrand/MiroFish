@@ -392,6 +392,13 @@ def _active_prepare_response(simulation_id: str, task: dict, state):
     })
 
 
+def _normalizar_audience_size(valor):
+    """`audience_size` de /prepare: un entero de 5 a 150 (tope por coste: cada persona es una llamada al modelo); otra cosa, se ignora."""
+    if isinstance(valor, int) and not isinstance(valor, bool) and 5 <= valor <= 150:
+        return valor
+    return None
+
+
 @simulation_bp.route('/prepare', methods=['POST'])
 def prepare_simulation():
     """
@@ -520,6 +527,8 @@ def prepare_simulation():
         alcance = data.get('alcance')
         alcance = alcance.strip().lower() if isinstance(alcance, str) and alcance.strip().lower() in (
             'auto',) + tuple(poblacion_alcance.NIVELES) else None
+        # Tamaño del público de ESTA simulación (p. ej. una muestra representativa de un electorado)
+        audience_size = _normalizar_audience_size(data.get('audience_size'))
         try:
             parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
         except (TypeError, ValueError):
@@ -674,7 +683,8 @@ def prepare_simulation():
                     parallel_profile_count=parallel_profile_count,
                     poblacion_datos=poblacion_datos,
                     poblacion_pais=poblacion_pais,
-                    alcance=alcance
+                    alcance=alcance,
+                    audience_size=audience_size
                 )
                 
                 # 任务完成
