@@ -202,7 +202,7 @@ http://localhost:8000
 2. **Describe** qué quieres predecir en lenguaje natural
 3. **Revisa** la ontología de entidades generada automáticamente
 4. **Construye** el grafo de conocimiento (Graphiti + Neo4j)
-5. **Ejecuta** la simulación multi-agente y lee el informe de predicción
+5. **Ejecuta** la simulación multi-agente y lee el informe de simulación
 6. **Interactúa** con cualquier agente del mundo virtual en el Step 5
 
 ---

@@ -191,7 +191,7 @@
     "howTitleHl": "multitud",
     "resultsKicker": "Qué obtienes",
     "resultsTitle": "Argumentos para decidir, no solo intuición.",
-    "deliverable1Title": "Un informe de predicción",
+    "deliverable1Title": "Un informe de simulación",
     "deliverable1Desc": "Una analista revisa todo lo que pasó y redacta conclusiones con citas de lo que dijeron las personas simuladas.",
     "deliverable2Title": "Qué argumentos ganan",
     "deliverable2Desc": "Qué convence, qué frena y quién cambia de idea, contado con lo que pasó en cada ronda.",
@@ -248,7 +248,7 @@
     "figureUnitPeople": "personas simuladas",
     "figureUnitNetworks": "redes sociales",
     "figureUnitSteps": "pasos",
-    "reportKicker": "Informe de predicción",
+    "reportKicker": "Informe de simulación",
     "reportExampleTag": "Ejemplo",
     "reportVerdictLabel": "Veredicto",
     "reportGroupsLabel": "Reacciones por grupo (a favor)",
@@ -1484,11 +1484,11 @@
     "redirectToQuickSearch": "search_graph redirigido a quick_search",
     "redirectToInsightForge": "get_simulation_context redirigido a insight_forge",
     "defaultReportTitle": "Informe de Análisis de Simulación",
-    "fallbackOutlineTitle": "Informe de Predicción Futura",
-    "fallbackOutlineSummary": "Análisis de tendencias futuras y riesgos basado en la simulación predictiva",
-    "fallbackSection1": "Escenarios de Predicción y Hallazgos Clave",
-    "fallbackSection2": "Análisis del Comportamiento Predicho de la Población",
-    "fallbackSection3": "Perspectivas de Tendencias y Avisos de Riesgo"
+    "fallbackOutlineTitle": "Informe de Simulación",
+    "fallbackOutlineSummary": "Análisis de tendencias y riesgos basado en la simulación",
+    "fallbackSection1": "Escenarios Simulados y Hallazgos Clave",
+    "fallbackSection2": "Análisis del Comportamiento Simulado de la Población",
+    "fallbackSection3": "Tendencias Observadas y Avisos de Riesgo"
   },
   "console": {
     "zepToolsInitialized": "ZepToolsService inicializado",
@@ -1668,7 +1668,7 @@
     "retry": "Reintentar"
   },
   "ui": {
-    "predictionReport": "Informe de predicción",
+    "predictionReport": "Informe de simulación",
     "sections": "Secciones",
     "elapsed": "Tiempo",
     "tools": "Herramientas",

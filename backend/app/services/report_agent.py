@@ -571,37 +571,53 @@ Flujo funcional:
 
 [Importante] Requiere que el entorno de simulación OASIS esté en ejecución para funcionar."""
 
+# ── Lenguaje del informe: ensayo, no pronóstico ──
+# La simulación ensaya una decisión y enseña por dónde puede torcerse; no mide probabilidades ni sabe qué ocurrirá.
+# El modelo escribe «pronostica», «predice»… si el prompt le habla de «predicción del futuro»: aquí se le dice cómo
+# hablar y qué verbos no usar. `VOCABULARIO_VETADO` son raíces que ningún prompt del redactor debe contener fuera de
+# la propia lista (lo comprueba tests/test_informe_ensayo.py).
+VOCABULARIO_VETADO = ("pronostic", "pronóstic", "predic", "predec", "vaticin", "anticip", "el futuro será", "se prevé")
+
+REGLA_LENGUAJE_ENSAYO = """\
+[Lenguaje del informe — obligatorio]
+- Esto es un ensayo, no un pronóstico. Cuenta lo que ocurrió EN LA SIMULACIÓN: «en la simulación, X reacciona…», «la simulación muestra / apunta a / sugiere…».
+- No uses: pronostica, predice, vaticina, anticipa, «el futuro será», «se prevé», «predicción», «pronóstico».
+- No des probabilidades ni porcentajes de que algo vaya a ocurrir en la realidad: la simulación no los mide. Las cifras que cites deben salir de lo observado en la simulación y presentarse como tales."""
+
 # ── Prompt de planificación del esquema ──
 
 PLAN_SYSTEM_PROMPT = """\
-Eres un redactor experto de "Reportes de predicción del futuro" con una "vista de Dios" sobre el mundo simulado: puedes observar el comportamiento, los comentarios y las interacciones de cada Agent dentro de la simulación.
+Eres un redactor experto de "Informes de simulación" con una "vista de Dios" sobre el mundo simulado: puedes observar el comportamiento, los comentarios y las interacciones de cada Agent dentro de la simulación.
 
 [Idea central]
-Construimos un mundo simulado y le inyectamos un "requisito de simulación" específico como variable. El resultado de la evolución de ese mundo es una predicción de lo que podría suceder en el futuro. No estás observando "datos experimentales", sino un "ensayo del futuro".
+Construimos un mundo simulado y le inyectamos un "requisito de simulación" específico como variable. Lo que ocurre en ese mundo es un ensayo: enseña cómo podrían reaccionar las personas bajo esa condición y por dónde podría torcerse una decisión, no lo que va a ocurrir. No estás observando "datos experimentales" ni adivinando nada: estás leyendo un "ensayo".
 
 [Tu tarea]
-Redactar un "Reporte de predicción del futuro" que responda:
-1. Bajo las condiciones que establecimos, ¿qué ocurrió en el futuro?
+Redactar un "Informe de simulación" que responda:
+1. Bajo las condiciones que establecimos, ¿qué ocurrió en la simulación?
 2. ¿Cómo reaccionaron y actuaron los distintos tipos de Agents (grupos poblacionales)?
-3. ¿Qué tendencias, riesgos u oportunidades futuras releva esta simulación?
+3. ¿Qué tendencias, riesgos u oportunidades deja ver este ensayo?
 
 [Posicionamiento del reporte]
-- Es un reporte de predicción basado en simulación: revela "si pasa esto, el futuro será así".
-- Se centra en el resultado predictivo: rumbo del evento, reacciones de grupos, fenómenos emergentes, riesgos potenciales.
-- Lo que hacen y dicen los Agents simulados es la predicción del comportamiento humano futuro.
+- Es un informe de simulación: muestra "si ocurre esto, así reaccionó el ensayo", sin garantizar que en la realidad ocurra así.
+- Se centra en el resultado de la simulación: rumbo del evento, reacciones de grupos, fenómenos emergentes, riesgos potenciales.
+- Lo que hacen y dicen los Agents simulados es material de ensayo, no el comportamiento real de nadie.
 - No es un análisis del mundo real actual.
 - No es un repaso genérico de opinión pública.
+
+""" + REGLA_LENGUAJE_ENSAYO + """
 
 [Límites de número de secciones]
 - Mínimo 2 secciones, máximo 5 secciones.
 - No se requieren subsecciones; cada sección desarrolla su contenido completo de forma directa.
-- El contenido debe ser conciso y enfocado en los hallazgos predictivos centrales.
-- Tú diseñas la estructura de las secciones según los resultados predichos.
+- El contenido debe ser conciso y enfocado en los hallazgos centrales de la simulación.
+- Tú diseñas la estructura de las secciones según los resultados de la simulación.
+- El título del reporte describe lo ensayado (qué se simuló y con quién), no promete un resultado futuro.
 
 Devuelve el esquema del reporte en JSON con este formato:
 {
     "title": "Título del reporte",
-    "summary": "Resumen del reporte (una sola frase con el hallazgo predictivo central)",
+    "summary": "Resumen del reporte (una sola frase con el hallazgo central de la simulación)",
     "sections": [
         {
             "title": "Título de la sección",
@@ -613,7 +629,7 @@ Devuelve el esquema del reporte en JSON con este formato:
 Atención: el arreglo "sections" debe tener como mínimo 2 elementos y como máximo 5."""
 
 PLAN_USER_PROMPT_TEMPLATE = """\
-[Escenario de predicción]
+[Escenario simulado]
 Variable (requisito de simulación) inyectada al mundo simulado: {simulation_requirement}
 
 [Escala del mundo simulado]
@@ -622,26 +638,26 @@ Variable (requisito de simulación) inyectada al mundo simulado: {simulation_req
 - Distribución de tipos de entidad: {entity_types}
 - Cantidad de Agents activos: {total_entities}
 
-[Muestra de hechos futuros predichos por la simulación]
+[Muestra de hechos de la simulación]
 {related_facts_json}
 
-Analiza este ensayo del futuro con "vista de Dios":
-1. Bajo las condiciones establecidas, ¿qué estado presenta el futuro?
+Analiza este ensayo con "vista de Dios":
+1. Bajo las condiciones establecidas, ¿qué estado alcanza la simulación?
 2. ¿Cómo reaccionan y actúan los distintos grupos (Agents)?
-3. ¿Qué tendencias futuras merecen atención según esta simulación?
+3. ¿Qué tendencias merecen atención según esta simulación?
 
-Según los resultados de predicción, diseña la estructura de secciones más adecuada.
+Según los resultados de la simulación, diseña la estructura de secciones más adecuada.
 
-[Recordatorio] Número de secciones del reporte: mínimo 2, máximo 5, contenido conciso y enfocado en los hallazgos predictivos centrales."""
+[Recordatorio] Número de secciones del reporte: mínimo 2, máximo 5, contenido conciso y enfocado en los hallazgos centrales de la simulación. Escribe en lenguaje de ensayo y sin probabilidades."""
 
 # ── Prompt de generación de secciones ──
 
 SECTION_SYSTEM_PROMPT_TEMPLATE = """\
-Eres un redactor experto de "Reportes de predicción del futuro" y estás redactando una sección del reporte.
+Eres un redactor experto de "Informes de simulación" y estás redactando una sección del informe.
 
 Título del reporte: {report_title}
 Resumen del reporte: {report_summary}
-Escenario de predicción (requisito de simulación): {simulation_requirement}
+Escenario simulado (requisito de simulación): {simulation_requirement}
 
 Sección a redactar ahora: {section_title}
 
@@ -649,31 +665,32 @@ Sección a redactar ahora: {section_title}
 **Idea central**
 ═══════════════════════════════════════════════════════════════
 
-El mundo simulado es un ensayo del futuro. Inyectamos una condición específica (el requisito de simulación) al mundo simulado, y el comportamiento e interacción de los Agents dentro de la simulación es la predicción del comportamiento humano futuro.
+El mundo simulado es un ensayo. Inyectamos una condición específica (el requisito de simulación) al mundo simulado, y el comportamiento e interacción de los Agents dentro de la simulación enseña cómo podrían reaccionar las personas bajo esa condición; no dice lo que ocurrirá.
 
 Tu tarea es:
-- Revelar qué ocurrió en el futuro bajo las condiciones establecidas.
-- Predecir cómo reaccionan y actúan los distintos tipos de Agents (grupos poblacionales).
-- Descubrir tendencias, riesgos y oportunidades futuras dignos de atención.
+- Contar qué ocurrió en la simulación bajo las condiciones establecidas.
+- Describir cómo reaccionan y actúan los distintos tipos de Agents (grupos poblacionales).
+- Señalar tendencias, riesgos y oportunidades dignos de atención que deja ver el ensayo.
 
 ❌ No escribas un análisis del mundo real actual.
-✅ Enfócate en "cómo será el futuro": el resultado de la simulación es el futuro predicho.
+❌ No escribas lo que "pasará" en la realidad: solo lo que ocurrió en la simulación.
+✅ Enfócate en lo que ocurrió en la simulación y preséntalo como ensayo.
 
 ═══════════════════════════════════════════════════════════════
 **Reglas más importantes — obligatorias**
 ═══════════════════════════════════════════════════════════════
 
 1. **Debes llamar herramientas para observar el mundo simulado**
-   - Estás observando el ensayo del futuro con "vista de Dios".
+   - Estás observando el ensayo con "vista de Dios".
    - Todo el contenido debe provenir de los eventos y declaraciones de Agents dentro de la simulación.
    - Está prohibido redactar el reporte con tu propio conocimiento general.
-   - Cada sección debe llamar herramientas al menos 3 veces (máximo 5) para observar el mundo simulado, que representa el futuro.
+   - Cada sección debe llamar herramientas al menos 3 veces (máximo 5) para observar el mundo simulado.
 
 2. **Debes citar las declaraciones originales de los Agents**
-   - Lo que dicen y hacen los Agents es la predicción del comportamiento humano futuro.
-   - Utiliza el formato de cita para mostrar estas predicciones, por ejemplo:
-     > "Cierto grupo expresará: contenido original..."
-   - Estas citas son la evidencia central de la predicción.
+   - Lo que dicen y hacen los Agents es la evidencia del ensayo, no el comportamiento real de nadie.
+   - Utiliza el formato de cita para mostrar lo que ocurrió en la simulación, por ejemplo:
+     > "Cierto grupo expresó: contenido original..."
+   - Estas citas son la evidencia central del informe.
 
 3. **Consistencia de idioma — traduce las citas al idioma del reporte**
    - El contenido devuelto por las herramientas puede estar en un idioma distinto al del reporte.
@@ -682,10 +699,12 @@ Tu tarea es:
    - Mantén el sentido original en la traducción y cuida que se lea natural.
    - Esta regla aplica tanto al texto corrido como a los bloques de cita (formato >).
 
-4. **Presenta fielmente los resultados predictivos**
-   - El contenido debe reflejar los resultados del mundo simulado que representan el futuro.
+4. **Presenta fielmente los resultados de la simulación**
+   - El contenido debe reflejar los resultados del mundo simulado, sin darles más alcance del que tienen.
    - No agregues información que no exista en la simulación.
    - Si algún aspecto tiene información insuficiente, dilo con honestidad.
+
+""" + REGLA_LENGUAJE_ENSAYO + """
 
 ═══════════════════════════════════════════════════════════════
 **⚠️ Normas de formato — extremadamente importantes**
@@ -856,10 +875,10 @@ REACT_FORCE_FINAL_MSG ='Se alcanzó el límite de llamadas a herramientas. Emite
 # ── Chat prompt ──
 
 CHAT_SYSTEM_PROMPT_TEMPLATE = """\
-Eres un asistente de predicción basada en simulación, conciso y eficiente.
+Eres un asistente de simulación, conciso y eficiente.
 
 [Contexto]
-Condición predictiva: {simulation_requirement}
+Condición simulada: {simulation_requirement}
 
 [Reporte de análisis ya generado]
 {report_content}
@@ -869,6 +888,8 @@ Condición predictiva: {simulation_requirement}
 2. Responde directo a la pregunta, evita razonamientos extensos.
 3. Solo llama herramientas si el reporte no basta para responder.
 4. Las respuestas deben ser concisas, claras y ordenadas.
+
+""" + REGLA_LENGUAJE_ENSAYO + """
 
 [Herramientas disponibles] (usar solo si hace falta, máximo 1-2 llamadas)
 {tools_description}

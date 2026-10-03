@@ -38,7 +38,7 @@ _SLOTS = threading.BoundedSemaphore(2)
 
 TEXTS = {
     "es": {
-        "kind": "Informe de predicción", "brief_kind": "Brief inicial", "question": "Pregunta", "summary": "En pocas palabras",
+        "kind": "Informe de simulación", "brief_kind": "Brief inicial", "question": "Pregunta", "summary": "En pocas palabras",
         "people": "Personas simuladas", "rounds": "Rondas", "actions": "Acciones",
         "generated": "Generado el {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("Página ", " de ", ""),
@@ -50,7 +50,7 @@ TEXTS = {
         "date": "{d} de {month} de {y}",
     },
     "en": {
-        "kind": "Prediction report", "brief_kind": "Initial brief", "question": "Question", "summary": "In a nutshell",
+        "kind": "Simulation report", "brief_kind": "Initial brief", "question": "Question", "summary": "In a nutshell",
         "people": "Simulated people", "rounds": "Rounds", "actions": "Actions",
         "generated": "Generated on {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("Page ", " of ", ""),
@@ -62,7 +62,7 @@ TEXTS = {
         "date": "{month} {d}, {y}",
     },
     "zh": {
-        "kind": "预测报告", "brief_kind": "初始简报", "question": "问题", "summary": "一句话概括",
+        "kind": "模拟报告", "brief_kind": "初始简报", "question": "问题", "summary": "一句话概括",
         "people": "模拟人物", "rounds": "轮数", "actions": "行动",
         "generated": "生成于 {date}", "footer": "Simuloo · by Koolbrand",
         "page": ("第 ", " 页 / 共 ", " 页"),
