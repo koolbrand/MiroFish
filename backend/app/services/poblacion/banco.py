@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS estudios (id TEXT PRIMARY KEY, titulo TEXT, fecha TEXT);
 CREATE TABLE IF NOT EXISTS encuestados (
   id INTEGER PRIMARY KEY, estudio TEXT NOT NULL, sexo TEXT, edad INTEGER, tramo TEXT, region TEXT, subregion TEXT,
-  tamuni TEXT, estudios TEXT, sitlab TEXT, estcivil TEXT, peso REAL NOT NULL DEFAULT 1.0
+  tamuni TEXT, estudios TEXT, sitlab TEXT, estcivil TEXT, peso REAL NOT NULL DEFAULT 1.0, peso_ccaa REAL
 );
 CREATE TABLE IF NOT EXISTS respuestas (
   enc_id INTEGER NOT NULL, pregunta TEXT NOT NULL, respuesta TEXT NOT NULL, politica INTEGER NOT NULL DEFAULT 0
@@ -54,6 +54,7 @@ class Encuestado:
     sitlab: Optional[str]
     estcivil: Optional[str]
     peso: float
+    peso_ccaa: Optional[float] = None
     respuestas: List[Dict] = field(default_factory=list)   # [{pregunta, respuesta, politica}]
 
 
@@ -137,11 +138,17 @@ class Banco:
             par.extend(estudios)
         return " AND ".join(cond), par
 
-    def _normalizados(self, filtros: Dict, estudios: Optional[Sequence[str]]):
-        """Ids y pesos del segmento. Cada estudio pesa lo mismo: el peso se normaliza dentro de cada uno."""
+    def _tiene_peso_ccaa(self) -> bool:
+        return any(c["name"] == "peso_ccaa" for c in self.conn.execute("PRAGMA table_info(encuestados)"))
+
+    def _normalizados(self, filtros: Dict, estudios: Optional[Sequence[str]], pesos_ccaa: bool = False):
+        """Ids y pesos del segmento. Cada estudio pesa lo mismo: el peso se normaliza dentro de cada uno.
+        `pesos_ccaa`: usa la ponderación autonómica del CIS (PESOCCAA), la que el propio CIS manda usar para estimar por
+        comunidad; si el banco no la trae o a alguien le falta, cae al peso general."""
         where, par = self._where(filtros, estudios)
+        col = "COALESCE(peso_ccaa, peso)" if pesos_ccaa and self._tiene_peso_ccaa() else "peso"
         rows = self.conn.execute(
-            f"SELECT id, estudio, peso FROM encuestados WHERE {where} AND edad >= 18", par
+            f"SELECT id, estudio, {col} AS peso FROM encuestados WHERE {where} AND edad >= 18", par
         ).fetchall()
         total = {}
         for r in rows:
@@ -157,7 +164,7 @@ class Banco:
 
     def segmento(self, filtros: Optional[Dict] = None, minimo: int = MIN_CASOS,
                  estudios: Optional[Sequence[str]] = None, proteger: Sequence[str] = LUGAR,
-                 minimo_lugar: int = MIN_CASOS_LUGAR) -> Segmento:
+                 minimo_lugar: int = MIN_CASOS_LUGAR, pesos_ccaa: bool = False) -> Segmento:
         """
         Casos que cumplen los filtros; si son pocos, relaja uno a uno (ORDEN_RELAJAR) y lo dice. Los campos de `proteger` (el
         lugar) se sueltan los últimos y, mientras se conserven, basta con `minimo_lugar` casos.
@@ -165,7 +172,7 @@ class Banco:
         pedidos = {k: v for k, v in (filtros or {}).items() if v not in (None, [], "")}
         aplicados = dict(pedidos)
         avisos: List[str] = []
-        ids, pesos = self._normalizados(aplicados, estudios)
+        ids, pesos = self._normalizados(aplicados, estudios, pesos_ccaa)
 
         def objetivo() -> int:
             return min(minimo, minimo_lugar) if any(c in aplicados for c in proteger) else minimo
@@ -174,7 +181,7 @@ class Banco:
             nonlocal ids, pesos
             avisos.append(f"Segmento corto ({len(ids)} casos): se quita el filtro «{campo}».")
             aplicados.pop(campo)
-            ids, pesos = self._normalizados(aplicados, estudios)
+            ids, pesos = self._normalizados(aplicados, estudios, pesos_ccaa)
 
         for campo in ORDEN_RELAJAR:
             if len(ids) >= objetivo():

@@ -42,7 +42,8 @@ CANDIDATAS = {
     "sexo": ["SEXO"], "edad": ["EDAD"], "region": ["CCAA"], "subregion": ["PROV", "PROVINCIA"],
     "tamuni": ["TAMUNI", "TAMUNI2"], "estudios": ["ESTUDIOS", "ESTUDIOS_REC", "NIVELESTUDIOS"],
     "sitlab": ["SITLAB", "SITLAB_REC", "RELLAB"], "estcivil": ["ECIVIL", "ESTCIVIL", "ESTADOCIVIL"],
-    "peso": ["PESO", "PESOCCAA", "PESOSEXO", "PONDERA", "PESOFINAL"],
+    "peso": ["PESO", "PESOSEXO", "PONDERA", "PESOFINAL"],
+    "peso_ccaa": ["PESOCCAA"],      # el CIS manda usarla (y no PESO) para estimar por comunidad autónoma
 }
 MAPEOS_ESTUDIO: Dict[str, Dict[str, str]] = {}
 
@@ -193,6 +194,19 @@ def _buscar(cols_por_plano: Dict[str, str], campo: str, estudio: str) -> Optiona
     return None
 
 
+def _leer_peso(valor, estudio: str, nombre: str) -> float:
+    """Peso de una persona. pyreadstat lo entrega como número en unos estudios y como TEXTO con coma decimal en otros
+    («0,39533», «,39533», «2,87887»). Si la variable existe y un valor no se puede leer, el estudio no se construye: un
+    1.0 silencioso dejó sin ponderar el 40 % del banco (3535 y 3577)."""
+    try:
+        w = float(str(valor).strip().replace(",", ".")) if isinstance(valor, str) else float(valor)
+    except (TypeError, ValueError):
+        raise SystemExit(f"Estudio {estudio}: no se puede leer {nombre} = {valor!r} (¿formato nuevo?). Corrige _leer_peso.")
+    if not w == w or w <= 0:
+        raise SystemExit(f"Estudio {estudio}: {nombre} = {valor!r} no es un peso válido (nulo o ≤ 0).")
+    return w
+
+
 def cargar_zip(zip_path: str, estudio: str, conn, verbose: bool = True) -> Dict:
     import pyreadstat  # solo en el constructor (uv run --with pyreadstat): no es dependencia del runtime
     with tempfile.TemporaryDirectory() as tmp:
@@ -237,23 +251,17 @@ def cargar_zip(zip_path: str, estudio: str, conn, verbose: bool = True) -> Dict:
             continue
         if edad < 18 or edad > 110:
             continue
-        peso = 1.0
-        if var["peso"]:
-            try:
-                peso = float(row[var["peso"]])
-            except (TypeError, ValueError):
-                peso = 1.0
-            if not peso == peso or peso <= 0:
-                peso = 1.0
+        peso = _leer_peso(row[var["peso"]], estudio, "peso") if var["peso"] else 1.0
+        peso_ccaa = _leer_peso(row[var["peso_ccaa"]], estudio, "peso_ccaa") if var["peso_ccaa"] else None
         g = lambda campo, f: f(row[var[campo]]) if var[campo] else None  # noqa: E731
         prov = row[var["subregion"]] if var["subregion"] else None
         cur = conn.execute(
-            "INSERT INTO encuestados (estudio,sexo,edad,tramo,region,subregion,tamuni,estudios,sitlab,estcivil,peso) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO encuestados (estudio,sexo,edad,tramo,region,subregion,tamuni,estudios,sitlab,estcivil,peso,peso_ccaa) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (estudio, g("sexo", norm_sexo), edad, tramo_de_edad(edad), g("region", norm_ccaa),
              (str(prov) if prov not in (None, "") and str(prov) != "nan" else None),
              g("tamuni", norm_tamuni), g("estudios", norm_estudios), g("sitlab", norm_sitlab),
-             g("estcivil", norm_estcivil), peso),
+             g("estcivil", norm_estcivil), peso, peso_ccaa),
         )
         eid = cur.lastrowid
         for c in candidatas:

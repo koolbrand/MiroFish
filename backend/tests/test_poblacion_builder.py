@@ -98,8 +98,45 @@ def test_ida_y_vuelta_con_sav_sintetico(tmp_path):
     assert B.Banco.disponible(str(salida))
     assert banco.estudios()[0]["n"] == 3                      # el de 17 años no entra
     e = banco.encuestado(1)
-    assert (e.sexo, e.edad, e.ccaa, e.tramo) == ("Hombre", 30, "Galicia", "25-34")
+    assert (e.sexo, e.edad, e.region, e.tramo) == ("Hombre", 30, "Galicia", "25-34")
     assert any(r["pregunta"] == "Confianza en vecinos" and r["respuesta"] == "Mucha" for r in e.respuestas)
     assert any(r["politica"] == 1 for r in e.respuestas)
     sin_nc = banco.encuestado(2)                              # su P1 era N.S.: no se guarda
     assert not any(r["pregunta"] == "Confianza en vecinos" for r in sin_nc.respuestas)
+
+
+def test_peso_acepta_coma_decimal_y_no_se_traga_el_error():
+    # Los .sav del CIS 3535 y 3577 entregan PESO como TEXTO con coma («2,87887», «,39533»): antes caía a 1.0 en silencio
+    assert bc._leer_peso("0,39533", "3535", "peso") == pytest.approx(0.39533)
+    assert bc._leer_peso(",39533", "3535", "peso") == pytest.approx(0.39533)
+    assert bc._leer_peso("2,87887", "3577", "peso") == pytest.approx(2.87887)
+    assert bc._leer_peso("0.5", "3530", "peso") == 0.5 and bc._leer_peso(1.25, "3571", "peso") == 1.25
+    for malo in ("abc", "", None, float("nan"), 0, -1, "0,0"):
+        with pytest.raises(SystemExit, match="3535"):
+            bc._leer_peso(malo, "3535", "peso")
+
+
+def test_pesos_como_texto_con_coma_llegan_al_banco_y_ccaa_se_usa_en_el_segmento(tmp_path):
+    pd = pytest.importorskip("pandas")
+    pyreadstat = pytest.importorskip("pyreadstat")
+    df = pd.DataFrame({
+        "SEXO": [1, 2, 2, 1], "EDAD": [30, 45, 70, 50], "CCAA": [12, 12, 12, 12],
+        "PESO": ["0,5", ",25", "2,0", "1,0"], "PESOCCAA": ["1,0", "1,0", "3,0", "1,0"], "P1": [1, 1, 1, 1],
+    })
+    sav = tmp_path / "x.sav"
+    pyreadstat.write_sav(df, str(sav), column_labels=["Sexo", "Edad", "CCAA", "Peso", "Peso autonómico", "P1. Confianza en vecinos"],
+                         variable_value_labels={"SEXO": {1: "Hombre", 2: "Mujer"}, "CCAA": {12: "Galicia"}, "P1": {1: "Mucha"}})
+    zp = tmp_path / "MD9998.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        z.write(sav, "MD9998.sav")
+    from app.services.poblacion import banco as B
+    salida = tmp_path / "b.sqlite"
+    bc.main([str(zp), "--salida", str(salida)])
+    banco = B.Banco(str(salida))
+    filas = banco.conn.execute("SELECT peso, peso_ccaa FROM encuestados ORDER BY id").fetchall()
+    assert [r["peso"] for r in filas] == [0.5, 0.25, 2.0, 1.0] and [r["peso_ccaa"] for r in filas] == [1.0, 1.0, 3.0, 1.0]
+    general = banco.segmento({}, minimo=0)
+    ccaa = banco.segmento({}, minimo=0, pesos_ccaa=True)
+    assert general.pesos == pytest.approx([0.5 / 3.75, 0.25 / 3.75, 2.0 / 3.75, 1.0 / 3.75])
+    assert ccaa.pesos == pytest.approx([1 / 6, 1 / 6, 3 / 6, 1 / 6])
+    assert "peso" not in {r["pregunta"] for e in [banco.encuestado(1)] for r in e.respuestas}   # PESO* no es una pregunta
