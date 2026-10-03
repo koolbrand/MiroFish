@@ -407,3 +407,21 @@ setsid nohup sh /app/backend/scripts/poblacion/instalar_banco_cis.sh >/app/backe
 ```
 
 Si el CIS publica una versión nueva de un fichero, la huella no coincide y el script se para: hay que actualizar la URL y la huella en el script. El interruptor de la interfaz sigue apagado por defecto (`POBLACION_DATOS_REALES` sin definir).
+
+## 🔒 Entradas de usuario: qué está acotado y dónde (3-oct-2026)
+
+Todo texto libre que llega al modelo o al disco pasa por un tope y, si es un fichero, por una comprobación de contenido. Las utilidades están en `backend/app/utils/security.py` (`sanitize_user_text`, `validate_upload_content`, `clamp_limit`); los topes, en `Config`. Cualquier endpoint nuevo que acepte texto libre o ficheros **tiene que usarlas** (hay un test por endpoint en `tests/test_entradas_acotadas.py` y `tests/test_cost_limits.py`).
+
+| Entrada | Dónde | Tope / comprobación |
+|---|---|---|
+| Brief inicial: `simulation_requirement`, `project_name`, `additional_context` | `graph.py` (subida de ontología) | `sanitize_user_text` (10.000, sin caracteres de control) |
+| Ficheros subidos (PDF, Word, md/txt, imágenes) | `graph.py` y `brief.py` (`/api/brief/check`) | `validate_upload_content`: firma real (`%PDF-`, `PK\x03\x04`, PNG/JPG/GIF/WebP) y sin bytes nulos en texto, no solo la extensión |
+| Nombre de proyecto / de grafo | `graph.py` | 120 / 200 caracteres y sin caracteres de control |
+| Mensaje y historial del chat del informe | `report.py` | `MAX_CHAT_MESSAGE_CHARS` (4.000) y `sanitize_chat_history` |
+| `prompt` de entrevista (individual, **a todos**, lote) | `simulation.py` | `MAX_INTERVIEW_PROMPT_CHARS` (2.000); el de «a todos» se repite por cada agente |
+| Consulta de búsqueda del informe | `report.py` (`/tools/search`) | `MAX_SEARCH_QUERY_CHARS` (1.000) y `limit` ≤ 50 |
+| `limit` de los listados | `graph.py`, `report.py` | `clamp_limit` (≤ 200) |
+| Tamaño del público | `/prepare` | `audience_size` 5–150 |
+
+La rama `security/hardening-batch` (mayo de 2026) ya no se puede fusionar: su contenido está en `main` por otra vía.
+

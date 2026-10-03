@@ -13,7 +13,7 @@ from ..utils.docx_io import build_docx
 from ..utils.file_parser import FileParser
 from ..utils.locale import get_locale, t
 from ..utils.logger import get_logger
-from ..utils.security import error_response
+from ..utils.security import error_response, validate_upload_content
 
 logger = get_logger('mirofish.api.brief')
 
@@ -29,6 +29,12 @@ def _text_from_uploads() -> str:
         suffix = os.path.splitext(upload.filename or '')[1].lower()
         if suffix not in TEXT_EXTENSIONS:
             continue
+        # El contenido tiene que ser lo que dice la extensión: un .exe renombrado a .pdf no llega a PyMuPDF ni al lector de Word
+        try:
+            validate_upload_content(upload, suffix.lstrip('.'))
+        except ValueError as exc:
+            logger.warning(f"Subida del brief rechazada: {upload.filename} ({exc})")
+            raise ValueError(t('api.fileContentInvalid', filename=upload.filename))
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
             upload.save(tmp.name)
             try:
@@ -65,6 +71,8 @@ def check():
     try:
         text = _text_from_uploads() if request.files else (request.get_json(silent=True) or {}).get('text', '')
         return jsonify({"success": True, "data": brief_service.check_brief(text)})
+    except ValueError as e:      # un fichero cuyo contenido no es lo que dice su extensión
+        return error_response(str(e), 400)
     except Exception as e:  # noqa: BLE001
         logger.error(f"Fallo al revisar el brief: {e}")
         return error_response("No se pudo revisar el brief", 500)

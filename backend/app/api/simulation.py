@@ -40,6 +40,11 @@ def _clamp_timeout(value, default, low=5.0, high=120.0) -> float:
     except (TypeError, ValueError):
         return float(default)
 
+def _prompt_de_entrevista_invalido(prompt) -> bool:
+    """La pregunta de una entrevista la escribe el cliente y entra tal cual al modelo: texto y con el mismo tope que el lote."""
+    return not isinstance(prompt, str) or len(prompt) > Config.MAX_INTERVIEW_PROMPT_CHARS
+
+
 logger = get_logger('mirofish.api.simulation')
 
 
@@ -2458,6 +2463,11 @@ def interview_agent():
                 "success": False,
                 "error": t('api.requirePrompt')
             }), 400
+        if _prompt_de_entrevista_invalido(prompt):
+            return jsonify({
+                "success": False,
+                "error": t('api.interviewPromptTooLong', max=Config.MAX_INTERVIEW_PROMPT_CHARS)
+            }), 400
         
         # 验证platform参数
         if platform and platform not in ("twitter", "reddit"):
@@ -2893,6 +2903,11 @@ def interview_all_agents():
             return jsonify({
                 "success": False,
                 "error": t('api.requirePrompt')
+            }), 400
+        if _prompt_de_entrevista_invalido(prompt):       # esta pregunta se repite por CADA agente: sin tope, un texto enorme × N agentes
+            return jsonify({
+                "success": False,
+                "error": t('api.interviewPromptTooLong', max=Config.MAX_INTERVIEW_PROMPT_CHARS)
             }), 400
 
         # 验证platform参数

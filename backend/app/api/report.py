@@ -18,6 +18,7 @@ from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 from ..utils.logger import get_logger
 from ..utils.access import visible_simulation_id
+from ..utils.security import clamp_limit
 from ..utils.locale import t, get_locale, set_locale
 
 logger = get_logger('mirofish.api.report')
@@ -563,7 +564,7 @@ def list_reports():
     """
     try:
         simulation_id = request.args.get('simulation_id')
-        limit = request.args.get('limit', 50, type=int)
+        limit = clamp_limit(request.args.get('limit', 50, type=int), default=50, high=200)
         
         # Aislamiento por usuario: primero se filtra y después se corta
         reports = [
@@ -1159,12 +1160,17 @@ def search_graph_tool():
         
         graph_id = data.get('graph_id')
         query = data.get('query')
-        limit = data.get('limit', 10)
+        limit = clamp_limit(data.get('limit', 10), default=10, high=50)
         
-        if not graph_id or not query:
+        if not graph_id or not query or not isinstance(query, str):
             return jsonify({
                 "success": False,
                 "error": t('api.requireGraphIdAndQuery')
+            }), 400
+        if len(query) > Config.MAX_SEARCH_QUERY_CHARS:
+            return jsonify({
+                "success": False,
+                "error": t('api.queryTooLong', max=Config.MAX_SEARCH_QUERY_CHARS)
             }), 400
         
         from ..services.zep_tools import ZepToolsService

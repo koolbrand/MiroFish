@@ -1210,6 +1210,7 @@
     "briefDraftFailed": "The document could not be prepared. Please try again.",
     "tooManyInterviews": "At most {max} interviews per request",
     "interviewPromptTooLong": "Each question can have at most {max} characters",
+    "queryTooLong": "The query can have at most {max} characters",
     "simConfigMissing": "Simulation config not found. Please call /prepare first.",
     "simNotFound": "Simulation does not exist: {simulationId}",
     "simNotRunning": "Simulation is not running: {simulationId} (status={status})",

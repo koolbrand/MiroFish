@@ -1210,6 +1210,7 @@
     "briefDraftFailed": "无法生成文档，请重试。",
     "tooManyInterviews": "每次请求最多 {max} 次访谈",
     "interviewPromptTooLong": "每个问题最多 {max} 个字符",
+    "queryTooLong": "查询最多只能包含 {max} 个字符",
     "simConfigMissing": "模拟配置不存在，请先调用 /prepare 接口。",
     "simNotFound": "模拟不存在: {simulationId}",
     "simNotRunning": "模拟未在运行: {simulationId} (状态={status})",
