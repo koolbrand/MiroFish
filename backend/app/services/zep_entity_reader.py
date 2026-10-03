@@ -211,7 +211,8 @@ class ZepEntityReader:
         self, 
         graph_id: str,
         defined_entity_types: Optional[List[str]] = None,
-        enrich_with_edges: bool = True
+        enrich_with_edges: bool = True,
+        include_untyped: bool = False,
     ) -> FilteredEntities:
         """
         筛选出符合预定义实体类型的节点
@@ -224,6 +225,8 @@ class ZepEntityReader:
             graph_id: 图谱ID
             defined_entity_types: 预定义的实体类型列表（可选，如果提供则只保留这些类型）
             enrich_with_edges: 是否获取每个实体的相关边信息
+            include_untyped: En preparación sin filtro explícito, entregar también
+                nodos genéricos al clasificador de roles. No los declara audiencia.
             
         Returns:
             FilteredEntities: 过滤后的实体集合
@@ -251,13 +254,15 @@ class ZepEntityReader:
             any(l not in ["Entity", "Node"] for l in (n.get("labels") or []))
             for n in all_nodes
         )
-        use_entity_fallback = (not any_custom_label) and (not defined_entity_types)
-        if use_entity_fallback and all_nodes:
+        use_entity_fallback = (include_untyped or not any_custom_label) and (not defined_entity_types)
+        if use_entity_fallback and all_nodes and not any_custom_label:
             logger.warning(
                 f"Todos los nodos del grafo {graph_id} tienen únicamente la etiqueta genérica 'Entity' "
                 f"(el extractor no asignó tipos personalizados). "
                 f"Se usará 'Entity' como tipo de reserva para que la simulación pueda continuar."
             )
+        elif include_untyped and not defined_entity_types:
+            logger.info("Preparación: los nodos genéricos se entregan al filtro de roles junto a los tipados")
 
         # 筛选符合条件的实体
         filtered_entities = []
@@ -271,8 +276,9 @@ class ZepEntityReader:
 
             if not custom_labels:
                 if use_entity_fallback:
-                    # Accept generic Entity nodes as a fallback so we have
-                    # at least *some* agents to simulate.
+                    # A graph can mix typed actors with an untyped audience.
+                    # Keep the latter as a candidate; Jev must still confirm
+                    # a population group before expansion or survey anchoring.
                     entity_type = "Entity"
                     entity_types_found.add(entity_type)
                 else:
@@ -462,5 +468,4 @@ class ZepEntityReader:
             enrich_with_edges=enrich_with_edges
         )
         return result.entities
-
 

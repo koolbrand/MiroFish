@@ -299,7 +299,8 @@ class SimulationManager:
             filtered = reader.filter_defined_entities(
                 graph_id=state.graph_id,
                 defined_entity_types=defined_entity_types,
-                enrich_with_edges=True
+                enrich_with_edges=True,
+                include_untyped=True,
             )
             
             state.entities_count = filtered.filtered_count

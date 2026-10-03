@@ -8,7 +8,8 @@
           <h3 id="brief-title" class="brief-title">{{ $t('step1.briefObjective') }}</h3>
         </header>
         <p v-if="objective" class="brief-objective" data-testid="brief-objective">{{ objective }}</p>
-        <p v-else class="research-note">{{ $t('step1.briefObjectiveEmpty') }}</p>
+        <p v-else-if="briefLoading" class="research-note" role="status">{{ $t('common.loading') }}</p>
+        <p v-else-if="objectiveEmpty" class="research-note">{{ $t('step1.briefObjectiveEmpty') }}</p>
 
         <div class="brief-docs">
           <h4 class="brief-sub">{{ $t('step1.briefDocs') }}</h4>
@@ -258,7 +259,7 @@
 
 <script setup>
 import { useTechDetails } from '../composables/useTechDetails'
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createSimulation, listSimulations } from '../api/simulation'
@@ -290,26 +291,36 @@ const selectedOntologyItem = ref(null)
 const logContent = ref(null)
 const creatingSimulation = ref(false)
 
-// Punto de partida: el objetivo viene con el proyecto; el texto del brief, de su propio endpoint (no viaja con cada proyecto)
-const objective = computed(() => String(props.projectData?.simulation_requirement || '').trim())
+// La respuesta de creación puede omitir el objetivo; /brief conserva el del proyecto.
 const brief = ref(null)
 const briefError = ref('')
+const briefLoading = ref(false)
+const objective = computed(() => String(props.projectData?.simulation_requirement || '').trim() || String(brief.value?.simulation_requirement || '').trim())
+const objectiveEmpty = computed(() => !objective.value && !briefLoading.value && !!brief.value && !briefError.value)
+let briefRequest = 0
+let unmounted = false
+onUnmounted(() => { unmounted = true; briefRequest++ })
 const number = (n) => new Intl.NumberFormat(locale.value).format(n || 0)
 const fileSize = (b) => {
   if (typeof b !== 'number' || !isFinite(b) || b <= 0) return ''
   return b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`
 }
 const loadBrief = async (projectId) => {
+  if (unmounted) return
+  const request = ++briefRequest
+  briefLoading.value = !!projectId
   brief.value = null
   briefError.value = ''
   if (!projectId) return
   try {
     const res = await getProjectBrief(projectId)
-    if (props.projectData?.project_id !== projectId) return       // se cambió de proyecto mientras llegaba
+    if (unmounted || request !== briefRequest || props.projectData?.project_id !== projectId) return
     if (res?.success && res.data) brief.value = res.data
     else briefError.value = t('step1.briefLoadFailed')
   } catch (e) {
-    if (props.projectData?.project_id === projectId) briefError.value = t('step1.briefLoadFailed')
+    if (!unmounted && request === briefRequest && props.projectData?.project_id === projectId) briefError.value = t('step1.briefLoadFailed')
+  } finally {
+    if (!unmounted && request === briefRequest) briefLoading.value = false
   }
 }
 watch(() => props.projectData?.project_id, loadBrief, { immediate: true })

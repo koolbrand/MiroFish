@@ -526,7 +526,8 @@ def prepare_simulation():
             filtered_preview = reader.filter_defined_entities(
                 graph_id=state.graph_id,
                 defined_entity_types=entity_types_list,
-                enrich_with_edges=False  # 不获取边信息，加快速度
+                enrich_with_edges=False,  # 不获取边信息，加快速度
+                include_untyped=True,  # mismos candidatos que el preparador; Jev decide quién es público
             )
             # 保存实体数量到状态（供前端立即获取）
             state.entities_count = filtered_preview.filtered_count
