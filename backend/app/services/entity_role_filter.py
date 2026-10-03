@@ -76,7 +76,10 @@ NATURE_QUESTION = {
             "Una organización o institución con personalidad propia: empresa, marca, negocio, universidad, "
             "ayuntamiento, gobierno, partido político, asociación, medio de comunicación, plataforma o red social"
         ),
-        "lugar_o_cosa": "Un lugar, un producto, un evento o un concepto que no es ni una persona ni una organización",
+        "lugar_o_cosa": (
+            "Un lugar o territorio, un texto legal, un evento, una fecha, un concepto, una página web o una fuente de datos: "
+            "no tiene voz propia ni opina"
+        ),
     },
 }
 
