@@ -786,14 +786,14 @@
       "survey": "Encuesta real",
       "synthetic": "Público ficticio",
       "legacy": "Perfil de una versión anterior",
-      "unconfirmed": "Actor sin material vinculado"
+      "unconfirmed": "Tipo de actor sin clasificar"
     },
     "description": {
       "provided": "La memoria inicial usa fragmentos del material aportado. Su contenido no se ha verificado externamente; las respuestas y acciones son simuladas.",
       "survey": "La memoria inicial usa respuestas de una persona encuestada anónima. Su comportamiento en la simulación y sus respuestas nuevas son generados.",
       "synthetic": "Esta persona se ha creado para el ensayo. Su identidad y sus características no corresponden a una persona encuestada real.",
       "legacy": "Este perfil se generó con una versión anterior. No se puede acreditar con este contrato la procedencia de su biografía y memoria.",
-      "unconfirmed": "No se han vinculado fragmentos del material a este actor. Sus antecedentes no se deben dar por confirmados."
+      "unconfirmed": "El tipo de este actor no se ha clasificado. Los fragmentos disponibles son contexto aportado y no confirman por sí solos sus antecedentes."
     },
     "style": {
       "formal": "formal",
@@ -1199,6 +1199,7 @@
     "prepareNoEntities": "El grafo no contiene entidades utilizables para la simulación. Asegúrate de que el documento produjo nodos con tipo (Persona, Organización, ...) y reconstruye el grafo si es necesario.",
     "prepareNoEntitiesHint": "Prueba reconstruyendo el grafo con un documento más rico, o comprueba que el LLM de extracción de Graphiti (GRAPHITI_LLM_*) está devolviendo tipos de entidad válidos.",
     "seedValidationFailed": "No se pudieron validar los mensajes iniciales contra el material original. Vuelve a preparar la simulación.",
+    "seedSourceMaterial": "Material aportado para el ensayo; publicación simulada",
     "notStartedPrepare": "La preparación no ha comenzado. Por favor llama a /api/simulation/prepare.",
     "taskCompletedPrepared": "Tarea completada (la preparación ya existe)",
     "requireTaskOrSimId": "Por favor proporciona task_id o simulation_id",

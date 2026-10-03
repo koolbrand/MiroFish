@@ -786,14 +786,14 @@
       "survey": "真实调查",
       "synthetic": "虚构受众",
       "legacy": "旧版本人物档案",
-      "unconfirmed": "未关联材料的角色"
+      "unconfirmed": "角色类型未分类"
     },
     "description": {
       "provided": "初始记忆使用提供材料中的原文片段。其内容未经过外部核实；回答与行动均为模拟。",
       "survey": "初始记忆使用匿名调查参与者的回答。模拟中的行为与新回答由模型生成。",
       "synthetic": "此人物为本次演练创建，其身份与特征不对应真实的调查参与者。",
       "legacy": "此人物档案由旧版本生成。当前结构无法证实其生平和记忆的来源。",
-      "unconfirmed": "尚未将材料片段关联到此角色。不得将其背景视为已确认事实。"
+      "unconfirmed": "此角色的类型尚未分类。现有片段属于提供的背景材料，本身并不能证实其经历。"
     },
     "style": {
       "formal": "正式",
@@ -1199,6 +1199,7 @@
     "prepareNoEntities": "图谱中没有可用于模拟的实体。请确认文档生成了带类型的节点（Person、Organization 等），必要时重新构建图谱。",
     "prepareNoEntitiesHint": "请尝试用更丰富的文档重新构建图谱，或确认 Graphiti 提取模型（GRAPHITI_LLM_*）能正确返回实体类型。",
     "seedValidationFailed": "无法根据原始材料验证初始帖子。请重新准备模拟。",
+    "seedSourceMaterial": "用于本次试验的提供材料；模拟发布内容",
     "notStartedPrepare": "尚未开始准备，请调用 /api/simulation/prepare 开始",
     "taskCompletedPrepared": "任务已完成（准备工作已存在）",
     "requireTaskOrSimId": "请提供 task_id 或 simulation_id",

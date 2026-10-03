@@ -1047,11 +1047,11 @@ Formato de salida JSON (sin markdown):
         return parser_codes.get(str(exc), 'provider_or_validation_error')
 
     def _validate_initial_posts(self, config: EventConfig, document_text: str) -> EventConfig:
-        """Keep simulated opinions or source-backed factual statements, after authors.
+        """Keep reviewed opinions or materialize literal source units, after authors.
 
-        Semantic entailment is judged by the model. Exact quotes, claim substrings,
-        closed indices and numeric tokens are checked locally. This is a safeguard,
-        not independent verification that the user's original material is true.
+        A supported review only selects source passages: model prose is discarded.
+        Whole paragraphs/list items preserve qualifiers omitted by short quotes.
+        Neither this boundary nor the opinion review verifies external truth.
         """
         original = document_text or ""
         marker = "\n[... material omitido ...]\n"
@@ -1059,7 +1059,7 @@ Formato de salida JSON (sin markdown):
             original[:self.SEED_VALIDATION_SOURCE_CHARS - 8000 - len(marker)] + marker + original[-8000:])
         source_hash = hashlib.sha256(original.encode('utf-8')).hexdigest()
         raw_posts = config.initial_posts
-        audit = {"version": 1, "method": "llm_review_with_literal_provenance", "source_sha256": source_hash,
+        audit = {"version": 2, "method": "literal_source_units_after_review", "source_sha256": source_hash,
                  "source_available": bool(original.strip()), "source_truncated": len(original) > self.SEED_VALIDATION_SOURCE_CHARS,
                  "submitted": len(raw_posts), "accepted": 0, "dropped": 0, "batches": 0,
                  "max_tokens_per_call": min(Config.LLM_MAX_TOKENS_CAP, 32768), "rejections": []}
@@ -1076,6 +1076,7 @@ Formato de salida JSON (sin markdown):
             else:
                 candidates.append((index, post))
         accepted = []
+        materialized_contents = set()
         for offset in range(0, len(candidates), self.SEED_VALIDATION_BATCH):
             batch = candidates[offset:offset + self.SEED_VALIDATION_BATCH]
             listed = [{"post_index": i, "poster_name": str(p.get('poster_name', ''))[:200],
@@ -1120,10 +1121,28 @@ Formato de salida JSON (sin markdown):
                     audit['rejections'].append(rejection)
                     continue
                 kept = dict(post)
-                kept['source_provenance'] = {
-                    'status': 'simulated_opinion' if decision['verdict'] == 'opinion_only' else 'source_backed',
-                    'source_sha256': source_hash, 'claims': decision['claims'],
+                provenance = {
+                    'version': 2,
+                    'status': 'simulated_opinion', 'verification': 'not_verified_as_fact',
+                    'source_sha256': source_hash, 'claims': [],
                 }
+                if decision['verdict'] == 'supported':
+                    try:
+                        content, claims = self._materialize_seed_source(
+                            original, decision['claims'], source_hash, self.SEED_VALIDATION_MAX_CONTENT)
+                    except _SeedValidationError as exc:
+                        audit['rejections'].append({'post_index': original_index, 'reason': 'source_materialization_failed',
+                                                    'reason_code': exc.reason_code})
+                        continue
+                    if content in materialized_contents:
+                        audit['rejections'].append({'post_index': original_index, 'reason': 'duplicate_source_content'})
+                        continue
+                    materialized_contents.add(content)
+                    kept['content'] = content
+                    provenance.update(status='source_backed', verification='literal_material_only',
+                                      content_mode='source_units', claims=claims,
+                                      reviewed_verdict='supported', reviewed_claim_count=len(decision['claims']))
+                kept['source_provenance'] = provenance
                 accepted.append(kept)
         config.initial_posts = accepted
         audit.update(accepted=len(accepted), dropped=len(raw_posts) - len(accepted),
@@ -1135,6 +1154,101 @@ Formato de salida JSON (sin markdown):
         if audit['dropped']:
             logger.warning("Fidelidad de semillas: %s aceptadas, %s descartadas", audit['accepted'], audit['dropped'])
         return config
+
+    @staticmethod
+    def _seed_source_units(original):
+        """Complete paragraphs or Markdown list items, including wrapped lines.
+
+        List units include parent items, section headings and introductory prose,
+        even when Markdown separates the introduction by a blank line. Offsets
+        always address the untouched original, including CRLF.
+        """
+        units, contexts = [], {}
+        section, previous_prose, list_context = None, None, []
+        list_parents = []
+        def trimmed_span(start, end):
+            while end > start and original[end - 1].isspace():
+                end -= 1
+            return start, end
+        for paragraph in re.finditer(r'\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|\Z)', original):
+            start = paragraph.start()
+            line_start = original.rfind('\n', 0, start) + 1
+            if not original[line_start:start].strip():
+                # Preserve indentation on the first line of a Markdown block:
+                # a child list can follow its parent after a blank line.
+                start = line_start
+            start, end = trimmed_span(start, paragraph.end())
+            text = original[start:end]
+            items = list(re.finditer(r'(?m)^(?P<indent>[ \t]*)(?:[-+*]|\d+[.)])[ \t]+', text))
+            if not items:
+                unit = (start, end)
+                if re.search(r'(?m)^#{1,6}[ \t]+', text):
+                    section = unit
+                units.append(unit)
+                contexts[unit] = [section] if section and section != unit else []
+                previous_prose, list_context = unit, []
+                list_parents = []
+                continue
+            # A nested item stays inside its complete top-level parent item.
+            min_indent = min(len(item['indent'].expandtabs(4)) for item in items)
+            items = [item for item in items if len(item['indent'].expandtabs(4)) == min_indent]
+            if items[0].start():
+                prefix = trimmed_span(start, start + items[0].start())
+                units.append(prefix)
+                if re.search(r'(?m)^#{1,6}[ \t]+', original[prefix[0]:prefix[1]]):
+                    section = prefix
+                contexts[prefix] = [section] if section and section != prefix else []
+                previous_prose = prefix
+            context = list(dict.fromkeys(([section] if section else []) +
+                                        ([previous_prose] if previous_prose else list_context)))
+            for index, item in enumerate(items):
+                unit_start = start + item.start()
+                unit_end = start + items[index + 1].start() if index + 1 < len(items) else end
+                unit = trimmed_span(unit_start, unit_end)
+                units.append(unit)
+                indent = len(item['indent'].expandtabs(4))
+                list_parents = [(depth, parent) for depth, parent in list_parents if depth < indent]
+                parents = [parent for _, parent in list_parents]
+                dependencies = context + parents
+                for parent in parents:
+                    dependencies += contexts.get(parent, [])
+                contexts[unit] = list(dict.fromkeys(dependencies))
+                list_parents.append((indent, unit))
+            previous_prose, list_context = None, context
+        return units, contexts
+
+    @staticmethod
+    def _materialize_seed_source(original, reviewed_claims, source_hash, limit):
+        """Only immutable source text plus a fixed simulated-publication label."""
+        if not reviewed_claims or hashlib.sha256(original.encode('utf-8')).hexdigest() != source_hash:
+            raise _SeedValidationError('material de semilla inválido', 'source_materialization_invalid')
+        units, contexts = SimulationConfigGenerator._seed_source_units(original)
+        selected = set()
+        for claim in reviewed_claims:
+            start, end, quote = claim.get('source_start'), claim.get('source_end'), claim.get('source_quote')
+            if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(original)
+                    or not isinstance(quote, str) or original[start:end] != quote):
+                raise _SeedValidationError('procedencia de semilla inválida', 'source_materialization_invalid')
+            linked = [(a, b) for a, b in units if a < end and b > start]
+            # A quote crossing units selects every intersecting complete unit.
+            if not linked or linked[0][0] > start or linked[-1][1] < end:
+                raise _SeedValidationError('sin unidad fuente completa', 'source_unit_missing')
+            selected.update(linked)
+            for unit in linked:
+                selected.update(contexts.get(unit, []))
+        content = t('api.seedSourceMaterial')
+        published = []
+        for start, end in sorted(selected):
+            text = original[start:end]
+            content_start = len(content) + 2
+            content += '\n\n' + text
+            published.append({'claim': text, 'source_quote': text, 'source_start': start, 'source_end': end,
+                              'source_sha256': source_hash, 'content_start': content_start, 'content_end': len(content)})
+            if len(content) > limit:
+                raise _SeedValidationError('unidades fuente demasiado largas', 'source_units_over_limit')
+        if not published:
+            raise _SeedValidationError('sin unidad fuente completa', 'source_unit_missing')
+        return content, published
 
     @staticmethod
     def _parse_seed_reviews(reply, batch, original, supplied_source):

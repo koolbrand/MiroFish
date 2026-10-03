@@ -40,7 +40,16 @@ hace antes de ejecutar la orden y se repite al expandir la configuración global
 
 La preparación incorpora el material original en los perfiles y verifica los hechos
 de los mensajes iniciales con citas literales, índices cerrados y comprobación de
-cifras. La revisión semántica sigue dependiendo del modelo. Una respuesta truncada
+cifras. La revisión semántica sigue dependiendo del modelo. Para los mensajes
+respaldados, el contenido final se materializa únicamente con unidades completas
+de la fuente: párrafos o elementos de lista con sus continuaciones. No se conserva
+la prosa adicional del candidato, que una revisión incompleta podría haber omitido.
+Se guardan posiciones verificables sobre fuente y publicación, sin cortar una
+unidad para ajustarla al límite. El encabezado indica que son material del ensayo
+y una publicación simulada, no una declaración real del actor. Las opiniones sin
+afirmaciones factuales conservan su categoría separada de opinión simulada.
+
+Una respuesta truncada
 no permite aprobar mensajes: se registra un código de error seguro y el intento
 falla si no queda ninguno aceptado. Cada lote tiene una sola llamada, sin reintentos
 del SDK, hasta 240 segundos y hasta el menor de `LLM_MAX_TOKENS_CAP` y 32.768 tokens
@@ -49,7 +58,9 @@ de salida, incluidos los tokens de pensamiento.
 Los índices de revisión deben cubrir todo el lote una sola vez. Un fallo de esa
 correspondencia invalida el lote; con índices inequívocos, una cita, cifra o fila
 defectuosa descarta su mensaje y conserva las otras revisiones válidas. No se
-aproximan citas ni se modifican mensajes para hacerlos pasar.
+aproximan citas. Se deduplican unidades dentro de cada publicación y publicaciones
+finales idénticas; compartir una referencia entre mensajes distintos no elimina
+ninguno por sí solo.
 
 Una regeneración invalida primero la preparación anterior. Los archivos conservados
 no acreditan el intento nuevo: iniciar exige bandera válida y correspondencia de

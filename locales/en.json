@@ -786,14 +786,14 @@
       "survey": "Real survey",
       "synthetic": "Fictional audience",
       "legacy": "Profile from an earlier version",
-      "unconfirmed": "Actor without linked material"
+      "unconfirmed": "Unclassified actor type"
     },
     "description": {
       "provided": "Initial memory uses excerpts from the supplied material. Their content has not been independently verified; responses and actions are simulated.",
       "survey": "Initial memory uses responses from an anonymous survey participant. Behavior in the simulation and new responses are generated.",
       "synthetic": "This person was created for the rehearsal. Their identity and characteristics do not correspond to a real survey participant.",
       "legacy": "This profile was generated with an earlier version. This contract cannot establish the provenance of its biography and memory.",
-      "unconfirmed": "No material excerpts have been linked to this actor. Their background should not be treated as confirmed."
+      "unconfirmed": "This actor’s type has not been classified. The available excerpts are supplied context and do not, by themselves, confirm their background."
     },
     "style": {
       "formal": "formal",
@@ -1199,6 +1199,7 @@
     "prepareNoEntities": "The graph contains no usable entities for the simulation. Make sure the document produced typed nodes (Person, Organization, …) and rebuild the graph if necessary.",
     "prepareNoEntitiesHint": "Try rebuilding the graph with a richer document, or verify that the Graphiti extraction LLM (GRAPHITI_LLM_*) is returning valid entity types.",
     "seedValidationFailed": "The initial posts could not be validated against the original material. Prepare the simulation again.",
+    "seedSourceMaterial": "Material supplied for the trial; simulated publication",
     "notStartedPrepare": "Preparation not started. Please call /api/simulation/prepare.",
     "taskCompletedPrepared": "Task completed (preparation already exists)",
     "requireTaskOrSimId": "Please provide task_id or simulation_id",
