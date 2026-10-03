@@ -84,6 +84,7 @@ AUDIENCE_ROLE = "audiencia"
 INSTITUTION_ROLE = "implicado"        # adónde pasa una organización que Jev había puesto como audiencia
 DROP_ROLE = "infraestructura"
 ORGANIZATION_MIN_PROB = 0.6           # probabilidad de «organización» a partir de la cual deja de ser audiencia
+NON_SPEAKING_MIN_PROB = 0.8           # probabilidad de «lugar o cosa» a partir de la cual no se crea un agente (no tiene voz)
 
 
 @dataclass
@@ -148,8 +149,10 @@ def _ask_jev(client: httpx.Client, entity, topic: str) -> Optional[Dict]:
             answers = response.json()["answers"]
             answer = answers["rol"]
             naturaleza = answers.get("naturaleza") or {}
-            org = float((naturaleza.get("probabilities") or {}).get("organizacion", 0) or 0)
-            return {"role": answer["choice"], "confidence": float(answer.get("confidence", 0)), "organization": org}
+            probs = naturaleza.get("probabilities") or {}
+            org = float(probs.get("organizacion", 0) or 0)
+            cosa = float(probs.get("lugar_o_cosa", 0) or 0)
+            return {"role": answer["choice"], "confidence": float(answer.get("confidence", 0)), "organization": org, "thing": cosa}
         except Exception as e:  # noqa: BLE001 — fail-open: sin respuesta, la entidad se queda
             if attempt == 2:
                 logger.warning(f"Jev no clasificó '{entity.name}': {type(e).__name__}: {str(e)[:120]}")
@@ -188,6 +191,9 @@ def filter_entities(entities: list, topic: str) -> EntityRoleResult:
         result.roles[role] = result.roles.get(role, 0) + 1
         if role == DROP_ROLE and answer["confidence"] >= Config.JEV_DROP_CONFIDENCE:
             result.dropped.append({"name": entity.name, "confidence": round(answer["confidence"], 2)})
+        elif role != AUDIENCE_ROLE and float(answer.get("thing", 0) or 0) >= NON_SPEAKING_MIN_PROB:
+            # Un lugar (Asturias), un texto legal («Real Decreto-ley 25/2026») o una web no opinan: sin agente, sin perfil que generar
+            result.dropped.append({"name": entity.name, "confidence": round(float(answer["thing"]), 2), "motivo": "no habla"})
         else:
             result.kept.append(entity)
 

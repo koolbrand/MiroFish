@@ -347,19 +347,21 @@ def test_llm_texto_repite_con_mas_espacio_si_el_modelo_devuelve_vacio(con_banco)
     assert llamadas == [4096, 16384]                                                # la segunda con el cuádruple de espacio
 
 
-def test_una_institucion_no_se_ancla_a_un_encuestado(con_banco, tmp_path):
-    """Lo destapó la prueba en producción: «Universidad de Vigo» salía como una jubilada de 80 años."""
+def test_el_anclaje_lo_decide_la_marca_de_persona_no_el_nombre_del_tipo(con_banco, tmp_path):
+    """Dos hallazgos de la prueba en producción: «Universidad de Vigo» salía como una jubilada de 80 años (hoy Jev la deja sin marca de
+    persona: es una organización) y «Electorado español» salió con el tipo genérico «Organization» y se quedó SIN anclar."""
     from app.services.zep_entity_reader import EntityNode
     g = _generador()
     uni = EntityNode(uuid="u9", name="Universidad de Vigo", labels=["Entity", "University"], summary="Universidad pública",
-                     attributes={"__simuloo_individual": True, "__simuloo_group": "U"})
-    persona = _entidad(1, grupo="P")
-    perfiles = g.generate_profiles_from_entities([uni, persona], parallel_count=1, poblacion_datos=True,
+                     attributes={})                                                   # sin marca: el filtro de roles la vio como organización
+    electorado = EntityNode(uuid="e1", name="Electorado español", labels=["Entity", "Organization"], summary="Votantes de todo el país",
+                            attributes={"__simuloo_individual": True, "__simuloo_group": "E"})   # persona/colectivo, aunque el tipo sea genérico
+    perfiles = g.generate_profiles_from_entities([uni, electorado], parallel_count=1, poblacion_datos=True,
                                                  poblacion_pais="ES", pregunta="x", publico_descripcion="y",
                                                  poblacion_resumen_path=str(tmp_path / "poblacion.json"))
     assert perfiles[0].data_source is None and perfiles[1].data_source == "CIS"
     r = json.load(open(tmp_path / "poblacion.json", encoding="utf-8"))
-    assert [x["nombre"] for x in r["grupos"]] == ["Persona 1"]                       # la institución ni cuenta como grupo
+    assert [x["nombre"] for x in r["grupos"]] == ["Electorado español"]
 
 
 def test_el_lote_elige_las_preguntas_relevantes_una_vez_y_las_guarda(con_banco, tmp_path):
