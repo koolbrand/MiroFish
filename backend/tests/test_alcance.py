@@ -652,3 +652,11 @@ def test_jev_no_reintenta_un_4xx_y_tras_un_fallo_del_servicio_no_vuelve_a_espera
     assert not J.disponible()                                                              # las decisiones siguientes van directas al modelo grande
     monkeypatch.setattr(J, "_caido_hasta", 0.0)
     assert J.disponible()
+
+
+def test_con_pocas_personas_las_primeras_culturas_ya_incluyen_oriente_y_occidente():
+    """Con 3 personas solo se usan las 3 primeras culturas: antes eran Europa, Norteamérica y Latinoamérica (todo occidental)."""
+    assert len(set(A.CULTURAS)) == len(A.CULTURAS) == 10
+    assert A.CULTURAS[:3] == ("Europa occidental", "Asia oriental", "Latinoamérica")
+    assert any("Asia" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(3))
+    assert any("Asia oriental" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(2))

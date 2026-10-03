@@ -100,3 +100,50 @@ def test_expansion_is_capped(monkeypatch):
     result = erf.filter_entities(ents, "x")
     out = erf.expand_audience(result.kept, result)
     assert len(out) == 33            # tope total: +3
+
+
+def test_an_organization_is_not_audience_even_if_it_serves_people(monkeypatch):
+    """«Universidad de Vigo» salía como audiencia (afecta a estudiantes) y se generaba como una estudiante de intercambio."""
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", False)
+    ents = [Entity("Estudiantes de la Universidad de Vigo"), Entity("Universidad de Vigo"), Entity("Marta Ruiz"), Entity("Bar Paco")]
+    for i, e in enumerate(ents):
+        e.uuid, e.attributes = f"u{i}", {}
+    respuestas = {
+        "Estudiantes de la Universidad de Vigo": {"role": "audiencia", "confidence": 1.0, "organization": 0.0},
+        "Universidad de Vigo": {"role": "audiencia", "confidence": 0.93, "organization": 1.0},        # el fallo real, medido con Jev
+        "Marta Ruiz": {"role": "implicado", "confidence": 0.99, "organization": 0.05},
+        "Bar Paco": {"role": "competidor", "confidence": 0.5, "organization": 1.0},
+    }
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: respuestas[e.name])
+    result = erf.filter_entities(ents, "precio del café")
+    out = erf.expand_audience(result.kept, result)
+    assert result.reclassified == ["Universidad de Vigo"] and result.summary()["reclassified"] == ["Universidad de Vigo"]
+    assert result.roles == {"audiencia": 1, "implicado": 2, "competidor": 1}
+    assert [e.name for e in out if e.attributes.get(erf.INDIVIDUAL_FLAG)] == ["Estudiantes de la Universidad de Vigo"]
+    # y una duda (probabilidad baja de organización) no cambia nada: sigue como audiencia
+    dudosa = {"role": "audiencia", "confidence": 0.9, "organization": 0.4}
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: dudosa)
+    assert erf.filter_entities([Entity("X")], "t").reclassified == []
+
+
+def test_the_nature_question_goes_in_the_same_request(monkeypatch):
+    """Una petición con las dos preguntas (se evalúan en paralelo); si Jev no trae la de naturaleza, todo sigue como antes."""
+    enviado = {}
+
+    class Cliente:
+        def post(self, url, json=None):
+            enviado.update(json)
+            import httpx
+            return httpx.Response(200, request=httpx.Request("POST", url), json={"answers": {
+                "rol": {"choice": "audiencia", "confidence": 0.9},
+                "naturaleza": {"choice": "organizacion", "probabilities": {"organizacion": 0.97, "personas": 0.03}}}})
+
+    r = erf._ask_jev(Cliente(), Entity("Universidad de Vigo", "x"), "tema")
+    assert set(enviado["questions"]) == {"rol", "naturaleza"} and r["organization"] == 0.97 and r["role"] == "audiencia"
+
+    class SinNaturaleza(Cliente):
+        def post(self, url, json=None):
+            import httpx
+            return httpx.Response(200, request=httpx.Request("POST", url), json={"answers": {"rol": {"choice": "audiencia", "confidence": 0.9}}})
+
+    assert erf._ask_jev(SinNaturaleza(), Entity("X"), "t")["organization"] == 0.0

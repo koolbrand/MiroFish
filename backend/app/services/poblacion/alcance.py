@@ -34,9 +34,10 @@ FICHERO = "alcance.json"
 ETIQUETAS = {"local": "Local", "regional": "Regional", "nacional": "Nacional", "multinacional": "Multinacional",
              "mundial": "Mundial", DESCONOCIDO: "Sin determinar"}
 
-# Culturas que se reparten, una por persona, cuando el público es de varios países o del mundo entero
-CULTURAS = ("Europa occidental", "Norteamérica", "Latinoamérica", "Asia oriental", "Sur de Asia", "África subsahariana",
-            "Oriente Medio y norte de África", "Europa del Este", "Sudeste asiático", "Oceanía")
+# Culturas que se reparten, una por persona, cuando el público es de varios países o del mundo entero. El ORDEN importa: con pocas
+# personas solo se usan las primeras, así que van alternando regiones lejanas (Occidente, Oriente, Sur global) en vez de agrupadas.
+CULTURAS = ("Europa occidental", "Asia oriental", "Latinoamérica", "África subsahariana", "Norteamérica", "Sur de Asia",
+            "Oriente Medio y norte de África", "Oceanía", "Europa del Este", "Sudeste asiático")
 
 
 @dataclass
