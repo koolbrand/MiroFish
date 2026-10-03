@@ -23,7 +23,7 @@ from ...config import Config
 from ...utils.logger import get_logger
 from .banco import Banco, Encuestado, Segmento
 from .ficha import construir_ficha as _construir_ficha
-from .ficha import genero_oasis, hechos_memoria
+from .ficha import _es_nombre_propio, _sin_enunciado, genero_oasis, hechos_memoria
 from . import jev
 from .alcance import Alcance
 from .filtros import FUERA_DEL_LUGAR
@@ -68,17 +68,71 @@ Preguntas:
 
 Devuelve SOLO un objeto JSON, sin texto alrededor: {{"indices": [<números de la lista>]}}"""
 
+PROMPT_RELEVANTES_POLITICO = """Se simula cómo reaccionaría un público a este tema POLÍTICO:
+\"\"\"{tema}\"\"\"
 
-def _relevantes_con_jev(catalogo: List[str], tema: str, n: int) -> List[str]:
+De la siguiente lista de preguntas de una encuesta oficial, elige hasta {n} que más ayuden a entender qué haría una persona
+real ante ESE tema: su intención y su recuerdo de voto, su fidelidad y su momento de decisión, su participación electoral, su
+ideología y el partido que siente más cercano, su confianza en las instituciones, el gobierno y la oposición, y su situación
+económica y preocupaciones cotidianas. DESCARTA las preguntas sobre sucesos concretos sin relación con el tema y las de trabajo
+de campo.
+
+Preguntas:
+{lista}
+
+Devuelve SOLO un objeto JSON, sin texto alrededor: {{"indices": [<números de la lista>]}}"""
+
+# Un tema político necesita el voto y la ideología de cada persona: sin eso una simulación electoral no mide nada
+_TEMA_POLITICO = re.compile(
+    r"\b(elecci\w+|vot[oa]\w*|partidos?|gobierno|presiden\w+|parlament\w+|congreso|esca[ñn]os|legislatura|coalici[óo]n|"
+    r"oposici[óo]n|sondeo\w*|encuestas? electoral\w*|mo[cç]i[óo]n de censura|izquierda|derecha)\b", re.I)
+# Orden de la ficha en un tema político: primero qué votaría, luego qué votó, luego su ideología y cuánto lo tiene claro
+_VOTO_PRIMERO = [re.compile(x, re.I) for x in (
+    r"intenci[óo]n de voto", r"voto\+simpat", r"recuerdo de voto", r"autoubicaci[óo]n ideol",
+    r"partido (pol[ií]tico )?(que considera )?m[aá]s cercano", r"probabilidad de voto", r"fidelidad de voto",
+    r"momento de la decisi[óo]n")]
+
+
+def _orden_voto(pregunta: str) -> int:
+    for i, rx in enumerate(_VOTO_PRIMERO):
+        if rx.search(pregunta):
+            return i
+    return len(_VOTO_PRIMERO)
+
+
+def tema_politico(tema: str) -> bool:
+    """¿El tema de la simulación es político (elecciones, partidos, gobierno)? Jev (~0,5 s); sin Jev o si duda, por palabras."""
+    tema = " ".join((tema or "").split())
+    if not tema:
+        return False
+    if jev.disponible():
+        r = jev.preguntar({"tema_del_estudio": tema[:1500]}, {"politico": jev.noul(
+            "¿El tema del estudio trata de política: unas elecciones, el voto, los partidos, el gobierno o la oposición?")})
+        if r and "politico" in r:
+            p = float(r["politico"].get("noul", 0.5))
+            if p >= 0.6:
+                return True
+            if p <= 0.4:
+                return False
+    return len(_TEMA_POLITICO.findall(tema)) >= 2
+
+
+def _relevantes_con_jev(catalogo: List[str], tema: str, n: int, politico: bool = False) -> List[str]:
     """Una pregunta de sí o no por cada pregunta de la encuesta: ordenadas por probabilidad, las `n` mejores con al menos 0,5. Si salen
     menos de 5 (o Jev no responde) devuelve [] y decide el modelo grande."""
     if not jev.disponible():
         return []
+    if politico:
+        criterio = ("SÍ si trata de su intención, recuerdo o fidelidad de voto, su participación electoral, su ideología o el partido "
+                    "que siente cercano, su confianza en las instituciones, el gobierno o la oposición, o de su situación económica y "
+                    "preocupaciones cotidianas. NO si trata de sucesos concretos sin relación con el tema o del trabajo de campo.")
+    else:
+        criterio = ("SÍ si trata de su situación económica, ingresos, consumo, valores, confianza o preocupaciones cotidianas "
+                    "relacionadas con el tema. NO si trata de noticias o sucesos concretos sin relación con el tema (fronteras, incendios, "
+                    "visitas, líderes políticos) o del trabajo de campo.")
     preguntas = {f"q{i}": jev.noul(
-        f"Una persona real contestó esta pregunta de una encuesta: «{q[:200]}». ¿Ayuda su respuesta a entender cómo reaccionaría esa persona al "
-        "tema del estudio? SÍ si trata de su situación económica, ingresos, consumo, valores, confianza o preocupaciones cotidianas "
-        "relacionadas con el tema. NO si trata de noticias o sucesos concretos sin relación con el tema (fronteras, incendios, visitas, "
-        "líderes políticos) o del trabajo de campo.") for i, q in enumerate(catalogo)}
+        f"Una persona real contestó esta pregunta de una encuesta: «{q[:200]}». ¿Ayuda su respuesta a entender cómo reaccionaría esa "
+        f"persona al tema del estudio? {criterio}") for i, q in enumerate(catalogo)}
     r = jev.preguntar({"tema_del_estudio": " ".join(tema.split())[:1200]}, preguntas)
     if not r:
         return []
@@ -87,35 +141,41 @@ def _relevantes_con_jev(catalogo: List[str], tema: str, n: int) -> List[str]:
     return elegidas if len(elegidas) >= 5 else []
 
 
-def preguntas_relevantes(banco: Banco, tema: str, llm: Optional[Callable[[str], str]], n: int = 15) -> List[str]:
+def preguntas_relevantes(banco: Banco, tema: str, llm: Optional[Callable[[str], str]], n: int = 15,
+                         politico: Optional[bool] = None) -> List[str]:
     """
-    Qué preguntas de la encuesta llevan a la ficha de cada persona para ESTE tema. Una sola llamada por simulación sobre
+    Qué preguntas de la encuesta llevan a la ficha de cada persona para ESE tema. Una sola llamada por simulación sobre
     el catálogo de preguntas de uso general. Sin tema, sin modelo o si algo falla devuelve [] y la ficha usa el orden de
     siempre (lo que no tiene que ver con el tema no se cuela porque el modelo solo puede ELEGIR de la lista).
+    Si el tema es POLÍTICO (`politico`, o se detecta), el catálogo incluye las preguntas de voto e ideología y esas van primero.
     """
     if not (tema or "").strip():
         return []
     try:
-        catalogo = banco.catalogo()
+        politico = tema_politico(tema) if politico is None else politico
+        catalogo = banco.catalogo(politica=politico)
+        if politico:       # los nombres de líderes y los elementos de batería sin enunciado no se entienden solos
+            catalogo = [q for q in catalogo if not (_es_nombre_propio(q) or _sin_enunciado(q))]
         if not catalogo:
             return []
-        rapidas = _relevantes_con_jev(catalogo, tema, n)       # Jev: ~1 s, una decisión por pregunta, todas en una petición
-        if rapidas:
-            return rapidas
-        if llm is None:
-            return []
-        lista = "\n".join(f"{i}. {q[:140]}" for i, q in enumerate(catalogo))
-        crudo = llm(PROMPT_RELEVANTES.format(tema=" ".join(tema.split())[:1200], n=n, lista=lista))
-        m = re.search(r"\{.*\}", crudo or "", flags=re.S)
-        indices = json.loads(m.group(0)).get("indices", []) if m else []
-        vistos, elegidas = set(), []
-        for i in indices:
-            if isinstance(i, int) and 0 <= i < len(catalogo) and i not in vistos:
-                vistos.add(i)
-                elegidas.append(catalogo[i])
-        if not elegidas:
-            logger.warning("Preguntas relevantes: el modelo no eligió ninguna válida (respuesta: %r)", (crudo or "")[:120])
-        return elegidas[:n]
+        elegidas = _relevantes_con_jev(catalogo, tema, n, politico)   # Jev: ~1 s, una decisión por pregunta, todas en una petición
+        if not elegidas and llm is not None:
+            lista = "\n".join(f"{i}. {q[:140]}" for i, q in enumerate(catalogo))
+            plantilla = PROMPT_RELEVANTES_POLITICO if politico else PROMPT_RELEVANTES
+            crudo = llm(plantilla.format(tema=" ".join(tema.split())[:1200], n=n, lista=lista))
+            m = re.search(r"\{.*\}", crudo or "", flags=re.S)
+            indices = json.loads(m.group(0)).get("indices", []) if m else []
+            vistos = set()
+            for i in indices:
+                if isinstance(i, int) and 0 <= i < len(catalogo) and i not in vistos:
+                    vistos.add(i)
+                    elegidas.append(catalogo[i])
+            if not elegidas:
+                logger.warning("Preguntas relevantes: el modelo no eligió ninguna válida (respuesta: %r)", (crudo or "")[:120])
+        elegidas = elegidas[:n]
+        if politico:       # el voto y la ideología, siempre los primeros (el orden de la lista es el de la ficha)
+            elegidas = sorted(elegidas, key=_orden_voto)
+        return elegidas
     except Exception as e:
         logger.warning("Preguntas relevantes: no se pudieron elegir (%s); la ficha usa el orden de siempre", e)
         return []
@@ -311,5 +371,5 @@ def resumen_de_simulacion(simulation_id: str) -> Optional[Dict]:
 
 __all__ = ["FUENTES", "Fuente", "Grupo", "Asignacion", "Banco", "Encuestado", "RESUMEN", "modo_activo",
            "banco_existe", "asignar_por_grupos", "asignar", "construir_ficha", "hechos_memoria", "genero_oasis",
-           "cita_de_simulacion", "resumen_de_simulacion", "preguntas_relevantes", "disponibles", "fuente_de_pais", "registrar", "ruta_banco",
+           "cita_de_simulacion", "resumen_de_simulacion", "preguntas_relevantes", "tema_politico", "disponibles", "fuente_de_pais", "registrar", "ruta_banco",
            "tiene_banco", "abrir_banco", "detectar"]

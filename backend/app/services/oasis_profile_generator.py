@@ -857,6 +857,16 @@ Rules:
         context_str = context[:2000] if context else "No additional context"
         lang_instruction = get_language_instruction()
 
+        politica = ""
+        if getattr(self, "_tema_politico", False):
+            politica = (
+                "\nPOLITICAL TOPIC: this simulation is about politics or elections. For THIS topic, the person's own survey answers "
+                "about vote intention, past vote, ideology, party closeness and trust ARE the main evidence of what they think and "
+                "do: reflect them faithfully in their stance (a declared vote intention, being undecided or abstaining stays exactly "
+                "as the data sheet says; their ideology and trust shape their reasons). Do NOT change or soften them and do NOT add "
+                "political positions the data sheet does not support. Still no caricature: give their reasons in their own terms, "
+                "without party clichés.\n"
+            )
         return f"""{lang_instruction}
 IMPORTANT: All free-text field values below (bio, persona, profession, interested_topics) MUST be written in the target language specified above. Do NOT output Chinese unless the target language is Chinese.
 
@@ -868,7 +878,7 @@ AVOID STEREOTYPES (this matters more than being vivid):
 - The survey answers are the main evidence of what this person thinks. Where the data sheet is silent, stay neutral or say the person has no strong view; do not fill the gap with a group stereotype.
 - Where the sheet gives no basis for the topic of the simulation, infer a tentative stance from their related answers and keep it tentative; never invent a firm opinion or personal fact.
 - The topic of the simulation decides what to foreground. Use the answers that relate to it. Do NOT build the persona around current-affairs topics of the survey that have nothing to do with it (borders, fires, ministers, a pope's visit...), and do NOT turn party or leader ratings into a political caricature: a person is not their vote.
-
+{politica}
 DATA SHEET (real data):
 {ficha}
 
@@ -1143,6 +1153,7 @@ Rules:
         fuente_poblacion = None
         relevantes: List[str] = []
         # Orden de cada persona del público (sin contar instituciones ni entidades que no son público): reparte las culturas parejo
+        self._tema_politico = False       # se decide más abajo, solo si hay datos reales; cada ejecución parte de cero
         orden_publico: Dict[int, int] = {}
         for i, e in enumerate(entities):
             if (e.attributes or {}).get('__simuloo_individual') and not self._is_group_entity(e.get_entity_type() or ""):
@@ -1186,15 +1197,18 @@ Rules:
                                     alcance_mod.guardar(alcance_path, alcance)
                                 except OSError:
                                     pass
-                        # Qué respuestas de la encuesta importan para ESTE tema (una llamada por simulación)
+                        # Qué respuestas de la encuesta importan para ESTE tema (una llamada por simulación). Si el tema es político
+                        # (unas elecciones, partidos, gobierno) entran también el voto y la ideología de cada persona.
+                        tema_txt = "\n".join(x for x in (pregunta, (publico_descripcion or "")[:600]) if x)
+                        self._tema_politico = poblacion.tema_politico(tema_txt)
                         relevantes = poblacion.preguntas_relevantes(
-                            asignacion.banco, "\n".join(x for x in (pregunta, (publico_descripcion or "")[:600]) if x),
-                            self._llm_texto)
+                            asignacion.banco, tema_txt, self._llm_texto, politico=self._tema_politico)
                         for k, v in grupos.items():
                             for i, enc in zip(v['idx'], asignacion.de_grupo(k)):
                                 encuestados_por_idx[i] = enc
                         resumen = asignacion.resumen()
                         resumen["preguntas_relevantes"] = relevantes
+                        resumen["tema_politico"] = bool(getattr(self, "_tema_politico", False))
                         logger.info(f"Público con datos reales ({fuente_poblacion.nombre}, {fuente_poblacion.pais_nombre}): "
                                     f"{len(encuestados_por_idx)} personas ancladas en {len(grupos)} grupos")
                     else:

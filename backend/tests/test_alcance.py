@@ -473,7 +473,13 @@ def test_preguntas_relevantes_con_jev_ordena_por_probabilidad_y_pide_al_menos_ci
     assert len(cat) == 3
     visto = {}
     # tres preguntas en el banco sintético: con menos de 5 elegidas Jev no basta y se pasa al modelo grande
-    con_jev.setattr(J, "preguntar", lambda s, q: visto.setdefault("q", q) and {k: {"noul": 0.9} for k in q})
+    # la pregunta «¿el tema es político?» también pasa por Jev: aquí, que no (es un café); y el resto, todo «sí»
+    def jev(state, q):
+        if "q0" in q:
+            visto.setdefault("q", q)
+        return {k: {"noul": 0.05 if k == "politico" else 0.9} for k in q}
+
+    con_jev.setattr(J, "preguntar", jev)
     llm = lambda p: '{"indices": [2]}'                                               # noqa: E731
     assert poblacion.preguntas_relevantes(banco, "Subir el café", llm) == [cat[2]]
     assert all(f"«{q}»" in visto["q"][f"q{i}"]["instructions"] for i, q in enumerate(cat))   # la pregunta de la encuesta va en la pregunta a Jev
