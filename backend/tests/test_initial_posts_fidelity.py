@@ -70,7 +70,7 @@ def test_malformed_or_unavailable_review_cannot_complete_preparation(monkeypatch
         gen._validate_initial_posts(cfg, 'Material sintético.')
     assert len(calls) == 1 and cfg.initial_posts == []
     assert cfg.initial_posts_validation['status'] == 'failed'
-    assert cfg.initial_posts_validation['rejections'][0]['reason'] == 'validation_unavailable'
+    assert cfg.initial_posts_validation['rejections'][0]['reason'] in ('validation_unavailable', 'invalid_review')
 
 
 @pytest.mark.parametrize('claim, quote', [
@@ -146,7 +146,7 @@ def test_oversize_seed_is_not_sent_to_model(monkeypatch):
     assert 'x' * 2001 not in calls[0]
 
 
-@pytest.mark.parametrize('finish, content', [('length', '{"reviews":[]}'), ('stop', '{broken')])
+@pytest.mark.parametrize('finish, content', [('length', '{"reviews":[]}'), ('length', ''), ('stop', '{broken')])
 def test_provider_json_boundary_is_strict_and_has_no_hidden_retry(monkeypatch, finish, content):
     gen = object.__new__(SimulationConfigGenerator)
     gen.model_name = 'fake'
@@ -162,10 +162,14 @@ def test_provider_json_boundary_is_strict_and_has_no_hidden_retry(monkeypatch, f
             seen['request'] = kwargs
             return SimpleNamespace(choices=[SimpleNamespace(finish_reason=finish, message=SimpleNamespace(content=content))])
     gen.client = FakeClient()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as error:
         gen._call_seed_validation('Synthetic prompt')
     assert seen['max_retries'] == 0 and seen['timeout'] <= 240
-    assert seen['request']['max_tokens'] == 8192 and seen['request']['temperature'] == 0
+    from app.config import Config
+    assert seen['request']['max_tokens'] == min(Config.LLM_MAX_TOKENS_CAP, 32768)
+    assert seen['request']['temperature'] == 0
+    assert gen._seed_validation_error_code(error.value) == (
+        'provider_token_limit' if finish == 'length' else 'provider_json_invalid')
 
 
 def test_generate_config_validates_after_resolving_authors_before_returning(monkeypatch):
@@ -190,12 +194,17 @@ def test_truncated_flag_does_not_depend_on_accidentally_equal_excerpt_length(mon
     assert cfg.initial_posts_validation['source_truncated'] is True
 
 
-def test_validation_failure_marks_real_preparation_failed_not_ready(tmp_path, monkeypatch):
+@pytest.mark.parametrize('response', [
+    RuntimeError('synthetic provider failure'),
+    {'reviews': [review(0, 'supported', [{'claim': 'Preferiría un servicio más barato.',
+                                        'source_quote': 'cita inventada'}])]},
+])
+def test_validation_failure_marks_real_preparation_failed_not_ready(tmp_path, monkeypatch, response):
     from app.config import Config
     from app.services import simulation_manager as sm
     from app.services.zep_entity_reader import FilteredEntities
 
-    gen, calls = generator(monkeypatch, RuntimeError('synthetic provider failure'))
+    gen, calls = generator(monkeypatch, response)
     gen.model_name = 'fake'
     gen.base_url = 'http://127.0.0.1:9'
     entities = [scg.EntityNode('u0', 'Actor 0', ['Entity', 'Person'], '', {})]
@@ -224,3 +233,95 @@ def test_validation_failure_marks_real_preparation_failed_not_ready(tmp_path, mo
     assert len(calls) == 1 and state.status == sm.SimulationStatus.FAILED
     assert state.error == scg.t('api.seedValidationFailed')
     assert not state.config_generated
+
+
+@pytest.mark.parametrize('cap', [256, 2048, 32768, 65536])
+def test_reasoning_token_budget_respects_global_cap_and_one_request(monkeypatch, cap):
+    from app.config import Config
+    gen = object.__new__(SimulationConfigGenerator)
+    gen.model_name = 'fake'
+    monkeypatch.setattr(Config, 'LLM_MAX_TOKENS_CAP', cap)
+    requests = []
+    options = []
+    class Client:
+        def with_options(self, **kwargs):
+            options.append(kwargs)
+            return self
+        @property
+        def chat(self):
+            return SimpleNamespace(completions=SimpleNamespace(create=self.create))
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop',
+                                    message=SimpleNamespace(content='{"reviews":[]}'))])
+    gen.client = Client()
+    assert gen._call_seed_validation('Synthetic prompt') == {'reviews': []}
+    assert len(requests) == 1 and requests[0]['max_tokens'] == min(cap, 32768)
+    assert options[0]['max_retries'] == 0 and options[0]['timeout'] <= 240
+    assert 'reasoning' not in requests[0] and 'extra_body' not in requests[0]
+
+
+@pytest.mark.parametrize('error, code', [
+    (scg._SeedValidationError('respuesta de validación incompleta', 'provider_token_limit'), 'provider_token_limit'),
+    (ValueError('índice de validación inválido'), 'row_index_invalid'),
+    (ValueError('cita o afirmación no literal'), 'claim_or_quote_not_literal'),
+    (ValueError('cifras sin respaldo literal'), 'numeric_token_not_in_quote'),
+    (json.JSONDecodeError('invalid', '{', 0), 'provider_json_invalid'),
+    (TimeoutError('private timeout message'), 'provider_timeout'),
+    (RuntimeError('private token or provider response body'), 'provider_or_validation_error'),
+])
+def test_safe_failure_codes_in_metadata_and_logs_do_not_include_provider_text(monkeypatch, error, code):
+    gen, calls = generator(monkeypatch, error)
+    warnings = []
+    monkeypatch.setattr(scg, 'logger', SimpleNamespace(warning=lambda message, *args: warnings.append(message % args)))
+    cfg = EventConfig(initial_posts=[post()])
+    with pytest.raises(ValueError):
+        gen._validate_initial_posts(cfg, 'Original.')
+    assert len(calls) == 1 and cfg.initial_posts_validation['rejections'][0]['reason_code'] == code
+    assert code in warnings[0]
+    assert 'private' not in json.dumps(cfg.initial_posts_validation) and 'private' not in warnings[0]
+
+
+@pytest.mark.parametrize('bad_review, code', [
+    (dict(review(0), extra='not allowed'), 'row_fields_invalid'),
+    (review(0, 'unknown'), 'row_verdict_invalid'),
+    (review(0, 'supported'), 'row_claims_invalid'),
+    (review(0, 'supported', [{'claim': 'El precio es 8 euros.', 'source_quote': 'El precio es 5 euros.'}]),
+     'numeric_token_not_in_quote'),
+    (review(0, 'supported', [{'claim': 'El precio es 8 euros.', 'source_quote': 'cita inventada'}]),
+     'claim_or_quote_not_literal'),
+])
+def test_defective_row_drops_only_its_post_after_complete_unique_index_contract(monkeypatch, bad_review, code):
+    gen, _ = generator(monkeypatch, {'reviews': [bad_review, review(1), review(2, 'unsupported')]})
+    cfg = gen._validate_initial_posts(EventConfig(initial_posts=[
+        post('El precio es 8 euros.'), post('Me gustaría un precio menor.', 1), post('Ya se aprobó.', 2),
+    ]), 'El precio es 5 euros.')
+    assert [p['poster_agent_id'] for p in cfg.initial_posts] == [1]
+    assert cfg.initial_posts_validation['rejections'] == [
+        {'post_index': 0, 'reason': 'invalid_review', 'reason_code': code},
+        {'post_index': 2, 'reason': 'unsupported'},
+    ]
+
+
+@pytest.mark.parametrize('rows', [
+    [review(0), review(0)], [review(0)], [review(0), review(True)],
+    [review(0), {'verdict': 'opinion_only', 'claims': []}],
+])
+def test_ambiguous_or_incomplete_batch_never_preserves_even_an_individually_valid_post(monkeypatch, rows):
+    gen, _ = generator(monkeypatch, {'reviews': rows})
+    cfg = EventConfig(initial_posts=[post(), post(agent=1)])
+    with pytest.raises(ValueError):
+        gen._validate_initial_posts(cfg, 'Original.')
+    assert cfg.initial_posts == []
+    assert all(r['reason'] == 'validation_unavailable' for r in cfg.initial_posts_validation['rejections'])
+
+
+def test_every_row_with_invalid_provenance_still_fails_preparation_boundary(monkeypatch):
+    rows = [review(i, 'supported', [{'claim': 'El precio es 8 euros.', 'source_quote': 'El precio es 5 euros.'}])
+            for i in range(2)]
+    gen, _ = generator(monkeypatch, {'reviews': rows})
+    cfg = EventConfig(initial_posts=[post('El precio es 8 euros.', i) for i in range(2)])
+    with pytest.raises(ValueError):
+        gen._validate_initial_posts(cfg, 'El precio es 5 euros.')
+    assert cfg.initial_posts == [] and cfg.initial_posts_validation['status'] == 'failed'
+    assert all(r['reason_code'] == 'numeric_token_not_in_quote' for r in cfg.initial_posts_validation['rejections'])

@@ -19,7 +19,7 @@ from typing import Dict, Any, List, Optional, Callable, Tuple
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
-from openai import OpenAI
+from openai import OpenAI, APITimeoutError
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -29,6 +29,12 @@ from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.simulation_config')
 GENERATION_VERSION = 2  # colectivos separados de personas nombradas, autores comprobados y brief prioritario
+
+
+class _SeedValidationError(ValueError):
+    def __init__(self, message: str, reason_code: str):
+        super().__init__(message)
+        self.reason_code = reason_code
 
 # 中国作息时间配置（北京时间）
 CHINA_TIMEZONE_CONFIG = {
@@ -1006,13 +1012,39 @@ Formato de salida JSON (sin markdown):
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=8192,
+            # Reasoning counts toward this budget too. M3 exhausted 8192
+            # before emitting any JSON in both batches of the real replay.
+            max_tokens=min(Config.LLM_MAX_TOKENS_CAP, 32768),
             response_format={"type": "json_object"},
         )
         choice = response.choices[0]
+        if choice.finish_reason == "length":
+            raise _SeedValidationError("respuesta de validación incompleta", "provider_token_limit")
         if choice.finish_reason != "stop":
-            raise ValueError("respuesta de validación incompleta")
+            raise _SeedValidationError("respuesta de validación incompleta", "provider_finish_invalid")
         return json.loads(strip_reasoning(choice.message.content))
+
+    @staticmethod
+    def _seed_validation_error_code(exc: Exception) -> str:
+        """Only fixed codes reach logs/metadata; never exception text from a provider."""
+        if isinstance(exc, _SeedValidationError):
+            return exc.reason_code
+        if isinstance(exc, json.JSONDecodeError):
+            return 'provider_json_invalid'
+        if isinstance(exc, (TimeoutError, APITimeoutError)):
+            return 'provider_timeout'
+        parser_codes = {
+            'forma de validación inválida': 'response_schema_invalid',
+            'validación incompleta': 'review_count_incomplete',
+            'campos de validación inválidos': 'row_fields_invalid',
+            'índice de validación inválido': 'row_index_invalid',
+            'decisión de validación inválida': 'row_verdict_invalid',
+            'afirmaciones de validación inválidas': 'row_claims_invalid',
+            'procedencia inválida': 'claim_fields_invalid',
+            'cita o afirmación no literal': 'claim_or_quote_not_literal',
+            'cifras sin respaldo literal': 'numeric_token_not_in_quote',
+        }
+        return parser_codes.get(str(exc), 'provider_or_validation_error')
 
     def _validate_initial_posts(self, config: EventConfig, document_text: str) -> EventConfig:
         """Keep simulated opinions or source-backed factual statements, after authors.
@@ -1029,7 +1061,8 @@ Formato de salida JSON (sin markdown):
         raw_posts = config.initial_posts
         audit = {"version": 1, "method": "llm_review_with_literal_provenance", "source_sha256": source_hash,
                  "source_available": bool(original.strip()), "source_truncated": len(original) > self.SEED_VALIDATION_SOURCE_CHARS,
-                 "submitted": len(raw_posts), "accepted": 0, "dropped": 0, "batches": 0, "rejections": []}
+                 "submitted": len(raw_posts), "accepted": 0, "dropped": 0, "batches": 0,
+                 "max_tokens_per_call": min(Config.LLM_MAX_TOKENS_CAP, 32768), "rejections": []}
         config.initial_posts_validation = audit
         if not raw_posts:
             audit['status'] = 'no_posts'
@@ -1071,13 +1104,20 @@ Formato de salida JSON (sin markdown):
                 decisions = self._parse_seed_reviews(reply, batch, original, source)
             except Exception as exc:
                 # Do not log model output, original text or post contents.
-                logger.warning("Validación de semillas fallida: %s", type(exc).__name__)
+                reason_code = self._seed_validation_error_code(exc)
+                logger.warning("Validación de semillas fallida: %s (lote %s)", reason_code, audit['batches'])
                 for original_index, _ in batch:
-                    audit['rejections'].append({'post_index': original_index, 'reason': 'validation_unavailable'})
+                    audit['rejections'].append({'post_index': original_index, 'reason': 'validation_unavailable',
+                                                'reason_code': reason_code})
                 continue
             for (original_index, post), decision in zip(batch, decisions):
                 if decision['verdict'] == 'unsupported':
-                    audit['rejections'].append({'post_index': original_index, 'reason': 'unsupported'})
+                    rejection = {'post_index': original_index, 'reason': 'unsupported'}
+                    if decision.get('reason_code'):
+                        rejection.update(reason='invalid_review', reason_code=decision['reason_code'])
+                        logger.warning("Semilla descartada: %s (lote %s, índice %s)",
+                                       decision['reason_code'], audit['batches'], original_index)
+                    audit['rejections'].append(rejection)
                     continue
                 kept = dict(post)
                 kept['source_provenance'] = {
@@ -1105,36 +1145,52 @@ Formato de salida JSON (sin markdown):
             raise ValueError('validación incompleta')
         by_index = {}
         for row in rows:
-            if not isinstance(row, dict) or set(row) != {'post_index', 'verdict', 'claims'}:
-                raise ValueError('campos de validación inválidos')
-            idx = row['post_index']
+            # Before any row can pass, establish an unambiguous complete mapping.
+            # A missing/duplicate/bool/out-of-range index still invalidates all.
+            if not isinstance(row, dict):
+                raise ValueError('índice de validación inválido')
+            idx = row.get('post_index')
             if type(idx) is not int or not 0 <= idx < len(batch) or idx in by_index:
                 raise ValueError('índice de validación inválido')
-            verdict, claims = row['verdict'], row['claims']
-            if verdict not in ('opinion_only', 'supported', 'unsupported') or not isinstance(claims, list):
-                raise ValueError('decisión de validación inválida')
-            if verdict != 'supported' and claims or verdict == 'supported' and not 1 <= len(claims) <= 10:
-                raise ValueError('afirmaciones de validación inválidas')
-            provenance = []
-            for claim in claims:
-                if not isinstance(claim, dict) or set(claim) != {'claim', 'source_quote'}:
-                    raise ValueError('procedencia inválida')
-                text, quote = claim['claim'], claim['source_quote']
-                if (not isinstance(text, str) or not text.strip() or len(text) > 2000
-                        or text not in batch[idx][1]['content'] or not isinstance(quote, str)
-                        or not quote.strip() or len(quote) > 2000 or quote not in supplied_source
-                        or quote not in original):
-                    raise ValueError('cita o afirmación no literal')
-                # Conservatively reject numerical substitutions even if the model
-                # says supported. Date/number normalization is left to the judge.
-                nums = lambda value: set(re.findall(r'\d+(?:[.,]\d+)*', value))
-                if not nums(text) <= nums(quote):
-                    raise ValueError('cifras sin respaldo literal')
-                start = original.index(quote)
-                provenance.append({'claim': text, 'source_quote': quote,
-                                   'source_start': start, 'source_end': start + len(quote)})
-            by_index[idx] = {'verdict': verdict, 'claims': provenance}
-        return [by_index[i] for i in range(len(batch))]
+            by_index[idx] = row
+        decisions = []
+        for idx in range(len(batch)):
+            try:
+                decisions.append(SimulationConfigGenerator._parse_seed_review(
+                    by_index[idx], batch[idx][1], original, supplied_source))
+            except ValueError as exc:
+                # The index is certain: bad provenance rejects this post only.
+                # No approximation, correction or acceptance of its claims.
+                decisions.append({'verdict': 'unsupported', 'claims': [],
+                                  'reason_code': SimulationConfigGenerator._seed_validation_error_code(exc)})
+        return decisions
+
+    @staticmethod
+    def _parse_seed_review(row, post, original, supplied_source):
+        if set(row) != {'post_index', 'verdict', 'claims'}:
+            raise ValueError('campos de validación inválidos')
+        verdict, claims = row['verdict'], row['claims']
+        if verdict not in ('opinion_only', 'supported', 'unsupported') or not isinstance(claims, list):
+            raise ValueError('decisión de validación inválida')
+        if verdict != 'supported' and claims or verdict == 'supported' and not 1 <= len(claims) <= 10:
+            raise ValueError('afirmaciones de validación inválidas')
+        provenance = []
+        for claim in claims:
+            if not isinstance(claim, dict) or set(claim) != {'claim', 'source_quote'}:
+                raise ValueError('procedencia inválida')
+            text, quote = claim['claim'], claim['source_quote']
+            if (not isinstance(text, str) or not text.strip() or len(text) > 2000
+                    or text not in post['content'] or not isinstance(quote, str)
+                    or not quote.strip() or len(quote) > 2000 or quote not in supplied_source
+                    or quote not in original):
+                raise ValueError('cita o afirmación no literal')
+            nums = lambda value: set(re.findall(r'\d+(?:[.,]\d+)*', value))
+            if not nums(text) <= nums(quote):
+                raise ValueError('cifras sin respaldo literal')
+            start = original.index(quote)
+            provenance.append({'claim': text, 'source_quote': quote,
+                               'source_start': start, 'source_end': start + len(quote)})
+        return {'verdict': verdict, 'claims': provenance}
 
     def _generate_agent_configs_batch(
         self,

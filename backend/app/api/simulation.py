@@ -8,6 +8,7 @@ import csv
 import json
 import threading
 import traceback
+from functools import wraps
 from datetime import datetime
 from flask import request, jsonify, send_file
 
@@ -15,7 +16,7 @@ from . import simulation_bp
 from ..config import Config
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
-from ..services.simulation_manager import SimulationManager, SimulationStatus
+from ..services.simulation_manager import SimulationManager, SimulationStatus, PreparationConflictError
 from ..services.simulation_runner import SimulationRunner, RunnerStatus, interview_target_count
 from ..services.poblacion import alcance as poblacion_alcance
 from ..services.auto_pipeline import get_pipeline_summary
@@ -28,6 +29,7 @@ from ..utils.access import visible_project_id
 from ..utils.locale import t, get_locale, set_locale
 from ..utils.llm_client import LLMClient
 from ..utils.security import validate_platform, validate_storage_id
+from ..utils.fs import read_json_or_none
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 
@@ -278,9 +280,9 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
     # 检查state.json中的状态
     state_file = os.path.join(simulation_dir, "state.json")
     try:
-        import json
-        with open(state_file, 'r', encoding='utf-8') as f:
-            state_data = json.load(f)
+        state_data = read_json_or_none(state_file, what=f"la simulación {simulation_id}")
+        if not isinstance(state_data, dict):
+            return False, {"reason": "El estado de preparación no está disponible"}
         
         status = state_data.get("status", "")
         config_generated = state_data.get("config_generated", False)
@@ -291,35 +293,49 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         # 如果 config_generated=True 且文件存在，认为准备完成
         # 以下状态都说明准备工作已完成：
         # - ready: 准备完成，可以运行
-        # - preparing: 如果 config_generated=True 说明已完成
         # - running: 正在运行，说明准备早就完成了
         # - completed: 运行完成，说明准备早就完成了
         # - stopped: 已停止，说明准备早就完成了
         # - failed: 运行失败（但准备是完成的）
-        prepared_statuses = ["ready", "preparing", "running", "completed", "stopped", "failed"]
+        # PREPARING nunca acredita una preparación completa. Esta comprobación
+        # es solo lectura: no promociona archivos de un intento anterior.
+        prepared_statuses = ["ready", "running", "completed", "stopped", "failed"]
         if status in prepared_statuses and config_generated:
             # 获取文件统计信息
             profiles_file = os.path.join(simulation_dir, "reddit_profiles.json")
             config_file = os.path.join(simulation_dir, "simulation_config.json")
             
             profiles_count = 0
-            if os.path.exists(profiles_file):
-                with open(profiles_file, 'r', encoding='utf-8') as f:
-                    profiles_data = json.load(f)
-                    profiles_count = len(profiles_data) if isinstance(profiles_data, list) else 0
-            
-            # 如果状态是preparing但文件已完成，自动更新状态为ready
-            if status == "preparing":
-                try:
-                    state_data["status"] = "ready"
-                    from datetime import datetime
-                    state_data["updated_at"] = datetime.now().isoformat()
-                    with open(state_file, 'w', encoding='utf-8') as f:
-                        json.dump(state_data, f, ensure_ascii=False, indent=2)
-                    logger.info(f"Actualización automática del estado de la simulación: {simulation_id} preparing -> ready")
-                    status = "ready"
-                except Exception as e:
-                    logger.warning(f"Fallo al actualizar el estado automáticamente: {e}")
+            profiles_data = read_json_or_none(profiles_file, what="los perfiles de preparación")
+            profiles_count = len(profiles_data) if isinstance(profiles_data, list) else 0
+
+            # También detecta intentos antiguos fallidos que dejaron el flag a
+            # true: una config no puede ejecutar perfiles de otra preparación.
+            config_data = read_json_or_none(config_file, what="la configuración de preparación")
+            agent_configs = config_data.get("agent_configs") if isinstance(config_data, dict) else None
+            if not isinstance(agent_configs, list) or not agent_configs:
+                return False, {"reason": "La configuración no contiene una lista válida de agentes"}
+            def agent_ids(rows, key):
+                if not isinstance(rows, list) or any(not isinstance(row, dict) or row.get(key) is None for row in rows):
+                    return None
+                ids = [str(row[key]) for row in rows]
+                return set(ids) if len(ids) == len(set(ids)) else None
+
+            expected_ids = agent_ids(agent_configs, "agent_id")
+            if expected_ids is None or any(not isinstance(row.get("entity_name"), str) or not row["entity_name"].strip() for row in agent_configs):
+                return False, {"reason": "La configuración contiene identificadores de agentes inválidos"}
+            expected_names = {str(row["agent_id"]): row["entity_name"] for row in agent_configs}
+            def matching_profiles(rows):
+                return (agent_ids(rows, "user_id") == expected_ids and
+                        {str(row["user_id"]): row.get("name") for row in rows} == expected_names)
+
+            if state_data.get("enable_reddit", True) and not matching_profiles(profiles_data):
+                return False, {"reason": "Los perfiles Reddit no corresponden a la configuración"}
+            if state_data.get("enable_twitter", True):
+                with open(os.path.join(simulation_dir, "twitter_profiles.csv"), newline='', encoding='utf-8') as f:
+                    twitter_profiles = list(csv.DictReader(f))
+                if not matching_profiles(twitter_profiles):
+                    return False, {"reason": "Los perfiles Twitter no corresponden a la configuración"}
             
             logger.info(f"Simulación {simulation_id} resultado de la comprobación: preparación completa (status={status}, config_generated={config_generated})")
             return True, {
@@ -346,7 +362,16 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
 
 # Evita preparaciones duplicadas: recargar la página en el paso 2 volvía a
 # llamar a /prepare y lanzaba una segunda tarea que sumaba agentes a la primera.
-_prepare_lock = threading.Lock()
+_prepare_lock = SimulationManager.PREPARATION_LOCK
+
+
+def _locked_preparation_transition(view):
+    """Evita que un arranque o reconciliación guarde un estado previo al intento nuevo."""
+    @wraps(view)
+    def locked(*args, **kwargs):
+        with _prepare_lock:
+            return view(*args, **kwargs)
+    return locked
 
 
 def _find_active_prepare_task(simulation_id: str):
@@ -478,6 +503,12 @@ def prepare_simulation():
                 logger.info(f"Preparación ya en curso para {simulation_id}: se reutiliza la tarea {active['task_id']}")
                 return _active_prepare_response(simulation_id, active, state)
         
+        # Force regenera un resultado terminado, nunca solapa dos workers que
+        # podrían volver a acreditar mutuamente archivos de distintos intentos.
+        active = _find_active_prepare_task(simulation_id)
+        if active:
+            return _active_prepare_response(simulation_id, active, state)
+
         # 从项目获取必要信息
         project = ProjectManager.get_project(state.project_id)
         if not project:
@@ -519,6 +550,8 @@ def prepare_simulation():
         
         # ========== 同步获取实体数量（在后台任务启动前） ==========
         # 这样前端在调用prepare后立即就能获取到预期Agent总数
+        preview_count = None
+        preview_types = None
         try:
             logger.info(f"Obteniendo el número de entidades de forma síncrona: graph_id={state.graph_id}")
             reader = ZepEntityReader()
@@ -530,16 +563,21 @@ def prepare_simulation():
                 include_untyped=True,  # mismos candidatos que el preparador; Jev decide quién es público
             )
             # 保存实体数量到状态（供前端立即获取）
-            state.entities_count = filtered_preview.filtered_count
-            state.entity_types = list(filtered_preview.entity_types)
+            preview_count = filtered_preview.filtered_count
+            preview_types = list(filtered_preview.entity_types)
             logger.info(f"Número de entidades previstas: {filtered_preview.filtered_count}, tipos: {filtered_preview.entity_types}")
 
             # 如果图谱中没有任何可用实体，立即返回错误（不要启动后台任务）
             # 这样前端可以立刻显示明确的错误信息，而不是无限轮询空状态
             if filtered_preview.filtered_count == 0:
-                state.status = SimulationStatus.FAILED
-                state.error = t('api.prepareNoEntities')
-                manager._save_simulation_state(state)
+                with _prepare_lock:
+                    active = _find_active_prepare_task(simulation_id)
+                    if active:
+                        return _active_prepare_response(simulation_id, active, state)
+                    state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types)
+                    state.status = SimulationStatus.FAILED
+                    state.error = t('api.prepareNoEntities')
+                    manager._save_simulation_state(state)
                 logger.error(
                     f"Prepare aborted: graph {state.graph_id} has 0 usable entities "
                     f"(total nodes fetched: {filtered_preview.total_count})"
@@ -555,6 +593,8 @@ def prepare_simulation():
                         "hint": t('api.prepareNoEntitiesHint'),
                     }
                 }), 400
+        except PreparationConflictError:
+            raise
         except Exception as e:
             logger.warning(f"Fallo al obtener el número de entidades de forma síncrona (se reintentará en la tarea en segundo plano): {e}")
             # 失败不影响后续流程，后台任务会重新获取
@@ -563,9 +603,10 @@ def prepare_simulation():
         # crear dos tareas para la misma simulación)
         task_manager = TaskManager()
         with _prepare_lock:
-            active = None if force_regenerate else _find_active_prepare_task(simulation_id)
+            active = _find_active_prepare_task(simulation_id)
             if active:
                 return _active_prepare_response(simulation_id, active, state)
+            state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types)
             task_id = task_manager.create_task(
                 task_type="simulation_prepare",
                 metadata={
@@ -575,8 +616,6 @@ def prepare_simulation():
             )
         
         # 更新模拟状态（包含预先获取的实体数量）
-        state.status = SimulationStatus.PREPARING
-        manager._save_simulation_state(state)
         
         # Capture locale before spawning background thread
         current_locale = get_locale()
@@ -685,6 +724,7 @@ def prepare_simulation():
                 state = manager.get_simulation(simulation_id)
                 if state:
                     state.status = SimulationStatus.FAILED
+                    state.config_generated = False
                     state.error = str(e)
                     manager._save_simulation_state(state)
         
@@ -705,6 +745,8 @@ def prepare_simulation():
             }
         })
         
+    except PreparationConflictError as e:
+        return jsonify({"success": False, "error": str(e)}), 409
     except ValueError as e:
         return jsonify({
             "success": False,
@@ -898,6 +940,7 @@ def delete_simulation(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>', methods=['GET'])
+@_locked_preparation_transition
 def get_simulation(simulation_id: str):
     """获取模拟状态"""
     try:
@@ -916,7 +959,8 @@ def get_simulation(simulation_id: str):
         run_state = None
         try:
             run_state = SimulationRunner.get_run_state(simulation_id)
-            if run_state:
+            if (run_state and state.config_generated and state.status != SimulationStatus.PREPARING
+                    and _check_simulation_prepared(simulation_id)[0]):
                 runner_value = run_state.runner_status.value
                 stale_running = state.status in (
                     SimulationStatus.RUNNING,
@@ -1706,6 +1750,7 @@ def generate_profiles():
 # ============== 模拟运行控制接口 ==============
 
 @simulation_bp.route('/start', methods=['POST'])
+@_locked_preparation_transition
 def start_simulation():
     """
     开始运行模拟
@@ -1795,11 +1840,19 @@ def start_simulation():
             }), 404
 
         force_restarted = False
+
+        # Incluso READY necesita la acreditación del último intento; `force`
+        # solo afecta al runner, nunca permite usar una preparación fallida.
+        is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
+        if not is_prepared:
+            return jsonify({
+                "success": False,
+                "error": t('api.simNotReady', status=state.status.value)
+            }), 400
         
         # 智能处理状态：如果准备工作已完成，允许重新启动
         if state.status != SimulationStatus.READY:
             # 检查准备工作是否已完成
-            is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
 
             if is_prepared:
                 # 准备工作已完成，检查是否有正在运行的进程

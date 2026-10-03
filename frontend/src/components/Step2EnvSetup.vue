@@ -6,6 +6,7 @@
       <div v-if="prepareError" class="prepare-error" role="alert">
         <p class="prepare-error-title">{{ $t('step2.prepareErrorTitle') }}</p>
         <p class="prepare-error-text">{{ $t('step2.prepareErrorBody') }}</p>
+        <button v-if="runnerStatus === 'idle' && !autoRunning" type="button" class="cis-regen" @click="regenerarPublico">{{ $t('common.retry') }}</button>
         <details class="prepare-error-details">
           <summary>{{ $t('main.failDetails') }}</summary>
           <code>{{ prepareError }}</code>
@@ -134,6 +135,7 @@
               </div>
             </div>
             <p v-if="!(poblacion.grupos?.length > 1)" class="cis-filters">{{ cisFiltrosTexto }}</p>
+            <p v-if="poblacion.calidad" class="cis-filters" data-testid="population-sample-check">{{ $t('step2.datosSampleCheck') }}</p>
             <p v-if="poblacion.relajado" class="cis-relaxed">{{ $t('step2.datosRelaxed') }}</p>
           </div>
 
@@ -878,6 +880,8 @@ const lastLog = computed(() => {
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
 
 let unmounted = false
+let preparationAttempt = 0
+const isCurrentPreparation = attempt => !unmounted && attempt === preparationAttempt
 
 // Modo lectura: una simulación que ya se ejecutó se consulta aquí, no se vuelve a configurar ni a lanzar
 const runState = ref(null)
@@ -908,6 +912,14 @@ const openRun = () => emit('next-step', {})
 // Error de preparación para la pantalla: frase clara arriba y el texto del servidor plegado como detalle
 const prepareError = ref('')
 const setPrepareError = (detail, hint) => {
+  preparationAttempt++  // las lecturas en vuelo del intento fallido ya no pueden restaurar datos
+  simulationConfig.value = null
+  selectedProfile.value = null
+  currentStage.value = ''
+  phase.value = 1
+  stopPolling()
+  stopProfilesPolling()
+  stopConfigPolling()
   prepareError.value = [detail || t('common.unknownError'), hint].filter(Boolean).join('\n')
 }
 // Postura de cada agente traducida (el motor la da en inglés: supportive, opposing, neutral, observer)
@@ -1213,7 +1225,7 @@ const alcanceCambiado = computed(() => alcanceUsado.value !== null && alcanceEle
 const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value)
 // Mientras se prepara (o con la simulación ya ejecutada o en el flujo automático) los ajustes no se tocan: cambiar uno y «volver a
 // generar» a mitad lanzaba una segunda preparación sobre los mismos ficheros
-const ajustesBloqueados = computed(() => (phase.value < 4 && !prepareError.value) || alreadyRun.value || autoRunning.value)
+const ajustesBloqueados = computed(() => runnerStatus.value !== 'idle' || (phase.value < 4 && !prepareError.value) || autoRunning.value)
 const alcanceTexto = computed(() => {
   const a = alcance.value
   if (!a) return ''
@@ -1225,10 +1237,11 @@ const alcanceTexto = computed(() => {
   return [t('step2.alcance_' + a.nivel), detalle].filter(Boolean).join(' · ')
 })
 const cargarAlcance = async () => {
+  const attempt = preparationAttempt
   if (!props.simulationId) return
   try {
     const res = await getAlcanceSimulacion(props.simulationId)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     alcance.value = (res.success && res.data) ? res.data : null
     if (alcance.value) {   // al volver, el selector refleja lo que se usó: lo fijado a mano, o «automático»
       const usado = alcance.value.origen === 'pedido' ? alcance.value.nivel : 'auto'
@@ -1236,6 +1249,7 @@ const cargarAlcance = async () => {
       alcanceUsado.value = usado
     }
   } catch (e) {
+    if (!isCurrentPreparation(attempt)) return
     alcance.value = null
   }
 }
@@ -1273,10 +1287,11 @@ const cisFiltrosTexto = computed(() => {
 })
 
 const cargarPoblacion = async () => {
+  const attempt = preparationAttempt
   if (!props.simulationId || !cisEstado.value.disponible) return
   try {
     const res = await getPoblacionSimulacion(props.simulationId)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     poblacion.value = (res.success && res.data) ? res.data : null
     // Al volver a una simulación ya preparada, el interruptor y el país reflejan lo que SE USÓ, no el valor por defecto del
     // servidor (si no, parecía apagado con un público anclado y pedía «volver a generar» sin que nadie hubiera tocado nada)
@@ -1286,6 +1301,7 @@ const cargarPoblacion = async () => {
       usarCis.value = true; cisUsado.value = true; paisElegido.value = pais; paisUsado.value = pais
     }
   } catch (e) {
+    if (!isCurrentPreparation(attempt)) return
     poblacion.value = null
   }
 }
@@ -1307,6 +1323,17 @@ const regenerarPublico = async () => {
   if (ajustesBloqueados.value) return
   stopPolling()
   stopProfilesPolling()
+  stopConfigPolling()
+  preparationAttempt++
+  simulationConfig.value = null
+  selectedProfile.value = null
+  taskId.value = null
+  entityTypes.value = []
+  expectedTotal.value = null
+  currentStage.value = ''
+  progressMessage.value = ''
+  lastLoggedConfigStage = ''
+  showAllAgents.value = false
   profiles.value = []
   poblacion.value = null
   alcance.value = null
@@ -1320,7 +1347,8 @@ const regenerarPublico = async () => {
 }
 
 const startPrepareSimulation = async (force = false) => {
-  if (unmounted || alreadyRun.value || autoRunning.value) return
+  const attempt = preparationAttempt
+  if (unmounted || runnerStatus.value !== 'idle' || autoRunning.value) return
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     emit('update-status', 'error')
@@ -1349,7 +1377,7 @@ const startPrepareSimulation = async (force = false) => {
     }
     if (force) peticion.force_regenerate = true
     const res = await prepareSimulation(peticion)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     
     if (res.success && res.data) {
       if (res.data.already_prepared) {
@@ -1390,7 +1418,7 @@ const startPrepareSimulation = async (force = false) => {
       emit('update-status', 'error')
     }
   } catch (err) {
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     addLog(t('log.prepareException', { error: err.message }))
     setPrepareError(err?.response?.data?.error || err.message, err?.response?.data?.data?.hint)
     emit('update-status', 'error')
@@ -1424,19 +1452,20 @@ const stopProfilesPolling = () => {
 }
 
 const pollPrepareStatus = async () => {
-  if (unmounted) return
+  const attempt = preparationAttempt
+  if (!isCurrentPreparation(attempt)) return
   if (!taskId.value && !props.simulationId) return
 
   // Safety net: watch for simulation-level failure that the task-level
   // status poll may not surface.
-  if (await checkSimulationFailed() || unmounted) return
+  if (await checkSimulationFailed() || !isCurrentPreparation(attempt)) return
 
   try {
     const res = await getPrepareStatus({
       task_id: taskId.value,
       simulation_id: props.simulationId
     })
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     
     if (res.success && res.data) {
       const data = res.data
@@ -1494,11 +1523,12 @@ const pollPrepareStatus = async () => {
 }
 
 const fetchProfilesRealtime = async () => {
+  const attempt = preparationAttempt
   if (!props.simulationId) return
   
   try {
     const res = await getSimulationProfilesRealtime(props.simulationId, 'reddit')
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     
     if (res.success && res.data) {
       const prevCount = profiles.value.length
@@ -1560,10 +1590,11 @@ const stopConfigPolling = () => {
 // with a clear error message.
 let _simFailedDetected = false
 const checkSimulationFailed = async () => {
+  const attempt = preparationAttempt
   if (_simFailedDetected || !props.simulationId) return false
   try {
     const res = await getSimulation(props.simulationId)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     const status = res?.data?.status
     if (status === 'failed') {
       _simFailedDetected = true
@@ -1583,15 +1614,16 @@ const checkSimulationFailed = async () => {
 }
 
 const fetchConfigRealtime = async () => {
+  const attempt = preparationAttempt
   if (!props.simulationId) return
 
   // First, check the overall simulation state — if it flipped to "failed"
   // while we were polling the real-time config, stop immediately.
-  if (await checkSimulationFailed() || unmounted) return
+  if (await checkSimulationFailed() || !isCurrentPreparation(attempt)) return
 
   try {
     const res = await getSimulationConfigRealtime(props.simulationId)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
 
     if (res.success && res.data) {
       const data = res.data
@@ -1644,23 +1676,24 @@ const fetchConfigRealtime = async () => {
 }
 
 const loadPreparedData = async () => {
-  if (unmounted) return
+  const attempt = preparationAttempt
+  if (!isCurrentPreparation(attempt)) return
   phase.value = 2
   addLog(t('log.loadingExistingConfig'))
 
   // 最后获取一次 Profiles
   await fetchProfilesRealtime()
-  if (unmounted) return
+  if (!isCurrentPreparation(attempt)) return
   await cargarPoblacion()
-  if (unmounted) return
+  if (!isCurrentPreparation(attempt)) return
   await cargarAlcance()
-  if (unmounted) return
+  if (!isCurrentPreparation(attempt)) return
   addLog(t('log.loadedAgentProfiles', { count: profiles.value.length }))
 
   // 获取配置（使用实时接口）
   try {
     const res = await getSimulationConfigRealtime(props.simulationId)
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     if (res.success && res.data) {
       if (res.data.config_generated && res.data.config) {
         simulationConfig.value = res.data.config
@@ -1683,7 +1716,7 @@ const loadPreparedData = async () => {
       }
     }
   } catch (err) {
-    if (unmounted) return
+    if (!isCurrentPreparation(attempt)) return
     addLog(t('log.loadConfigFailed', { error: err.message }))
     setPrepareError(err?.response?.data?.error || err.message)
     emit('update-status', 'error')
@@ -1717,7 +1750,25 @@ onMounted(async () => {
       await loadPreparedData()
       if (!unmounted && autoRunning.value && phase.value < 4) startProfilesPolling()
     } else {
-      startPrepareSimulation()
+      // Una preparación fallida se conserva hasta que la persona pulse Reintentar.
+      // Si esta lectura falla tampoco se autoriza trabajo nuevo.
+      try {
+        const res = await getSimulation(props.simulationId)
+        if (unmounted) return
+        if (!res?.success || !res.data?.status) throw new Error(t('evidence.statusUnavailable'))
+        if (res.data.status === 'failed') {
+          setPrepareError(res.data.error)
+          emit('update-status', 'error')
+          // Recuperar los ajustes usados, sin volver a cargar configuración ni semillas fallidas.
+          await cargarPoblacion()
+          if (unmounted) return
+          await cargarAlcance()
+          return
+        }
+        startPrepareSimulation()
+      } catch (err) {
+        if (!unmounted) setPrepareError(err.message)
+      }
     }
   }
 })

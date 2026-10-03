@@ -36,6 +36,41 @@ Las entrevistas globales y en lote comparten un límite de entrevistas efectivas
 consultar a una persona en ambas plataformas consume dos, no una. La validación se
 hace antes de ejecutar la orden y se repite al expandir la configuración global.
 
+## Preparación y regeneración
+
+La preparación incorpora el material original en los perfiles y verifica los hechos
+de los mensajes iniciales con citas literales, índices cerrados y comprobación de
+cifras. La revisión semántica sigue dependiendo del modelo. Una respuesta truncada
+no permite aprobar mensajes: se registra un código de error seguro y el intento
+falla si no queda ninguno aceptado. Cada lote tiene una sola llamada, sin reintentos
+del SDK, hasta 240 segundos y hasta el menor de `LLM_MAX_TOKENS_CAP` y 32.768 tokens
+de salida, incluidos los tokens de pensamiento.
+
+Los índices de revisión deben cubrir todo el lote una sola vez. Un fallo de esa
+correspondencia invalida el lote; con índices inequívocos, una cita, cifra o fila
+defectuosa descarta su mensaje y conserva las otras revisiones válidas. No se
+aproximan citas ni se modifican mensajes para hacerlos pasar.
+
+Una regeneración invalida primero la preparación anterior. Los archivos conservados
+no acreditan el intento nuevo: iniciar exige bandera válida y correspondencia de
+IDs y nombres entre configuración y perfiles de las plataformas habilitadas. Una
+lectura no convierte una preparación en curso en terminada. Los relanzamientos de
+ejecuciones históricas con preparación coherente continúan disponibles.
+
+Antes de modificar archivos se comprueba, bajo el mismo candado del arranque,
+si existe un proceso vivo de esa simulación, incluso si espera entrevistas tras
+terminar. El conflicto rechaza la preparación sin invalidar ni matar ese proceso;
+un estado histórico sin proceso vivo no bloquea por sí solo la regeneración.
+
+El reparto poblacional muestra tamaño y fuentes sin equiparar compatibilidad de
+muestreo con representatividad nacional; la expansión informa cuántas personas
+añade dentro de los topes, sin prometer una proporción que no haya alcanzado.
+
+La pantalla borra configuración y semillas del intento anterior al regenerar o
+fallar, y descarta respuestas tardías. Reabrir un fallo conserva el error y los
+ajustes de país/alcance; una nueva preparación exige pulsar «Reintentar» y conocer
+que el runner está en reposo.
+
 ## Aplicación a resultados antiguos
 
 El despliegue no transforma una simulación ya ejecutada en una prueba corregida.
@@ -50,6 +85,13 @@ dependen de la clasificación del proveedor; los de redacción no verifican toda
 afirmaciones del modelo. Las fuentes aportadas tampoco se verifican automáticamente
 contra internet. La ficha declara estas fronteras: un relato plausible no es una
 medición ni demuestra capacidad de anticipar resultados reales.
+
+El ensayo real posterior encontró todavía pérdida de condicionales, alteración de
+cifras y mezcla de acontecimientos en biografías generadas. Añadir el texto original
+al prompt no basta para certificar la memoria factual. Queda pendiente separar
+pasajes acreditados y caracterización ficticia en los campos que consume OASIS,
+y comprobarlos con material reservado para evaluación. Los tests de infraestructura
+y los controles de mensajes iniciales no aprueban esa fidelidad individual.
 
 ## Comprobaciones reproducibles
 

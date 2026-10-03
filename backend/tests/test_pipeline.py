@@ -302,8 +302,9 @@ def make_prepared_simulation(project_id, created_at):
     state.created_at = created_at
     manager._save_simulation_state(state)
     sim_dir = os.path.join(SimulationManager.SIMULATION_DATA_DIR, state.simulation_id)
-    for name, content in (("simulation_config.json", "{}"), ("reddit_profiles.json", "[]"),
-                          ("twitter_profiles.csv", "user_id\n")):
+    for name, content in (("simulation_config.json", '{"agent_configs": [{"agent_id": 0, "entity_name": "Actor"}]}'),
+                          ("reddit_profiles.json", '[{"user_id": 0, "name": "Actor"}]'),
+                          ("twitter_profiles.csv", "user_id,name\n0,Actor\n")):
         with open(os.path.join(sim_dir, name), "w", encoding="utf-8") as f:
             f.write(content)
     return state.simulation_id

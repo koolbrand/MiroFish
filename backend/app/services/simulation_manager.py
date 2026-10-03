@@ -7,6 +7,7 @@ OASIS模拟管理器
 import os
 import json
 import shutil
+import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -42,6 +43,10 @@ class PlatformType(str, Enum):
     """平台类型"""
     TWITTER = "twitter"
     REDDIT = "reddit"
+
+
+class PreparationConflictError(ValueError):
+    """Un runner vivo todavía consume los archivos de esta simulación."""
 
 
 @dataclass
@@ -132,6 +137,10 @@ class SimulationManager:
     """
     
     # 模拟数据存储目录
+    # Un proceso Flask: serializa el inicio de preparación y el arranque del
+    # runner, sin retener el candado durante generación/modelos.
+    PREPARATION_LOCK = threading.RLock()
+
     SIMULATION_DATA_DIR = os.path.join(
         os.path.dirname(__file__), 
         '../../uploads/simulations'
@@ -204,6 +213,36 @@ class SimulationManager:
         self._simulations[simulation_id] = state
         return state
     
+    def begin_preparation(self, state: SimulationState, *, entities_count=None, entity_types=None) -> SimulationState:
+        """Invalida la preparación anterior antes de cambiar cualquier archivo.
+
+        Los archivos y resultados históricos se conservan, pero su existencia
+        ya no certifica que el intento nuevo haya terminado correctamente.
+        """
+        with self.PREPARATION_LOCK:
+            from .simulation_runner import SimulationRunner
+            # Revalida dentro del mismo candado que /start: el preview del
+            # grafo pudo durar mientras otra petición arrancaba un proceso.
+            if state.simulation_id in SimulationRunner.live_processes():
+                raise PreparationConflictError(t('api.simAlreadyRunning', simulationId=state.simulation_id))
+            self._simulations.pop(state.simulation_id, None)
+            state = self._load_simulation_state(state.simulation_id)
+            if state is None:
+                raise ValueError("La simulación ya no está disponible")
+            # Solo estas observaciones del preview se trasladan al estado
+            # recién leído; no se guardan flags/status de su objeto antiguo.
+            if entities_count is not None:
+                state.entities_count = entities_count
+            if entity_types is not None:
+                state.entity_types = list(entity_types)
+            state.status = SimulationStatus.PREPARING
+            state.config_generated = False
+            state.config_reasoning = ""
+            state.profiles_count = 0
+            state.error = None
+            self._save_simulation_state(state)
+            return state
+
     def create_simulation(
         self,
         project_id: str,
@@ -281,9 +320,11 @@ class SimulationManager:
         if not state:
             raise ValueError(f"La simulación no existe: {simulation_id}")
 
+        # Un conflicto de acceso a archivos no es una preparación fallida:
+        # no cambia el estado ni los flags de la ejecución todavía viva.
+        state = self.begin_preparation(state)
+
         try:
-            state.status = SimulationStatus.PREPARING
-            self._save_simulation_state(state)
             
             sim_dir = self._get_simulation_dir(simulation_id)
             
@@ -521,6 +562,7 @@ class SimulationManager:
             import traceback
             logger.error(traceback.format_exc())
             state.status = SimulationStatus.FAILED
+            state.config_generated = False
             state.error = str(e)
             self._save_simulation_state(state)
             raise
