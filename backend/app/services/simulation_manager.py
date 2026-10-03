@@ -406,6 +406,9 @@ class SimulationManager:
                 # El país y los grupos del público se deciden con el brief (de ahí sale quién es el público), no solo
                 # con la pregunta de la simulación, que casi nunca dice de dónde es.
                 publico_descripcion=(document_text or "")[:4000],
+                # Referencia factual independiente del texto corto para detectar población.
+                # Cada perfil la acota después sin perder el brief completo si cabe.
+                original_source=document_text or "",
                 pregunta=simulation_requirement,
                 poblacion_resumen_path=os.path.join(sim_dir, poblacion.RESUMEN),
                 # Alcance geográfico: lo fija la persona o lo decide el modelo con el brief; queda en alcance.json
