@@ -166,6 +166,31 @@ def download_project_research(project_id: str):
     )
 
 
+BRIEF_PREVIEW_CHARS = 20_000      # cuánto del texto del brief se manda a la pantalla (el resto se dice, no se envía)
+
+
+@graph_bp.route('/project/<project_id>/brief', methods=['GET'])
+def project_brief(project_id: str):
+    """
+    El punto de partida de un proyecto, para enseñarlo en el paso 1: el objetivo de la simulación, los archivos subidos y el
+    texto del brief tal como se subió (SIN la investigación en internet, que se guarda mezclada al final del texto extraído
+    y tiene su propia tarjeta). 404 si el proyecto no existe o no es del usuario.
+    """
+    project = ProjectManager.get_project(project_id)
+    if not project:
+        return jsonify({"success": False, "error": t('api.projectNotFound', id=project_id)}), 404
+
+    extracted = (ProjectManager.get_extracted_text(project_id) or "").split(_RESEARCH_TEXT_HEADER, 1)[0].strip()
+    return jsonify({"success": True, "data": {
+        "simulation_requirement": project.simulation_requirement or "",
+        "files": [{"filename": f.get("filename", ""), "size": f.get("size")} for f in (project.files or [])
+                  if not f.get("generated")],
+        "text": extracted[:BRIEF_PREVIEW_CHARS],
+        "text_length": len(extracted),
+        "truncated": len(extracted) > BRIEF_PREVIEW_CHARS,
+    }})
+
+
 @graph_bp.route('/project/list', methods=['GET'])
 def list_projects():
     """

@@ -1,6 +1,35 @@
 <template>
   <div class="workbench-panel">
     <div class="scroll-container">
+      <!-- Punto de partida: el objetivo de la simulación y el brief con el que se creó el proyecto (también al volver a uno ya hecho) -->
+      <section v-if="projectData?.project_id" class="brief-card" aria-labelledby="brief-title" data-testid="brief-card">
+        <header class="research-head">
+          <span class="research-kicker">{{ $t('step1.briefKicker') }}</span>
+          <h3 id="brief-title" class="brief-title">{{ $t('step1.briefObjective') }}</h3>
+        </header>
+        <p v-if="objective" class="brief-objective" data-testid="brief-objective">{{ objective }}</p>
+        <p v-else class="research-note">{{ $t('step1.briefObjectiveEmpty') }}</p>
+
+        <div class="brief-docs">
+          <h4 class="brief-sub">{{ $t('step1.briefDocs') }}</h4>
+          <ul v-if="brief?.files?.length" class="brief-files" :aria-label="$t('step1.briefFiles')">
+            <li v-for="f in brief.files" :key="f.filename">
+              <span class="brief-file-name" :title="f.filename">{{ f.filename }}</span>
+              <span v-if="fileSize(f.size)" class="brief-file-size">{{ fileSize(f.size) }}</span>
+            </li>
+          </ul>
+          <p v-if="briefError" class="research-note">{{ briefError }}</p>
+          <template v-else-if="brief">
+            <details v-if="brief.text" class="brief-text-box" data-testid="brief-text">
+              <summary>{{ $t('step1.briefShowText', { n: number(brief.text_length) }) }}</summary>
+              <pre class="brief-text">{{ brief.text }}</pre>
+              <p v-if="brief.truncated" class="research-note">{{ $t('step1.briefTruncated', { shown: number(brief.text.length), total: number(brief.text_length) }) }}</p>
+            </details>
+            <p v-else class="research-note">{{ $t('step1.briefNoText') }}</p>
+          </template>
+        </div>
+      </section>
+
       <!-- Contexto de internet (si se pidió): qué se encontró y de dónde, antes de crear a las personas -->
       <section v-if="research" class="research-card" :class="`is-${research.status}`" aria-labelledby="research-title">
         <header class="research-head">
@@ -233,12 +262,12 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { createSimulation, listSimulations } from '../api/simulation'
-import { downloadResearch } from '../api/graph'
+import { downloadResearch, getProjectBrief } from '../api/graph'
 import { usePipeline } from '../composables/usePipeline'
 import { entityLabel, relationLabel, attributeLabel } from '../lib/typeLabels'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const props = defineProps({
   currentPhase: { type: Number, default: 0 },
@@ -260,6 +289,30 @@ defineEmits(['next-step'])
 const selectedOntologyItem = ref(null)
 const logContent = ref(null)
 const creatingSimulation = ref(false)
+
+// Punto de partida: el objetivo viene con el proyecto; el texto del brief, de su propio endpoint (no viaja con cada proyecto)
+const objective = computed(() => String(props.projectData?.simulation_requirement || '').trim())
+const brief = ref(null)
+const briefError = ref('')
+const number = (n) => new Intl.NumberFormat(locale.value).format(n || 0)
+const fileSize = (b) => {
+  if (typeof b !== 'number' || !isFinite(b) || b <= 0) return ''
+  return b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`
+}
+const loadBrief = async (projectId) => {
+  brief.value = null
+  briefError.value = ''
+  if (!projectId) return
+  try {
+    const res = await getProjectBrief(projectId)
+    if (props.projectData?.project_id !== projectId) return       // se cambió de proyecto mientras llegaba
+    if (res?.success && res.data) brief.value = res.data
+    else briefError.value = t('step1.briefLoadFailed')
+  } catch (e) {
+    if (props.projectData?.project_id === projectId) briefError.value = t('step1.briefLoadFailed')
+  }
+}
+watch(() => props.projectData?.project_id, loadBrief, { immediate: true })
 
 // Investigación en internet (opcional): lo que encontró el servidor antes de la ontología
 const research = computed(() => {
@@ -378,6 +431,24 @@ watch(() => props.systemLogs.length, () => {
 </script>
 
 <style scoped>
+.brief-card {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  background: var(--kb-surface);
+  border: 1.5px solid var(--ink-950);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 var(--ink-950);
+}
+.brief-title { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; }
+.brief-objective { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--kb-text); white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; }
+.brief-docs { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--kb-line); }
+.brief-sub { margin: 0 0 8px; font: 600 11px var(--kb-font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--kb-muted); }
+.brief-files { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.brief-files li { display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%; padding: 4px 10px; background: var(--kb-soft); border-radius: 999px; font-size: 12.5px; }
+.brief-file-name { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brief-file-size { flex-shrink: 0; font: 11px var(--kb-font-mono); color: var(--kb-muted); }
+.brief-text-box summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--kb-text); }
+.brief-text { margin: 10px 0 0; max-height: 320px; overflow: auto; padding: 12px 14px; background: var(--kb-soft); border-radius: 8px; font: 12.5px/1.55 var(--kb-font-sans); white-space: pre-wrap; overflow-wrap: anywhere; }
 .research-card {
   margin-bottom: 16px;
   padding: 16px 18px;
