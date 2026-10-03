@@ -15,7 +15,11 @@ LOCK="$DIR/.construyendo"
 RAIZ="$(cd "$(dirname "$0")/../.." && pwd)"          # .../backend
 
 mkdir -p "$DIR"
-if [ -s "$DEST" ]; then echo "[banco] ya existe ($DEST): nada que hacer"; exit 0; fi
+# El banco vale si es de la versión con pesos corregidos (columna peso_ccaa, 3-oct-2026): uno anterior tenía el 40 % de
+# los pesos a 1,0 y se reconstruye. El nuevo se escribe aparte y se mueve de golpe: quien tenga abierto el viejo no se entera.
+if [ -s "$DEST" ] && python -c "import sqlite3,sys; c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True); sys.exit(0 if any(r[1]=='peso_ccaa' for r in c.execute('PRAGMA table_info(encuestados)')) else 1)" "$DEST" 2>/dev/null; then
+  echo "[banco] ya existe ($DEST) con los pesos corregidos: nada que hacer"; exit 0
+fi
 # Otro proceso lo está construyendo (un bloqueo de menos de 90 min cuenta como vivo)
 if [ -e "$LOCK" ] && [ -n "$(find "$LOCK" -mmin -90 2>/dev/null)" ]; then echo "[banco] ya se está construyendo"; exit 0; fi
 

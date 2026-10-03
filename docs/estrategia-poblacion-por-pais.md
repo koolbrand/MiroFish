@@ -207,6 +207,31 @@ la cita «Fuente de datos» no salía en pantalla en el informe (sí en el PDF);
 
 **Límites.** Jev no extrae ciudades ni países; el reparto de culturas es parejo (no pondera por población mundial) y con pocos agentes por cultura las diferencias son orientativas; no hay una opción «el brief no dice dónde» (se elige el nivel más razonable y se dice el motivo); no se ha medido todavía si el alcance mejora el informe (solo que las personas dejan de ser de otro sitio).
 
+## Corrección de los pesos del banco (3-oct-2026)
+
+**El fallo.** `PESO` valía exactamente 1,0 en **todas** las filas de los estudios 3535 y 3577 (8.073 de 20.128 encuestados, el 40 %). Los .sav traen la variable, pero pyreadstat la
+devuelve como **texto con coma decimal** («2,87887», «,39533», sin cero inicial); `float()` fallaba y el `except` dejaba 1,0 sin avisar. En 3505/3530/3571 llegaba como número (o como texto con
+punto) y sí funcionaba. El constructor ahora convierte aceptando la coma y **se niega a construir el estudio** (`SystemExit` con su número) si un peso no se puede leer o es ≤ 0.
+
+**Efecto medido** (banco reconstruido con los 5 estudios; pesos mínimo–máximo de `PESO` ya distintos de 1,0 en todos):
+
+| Estudio | Universitarios sin ponderar | Con `PESO` (antes: igual que sin ponderar en 3535 y 3577) | n efectiva (Kish) |
+|---|---|---|---|
+| 3535 | 54,8 % | **27,1 %** | 1.471 de 4.031 |
+| 3577 | 48,6 % | **27,3 %** (el CIS publica 27,3 % en su avance, pregunta 35aa) | 2.166 de 4.042 |
+| 3505 / 3530 / 3571 | 52,2 / 49,7 / 49,5 % | 27,4 / 26,6 / 28,0 % | 1.955 / 2.100 / 2.189 |
+
+- Banco entero con la regla de muestreo (cada estudio pesa lo mismo): universitarios **37,1 % → 27,3 %**. En muestras de 200 personas: 37,6 % → 27,8 %.
+- `metricas.py` (`calidad_de_grupo`, muestra de 200 frente a su segmento, 200 semillas): 200/200 representativas antes y 199/200 ahora. Mide la fidelidad al segmento, no al país, así que no detectaba el sesgo de pesos: la comprobación que sí lo detecta es el % de universitarios frente a la cifra publicada.
+- Línea base «moda del grupo» (`fidelidad.py`, 3535, 150 personas, semilla 1; sin llamar al modelo): acierto **43,5 %** (igual: la moda no usa pesos y la muestra es la misma), acierto ponderado 43,6 % (antes igual al no ponderado), JSD 0,104 (azar 0,141). Las condiciones con el modelo **no se han vuelto a lanzar** (cuesta dinero): su acierto individual no depende de los pesos; solo cambian sus columnas ponderada y JSD.
+- Todo lo que muestreaba con 3535/3577 (la mitad de los estudios mezclados con el mismo peso) sobrerrepresentaba a los universitarios y daba poca voz a quien se subrepresenta; el banco **de producción** sigue siendo el viejo hasta que Adrián autorice subir el nuevo.
+- Efecto de diseño: con pesos de hasta 18,8 (3535) la muestra efectiva es la del 36 % de los casos. Un segmento filtrado tiene aún menos casos efectivos que los que dice `len(ids)`.
+
+**`PESOCCAA` (ponderación autonómica).** El banco ahora lo guarda en `peso_ccaa` y `Banco.segmento(..., pesos_ccaa=True)` puede usarlo, **pero no está activado** en el muestreo. Medido: `PESOCCAA` no
+corrige estudios (en 3571 y 3577 el propio CIS lo rotula «sin ajuste por Estudios») y deja a los universitarios en el 47–51 % a escala nacional y en el 45–52 % dentro de Galicia, Cataluña, Andalucía y Extremadura,
+frente al 24–32 % con `PESO`. Dentro de una sola región su corrección de reparto entre comunidades no aporta nada y se pierde la de estudios. Hasta tener una cifra regional publicada con la que contrastarlo, el
+muestreo sigue con `PESO`.
+
 ## 8. Cómo sabremos que funciona (criterios de aceptación)
 
 Criterios de aceptación de la fase 1 (se fijan *antes* de mirar los resultados):
@@ -224,7 +249,7 @@ Ya se mide en cada generación: `poblacion.json → calidad` (por grupo y global
 
 - **No predice a individuos**: la evidencia dice que la recuperación individual es casi nula. Se presenta como ensayo de reacciones.
 - **No hay evidencia publicada con datos de España**: hasta medirlo con el CIS, que funcione aquí es una hipótesis.
-- Los barómetros del CIS son telefónicos con cuotas de sexo y edad, no probabilísticos puros: se usa el peso del estudio.
+- Los barómetros del CIS son telefónicos con cuotas de sexo y edad, no probabilísticos puros: se usa el peso del estudio (`PESO`, con ajuste por estudios; ver la corrección del 3-oct).
 - Las respuestas son de la fecha de cada estudio; el mundo se mueve. Cada ficha cita su estudio.
 - Una encuesta solo contiene lo que preguntó: si el tema del brief no está en ella, la ficha calla y la persona queda neutral.
 - El texto de la persona sigue escribiéndolo un modelo: las reglas lo frenan, no lo eliminan. Por eso la lectura humana de la fase 3.
