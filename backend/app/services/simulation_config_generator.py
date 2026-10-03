@@ -12,7 +12,9 @@
 
 import json
 import math
-from typing import Dict, Any, List, Optional, Callable
+import re
+import unicodedata
+from typing import Dict, Any, List, Optional, Callable, Tuple
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
@@ -47,6 +49,46 @@ CHINA_TIMEZONE_CONFIG = {
         "night": 0.5       # 深夜下降
     }
 }
+
+
+# Tipos que pueden hacer de publicador de otro cuando no hay ninguno del tipo pedido
+_POSTER_TYPE_ALIASES = {
+    "official": ["official", "university", "governmentagency", "government"],
+    "university": ["university", "official"],
+    "mediaoutlet": ["mediaoutlet", "media"],
+    "student": ["student", "person"],
+    "professor": ["professor", "expert", "teacher"],
+    "alumni": ["alumni", "person"],
+    "organization": ["organization", "ngo", "company", "group"],
+    "person": ["person", "student", "alumni"],
+}
+
+
+def _norm(text: Any) -> str:
+    """Clave para comparar nombres y tipos: sin acentos, sin mayúsculas, sin signos y con espacios sueltos."""
+    if text is None:
+        return ""
+    decomposed = unicodedata.normalize("NFKD", str(text))
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    return re.sub(r"[\W_]+", " ", plain).strip()
+
+
+def _norm_type(text: Any) -> str:
+    """«TransportAssociation», «transport association» y «Transport_Association» son el mismo tipo."""
+    return _norm(text).replace(" ", "")
+
+
+def _as_agent_id(value: Any) -> Optional[int]:
+    """Un id de agente válido: entero (o texto de dígitos). Un bool no lo es."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
 
 
 @dataclass
@@ -219,6 +261,9 @@ class SimulationConfigGenerator:
     # 各步骤的上下文截断长度（字符数）
     TIME_CONFIG_CONTEXT_LENGTH = 10000   # 时间配置
     EVENT_CONFIG_CONTEXT_LENGTH = 8000   # 事件配置
+    # Lista de agentes que se enseña al modelo para elegir quién escribe cada mensaje inicial
+    ROSTER_MAX_ENTRIES = 200
+    ROSTER_SUMMARY_LENGTH = 80
     ENTITY_SUMMARY_LENGTH = 300          # 实体摘要
     AGENT_SUMMARY_LENGTH = 300           # Agent配置中的实体摘要
     ENTITIES_PER_TYPE_DISPLAY = 20       # 每类实体显示数量
@@ -660,52 +705,43 @@ Descripción de campos:
     ) -> Dict[str, Any]:
         """生成事件配置"""
         
-        # 获取可用的实体类型列表，供 LLM 参考
-        entity_types_available = list(set(
-            e.get_entity_type() or "Unknown" for e in entities
-        ))
-        
-        # 为每种类型列出代表性实体名称
-        type_examples = {}
-        for e in entities:
-            etype = e.get_entity_type() or "Unknown"
-            if etype not in type_examples:
-                type_examples[etype] = []
-            if len(type_examples[etype]) < 3:
-                type_examples[etype].append(e.name)
-        
-        type_info = "\n".join([
-            f"- {t}: {', '.join(examples)}" 
-            for t, examples in type_examples.items()
+        # Los agentes con su id (= posición en `entities`, el mismo que usan los perfiles y la configuración):
+        # con varios del mismo tipo, el tipo solo no dice quién escribe cada mensaje.
+        roster = self._roster_text([
+            (i, e.name, e.get_entity_type() or "Unknown", e.summary or "")
+            for i, e in enumerate(entities)
         ])
-        
+
         # 使用配置的上下文截断长度
         context_truncated = context[:self.EVENT_CONFIG_CONTEXT_LENGTH]
-        
+
         prompt = f"""Basado en los siguientes requisitos de simulación, genera la configuración de eventos.
 
 Requisitos de simulación: {simulation_requirement}
 
 {context_truncated}
 
-## Tipos de entidad disponibles y ejemplos
-{type_info}
+## Agentes que pueden publicar (id, nombre, tipo)
+{roster}
 
 ## Tarea
 Por favor genera el JSON de configuración de eventos:
 - Extrae palabras clave de los temas candentes
 - Describe la dirección de desarrollo de la opinión pública
-- Diseña el contenido de las publicaciones iniciales; **cada publicación debe especificar poster_type (tipo de publicador)**
+- Diseña el contenido de las publicaciones iniciales; **cada publicación la escribe UN agente concreto de la lista de arriba**
 
-**Importante**: poster_type debe elegirse entre los "Tipos de entidad disponibles" listados arriba, para que la publicación inicial pueda asignarse al Agent adecuado.
-Por ejemplo: las declaraciones oficiales deben publicarlas tipos Official/University, las noticias MediaOutlet, las opiniones de estudiantes Student.
+**Importante**:
+- Indica quién la escribe con `poster_name` (el nombre EXACTO del agente, copiado de la lista) y `poster_agent_id` (su id). El tipo por sí solo no basta: hay varios agentes del mismo tipo.
+- El autor tiene que ser coherente con lo que dice el mensaje: si el texto habla en nombre de un colectivo o se presenta como una persona de cierto perfil (edad, oficio, situación), el autor es el agente de la lista que representa a ese colectivo o a ese perfil. Nunca atribuyas a un agente un mensaje que se presente como de otro.
+- Reparte los mensajes entre agentes distintos siempre que puedas, y no inventes agentes que no estén en la lista.
+- `poster_type` es el tipo de ese agente, tal como aparece en la lista.
 
 Formato de salida JSON (sin markdown):
 {{
     "hot_topics": ["palabra clave 1", "palabra clave 2", ...],
     "narrative_direction": "<descripción de la dirección de la opinión pública>",
     "initial_posts": [
-        {{"content": "contenido de la publicación", "poster_type": "tipo de entidad (debe elegirse entre los tipos disponibles)"}},
+        {{"content": "contenido de la publicación", "poster_name": "<nombre exacto del agente que la escribe>", "poster_agent_id": <id de ese agente>, "poster_type": "<tipo de ese agente>"}},
         ...
     ],
     "reasoning": "<explicación breve>"
@@ -716,9 +752,10 @@ Formato de salida JSON (sin markdown):
             f"{lang_instruction}\n"
             "CRITICAL: The 'content', 'narrative_direction', 'hot_topics' and 'reasoning' fields MUST be written in the language specified above. "
             "Do NOT output Chinese unless that is the target language.\n"
-            "IMPORTANT: The 'poster_type' field value MUST be in English PascalCase exactly matching the available entity types.\n\n"
+            "IMPORTANT: 'poster_name' MUST be copied verbatim from the agent list (never translated or shortened) and 'poster_agent_id' MUST be that agent's id. "
+            "The 'poster_type' value MUST be that agent's entity type, in English PascalCase exactly as listed.\n\n"
             "You are a public-opinion analysis expert. Return pure JSON. "
-            "Note: poster_type must exactly match one of the available entity types."
+            "Each initial post must be written by one specific agent from the list, and the author must be consistent with what the post says."
         )
 
         try:
@@ -741,91 +778,192 @@ Formato de salida JSON (sin markdown):
             narrative_direction=result.get("narrative_direction", "")
         )
     
+    def _roster_text(self, rows: List[Tuple[int, str, str, str]]) -> str:
+        """Una línea JSON por agente (id, nombre, tipo y un resumen corto): el modelo copia el nombre tal cual."""
+        lines = []
+        for agent_id, name, entity_type, summary in rows[:self.ROSTER_MAX_ENTRIES]:
+            row = {"id": agent_id, "name": name, "type": entity_type}
+            if summary:
+                row["summary"] = summary[:self.ROSTER_SUMMARY_LENGTH]
+            lines.append(json.dumps(row, ensure_ascii=False))
+        if len(rows) > self.ROSTER_MAX_ENTRIES:
+            lines.append(f"... y {len(rows) - self.ROSTER_MAX_ENTRIES} agentes más (no están en la lista: no los uses)")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _type_candidates(poster_type: Any, agents: List[AgentActivityConfig]) -> List[AgentActivityConfig]:
+        """Agentes del tipo pedido; si no hay ninguno, los del primer tipo equivalente que tenga agentes."""
+        wanted = _norm_type(poster_type)
+        if not wanted:
+            return []
+        exact = [a for a in agents if _norm_type(a.entity_type) == wanted]
+        if exact:
+            return exact
+        for alias_key, aliases in _POSTER_TYPE_ALIASES.items():
+            if wanted == alias_key or wanted in aliases:
+                for alias in aliases:
+                    found = [a for a in agents if _norm_type(a.entity_type) == alias]
+                    if found:
+                        return found
+        return []
+
+    @staticmethod
+    def _find_by_name(
+        name: Any,
+        id_hint: Optional[int],
+        agents: List[AgentActivityConfig]
+    ) -> Optional[AgentActivityConfig]:
+        """El agente que se llama así. Con dos agentes del mismo nombre manda el id, si señala a uno de ellos."""
+        key = _norm(name)
+        if not key:
+            return None
+        named = [(a, _norm(a.entity_name)) for a in agents]
+        same = [a for a, n in named if n == key]
+        if same:
+            return next((a for a in same if a.agent_id == id_hint), same[0])
+        if len(key) < 4:
+            return None
+        # El modelo a veces añade el tipo o recorta el nombre («Plataforma ciclista (TransportAssociation)»):
+        # vale solo si hay un único agente que case así.
+        near = [a for a, n in named if len(n) >= 4 and (n in key or key in n)]
+        return near[0] if len(near) == 1 else None
+
+    def _resolve_poster(
+        self,
+        post: Dict[str, Any],
+        agents: List[AgentActivityConfig]
+    ) -> Tuple[Optional[AgentActivityConfig], str]:
+        """
+        Quién escribe un mensaje inicial, o (None, "") si no se puede saber sin adivinar.
+
+        Por este orden: el nombre del agente (lo que pide el prompt); su id, si el tipo que dijo el
+        modelo no lo contradice; y el tipo, SOLO si hay un único agente de ese tipo. Con varios del
+        mismo tipo, el tipo no dice quién es: repartir por turnos fue lo que atribuía el mensaje del
+        gremio del taxi a la plataforma ciclista.
+        """
+        id_hint = _as_agent_id(post.get("poster_agent_id"))
+
+        agent = self._find_by_name(post.get("poster_name"), id_hint, agents)
+        if agent is not None:
+            if id_hint is not None and id_hint != agent.agent_id:
+                logger.info(f"El id {id_hint} no coincide con el nombre '{agent.entity_name}' (id {agent.agent_id}); manda el nombre")
+            return agent, "nombre"
+
+        candidates = self._type_candidates(post.get("poster_type"), agents)
+        by_id = next((a for a in agents if a.agent_id == id_hint), None) if id_hint is not None else None
+        if by_id is not None and (not candidates or by_id in candidates):
+            return by_id, "id"
+
+        if len(candidates) == 1:
+            return candidates[0], "tipo único"
+        return None, ""
+
+    def _ask_authors(
+        self,
+        posts: List[Dict[str, Any]],
+        agents: List[AgentActivityConfig]
+    ) -> List[Optional[AgentActivityConfig]]:
+        """
+        Segunda pregunta, solo para los mensajes sin autor claro: quién de la lista lo escribe, según lo que
+        dice. Una respuesta que no nombre a un agente de la lista deja el mensaje sin autor.
+        """
+        authors: List[Optional[AgentActivityConfig]] = [None] * len(posts)
+        roster = self._roster_text([(a.agent_id, a.entity_name, a.entity_type, "") for a in agents])
+        listed = [{"post_index": i, "content": p["content"]} for i, p in enumerate(posts)]
+
+        prompt = f"""Estos mensajes iniciales de una simulación no tienen un autor claro. Para cada uno, elige qué agente de la lista lo escribe.
+
+## Mensajes
+{json.dumps(listed, ensure_ascii=False, indent=2)}
+
+## Agentes (id, nombre, tipo)
+{roster}
+
+## Tarea
+- El autor es quien habla en el mensaje: si habla en nombre de un colectivo o se presenta como una persona de cierto perfil (edad, oficio, situación), es el agente de la lista que representa a ese colectivo o a ese perfil.
+- Copia el nombre EXACTO de la lista. Si ningún agente de la lista puede haberlo escrito, pon null.
+
+Formato de salida JSON (sin markdown):
+{{"assignments": [{{"post_index": <número del mensaje>, "poster_name": "<nombre exacto o null>", "poster_agent_id": <id o null>}}, ...]}}"""
+
+        system_prompt = (
+            "You decide which agent wrote each message. Return pure JSON. "
+            "Copy agent names verbatim from the list, never invent agents, and use null when no listed agent could have written the message."
+        )
+
+        try:
+            result = self._call_llm_with_retry(prompt, system_prompt)
+        except Exception as e:
+            logger.warning(f"No se pudo preguntar quién escribe las publicaciones iniciales sin autor claro: {e}")
+            return authors
+
+        assignments = result.get("assignments") if isinstance(result, dict) else None
+        for item in assignments if isinstance(assignments, list) else []:
+            if not isinstance(item, dict):
+                continue
+            idx = _as_agent_id(item.get("post_index"))
+            if idx is None or not 0 <= idx < len(posts):
+                continue
+            agent, _ = self._resolve_poster(
+                {"poster_name": item.get("poster_name"), "poster_agent_id": item.get("poster_agent_id")},
+                agents
+            )
+            authors[idx] = agent
+        return authors
+
     def _assign_initial_post_agents(
         self,
         event_config: EventConfig,
         agent_configs: List[AgentActivityConfig]
     ) -> EventConfig:
         """
-        为初始帖子分配合适的发布者 Agent
-        
-        根据每个帖子的 poster_type 匹配最合适的 agent_id
+        Asigna a cada mensaje inicial el agente CONCRETO que lo escribe (`poster_agent_id`).
+
+        El autor sale del nombre (o el id) que el modelo da en cada mensaje, se comprueba que existe y,
+        si el modelo no lo dijo y el tipo no basta para saberlo, se le pregunta aparte. Un mensaje cuyo
+        autor no se puede saber se descarta: mejor sin él que publicado por quien no lo diría.
+        `poster_type` y `poster_name` quedan con los del agente real, no con lo que dijo el modelo.
         """
         if not event_config.initial_posts:
             return event_config
-        
-        # 按实体类型建立 agent 索引
-        agents_by_type: Dict[str, List[AgentActivityConfig]] = {}
-        for agent in agent_configs:
-            etype = agent.entity_type.lower()
-            if etype not in agents_by_type:
-                agents_by_type[etype] = []
-            agents_by_type[etype].append(agent)
-        
-        # 类型映射表（处理 LLM 可能输出的不同格式）
-        type_aliases = {
-            "official": ["official", "university", "governmentagency", "government"],
-            "university": ["university", "official"],
-            "mediaoutlet": ["mediaoutlet", "media"],
-            "student": ["student", "person"],
-            "professor": ["professor", "expert", "teacher"],
-            "alumni": ["alumni", "person"],
-            "organization": ["organization", "ngo", "company", "group"],
-            "person": ["person", "student", "alumni"],
-        }
-        
-        # 记录每种类型已使用的 agent 索引，避免重复使用同一个 agent
-        used_indices: Dict[str, int] = {}
-        
-        updated_posts = []
-        for post in event_config.initial_posts:
-            poster_type = post.get("poster_type", "").lower()
-            content = post.get("content", "")
-            
-            # 尝试找到匹配的 agent
-            matched_agent_id = None
-            
-            # 1. 直接匹配
-            if poster_type in agents_by_type:
-                agents = agents_by_type[poster_type]
-                idx = used_indices.get(poster_type, 0) % len(agents)
-                matched_agent_id = agents[idx].agent_id
-                used_indices[poster_type] = idx + 1
+
+        posts = []
+        for raw in event_config.initial_posts:
+            if isinstance(raw, dict) and isinstance(raw.get("content"), str) and raw["content"].strip():
+                posts.append(raw)
             else:
-                # 2. 使用别名匹配
-                for alias_key, aliases in type_aliases.items():
-                    if poster_type in aliases or alias_key == poster_type:
-                        for alias in aliases:
-                            if alias in agents_by_type:
-                                agents = agents_by_type[alias]
-                                idx = used_indices.get(alias, 0) % len(agents)
-                                matched_agent_id = agents[idx].agent_id
-                                used_indices[alias] = idx + 1
-                                break
-                    if matched_agent_id is not None:
-                        break
-            
-            # 3. 如果仍未找到，使用影响力最高的 agent
-            if matched_agent_id is None:
-                logger.warning(f"No se encontró un Agent del tipo '{poster_type}'; se usará el Agent de mayor influencia")
-                if agent_configs:
-                    # 按影响力排序，选择影响力最高的
-                    sorted_agents = sorted(agent_configs, key=lambda a: a.influence_weight, reverse=True)
-                    matched_agent_id = sorted_agents[0].agent_id
-                else:
-                    matched_agent_id = 0
-            
-            updated_posts.append({
-                "content": content,
-                "poster_type": post.get("poster_type", "Unknown"),
-                "poster_agent_id": matched_agent_id
+                logger.warning(f"Publicación inicial descartada (no tiene texto): {str(raw)[:80]}")
+
+        authors: List[Optional[AgentActivityConfig]] = []
+        for post in posts:
+            agent, how = self._resolve_poster(post, agent_configs)
+            authors.append(agent)
+            if agent is not None:
+                logger.info(f"Asignación de post inicial ({how}): '{agent.entity_name}' ({agent.entity_type}) -> agent_id={agent.agent_id}")
+
+        pending = [i for i, agent in enumerate(authors) if agent is None]
+        if pending and agent_configs:
+            logger.info(f"{len(pending)} publicaciones iniciales sin autor claro (el modelo no dijo quién y el tipo no basta); se pregunta quién las escribe")
+            for i, agent in zip(pending, self._ask_authors([posts[i] for i in pending], agent_configs)):
+                authors[i] = agent
+                if agent is not None:
+                    logger.info(f"Asignación de post inicial (preguntado): '{agent.entity_name}' ({agent.entity_type}) -> agent_id={agent.agent_id}")
+
+        assigned = []
+        for post, agent in zip(posts, authors):
+            if agent is None:
+                logger.warning(f"Publicación inicial descartada: no se sabe qué agente la escribe ({post['content'][:60]!r})")
+                continue
+            assigned.append({
+                "content": post["content"],
+                "poster_type": agent.entity_type,
+                "poster_name": agent.entity_name,
+                "poster_agent_id": agent.agent_id,
             })
-            
-            logger.info(f"Asignación de post inicial: poster_type='{poster_type}' -> agent_id={matched_agent_id}")
-        
-        event_config.initial_posts = updated_posts
+
+        event_config.initial_posts = assigned
         return event_config
-    
+
     def _generate_agent_configs_batch(
         self,
         context: str,
