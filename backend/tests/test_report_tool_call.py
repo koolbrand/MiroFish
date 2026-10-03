@@ -155,3 +155,18 @@ def test_respuesta_normal_sigue_igual(agent):
         f"Final Answer: {PROSE}",
     ])
     assert run(a) == PROSE
+
+
+@pytest.mark.parametrize("text", [
+    "Tengo información suficiente. Las entrevistas cubren los seis perfiles clave con citas directas muy ricas. Procedo al Final Answer.",
+    "I have enough information now. Proceeding to the Final Answer.",
+    "Tengo la información suficiente para redactar. Procedo a escribir la sección.",
+])
+def test_limpieza_rechaza_el_razonamiento_interno_del_modelo(agent, text):
+    """Visto en producción (3-oct-2026): la sección «Reacciones previstas» quedó con solo «Procedo al Final Answer.»"""
+    assert agent([])._clean_section_text(text) is None
+
+
+def test_limpieza_conserva_una_seccion_larga_aunque_mencione_la_respuesta_final(agent):
+    larga = ("El informe distingue tres tipos de reacción ante el precio. " * 14) + "Esto no es la respuesta final de nadie, es el análisis."
+    assert len(larga) > 600 and agent([])._clean_section_text(larga) == larga.strip()

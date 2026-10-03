@@ -355,7 +355,8 @@ def pista_para_persona(a: Optional[Alcance], indice: int = 0) -> str:
             sitio = a.lugar
         else:                                        # solo se sabe la zona: el sitio concreto es el que cite el estudio
             sitio = a.zona or "ese lugar"
-            donde = f"vive en el lugar al que se refiere el estudio, dentro de esta zona: {sitio}"
+            donde = (f"vive en el lugar al que se refiere el estudio (la ciudad o el barrio que citan los documentos), dentro de esta "
+                     f"zona: {sitio}; no lo cambies por la provincia")
         return (f"Alcance de la simulación: LOCAL ({sitio}). Esta persona {donde}; usa referencias reales y "
                 "cotidianas de ese sitio (barrios, costumbres, precios) sin caricaturizarlo ni caer en tópicos.")
     if a.nivel == "regional":
@@ -380,11 +381,20 @@ def texto_para_informe(a: Optional[Alcance]) -> str:
         return ""
     base = f"ALCANCE GEOGRÁFICO DE LA SIMULACIÓN: {a.descripcion()}."
     if a.nivel == "local":
-        sitio = a.lugar or a.zona
-        sitio_txt = f" ({sitio})" if sitio else ""
-        return (f"{base} Las conclusiones valen para ese lugar: no las extrapoles al país ni a otras ciudades. Contextualiza con el "
-                f"mercado local{sitio_txt} solo con lo que muestren la simulación y los documentos: no inventes datos de competencia, "
-                "precios ni hábitos locales que no tengas, y no uses estereotipos de otros lugares.")
+        if a.lugar:
+            donde = f"{base} Las conclusiones valen para ese lugar"
+            sitio_txt = f" ({a.lugar})"
+        else:
+            # Jev da la zona (región/provincia) pero no el nombre del sitio: el nombre sale de los documentos, y la provincia NO es
+            # «la ciudad» (visto en producción: un informe sobre Vigo titulado «Kool Café en Pontevedra» por esta nota)
+            base = (f"ALCANCE GEOGRÁFICO DE LA SIMULACIÓN: LOCAL, en la zona de {a.zona or 'un lugar concreto'}. El lugar exacto (una ciudad, "
+                    "un barrio) es el que citan los documentos del estudio: usa SIEMPRE ese nombre y no lo sustituyas por la provincia ni por "
+                    "la región; la zona solo sirve para situarlo.")
+            donde = f"{base} Las conclusiones valen para ese lugar"
+            sitio_txt = ""
+        return (f"{donde}: no las extrapoles al país ni a otras ciudades. Contextualiza con el mercado local{sitio_txt} solo con lo que "
+                "muestren la simulación y los documentos: no inventes datos de competencia, precios ni hábitos locales que no tengas, y no "
+                "uses estereotipos de otros lugares.")
     if a.nivel == "regional":
         return (f"{base} Las conclusiones valen para esa región, no para el país entero. Matiza las diferencias entre sus ciudades y "
                 "comarcas solo si la simulación las muestra, y no uses estereotipos de otras regiones.")
