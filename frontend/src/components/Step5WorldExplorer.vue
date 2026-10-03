@@ -58,8 +58,8 @@
               <span class="agent-meta">
                 <span class="agent-name" :title="item.username || `agent_${item.__idx}`">{{ item.username || `agent_${item.__idx}` }}</span>
                 <span class="agent-sub">
-                  {{ item.profession || $t('step2.unknownProfession') }}
-                  <template v-if="item.age">· {{ item.age }}</template>
+                  {{ knownProfileText(item.profession) || '' }}
+                  <template v-if="profileDemographic(item, 'age')">· {{ profileDemographic(item, 'age') }}</template>
                 </span>
               </span>
               <span v-if="activityCounts[item.__idx]" class="agent-badge mono" :title="$t('step5.statTotalActions')">
@@ -87,9 +87,9 @@
               <h3 class="detail-name">{{ selectedAgent.username || `agent_${selectedIdx}` }}</h3>
               <div class="detail-meta-row">
                 <span v-if="selectedAgent.name" class="detail-handle">@{{ selectedAgent.name }}</span>
-                <span class="detail-profession">{{ selectedAgent.profession || $t('step2.unknownProfession') }}</span>
-                <span v-if="selectedAgent.age" class="detail-age">· {{ selectedAgent.age }}</span>
-                <span v-if="selectedAgent.gender" class="detail-gender">· {{ genderLabel(selectedAgent.gender) }}</span>
+                <span v-if="knownProfileText(selectedAgent.profession)" class="detail-profession">{{ selectedAgent.profession }}</span>
+                <span v-if="profileDemographic(selectedAgent, 'age')" class="detail-age">· {{ profileDemographic(selectedAgent, 'age') }}</span>
+                <span v-if="profileDemographic(selectedAgent, 'gender')" class="detail-gender">· {{ genderLabel(profileDemographic(selectedAgent, 'gender')) }}</span>
               </div>
             </div>
             <button type="button" class="chat-cta" @click="$emit('chat-with-agent', selectedIdx)">
@@ -99,6 +99,8 @@
               {{ $t('step5.chatWithThisAgent') }}
             </button>
           </header>
+
+          <ProfileProvenance :profile="selectedAgent" />
 
           <div v-if="selectedAgent.bio" class="detail-bio">
             <div class="block-label">{{ $t('step5.profileBio') }}</div>
@@ -176,6 +178,8 @@
 </template>
 
 <script setup>
+import ProfileProvenance from './ProfileProvenance.vue'
+import { profileDemographic, knownProfileText } from '../lib/profilePresentation'
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSimulationActions } from '../api/simulation'

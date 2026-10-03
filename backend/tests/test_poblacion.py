@@ -513,8 +513,8 @@ def test_anclado_toma_edad_genero_region_del_dato_real(con_banco):
     assert p.country == "España" and p.mbti is None                      # no se inventa el MBTI ni el país
     assert (p.data_source, p.data_ref) == ("CIS", enc.estudio)
     assert p.memory_facts and "respondió" in p.memory_facts[0]
-    prompt = g.client.prompts[-1]
-    assert "DATA SHEET" in prompt and f"{enc.edad} años" in prompt and "do NOT contradict" in prompt
+    assert g.client.prompts == []
+    assert f"{enc.edad} años" in p.persona and 'SURVEY RESPONSE MEMORY' in p.persona
     assert p.to_reddit_format()["data_source"] == "CIS"
 
 
@@ -523,12 +523,12 @@ def test_el_prompt_anclado_prohibe_el_estereotipo_y_no_pide_inventar(con_banco):
     enc = _un_encuestado(con_banco)
     ent = _entidad(1)
     ent.attributes["__simuloo_variant"] = 3
-    g.generate_profile_from_entity(ent, 1, encuestado=enc, fuente=FUENTES["cis"])
-    prompt = g.client.prompts[-1]
-    assert "AVOID STEREOTYPES" in prompt and "Do NOT infer traits" in prompt
-    assert "The topic of the simulation decides what to foreground" in prompt and "a person is not their vote" in prompt
-    assert "NOT from what is \"typical\" for their sex, age or job" in prompt
-    assert "population of España (CIS)" in prompt
+    p = g.generate_profile_from_entity(ent, 1, encuestado=enc, fuente=FUENTES["cis"])
+    assert g.client.prompts == []
+    prompt = p.persona
+    assert 'stereotypes' in prompt and 'Do not infer opinions' in prompt
+    assert 'Past vote recall is NOT current voting intention' in prompt
+    assert 'CIS' in prompt and 'España' in prompt
     # con un encuestado real no se le pide al modelo que invente edad, familia ni que sea «distinta» de las demás
     assert "situación familiar" not in prompt and "claramente distinta" not in prompt and "persona n.º" not in prompt
 
@@ -539,8 +539,8 @@ def test_el_prompt_se_adapta_al_pais_de_la_fuente(dos_paises):
     enc = us.encuestado(us.segmento({}, minimo=1).ids[0])
     p = g.generate_profile_from_entity(_entidad(1), 1, encuestado=enc, fuente=FUENTES["gss"])
     assert p.country == "Estados Unidos" and p.data_source == "GSS"
-    prompt = g.client.prompts[-1]
-    assert "population of Estados Unidos (GSS)" in prompt and "Estado:" in prompt
+    assert g.client.prompts == []
+    assert 'Estados Unidos' in p.persona and 'GSS' in p.persona and 'Estado:' in p.persona
 
 
 def test_modo_apagado_es_identico_a_hoy(con_banco):

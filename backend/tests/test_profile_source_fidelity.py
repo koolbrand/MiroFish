@@ -62,11 +62,11 @@ def test_original_source_does_not_replace_or_rewrite_survey_personal_facts(con_b
     enc = _un_encuestado(con_banco)
     profile = gen.generate_profile_from_entity(_entidad(0), 0, encuestado=enc,
                                                fuente=FUENTES['cis'], original_source=SOURCE)
-    prompt = gen.client.calls[0]['messages'][1]['content']
-    assert source_from_prompt(prompt) == SOURCE and 'DATA SHEET (real data)' in prompt
+    assert gen.client.calls == []
+    assert ''.join(p['text'] for p in profile.source_passages) == SOURCE
     assert profile.age == enc.edad and profile.country == 'España' and profile.mbti is None
     assert profile.data_source == 'CIS' and profile.data_ref == enc.estudio
-    assert 'DATA SHEET remains authoritative' in gen.client.calls[0]['messages'][0]['content']
+    assert 'SURVEY RESPONSE MEMORY' in profile.persona and 'Past vote recall is NOT current voting intention' in profile.persona
 
 
 def test_short_source_near_twelve_thousand_characters_is_kept_complete():
@@ -93,12 +93,12 @@ def test_batch_passes_original_source_to_every_worker_and_keeps_default_compatib
                 EntityNode('b', 'Soto', ['Entity', 'Person'], 'otro resumen', {})]
     profiles = gen.generate_profiles_from_entities(entities, parallel_count=2, poblacion_datos=False,
                                                     alcance_pedido='nacional', original_source=SOURCE)
-    assert len(profiles) == 2 and len(gen.client.calls) == 2
-    assert all(source_from_prompt(call['messages'][1]['content']) == SOURCE for call in gen.client.calls)
+    assert len(profiles) == 2 and gen.client.calls == []
+    assert all(''.join(p['text'] for p in profile.source_passages) == SOURCE for profile in profiles)
     compatible = gen.generate_profile_from_entity(entities[0], 0)
-    assert compatible.name == 'Vega'
-    assert 'ORIGINAL SOURCE — priority factual reference' not in gen.client.calls[-1]['messages'][1]['content']
-    assert gen.client.calls[-1]['temperature'] == .7
+    assert compatible.name == 'Vega' and compatible.source_passages == []
+    assert compatible.profile_schema_version == 1 and compatible.age is None
+    assert gen.client.calls == []
 
 
 def test_manager_passes_complete_document_independently_of_population_description(tmp_path, monkeypatch):

@@ -19,6 +19,7 @@ from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus, PreparationConflictError
 from ..services.simulation_runner import SimulationRunner, RunnerStatus, interview_target_count
 from ..services.poblacion import alcance as poblacion_alcance
+from ..services.entity_role_filter import validate_audience_size, AUDIENCE_SIZE_UNSET
 from ..services.auto_pipeline import get_pipeline_summary
 from ..services.interview_guard import (  # noqa: F401 — INTERVIEW_PROMPT_PREFIX se re-exporta
     INTERVIEW_PROMPT_PREFIX, build_context_block, build_interview_system_prompt, interview_notice, optimize_interview_prompt,
@@ -396,15 +397,14 @@ def _active_prepare_response(simulation_id: str, task: dict, state):
             "already_running": True,
             "expected_entities_count": state.entities_count,
             "entity_types": state.entity_types,
+            "audience_size": state.audience_size,
         }
     })
 
 
 def _normalizar_audience_size(valor):
-    """`audience_size` de /prepare: un entero de 5 a 150 (tope por coste: cada persona es una llamada al modelo); otra cosa, se ignora."""
-    if isinstance(valor, int) and not isinstance(valor, bool) and 5 <= valor <= 150:
-        return valor
-    return None
+    """`audience_size`: null=automático, entero 5–150; inválido no inicia trabajo."""
+    return validate_audience_size(valor)
 
 
 @simulation_bp.route('/prepare', methods=['POST'])
@@ -462,6 +462,12 @@ def prepare_simulation():
                 "success": False,
                 "error": t('api.requireSimulationId')
             }), 400
+
+        try:
+            audience_size = (_normalizar_audience_size(data['audience_size'])
+                             if 'audience_size' in data else AUDIENCE_SIZE_UNSET)
+        except ValueError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
         
         manager = SimulationManager()
         state = manager.get_simulation(simulation_id)
@@ -490,6 +496,7 @@ def prepare_simulation():
                         "status": "ready",
                         "message": t('api.alreadyPrepared'),
                         "already_prepared": True,
+                        "audience_size": state.audience_size,
                         "prepare_info": prepare_info
                     }
                 })
@@ -541,8 +548,7 @@ def prepare_simulation():
         alcance = data.get('alcance')
         alcance = alcance.strip().lower() if isinstance(alcance, str) and alcance.strip().lower() in (
             'auto',) + tuple(poblacion_alcance.NIVELES) else None
-        # Tamaño del público de ESTA simulación (p. ej. una muestra representativa de un electorado)
-        audience_size = _normalizar_audience_size(data.get('audience_size'))
+        # Ausente conserva la elección guardada; null pide automático.
         try:
             parallel_profile_count = max(1, min(int(data.get('parallel_profile_count', 5)), Config.MAX_PARALLEL_PROFILES))
         except (TypeError, ValueError):
@@ -574,7 +580,8 @@ def prepare_simulation():
                     active = _find_active_prepare_task(simulation_id)
                     if active:
                         return _active_prepare_response(simulation_id, active, state)
-                    state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types)
+                    state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types,
+                                                      audience_size=audience_size)
                     state.status = SimulationStatus.FAILED
                     state.error = t('api.prepareNoEntities')
                     manager._save_simulation_state(state)
@@ -606,7 +613,9 @@ def prepare_simulation():
             active = _find_active_prepare_task(simulation_id)
             if active:
                 return _active_prepare_response(simulation_id, active, state)
-            state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types)
+            state = manager.begin_preparation(state, entities_count=preview_count, entity_types=preview_types,
+                                              audience_size=audience_size)
+            audience_size = state.audience_size
             task_id = task_manager.create_task(
                 task_type="simulation_prepare",
                 metadata={
@@ -740,6 +749,7 @@ def prepare_simulation():
                 "status": "preparing",
                 "message": t('api.prepareStarted'),
                 "already_prepared": False,
+                "audience_size": state.audience_size,
                 "expected_entities_count": state.entities_count,  # 预期的Agent总数
                 "entity_types": state.entity_types  # 实体类型列表
             }
@@ -1928,9 +1938,11 @@ def start_simulation():
         response_data = run_state.to_dict()
         if max_rounds:
             response_data['max_rounds_applied'] = max_rounds
-        response_data['graph_memory_update_enabled'] = enable_graph_memory_update
+        memory_policy = getattr(run_state, 'memory_policy', {}) or {}
+        actual_graph_update = enable_graph_memory_update and memory_policy.get('source_graph') != 'immutable'
+        response_data['graph_memory_update_enabled'] = actual_graph_update
         response_data['force_restarted'] = force_restarted
-        if enable_graph_memory_update:
+        if actual_graph_update:
             response_data['graph_id'] = graph_id
         
         return jsonify({
@@ -2577,22 +2589,30 @@ def interview_agent():
 def _load_simulation_profiles(simulation_id: str):
     """Carga los perfiles de agentes desde el directorio de la simulación."""
     validate_storage_id(simulation_id, "sim_")
-    sim_dir = os.path.join(
-        os.path.dirname(__file__),
-        f'../../uploads/simulations/{simulation_id}'
-    )
+    sim_dir = os.path.join(SimulationManager.SIMULATION_DATA_DIR, simulation_id)
     reddit_path = os.path.join(sim_dir, 'reddit_profiles.json')
     twitter_path = os.path.join(sim_dir, 'twitter_profiles.csv')
 
     if os.path.exists(reddit_path):
         with open(reddit_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            profiles = json.load(f)
+        if not isinstance(profiles, list) or any(not isinstance(profile, dict) for profile in profiles):
+            raise ValueError('Contrato de perfiles inválido')
+        for profile in profiles:
+            version = profile.get('profile_schema_version')
+            if version is not None and (type(version) is not int or version != 1):
+                raise ValueError('Versión de perfil no compatible')
+        return profiles
 
     if os.path.exists(twitter_path):
         profiles = []
         with open(twitter_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
+                if row.get('profile_schema_version') or row.get('profile_metadata'):
+                    from ..services.profile_memory import decode_twitter_profile
+                    profiles.append(decode_twitter_profile(row))
+                    continue
                 profiles.append({
                     'realname': row.get('name', ''),
                     'username': row.get('username', ''),
@@ -2688,7 +2708,10 @@ def _build_interview_llm_fallback_payload(simulation_id: str, interviews: list) 
             bio = profile.get('bio', profile.get('persona', ''))
             profession = profile.get('profession', 'Participante de la simulación')
 
-            system_prompt = build_interview_system_prompt(username, profession, bio, context_block)
+            profile_context = context_block
+            if profile.get('profile_schema_version'):
+                profile_context = build_context_block(project_name, simulation_requirement, '')
+            system_prompt = build_interview_system_prompt(username, profession, bio, profile_context, profile=profile)
 
             response = llm.chat(
                 messages=[

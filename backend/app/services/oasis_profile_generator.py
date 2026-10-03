@@ -26,6 +26,9 @@ from ..utils.locale import get_language_instruction, get_locale, set_locale, t
 from ..utils.llm_client import strip_reasoning
 from .zep_entity_reader import EntityNode, ZepEntityReader
 from . import poblacion
+from . import profile_memory
+from .poblacion.ficha import lineas_sociodemografia, respuestas_priorizadas
+from ..utils.fs import atomic_write_json, atomic_write_text
 from .poblacion import alcance as alcance_mod
 
 logger = get_logger('mirofish.oasis_profile')
@@ -66,6 +69,14 @@ class OasisAgentProfile:
     source_entity_uuid: Optional[str] = None
     source_entity_type: Optional[str] = None
     
+    profile_schema_version: Optional[int] = None
+    identity_kind: Optional[str] = None
+    source_passages: List[Dict[str, Any]] = field(default_factory=list)
+    source_coverage: Dict[str, Any] = field(default_factory=dict)
+    communication_style: Dict[str, str] = field(default_factory=dict)
+    survey_facts: List[str] = field(default_factory=list)
+    fictional_biography: str = ""
+
     created_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d"))
     
     def to_reddit_format(self) -> Dict[str, Any]:
@@ -98,6 +109,10 @@ class OasisAgentProfile:
             profile["data_ref"] = self.data_ref
             profile["memory_facts"] = self.memory_facts
         
+        if self.profile_schema_version is not None:
+            projected = self.to_dict()
+            profile.update(self.reference_metadata())
+            profile['bio'], profile['persona'] = projected['bio'], projected['persona']
         return profile
     
     def to_twitter_format(self) -> Dict[str, Any]:
@@ -128,11 +143,20 @@ class OasisAgentProfile:
         if self.interested_topics:
             profile["interested_topics"] = self.interested_topics
         
+        if self.profile_schema_version is not None:
+            projected = self.to_dict()
+            profile.update(self.reference_metadata())
+            profile['bio'], profile['persona'] = projected['bio'], projected['persona']
         return profile
+
+    def reference_metadata(self):
+        return {key: getattr(self, key) for key in (
+            'profile_schema_version', 'identity_kind', 'source_passages', 'source_coverage',
+            'communication_style', 'survey_facts', 'fictional_biography')}
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为完整字典格式"""
-        return {
+        data = {
             "user_id": self.user_id,
             "user_name": self.user_name,
             "name": self.name,
@@ -154,7 +178,13 @@ class OasisAgentProfile:
             "source_entity_uuid": self.source_entity_uuid,
             "source_entity_type": self.source_entity_type,
             "created_at": self.created_at,
+            **(self.reference_metadata() if self.profile_schema_version is not None else {}),
         }
+
+        if self.profile_schema_version is not None:
+            data['bio'] = self.name if self.identity_kind != 'synthetic_audience' else self.bio
+            data['persona'] = profile_memory.render_memory(data)
+        return data
 
 
 class OasisProfileGenerator:
@@ -259,7 +289,6 @@ class OasisProfileGenerator:
         user_name = self._generate_username(name)
         
         # 构建上下文信息
-        context = self._build_entity_context(entity)
 
         # Marcas del filtro de Jev (entity_role_filter): la audiencia se genera
         # como persona individual y las variantes como personas distintas.
@@ -270,6 +299,10 @@ class OasisProfileGenerator:
         prompt_attrs = {k: v for k, v in raw_attrs.items() if not str(k).startswith('__')}
         summary = entity.summary or ''
         anclado = encuestado is not None and force_individual and fuente is not None
+        if not force_individual or anclado:
+            return self._build_canonical_profile(entity, user_id, encuestado if anclado else None,
+                                                 fuente if anclado else None, relevantes, original_source)
+        context = self._build_entity_context(entity)
         if force_individual and not anclado:
             summary += (
                 "\n\nGenera UNA persona concreta y creíble que pertenece a este público "
@@ -339,7 +372,7 @@ class OasisProfileGenerator:
             profile_data["data_ref"] = encuestado.estudio
             profile_data["memory_facts"] = poblacion.hechos_memoria(encuestado, tema=topic or '', relevantes=relevantes)
 
-        return OasisAgentProfile(
+        profile = OasisAgentProfile(
             user_id=user_id,
             user_name=user_name,
             name=name,
@@ -355,12 +388,50 @@ class OasisProfileGenerator:
             country=profile_data.get("country"),
             profession=profile_data.get("profession"),
             interested_topics=profile_data.get("interested_topics", []),
-            data_source=profile_data.get("data_source"),
-            data_ref=profile_data.get("data_ref"),
-            memory_facts=profile_data.get("memory_facts", []),
+            # El modelo de público ficticio no puede atribuirse una encuesta.
+            data_source=None,
+            data_ref=None,
+            memory_facts=[],
             source_entity_uuid=entity.uuid,
             source_entity_type=entity_type,
         )
+        return self._apply_reference_memory(profile, original_source, 'synthetic_audience',
+                                            fictional_biography=profile.bio + "\n" + profile.persona)
+
+    def _apply_reference_memory(self, profile, source, kind, survey_facts=None, fictional_biography=''):
+        metadata = profile_memory.canonical_metadata(source, profile.name, kind, survey_facts, fictional_biography)
+        for key, value in metadata.items():
+            setattr(profile, key, value)
+        if kind != 'synthetic_audience':
+            profile.bio = profile.name
+        profile.persona = profile_memory.render_memory(profile.to_dict())
+        return profile
+
+    def _build_canonical_profile(self, entity, user_id, encuestado=None, fuente=None, relevantes=None, original_source=''):
+        entity_type = entity.get_entity_type() or 'Entity'
+        audience = bool((entity.attributes or {}).get('__simuloo_individual'))
+        kind = profile_memory.identity_kind(entity_type, audience, encuestado is not None)
+        facts, memories = [], []
+        if encuestado is not None:
+            facts = lineas_sociodemografia(encuestado, fuente)
+            # Preguntas y respuestas completas, sin reinterpretar recuerdo de voto
+            # ni cortar un condicional. Se conservan como respuestas del estudio.
+            topic = (entity.attributes or {}).get('__simuloo_topic', '')
+            for row in respuestas_priorizadas(encuestado, topic, relevantes=relevantes)[:12]:
+                memory = f"A la pregunta «{row['pregunta']}» respondió: «{row['respuesta']}»."
+                memories.append(memory)
+            facts += memories
+        profile = OasisAgentProfile(
+            user_id=user_id, user_name=self._generate_username(entity.name), name=entity.name,
+            bio=entity.name, persona='', source_entity_uuid=entity.uuid, source_entity_type=entity_type,
+            age=encuestado.edad if encuestado else None,
+            gender=poblacion.genero_oasis(encuestado) if encuestado else None,
+            country=fuente.pais_nombre if fuente and encuestado else None,
+            data_source=fuente.nombre if fuente and encuestado else None,
+            data_ref=encuestado.estudio if encuestado else None, memory_facts=memories,
+            mbti=None, profession=None,
+        )
+        return self._apply_reference_memory(profile, original_source, kind, facts)
     
     def _generate_username(self, name: str) -> str:
         """生成用户名"""
@@ -1122,6 +1193,7 @@ Rules:
         alcance_pedido: Optional[str] = None,
         alcance_path: Optional[str] = None,
         original_source: str = "",
+        required_audience_size: Optional[int] = None,
     ) -> List[OasisAgentProfile]:
         """
         批量从实体生成Agent Profile（支持并行生成）
@@ -1163,21 +1235,7 @@ Rules:
                     return
                 
                 try:
-                    if output_platform == "reddit":
-                        # Reddit JSON 格式
-                        profiles_data = [p.to_reddit_format() for p in existing_profiles]
-                        with open(realtime_output_path, 'w', encoding='utf-8') as f:
-                            json.dump(profiles_data, f, ensure_ascii=False, indent=2)
-                    else:
-                        # Twitter CSV 格式
-                        import csv
-                        profiles_data = [p.to_twitter_format() for p in existing_profiles]
-                        if profiles_data:
-                            fieldnames = list(profiles_data[0].keys())
-                            with open(realtime_output_path, 'w', encoding='utf-8', newline='') as f:
-                                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                                writer.writeheader()
-                                writer.writerows(profiles_data)
+                    self.save_profiles(existing_profiles, realtime_output_path, output_platform)
                 except Exception as e:
                     logger.warning(f"Fallo al guardar los perfiles en tiempo real: {e}")
         
@@ -1271,12 +1329,14 @@ Rules:
                         resumen = {"sin_datos": True, "motivo": deteccion.motivo, "pais_decidido_por": deteccion.origen}
                         logger.info(f"Público con datos reales: no se aplica ({deteccion.motivo})")
                     if poblacion_resumen_path:
-                        with open(poblacion_resumen_path, 'w', encoding='utf-8') as f:
-                            json.dump(resumen, f, ensure_ascii=False, indent=2)
+                        atomic_write_json(poblacion_resumen_path, resumen)
             except Exception as e:
                 logger.warning(f"No se pudo anclar el público a datos reales, se genera como siempre: {e}")
                 encuestados_por_idx = {}
                 fuente_poblacion = None
+
+        if required_audience_size is not None and len(encuestados_por_idx) != required_audience_size:
+            raise ValueError(t('api.audienceSizeUnavailable'))
 
         # Capture locale before spawning thread pool workers
         current_locale = get_locale()
@@ -1307,15 +1367,8 @@ Rules:
             except Exception as e:
                 logger.error(f"Fallo al generar el perfil de la entidad {entity.name}: {str(e)}")
                 # 创建一个基础profile
-                fallback_profile = OasisAgentProfile(
-                    user_id=idx,
-                    user_name=self._generate_username(entity.name),
-                    name=entity.name,
-                    bio=f"{entity_type}: {entity.name}",
-                    persona=entity.summary or f"A participant in social discussions.",
-                    source_entity_uuid=entity.uuid,
-                    source_entity_type=entity_type,
-                )
+                fallback_profile = self._build_canonical_profile(
+                    entity, idx, encuestados_por_idx.get(idx), fuente_poblacion, relevantes, original_source)
                 return idx, fallback_profile, str(e)
         
         logger.info(f"Iniciando generación paralela de {total} perfiles de Agent (paralelismo: {parallel_count})...")
@@ -1363,15 +1416,8 @@ Rules:
                     logger.error(f"Excepción al procesar la entidad {entity.name}: {str(e)}")
                     with lock:
                         completed_count[0] += 1
-                    profiles[idx] = OasisAgentProfile(
-                        user_id=idx,
-                        user_name=self._generate_username(entity.name),
-                        name=entity.name,
-                        bio=f"{entity_type}: {entity.name}",
-                        persona=entity.summary or "A participant in social discussions.",
-                        source_entity_uuid=entity.uuid,
-                        source_entity_type=entity_type,
-                    )
+                    profiles[idx] = self._build_canonical_profile(
+                        entity, idx, encuestados_por_idx.get(idx), fuente_poblacion, relevantes, original_source)
                     # 实时写入文件（即使是备用人设）
                     save_profiles_realtime()
         
@@ -1456,33 +1502,40 @@ Rules:
         if not file_path.endswith('.csv'):
             file_path = file_path.replace('.json', '.csv')
         
-        with open(file_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
+        import io
+        f = io.StringIO(newline="")
+        writer = csv.writer(f)
             
-            # 写入OASIS要求的表头
-            headers = ['user_id', 'name', 'username', 'user_char', 'description']
-            writer.writerow(headers)
+        # 写入OASIS要求的表头
+        headers = ['user_id', 'name', 'username', 'user_char', 'description', 'profile_schema_version', 'profile_metadata']
+        writer.writerow(headers)
             
-            # 写入数据行
-            for idx, profile in enumerate(profiles):
-                # user_char: 完整人设（bio + persona），用于LLM系统提示
-                user_char = profile.bio
-                if profile.persona and profile.persona != profile.bio:
-                    user_char = f"{profile.bio} {profile.persona}"
-                # 处理换行符（CSV中用空格替代）
-                user_char = user_char.replace('\n', ' ').replace('\r', ' ')
+        # 写入数据行
+        for idx, profile in enumerate(profiles):
+            # user_char: 完整人设（bio + persona），用于LLM系统提示
+            user_char = (profile_memory.render_memory(profile.to_dict())
+                         if profile.profile_schema_version is not None else profile.bio)
+            if profile.profile_schema_version is None and profile.persona and profile.persona != profile.bio:
+                user_char = f"{profile.bio} {profile.persona}"
+            # 处理换行符（CSV中用空格替代）
+            user_char = user_char.replace('\n', ' ').replace('\r', ' ')
                 
-                # description: 简短简介，用于外部显示
-                description = profile.bio.replace('\n', ' ').replace('\r', ' ')
+            # description: 简短简介，用于外部显示
+            description = (profile.name if profile.profile_schema_version is not None and profile.identity_kind != 'synthetic_audience' else profile.bio).replace('\n', ' ').replace('\r', ' ')
                 
-                row = [
-                    idx,                    # user_id: 从0开始的顺序ID
-                    profile.name,           # name: 真实姓名
-                    profile.user_name,      # username: 用户名
-                    user_char,              # user_char: 完整人设（内部LLM使用）
-                    description             # description: 简短简介（外部显示）
-                ]
-                writer.writerow(row)
+            row = [
+                profile.user_id,        # el ID canónico no depende de la posición de guardado
+                profile.name,           # name: 真实姓名
+                profile.user_name,      # username: 用户名
+                user_char,              # user_char: 完整人设（内部LLM使用）
+                description,            # description: 简短简介（外部显示）
+                profile.profile_schema_version or '',
+                json.dumps(profile.to_dict(), ensure_ascii=False) if profile.profile_schema_version is not None else '',
+
+            ]
+            writer.writerow(row)
+
+        atomic_write_text(file_path, f.getvalue())
         
         logger.info(f"Se guardaron {len(profiles)} perfiles de Twitter en {file_path} (formato CSV de OASIS)")
     
@@ -1531,7 +1584,14 @@ Rules:
         """
         data = []
         for idx, profile in enumerate(profiles):
-            # 使用与 to_reddit_format() 一致的格式
+            if profile.profile_schema_version is not None:
+                item = profile.to_reddit_format()
+                item['bio'] = profile.name if profile.identity_kind != 'synthetic_audience' else profile.bio
+                item['persona'] = profile_memory.render_memory(profile.to_dict())
+                item.update({key: getattr(profile, key) for key in ('age', 'gender', 'mbti', 'country')})
+                data.append(item)
+                continue
+            # Perfiles históricos sin versión conservan su contrato anterior.
             item = {
                 "user_id": profile.user_id if profile.user_id is not None else idx,  # 关键：必须包含 user_id
                 "username": profile.user_name,
@@ -1561,8 +1621,7 @@ Rules:
             
             data.append(item)
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(file_path, data)
         
         logger.info(f"Se guardaron {len(profiles)} perfiles de Reddit en {file_path} (formato JSON, incluye el campo user_id)")
     

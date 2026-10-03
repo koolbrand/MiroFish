@@ -671,9 +671,12 @@ def test_con_pocas_personas_las_primeras_culturas_ya_incluyen_oriente_y_occident
 
 
 def test_api_prepare_acepta_audience_size_acotado():
-    """`audience_size` llega al gestor solo si es un entero de 5 a 150; cualquier otra cosa se ignora."""
+    """Tamaño explícito estricto; null elige automático, inválidos nunca se ignoran."""
     from app.api.simulation import _normalizar_audience_size as norm
-    assert [norm(x) for x in (70, 5, 150, 4, 151, True, "70", 70.0, None, -3)] == [70, 5, 150, None, None, None, None, None, None, None]
+    assert [norm(x) for x in (70, 5, 150, None)] == [70, 5, 150, None]
+    for value in (4, 151, True, "70", 70.0, -3):
+        with pytest.raises(ValueError):
+            norm(value)
 
 
 def test_con_nombre_de_sitio_el_informe_lo_nombra_y_sin_el_no_inventa_ciudad():

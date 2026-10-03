@@ -174,6 +174,9 @@ except ImportError as e:
     print("Primero instala: pip install oasis-ai camel-ai")
     sys.exit(1)
 
+# Proyección canónica por la extensión pública UserInfo/TextPrompt de OASIS.
+from app.services.oasis_profile_adapter import generate_twitter_agent_graph, generate_reddit_agent_graph
+
 # Tope de memoria del recomendador TwHIN-BERT (red tipo X): sin él, las
 # simulaciones largas superaban el límite del contenedor y morían con -9.
 import recsys_memory

@@ -1,12 +1,12 @@
 <template>
   <div class="env-setup-panel">
     <div class="scroll-container">
-      <SimulationEvidenceNotice :config="simulationConfig" :run-status="runState" :rounds="alreadyRun ? undefined : (useCustomRounds ? customMaxRounds : serverRounds)" :preview="!alreadyRun" :simulation-id="simulationId" />
+      <SimulationEvidenceNotice :config="simulationConfig" :run-status="runState" :rounds="alreadyRun ? undefined : (useCustomRounds ? customMaxRounds : serverRounds)" :preview="!alreadyRun" :preparation-ready="alreadyRun || (phase >= 4 && !prepareError)" :simulation-id="simulationId" />
       <!-- Si la preparación falla: una frase clara arriba; el detalle técnico, plegado (antes solo salía en el registro) -->
       <div v-if="prepareError" class="prepare-error" role="alert">
         <p class="prepare-error-title">{{ $t('step2.prepareErrorTitle') }}</p>
         <p class="prepare-error-text">{{ $t('step2.prepareErrorBody') }}</p>
-        <button v-if="runnerStatus === 'idle' && !autoRunning" type="button" class="cis-regen" @click="regenerarPublico">{{ $t('common.retry') }}</button>
+        <button v-if="runnerStatus === 'idle' && !autoRunning" type="button" class="cis-regen" :disabled="!audienceSizeValid" @click="regenerarPublico">{{ $t('common.retry') }}</button>
         <details class="prepare-error-details">
           <summary>{{ $t('main.failDetails') }}</summary>
           <code>{{ prepareError }}</code>
@@ -85,6 +85,20 @@
             <span class="alcance-hint">{{ $t('step2.alcanceHint') }}</span>
           </div>
 
+          <div class="audience-size-row" data-testid="audience-size">
+            <label class="cis-pais-label" for="audience-size-mode">{{ $t('step2.audienceSizeLabel') }}</label>
+            <select id="audience-size-mode" v-model="audienceSizeMode" class="cis-pais-select" :disabled="ajustesBloqueados">
+              <option value="auto">{{ $t('step2.audienceSizeAuto') }}</option>
+              <option value="explicit">{{ $t('step2.audienceSizeExplicit') }}</option>
+            </select>
+            <template v-if="audienceSizeMode === 'explicit'">
+              <label class="cis-pais-label" for="audience-size-number">{{ $t('step2.audienceSizeNumber') }}</label>
+              <input id="audience-size-number" type="number" min="5" max="150" step="1" v-model.number="audienceSizeValue" :disabled="ajustesBloqueados" :aria-invalid="!audienceSizeValid" aria-describedby="audience-size-hint audience-size-error" />
+            </template>
+            <p id="audience-size-hint" class="alcance-hint">{{ $t('step2.audienceSizeHint') }}</p>
+            <p v-if="!audienceSizeValid" id="audience-size-error" class="audience-size-error" role="alert">{{ $t('api.invalidAudienceSize') }}</p>
+          </div>
+
           <!-- Público con datos reales del país: solo aparece si este servidor tiene algún banco -->
           <div v-if="cisEstado.disponible" class="cis-toggle" data-testid="cis-toggle">
             <label class="cis-toggle-row">
@@ -106,7 +120,7 @@
 
           <div v-if="ajusteCambiado && !ajustesBloqueados" class="cis-changed" role="status">
             <span>{{ $t('step2.datosToggleChanged') }}</span>
-            <button type="button" class="cis-regen" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
+            <button type="button" class="cis-regen" :disabled="!audienceSizeValid" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
           </div>
 
           <!-- Se pidieron datos reales pero no se pudieron aplicar: se dice, no se disimula -->
@@ -243,9 +257,10 @@
                   <span class="profile-username">@{{ profile.name || `agent_${profile._idx}` }}</span>
                 </div>
                 <div class="profile-meta">
-                  <span class="profile-profession">{{ profile.profession || $t('step2.unknownProfession') }}</span>
+                  <span v-if="knownProfileText(profile.profession)" class="profile-profession">{{ profile.profession }}</span>
                   <span v-if="profile.data_source" class="cis-tag" data-testid="cis-tag">{{ $t('step2.datosTag', { source: profile.data_source, ref: profile.data_ref }) }}</span>
                 </div>
+                <ProfileProvenance :profile="profile" compact />
                 <MiniMarkdown v-if="profile.bio" tag="p" inline class="profile-bio" :text="profile.bio" />
                 <p v-else class="profile-bio">{{ $t('step2.noBio') }}</p>
                 <div v-if="profile.interested_topics?.length" class="profile-topics">
@@ -733,29 +748,30 @@
               <span class="modal-realname">{{ selectedProfile.username }}</span>
               <span class="modal-username">@{{ selectedProfile.name }}</span>
             </div>
-            <span class="modal-profession">{{ selectedProfile.profession }}</span>
+            <span v-if="knownProfileText(selectedProfile.profession)" class="modal-profession">{{ selectedProfile.profession }}</span>
           </div>
           <button type="button" class="close-btn" :aria-label="$t('common.close')" :title="$t('common.close')" @click="selectedProfile = null">×</button>
         </div>
         
         <div class="modal-body">
+          <ProfileProvenance :profile="selectedProfile" />
           <!-- 基本信息 -->
           <div class="modal-info-grid">
-            <div class="info-item">
+            <div v-if="profileDemographic(selectedProfile, 'age')" class="info-item">
               <span class="info-label">{{ $t('step2.profileModalAge') }}</span>
-              <span class="info-value">{{ selectedProfile.age || '-' }} {{ $t('step2.yearsOld') }}</span>
+              <span class="info-value">{{ profileDemographic(selectedProfile, 'age') }} {{ $t('step2.yearsOld') }}</span>
             </div>
-            <div class="info-item">
+            <div v-if="profileDemographic(selectedProfile, 'gender')" class="info-item">
               <span class="info-label">{{ $t('step2.profileModalGender') }}</span>
-              <span class="info-value">{{ { male: $t('step2.genderMale'), female: $t('step2.genderFemale'), other: $t('step2.genderOther') }[selectedProfile.gender] || selectedProfile.gender }}</span>
+              <span class="info-value">{{ { male: $t('step2.genderMale'), female: $t('step2.genderFemale'), other: $t('step2.genderOther') }[profileDemographic(selectedProfile, 'gender')] }}</span>
             </div>
-            <div class="info-item">
+            <div v-if="profileDemographic(selectedProfile, 'country')" class="info-item">
               <span class="info-label">{{ $t('step2.profileModalCountry') }}</span>
-              <span class="info-value">{{ selectedProfile.country || '-' }}</span>
+              <span class="info-value">{{ profileDemographic(selectedProfile, 'country') }}</span>
             </div>
-            <div class="info-item">
+            <div v-if="profileDemographic(selectedProfile, 'mbti')" class="info-item">
               <span class="info-label">{{ $t('step2.profileModalMbti') }}</span>
-              <span class="info-value mbti">{{ selectedProfile.mbti || '-' }}</span>
+              <span class="info-value mbti">{{ profileDemographic(selectedProfile, 'mbti') }}</span>
             </div>
           </div>
 
@@ -789,31 +805,11 @@
           </div>
 
           <!-- 详细人设 -->
-          <div class="modal-section" v-if="selectedProfile.persona">
+          <div class="modal-section" v-if="legacyProfilePersona(selectedProfile)">
             <span class="section-label">{{ $t('step2.profileModalPersona') }}</span>
             
-            <!-- 人设维度概览 -->
-            <div class="persona-dimensions">
-              <div class="dimension-card">
-                <span class="dim-title">{{ $t('step2.personaDimExperience') }}</span>
-                <span class="dim-desc">{{ $t('step2.personaDimExperienceDesc') }}</span>
-              </div>
-              <div class="dimension-card">
-                <span class="dim-title">{{ $t('step2.personaDimBehavior') }}</span>
-                <span class="dim-desc">{{ $t('step2.personaDimBehaviorDesc') }}</span>
-              </div>
-              <div class="dimension-card">
-                <span class="dim-title">{{ $t('step2.personaDimMemory') }}</span>
-                <span class="dim-desc">{{ $t('step2.personaDimMemoryDesc') }}</span>
-              </div>
-              <div class="dimension-card">
-                <span class="dim-title">{{ $t('step2.personaDimSocial') }}</span>
-                <span class="dim-desc">{{ $t('step2.personaDimSocialDesc') }}</span>
-              </div>
-            </div>
-
             <div class="persona-content">
-              <MiniMarkdown class="section-persona" :text="selectedProfile.persona" />
+              <MiniMarkdown class="section-persona" :text="legacyProfilePersona(selectedProfile)" />
             </div>
           </div>
         </div>
@@ -844,6 +840,8 @@ import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import { reasoningSections } from '../lib/reasoningText'
 import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import ProfileProvenance from './ProfileProvenance.vue'
+import { profileDemographic, knownProfileText, legacyProfilePersona } from '../lib/profilePresentation'
 import { useI18n } from 'vue-i18n'
 import {
   prepareSimulation,
@@ -1049,11 +1047,11 @@ const demographics = computed(() => {
   const professionCounts = {}
 
   for (const p of profiles.value) {
-    const g = (p.gender || '').toLowerCase()
+    const g = profileDemographic(p, 'gender') || ''
     if (g === 'male' || g === 'female') genderCounts[g]++
     else if (g) genderCounts.other++
 
-    const prof = (p.profession || '').trim()
+    const prof = knownProfileText(p.profession)
     if (prof) {
       professionCounts[prof] = (professionCounts[prof] || 0) + 1
     }
@@ -1110,7 +1108,7 @@ const filteredProfiles = computed(() => {
 
   if (filters.value.gender) {
     out = out.filter((p) => {
-      const g = (p.gender || '').toLowerCase()
+      const g = profileDemographic(p, 'gender') || ''
       if (filters.value.gender === 'other') return g && g !== 'male' && g !== 'female'
       return g === filters.value.gender
     })
@@ -1222,7 +1220,21 @@ const alcanceElegido = ref('auto')  // 'auto' = lo decide el modelo leyendo el b
 const alcanceUsado = ref(null)      // valor con el que se lanzó la preparación en curso
 const alcance = ref(null)           // lo que se decidió (alcance.json)
 const alcanceCambiado = computed(() => alcanceUsado.value !== null && alcanceElegido.value !== alcanceUsado.value)
-const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value)
+const audienceSizeMode = ref('auto')
+const audienceSizeValue = ref(70)
+const audienceSizeUsed = ref(undefined)
+const audienceSizeValid = computed(() => audienceSizeMode.value === 'auto' ||
+  (Number.isInteger(audienceSizeValue.value) && audienceSizeValue.value >= 5 && audienceSizeValue.value <= 150))
+const requestedAudienceSize = computed(() => audienceSizeMode.value === 'auto' ? null : audienceSizeValue.value)
+const audienceSizeChanged = computed(() => audienceSizeUsed.value !== undefined && requestedAudienceSize.value !== audienceSizeUsed.value)
+const restoreAudienceSize = data => {
+  const size = data?.audience_size
+  const explicit = Number.isInteger(size) && size >= 5 && size <= 150
+  audienceSizeMode.value = explicit ? 'explicit' : 'auto'
+  if (explicit) audienceSizeValue.value = size
+  audienceSizeUsed.value = explicit ? size : null
+}
+const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value || audienceSizeChanged.value)
 // Mientras se prepara (o con la simulación ya ejecutada o en el flujo automático) los ajustes no se tocan: cambiar uno y «volver a
 // generar» a mitad lanzaba una segunda preparación sobre los mismos ficheros
 const ajustesBloqueados = computed(() => runnerStatus.value !== 'idle' || (phase.value < 4 && !prepareError.value) || autoRunning.value)
@@ -1320,7 +1332,7 @@ const iniciarEstadoCis = async () => {
 }
 
 const regenerarPublico = async () => {
-  if (ajustesBloqueados.value) return
+  if (ajustesBloqueados.value || !audienceSizeValid.value) return
   stopPolling()
   stopProfilesPolling()
   stopConfigPolling()
@@ -1348,7 +1360,7 @@ const regenerarPublico = async () => {
 
 const startPrepareSimulation = async (force = false) => {
   const attempt = preparationAttempt
-  if (unmounted || runnerStatus.value !== 'idle' || autoRunning.value) return
+  if (unmounted || runnerStatus.value !== 'idle' || autoRunning.value || !audienceSizeValid.value) return
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     emit('update-status', 'error')
@@ -1367,6 +1379,8 @@ const startPrepareSimulation = async (force = false) => {
       use_llm_for_profiles: true,
       parallel_profile_count: 5
     }
+    peticion.audience_size = requestedAudienceSize.value
+    audienceSizeUsed.value = requestedAudienceSize.value
     peticion.alcance = alcanceElegido.value
     alcanceUsado.value = alcanceElegido.value
     if (cisEstado.value.disponible) {
@@ -1746,29 +1760,25 @@ onMounted(async () => {
     if (unmounted || !statusKnown) return
     await iniciarEstadoCis()
     if (unmounted) return
-    if (alreadyRun.value || autoRunning.value) {
-      await loadPreparedData()
-      if (!unmounted && autoRunning.value && phase.value < 4) startProfilesPolling()
-    } else {
-      // Una preparación fallida se conserva hasta que la persona pulse Reintentar.
-      // Si esta lectura falla tampoco se autoriza trabajo nuevo.
-      try {
-        const res = await getSimulation(props.simulationId)
+    try {
+      const res = await getSimulation(props.simulationId)
+      if (unmounted) return
+      if (!res?.success || !res.data?.status) throw new Error(t('evidence.statusUnavailable'))
+      restoreAudienceSize(res.data)
+      if (alreadyRun.value || autoRunning.value) {
+        await loadPreparedData()
+        if (!unmounted && autoRunning.value && phase.value < 4) startProfilesPolling()
+      } else if (res.data.status === 'failed') {
+        setPrepareError(res.data.error)
+        emit('update-status', 'error')
+        await cargarPoblacion()
         if (unmounted) return
-        if (!res?.success || !res.data?.status) throw new Error(t('evidence.statusUnavailable'))
-        if (res.data.status === 'failed') {
-          setPrepareError(res.data.error)
-          emit('update-status', 'error')
-          // Recuperar los ajustes usados, sin volver a cargar configuración ni semillas fallidas.
-          await cargarPoblacion()
-          if (unmounted) return
-          await cargarAlcance()
-          return
-        }
+        await cargarAlcance()
+      } else {
         startPrepareSimulation()
-      } catch (err) {
-        if (!unmounted) setPrepareError(err.message)
       }
+    } catch (err) {
+      if (!unmounted) setPrepareError(err.message)
     }
   }
 })
@@ -1786,6 +1796,13 @@ const reasoningBlocks = computed(() => reasoningSections(simulationConfig.value?
 </script>
 
 <style scoped>
+.audience-size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 16px 0; }
+.audience-size-row input { width: 88px; min-height: 32px; border: 1px solid var(--kb-control-line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+.audience-size-row input:focus-visible { outline: 2px solid var(--kb-text); outline-offset: 2px; }
+.audience-size-row .alcance-hint { flex-basis: 100%; margin: 0; }
+.audience-size-error { flex-basis: 100%; margin: 0; color: var(--kb-danger); font-size: 12px; }
+.cis-regen:disabled { opacity: .5; cursor: default; }
+
 .ro-note {
   margin: 12px 0 0;
   padding: 10px 12px;

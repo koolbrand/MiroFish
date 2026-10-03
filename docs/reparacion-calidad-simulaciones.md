@@ -71,6 +71,32 @@ fallar, y descarta respuestas tardías. Reabrir un fallo conserva el error y los
 ajustes de país/alcance; una nueva preparación exige pulsar «Reintentar» y conocer
 que el runner está en reposo.
 
+## Memoria inicial y procedencia
+
+Los perfiles nuevos llevan `profile_schema_version=1`. Los actores identificados,
+las instituciones y las identidades no confirmadas reciben una ficha mínima y
+pasajes completos del material aportado, con SHA-256 y posiciones verificables.
+No se redacta una biografía libre para rellenar edad, formación, cargos o sucesos
+pasados. Los encuestados conservan sus datos medidos y preguntas/respuestas del
+estudio; un recuerdo de voto no se convierte en una intención actual. El público
+sintético conserva su caracterización marcada expresamente como ficticia.
+
+La ficha canónica compone la memoria que reciben Twitter, Reddit y las entrevistas.
+El adaptador de OASIS usa su plantilla extensible para evitar que campos personales
+desconocidos se conviertan en edad o MBTI por defecto. La interfaz muestra material,
+encuesta y estilo simulado en lenguaje de usuario; el prompt interno no se presenta
+como una biografía.
+
+Los nuevos perfiles impiden escribir actividad simulada en el grafo de fuente.
+Las publicaciones y reacciones siguen en SQLite y JSONL como evidencia del ensayo;
+una conversación no modifica los pasajes originales ni las respuestas de encuesta.
+El informe recibe una muestra acotada de esas acciones locales, separada del
+material aportado y trazable por archivo, línea, huella, agente, plataforma y ronda.
+La selección declara omisiones y textos truncados; no equivale a una lectura
+exhaustiva ni a una muestra representativa de opiniones.
+Esto protege la procedencia de la memoria inicial. No prueba la verdad externa del
+brief ni garantiza que el modelo no se equivoque al actuar después.
+
 ## Aplicación a resultados antiguos
 
 El despliegue no transforma una simulación ya ejecutada en una prueba corregida.
@@ -86,12 +112,12 @@ afirmaciones del modelo. Las fuentes aportadas tampoco se verifican automáticam
 contra internet. La ficha declara estas fronteras: un relato plausible no es una
 medición ni demuestra capacidad de anticipar resultados reales.
 
-El ensayo real posterior encontró todavía pérdida de condicionales, alteración de
-cifras y mezcla de acontecimientos en biografías generadas. Añadir el texto original
-al prompt no basta para certificar la memoria factual. Queda pendiente separar
-pasajes acreditados y caracterización ficticia en los campos que consume OASIS,
-y comprobarlos con material reservado para evaluación. Los tests de infraestructura
-y los controles de mensajes iniciales no aprueban esa fidelidad individual.
+El ensayo real anterior encontró pérdida de condicionales, alteración de cifras
+y mezcla de acontecimientos en biografías generadas. Ese fallo motivó el contrato
+de memoria anterior: añadir el texto original al prompt no era suficiente. La
+procedencia literal y los controles de mensajes iniciales tampoco validan por sí
+solos la fidelidad de las opiniones posteriores ni la capacidad predictiva. Hace
+falta evaluación con datos reservados y comparación con resultados humanos.
 
 ## Comprobaciones reproducibles
 

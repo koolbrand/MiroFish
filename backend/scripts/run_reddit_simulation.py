@@ -135,6 +135,9 @@ except ImportError as e:
 IPC_COMMANDS_DIR = "ipc_commands"
 IPC_RESPONSES_DIR = "ipc_responses"
 ENV_STATUS_FILE = "env_status.json"
+# Proyección canónica por la extensión pública UserInfo/TextPrompt de OASIS.
+from app.services.oasis_profile_adapter import generate_twitter_agent_graph, generate_reddit_agent_graph
+
 
 class CommandType:
     """命令类型常量"""

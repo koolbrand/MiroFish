@@ -104,8 +104,10 @@ def test_unavailable_classifier_removes_stale_permission_in_the_real_preparation
         monkeypatch.setattr(sm, 'OasisProfileGenerator', Profiles)
         manager = sm.SimulationManager()
         sid = manager.create_simulation('proj_synthetic', 'mirofish_synthetic').simulation_id
-        with pytest.raises(RuntimeError, match='test-stop'):
+        with pytest.raises(ValueError):
             manager.prepare_simulation(sid, 'Elecciones', 'Brief sintético', audience_size=70, poblacion_datos=True)
-        assert received == [judge]
+        assert received == []  # target explícito imposible: fallar antes de perfiles
+        assert manager.get_simulation(sid).status == sm.SimulationStatus.FAILED
+        assert manager.get_simulation(sid).entity_filter['audience_count'] == 0
         assert judge.attributes == {'original': 'value'}
         assert judge.name == 'Biedma' and judge.related_edges == [{'fact': 'contexto original'}]

@@ -57,3 +57,31 @@ test('mientras carga la ficha del informe no se hacen lecturas redundantes; una 
   assert.equal(partial.coverage.value, null)
   assert.deepEqual(partial.calls, { config: 0, run: 0 })
 })
+
+test('preparación fallida o en curso no recupera calendario viejo ni muestra su duración', async () => {
+  for (const config of [undefined, { generation_version: 1, time_config: { total_simulation_hours: 72, minutes_per_round: 60 } }]) {
+    const v = await notice({ simulationId: 'sim_mock', preview: true, preparationReady: false, config, rounds: 20 })
+    assert.deepEqual(v.calls, { config: 0, run: 0 })
+    assert.equal(v.coverage.value, null)
+    assert.equal(v.legacy.value, false)
+  }
+})
+
+test('configuración en vuelo se descarta si la preparación deja de ser válida', async () => {
+  let resolveConfig, rerun, initial
+  const request = new Promise(resolve => { resolveConfig = resolve })
+  const props = { simulationId: 'sim_test', preview: true, preparationReady: true, rounds: 20 }
+  const bindings = {
+    ref, computed, evidenceFacts, simulationCoverage, defineProps: () => props,
+    useI18n: () => ({ locale: ref('es'), t: key => key }), onUnmounted: () => {},
+    watch: (getter, fn) => { rerun = () => fn(getter()); initial = rerun() },
+    getSimulationConfig: () => request, getRunStatus: () => { throw new Error('preview no consulta run') }
+  }
+  const v = new Function(...Object.keys(bindings), script + '\nreturn { loadedConfig, coverage };')(...Object.values(bindings))
+  props.preparationReady = false
+  await rerun()
+  resolveConfig({ success: true, data: { time_config: { total_simulation_hours: 72, minutes_per_round: 60 } } })
+  await initial
+  assert.equal(v.loadedConfig.value, null)
+  assert.equal(v.coverage.value, null)
+})

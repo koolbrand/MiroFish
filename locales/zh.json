@@ -634,6 +634,11 @@
     "researchMore": "另有 {n} 个在文件中"
   },
   "step2": {
+    "audienceSizeLabel": "受众人数",
+    "audienceSizeAuto": "自动",
+    "audienceSizeExplicit": "指定人数",
+    "audienceSizeNumber": "人数",
+    "audienceSizeHint": "受众人数为 5 至 150；具体角色和机构另行添加。自动模式使用准备阶段确定的人数。指定人数并不保证样本具有代表性。",
     "simInstanceInit": "模拟实例初始化",
     "simInstanceDesc": "新建simulation实例，拉取模拟世界参数模版",
     "asyncTaskDone": "异步任务已完成",
@@ -768,6 +773,35 @@
       "opposing": "反对",
       "neutral": "中立",
       "observer": "观望"
+    }
+  },
+  "profiles": {
+    "fictionalBiography": "虚构人物背景",
+    "sourcePassages": "查看提供材料的原文片段",
+    "surveyFacts": "查看调查回答",
+    "simulatedStyle": "模拟的沟通风格",
+    "partialMaterial": "部分材料未纳入初始记忆。",
+    "origin": {
+      "provided": "提供的材料",
+      "survey": "真实调查",
+      "synthetic": "虚构受众",
+      "legacy": "旧版本人物档案",
+      "unconfirmed": "未关联材料的角色"
+    },
+    "description": {
+      "provided": "初始记忆使用提供材料中的原文片段。其内容未经过外部核实；回答与行动均为模拟。",
+      "survey": "初始记忆使用匿名调查参与者的回答。模拟中的行为与新回答由模型生成。",
+      "synthetic": "此人物为本次演练创建，其身份与特征不对应真实的调查参与者。",
+      "legacy": "此人物档案由旧版本生成。当前结构无法证实其生平和记忆的来源。",
+      "unconfirmed": "尚未将材料片段关联到此角色。不得将其背景视为已确认事实。"
+    },
+    "style": {
+      "formal": "正式",
+      "conversational": "口语化",
+      "brief": "简短",
+      "balanced": "适中篇幅",
+      "cautious": "谨慎",
+      "respectful": "尊重地表达分歧"
     }
   },
   "step3": {
@@ -1133,6 +1167,8 @@
     }
   },
   "api": {
+    "invalidAudienceSize": "受众人数必须为 5 至 150 之间的整数，或选择自动。",
+    "audienceSizeUnavailable": "无法准备所要求数量的受众。请检查群体分类及可用数据是否充足，或选择自动。",
     "projectNotFound": "项目不存在: {id}",
     "projectDeleteFailed": "项目不存在或删除失败: {id}",
     "projectDeleted": "项目已删除: {id}",
@@ -1321,6 +1357,7 @@
     "jevLowAudience": "⚠ 只有 {audience}% 的智能体属于受众（建议至少 {minimum}%）。结果将更多反映竞争对手和企业而非你的客户：请在文档中补充受众信息。"
   },
   "log": {
+    "originalMaterialPreserved": "原始材料保持不变；模拟活动单独保存。",
     "preparingGoBack": "准备返回 Step 2，正在关闭模拟...",
     "closingSimEnv": "正在关闭模拟环境...",
     "simEnvClosed": "✓ 模拟环境已关闭",

@@ -634,6 +634,11 @@
     "researchMore": "and {n} more in the file"
   },
   "step2": {
+    "audienceSizeLabel": "Audience size",
+    "audienceSizeAuto": "Automatic",
+    "audienceSizeExplicit": "Choose a number",
+    "audienceSizeNumber": "People",
+    "audienceSizeHint": "Between 5 and 150 audience members; actors and institutions are added separately. Automatic uses the size determined during preparation. Choosing a number does not guarantee representativeness.",
     "simInstanceInit": "Simulation Instance Initialization",
     "simInstanceDesc": "Create a new simulation instance and pull world parameter templates",
     "asyncTaskDone": "Async task completed",
@@ -768,6 +773,35 @@
       "opposing": "Opposing",
       "neutral": "Neutral",
       "observer": "Observer"
+    }
+  },
+  "profiles": {
+    "fictionalBiography": "Fictional biography",
+    "sourcePassages": "View excerpts from supplied material",
+    "surveyFacts": "View survey responses",
+    "simulatedStyle": "Simulated communication style",
+    "partialMaterial": "Some material was not included in initial memory.",
+    "origin": {
+      "provided": "Supplied material",
+      "survey": "Real survey",
+      "synthetic": "Fictional audience",
+      "legacy": "Profile from an earlier version",
+      "unconfirmed": "Actor without linked material"
+    },
+    "description": {
+      "provided": "Initial memory uses excerpts from the supplied material. Their content has not been independently verified; responses and actions are simulated.",
+      "survey": "Initial memory uses responses from an anonymous survey participant. Behavior in the simulation and new responses are generated.",
+      "synthetic": "This person was created for the rehearsal. Their identity and characteristics do not correspond to a real survey participant.",
+      "legacy": "This profile was generated with an earlier version. This contract cannot establish the provenance of its biography and memory.",
+      "unconfirmed": "No material excerpts have been linked to this actor. Their background should not be treated as confirmed."
+    },
+    "style": {
+      "formal": "formal",
+      "conversational": "conversational",
+      "brief": "brief",
+      "balanced": "moderate length",
+      "cautious": "cautious",
+      "respectful": "respectful disagreement"
     }
   },
   "step3": {
@@ -1133,6 +1167,8 @@
     }
   },
   "api": {
+    "invalidAudienceSize": "Audience size must be an integer between 5 and 150, or Automatic.",
+    "audienceSizeUnavailable": "The requested number of audience members could not be prepared. Review the group classification and whether enough data is available, or choose Automatic.",
     "projectNotFound": "Project not found: {id}",
     "projectDeleteFailed": "Project not found or deletion failed: {id}",
     "projectDeleted": "Project deleted: {id}",
@@ -1321,6 +1357,7 @@
     "jevLowAudience": "⚠ Only {audience}% of agents are audience (recommended minimum: {minimum}%). Results will reflect competitors and companies more than your customers: add more detail about the audience to the document."
   },
   "log": {
+    "originalMaterialPreserved": "The original material is preserved; simulated activity is stored separately.",
     "preparingGoBack": "Preparing to return to Step 2, closing simulation...",
     "closingSimEnv": "Closing simulation environment...",
     "simEnvClosed": "✓ Simulation environment closed",

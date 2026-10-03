@@ -24,6 +24,7 @@ from ..utils.locale import get_locale, set_locale, t
 from ..utils.security import validate_platform, validate_storage_id
 from ..utils.fs import atomic_write_json, read_json_or_none
 from .zep_graph_memory_updater import ZepGraphMemoryManager
+from .oasis_profile_adapter import profile_memory_policy
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
 logger = get_logger('mirofish.simulation_runner')
@@ -156,6 +157,7 @@ class SimulationRunState:
     
     # 进程ID（用于停止）
     process_pid: Optional[int] = None
+    memory_policy: Dict[str, Any] = field(default_factory=dict)
     
     def add_action(self, action: AgentAction):
         """添加动作到最近动作列表"""
@@ -196,6 +198,7 @@ class SimulationRunState:
             "completed_at": self.completed_at,
             "error": self.error,
             "process_pid": self.process_pid,
+            "memory_policy": self.memory_policy,
         }
     
     def to_detail_dict(self) -> Dict[str, Any]:
@@ -293,6 +296,7 @@ class SimulationRunner:
                 completed_at=data.get("completed_at"),
                 error=data.get("error"),
                 process_pid=data.get("process_pid"),
+                memory_policy=data.get("memory_policy", {}),
             )
             
             # 加载最近动作
@@ -494,6 +498,15 @@ class SimulationRunner:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
+        memory_policy = profile_memory_policy(
+            sim_dir, platform,
+            config.get('enable_twitter', config.get('twitter_config') is not None if 'twitter_config' in config else True),
+            config.get('enable_reddit', config.get('reddit_config') is not None if 'reddit_config' in config else True),
+            enable_graph_memory_update)
+        if memory_policy['source_graph'] == 'immutable' and enable_graph_memory_update:
+            logger.warning('Actualización del grafo fuente bloqueada por contrato de perfiles; actividad solo como evidencia simulada local')
+            enable_graph_memory_update = False
+
         # 初始化运行状态
         time_config = config.get("time_config", {})
         total_hours = time_config.get("total_simulation_hours", 72)
@@ -513,6 +526,7 @@ class SimulationRunner:
             total_rounds=total_rounds,
             total_simulation_hours=total_hours,
             started_at=datetime.now().isoformat(),
+            memory_policy=memory_policy,
         )
         
         cls._save_run_state(state)

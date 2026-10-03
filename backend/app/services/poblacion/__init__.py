@@ -40,10 +40,14 @@ RESUMEN = "poblacion.json"
 RESUMEN_ANTIGUO = "poblacion_cis.json"        # nombre de antes de que hubiera más de un país
 
 
+def datos_solicitados(pedido: Optional[bool] = None) -> bool:
+    """Distingue una petición de datos reales de la disponibilidad del banco."""
+    return bool(Config.POBLACION_DATOS_REALES if pedido is None else pedido)
+
+
 def modo_activo(pedido: Optional[bool] = None) -> bool:
     """El interruptor de la interfaz manda; si no llega, lo que diga POBLACION_DATOS_REALES. Sin ningún banco, nunca."""
-    quiere = Config.POBLACION_DATOS_REALES if pedido is None else bool(pedido)
-    return bool(quiere and disponibles())
+    return bool(datos_solicitados(pedido) and disponibles())
 
 
 def banco_existe() -> bool:

@@ -22,7 +22,8 @@ from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
 from ..utils.locale import t
 from ..utils.security import validate_platform, validate_storage_id, is_valid_storage_id
-from .entity_role_filter import filter_entities, expand_audience
+from .entity_role_filter import (filter_entities, expand_audience, validate_audience_size,
+                                 AUDIENCE_SIZE_UNSET, INDIVIDUAL_FLAG)
 
 logger = get_logger('mirofish.simulation')
 
@@ -86,6 +87,7 @@ class SimulationState:
 
     # Resumen del filtro de entidades con Jev (roles, descartadas, % audiencia)
     entity_filter: Optional[Dict[str, Any]] = None
+    audience_size: Optional[int] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """完整状态字典（内部使用）"""
@@ -108,6 +110,7 @@ class SimulationState:
             "updated_at": self.updated_at,
             "error": self.error,
             "entity_filter": self.entity_filter,
+            "audience_size": self.audience_size,
         }
     
     def to_simple_dict(self) -> Dict[str, Any]:
@@ -122,6 +125,7 @@ class SimulationState:
             "entity_types": self.entity_types,
             "config_generated": self.config_generated,
             "error": self.error,
+            "audience_size": self.audience_size,
         }
 
 
@@ -205,6 +209,7 @@ class SimulationManager:
                 updated_at=data.get("updated_at", datetime.now().isoformat()),
                 error=data.get("error"),
                 entity_filter=data.get("entity_filter"),
+                audience_size=validate_audience_size(data.get("audience_size")),
             )
         except (ValueError, TypeError) as exc:
             logger.warning(f"[estado] La simulación {simulation_id} tiene un estado que no se entiende: {exc}")
@@ -213,12 +218,15 @@ class SimulationManager:
         self._simulations[simulation_id] = state
         return state
     
-    def begin_preparation(self, state: SimulationState, *, entities_count=None, entity_types=None) -> SimulationState:
+    def begin_preparation(self, state: SimulationState, *, entities_count=None, entity_types=None,
+                          audience_size=AUDIENCE_SIZE_UNSET) -> SimulationState:
         """Invalida la preparación anterior antes de cambiar cualquier archivo.
 
         Los archivos y resultados históricos se conservan, pero su existencia
         ya no certifica que el intento nuevo haya terminado correctamente.
         """
+        if audience_size is not AUDIENCE_SIZE_UNSET:
+            audience_size = validate_audience_size(audience_size)
         with self.PREPARATION_LOCK:
             from .simulation_runner import SimulationRunner
             # Revalida dentro del mismo candado que /start: el preview del
@@ -235,6 +243,8 @@ class SimulationManager:
                 state.entities_count = entities_count
             if entity_types is not None:
                 state.entity_types = list(entity_types)
+            if audience_size is not AUDIENCE_SIZE_UNSET:
+                state.audience_size = audience_size
             state.status = SimulationStatus.PREPARING
             state.config_generated = False
             state.config_reasoning = ""
@@ -292,7 +302,7 @@ class SimulationManager:
         poblacion_datos: Optional[bool] = None,
         poblacion_pais: Optional[str] = None,
         alcance: Optional[str] = None,
-        audience_size: Optional[int] = None
+        audience_size=AUDIENCE_SIZE_UNSET
     ) -> SimulationState:
         """
         准备模拟环境（全程自动化）
@@ -322,7 +332,8 @@ class SimulationManager:
 
         # Un conflicto de acceso a archivos no es una preparación fallida:
         # no cambia el estado ni los flags de la ejecución todavía viva.
-        state = self.begin_preparation(state)
+        state = self.begin_preparation(state, audience_size=audience_size)
+        audience_size = state.audience_size
 
         try:
             
@@ -372,6 +383,11 @@ class SimulationManager:
             # queda autorizado sustituir actores por microdatos de otra persona.
             filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement,
                                                 target_size=audience_size)
+            state.entity_filter = role_result.summary()
+            if audience_size is not None and state.entity_filter['audience_count'] != audience_size:
+                # La duda no autoriza convertir actores en encuestados ni
+                # declarar un tamaño que no se ha conseguido realmente.
+                raise ValueError(t('api.audienceSizeUnavailable'))
             if role_result.applied:
                 # Audiencia como personas individuales y, si falta, ampliada
                 state.entity_filter = role_result.summary()
@@ -398,6 +414,10 @@ class SimulationManager:
                             total=filtered.filtered_count
                         )
             self._save_simulation_state(state)
+
+            requires_survey = audience_size is not None and poblacion.datos_solicitados(poblacion_datos)
+            if requires_survey and not poblacion.modo_activo(poblacion_datos):
+                raise ValueError(t('api.audienceSizeUnavailable'))
             
             # ========== 阶段2: 生成Agent Profile ==========
             total_entities = len(filtered.entities)
@@ -455,9 +475,21 @@ class SimulationManager:
                 # Alcance geográfico: lo fija la persona o lo decide el modelo con el brief; queda en alcance.json
                 alcance_pedido=alcance,
                 alcance_path=os.path.join(sim_dir, poblacion.alcance.FICHERO),
+                required_audience_size=audience_size if requires_survey else None,
             )
             
             state.profiles_count = len(profiles)
+            public_indices = {i for i, entity in enumerate(filtered.entities)
+                              if (entity.attributes or {}).get(INDIVIDUAL_FLAG)}
+            survey_indices = {profile.user_id for profile in profiles
+                              if profile.user_id in public_indices
+                              and getattr(profile, 'data_source', None) and getattr(profile, 'data_ref', None)}
+            state.entity_filter['audience_survey_count'] = len(survey_indices)
+            nonpublic_survey = any(profile.user_id not in public_indices
+                                   and getattr(profile, 'data_source', None) and getattr(profile, 'data_ref', None)
+                                   for profile in profiles)
+            if requires_survey and (len(survey_indices) != audience_size or nonpublic_survey):
+                raise ValueError(t('api.audienceSizeUnavailable'))
             
             # 保存Profile文件（注意：Twitter使用CSV格式，Reddit使用JSON格式）
             # Reddit 已经在生成过程中实时保存了，这里再保存一次确保完整性

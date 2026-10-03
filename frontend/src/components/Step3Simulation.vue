@@ -717,11 +717,14 @@ const doStartSimulation = async ({ force = false } = {}) => {
       addLog(t('log.setMaxRounds', { rounds: props.maxRounds }))
     }
     
-    addLog(t('log.graphMemoryUpdateEnabled'))
-    
     const res = await startSimulation(params)
     
     if (res.success && res.data) {
+      if (res.data.memory_policy?.source_graph === 'immutable') {
+        addLog(t('log.originalMaterialPreserved'))
+      } else if (res.data.graph_memory_update_enabled === true) {
+        addLog(t('log.graphMemoryUpdateEnabled'))
+      }
       if (res.data.force_restarted) {
         addLog(t('log.oldSimCleared'))
       }

@@ -634,6 +634,11 @@
     "researchMore": "y {n} más en el archivo"
   },
   "step2": {
+    "audienceSizeLabel": "Tamaño del público",
+    "audienceSizeAuto": "Automático",
+    "audienceSizeExplicit": "Elegir cantidad",
+    "audienceSizeNumber": "Personas",
+    "audienceSizeHint": "Entre 5 y 150 personas del público; los actores e instituciones se añaden aparte. Automático usa el tamaño que determine la preparación. Elegir una cantidad no garantiza representatividad.",
     "simInstanceInit": "Inicialización de instancia de simulación",
     "simInstanceDesc": "Crear una nueva instancia de simulación y obtener plantillas de parámetros del mundo",
     "asyncTaskDone": "Tarea asíncrona completada",
@@ -768,6 +773,35 @@
       "opposing": "En contra",
       "neutral": "Neutral",
       "observer": "Observador"
+    }
+  },
+  "profiles": {
+    "fictionalBiography": "Biografía ficticia",
+    "sourcePassages": "Ver fragmentos del material aportado",
+    "surveyFacts": "Ver respuestas de la encuesta",
+    "simulatedStyle": "Estilo de comunicación simulado",
+    "partialMaterial": "Parte del material no se incorporó a la memoria inicial.",
+    "origin": {
+      "provided": "Material aportado",
+      "survey": "Encuesta real",
+      "synthetic": "Público ficticio",
+      "legacy": "Perfil de una versión anterior",
+      "unconfirmed": "Actor sin material vinculado"
+    },
+    "description": {
+      "provided": "La memoria inicial usa fragmentos del material aportado. Su contenido no se ha verificado externamente; las respuestas y acciones son simuladas.",
+      "survey": "La memoria inicial usa respuestas de una persona encuestada anónima. Su comportamiento en la simulación y sus respuestas nuevas son generados.",
+      "synthetic": "Esta persona se ha creado para el ensayo. Su identidad y sus características no corresponden a una persona encuestada real.",
+      "legacy": "Este perfil se generó con una versión anterior. No se puede acreditar con este contrato la procedencia de su biografía y memoria.",
+      "unconfirmed": "No se han vinculado fragmentos del material a este actor. Sus antecedentes no se deben dar por confirmados."
+    },
+    "style": {
+      "formal": "formal",
+      "conversational": "conversacional",
+      "brief": "breve",
+      "balanced": "extensión moderada",
+      "cautious": "prudente",
+      "respectful": "desacuerdo respetuoso"
     }
   },
   "step3": {
@@ -1133,6 +1167,8 @@
     }
   },
   "api": {
+    "invalidAudienceSize": "El tamaño del público debe ser un entero entre 5 y 150, o Automático.",
+    "audienceSizeUnavailable": "No se pudo preparar el número solicitado de personas del público. Revisa la clasificación de los grupos y si hay suficientes datos disponibles, o elige Automático.",
     "projectNotFound": "Proyecto no encontrado: {id}",
     "projectDeleteFailed": "Proyecto no encontrado o error al eliminar: {id}",
     "projectDeleted": "Proyecto eliminado: {id}",
@@ -1321,6 +1357,7 @@
     "jevLowAudience": "⚠ Solo el {audience} % de los agentes son audiencia (mínimo recomendado: {minimum} %). El resultado reflejará más a competidores y empresas que a tus clientes: añade al documento más detalle sobre quién es el público."
   },
   "log": {
+    "originalMaterialPreserved": "El material original se conserva; la actividad simulada se guarda aparte.",
     "preparingGoBack": "Preparando retorno al Paso 2, cerrando simulación...",
     "closingSimEnv": "Cerrando entorno de simulación...",
     "simEnvClosed": "✓ Entorno de simulación cerrado",

@@ -42,6 +42,7 @@ const props = defineProps({
   runStatus: Object,
   rounds: Number,
   preview: Boolean,
+  preparationReady: { type: Boolean, default: true },
   legacyReport: Boolean,
   evidence: Object,
   report: Boolean,
@@ -52,11 +53,11 @@ const loadedConfig = ref(null)
 const loadedRun = ref(null)
 let generation = 0
 let unmounted = false
-watch(() => [props.simulationId, props.evidence?.version, props.reportReady], async ([id]) => {
+watch(() => [props.simulationId, props.evidence?.version, props.reportReady, props.preparationReady], async ([id]) => {
   const request = ++generation
   loadedConfig.value = null
   loadedRun.value = null
-  if (!id || props.evidence?.version || (props.report && !props.reportReady)) return
+  if (!id || props.evidence?.version || (props.report && !props.reportReady) || (props.preview && props.preparationReady === false)) return
   // Estas lecturas no generan contenido ni cambian las simulaciones guardadas.
   const [config, run] = await Promise.allSettled([
     props.config ? Promise.resolve(null) : getSimulationConfig(id),
@@ -67,12 +68,13 @@ watch(() => [props.simulationId, props.evidence?.version, props.reportReady], as
   if (run.status === 'fulfilled' && run.value?.success) loadedRun.value = run.value.data
 }, { immediate: true })
 onUnmounted(() => { unmounted = true; generation++ })
-const config = computed(() => props.config || loadedConfig.value)
+const config = computed(() => props.preview && props.preparationReady === false ? null : (props.config || loadedConfig.value))
 const run = computed(() => props.runStatus || loadedRun.value)
 const legacy = computed(() => props.legacyReport || !props.evidence?.version && !!config.value && !(config.value.generation_version >= 2))
 const facts = computed(() => evidenceFacts(props.evidence))
 const terminal = computed(() => ['completed', 'stopped', 'failed'].includes(props.evidence?.execution?.status || run.value?.runner_status))
 const coverage = computed(() => {
+  if (props.preview && props.preparationReady === false) return null
   // Un informe nuevo conserva la ficha de SU ejecución aunque más adelante
   // cambie el estado de la simulación. No sustituirla por una lectura posterior.
   const e = props.evidence?.execution

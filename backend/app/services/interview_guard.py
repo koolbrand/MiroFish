@@ -11,6 +11,14 @@ agente de informes.
 """
 
 from ..utils.locale import t
+from .profile_memory import is_canonical, render_memory
+
+REFERENCE_MEMORY_RULE = (
+    "Distingue el material aportado (no verificado independientemente), las respuestas medidas de una encuesta "
+    "y las opiniones/acciones desarrolladas dentro de esta simulación. Un recuerdo de voto no es intención actual. "
+    "No añadas biografía, cargos, estudios ni acciones históricas ausentes de la memoria inicial. Las opiniones "
+    "nuevas y los cambios de postura son posiciones simuladas; no acreditan hechos reales fuera de esta ejecución."
+)
 
 REGLA_CIFRAS = (
     "Regla sobre cifras: no cites porcentajes, resultados de encuestas, recuentos de personas, firmas, adhesiones, "
@@ -27,6 +35,7 @@ INTERVIEW_PROMPT_PREFIX = (
     "Basándote en tu perfil, todas tus memorias y acciones pasadas, "
     "responde directamente con texto en español sin invocar ninguna herramienta.\n"
     f"{REGLA_CIFRAS}\n\n"
+    f"{REFERENCE_MEMORY_RULE}\n\n"
 )
 
 # Entrevista que lanza el agente de informes: varias preguntas en un solo mensaje, con formato fijo para poder separarlas
@@ -41,6 +50,7 @@ REPORT_INTERVIEW_PROMPT_PREFIX = (
     "5. Separa las respuestas con líneas en blanco.\n"
     "6. Da respuestas con contenido real, mínimo 2–3 oraciones por pregunta.\n"
     f"7. {REGLA_CIFRAS}\n\n"
+    f"8. {REFERENCE_MEMORY_RULE}\n\n"
 )
 
 
@@ -85,8 +95,15 @@ def build_context_block(project_name: str = "", simulation_requirement: str = ""
     return "\n".join(lines) + "\n"
 
 
-def build_interview_system_prompt(username: str, profession: str, bio: str, context_block: str = "") -> str:
+def build_interview_system_prompt(username: str, profession: str, bio: str, context_block: str = "", profile=None) -> str:
     """Mensaje de sistema con el que el modelo hace de la persona cuando ya no hay entorno de simulación."""
+    if is_canonical(profile):
+        return (f"{context_block}\n{render_memory(profile)}\n\n"
+                "Responde en español y en primera persona, con opiniones explícitamente simuladas. "
+                "Si no consta una experiencia o un dato, dilo.\n\n"
+                f"{REFERENCE_MEMORY_RULE}\n{REGLA_CIFRAS}")
+    if isinstance(profile, dict) and profile.get('profile_schema_version') is not None:
+        raise ValueError('Versión de perfil incompatible; no se puede sustituir su memoria por una biografía libre')
     return (
         f"{context_block}"
         f"Eres {username}, {profession}.\n"

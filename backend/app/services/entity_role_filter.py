@@ -23,6 +23,7 @@ import httpx
 
 from ..config import Config
 from ..utils.logger import get_logger
+from ..utils.locale import t
 
 logger = get_logger('mirofish.entity_role_filter')
 
@@ -111,6 +112,7 @@ class EntityRoleResult:
     reclassified: List[str] = field(default_factory=list)   # organizaciones que no se tratan como audiencia
     population_group_ids: List[str] = field(default_factory=list)
     population_unconfirmed: List[str] = field(default_factory=list)
+    audience_requested: Optional[int] = None
 
     @property
     def audience_ratio(self) -> Optional[float]:
@@ -135,6 +137,11 @@ class EntityRoleResult:
             "reclassified": self.reclassified,
             "population_groups": len(self.population_group_ids),
             "population_unconfirmed": self.population_unconfirmed,
+            # El rol audiencia también puede incluir actores identificados.
+            # Solo estos individuos confirmados pueden muestrearse del banco.
+            "audience_requested": self.audience_requested,
+            "audience_count": sum(bool((getattr(e, 'attributes', None) or {}).get(INDIVIDUAL_FLAG))
+                                  for e in self.kept),
         }
 
 
@@ -255,6 +262,15 @@ TOPIC_HINT = "__simuloo_topic"
 
 
 MAX_AUDIENCE_SIZE = 150      # tope duro de `target_size` (cada persona es una llamada al modelo y memoria en la simulación)
+MIN_AUDIENCE_SIZE = 5
+AUDIENCE_SIZE_UNSET = object()
+
+
+def validate_audience_size(value) -> Optional[int]:
+    """None es automático; valores explícitos son enteros JSON, nunca coerciones."""
+    if value is None or type(value) is int and MIN_AUDIENCE_SIZE <= value <= MAX_AUDIENCE_SIZE:
+        return value
+    raise ValueError(t('api.invalidAudienceSize'))
 
 
 def expand_audience(entities: list, result: EntityRoleResult, topic: str = "", target_size: Optional[int] = None) -> list:
@@ -265,12 +281,14 @@ def expand_audience(entities: list, result: EntityRoleResult, topic: str = "", t
     - Si la audiencia es < JEV_MIN_AUDIENCE_RATIO, cada grupo de audiencia se
       desdobla en variantes (personas distintas dentro del grupo) hasta el
       umbral, con topes por grupo y en total para no disparar la memoria.
-    - `target_size` (por simulación, p. ej. una muestra representativa de un electorado): el público llega a ese número de
+    - `target_size` (por simulación): el público llega a ese número de
       personas, repartidas por igual entre los grupos, sin mirar el umbral ni los topes de la configuración. Tope duro: 150.
+      Esto no garantiza representatividad nacional ni cuotas políticas.
     """
     import copy
     import math
 
+    result.audience_requested = target_size
     for e in entities:
         # Incluso sin Jev: una preparación nueva no arrastra permiso de una
         # clasificación anterior. Solo se repone tras confirmar un colectivo.

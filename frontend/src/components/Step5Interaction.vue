@@ -284,13 +284,14 @@
 
           <!-- Agent Profile Card -->
           <div v-if="chatTarget === 'agent' && selectedAgent" class="agent-profile-card">
+            <ProfileProvenance :profile="selectedAgent" />
             <div class="profile-card-header">
               <div class="profile-card-avatar">{{ (selectedAgent.username || 'A')[0] }}</div>
               <div class="profile-card-info">
                 <div class="profile-card-name">{{ selectedAgent.username }}</div>
                 <div class="profile-card-meta">
                   <span v-if="selectedAgent.name" class="profile-card-handle">@{{ selectedAgent.name }}</span>
-                  <span class="profile-card-profession">{{ selectedAgent.profession || $t('step2.unknownProfession') }}</span>
+                  <span v-if="knownProfileText(selectedAgent.profession)" class="profile-card-profession">{{ selectedAgent.profession }}</span>
                 </div>
               </div>
               <button
@@ -531,6 +532,8 @@
 
 <script setup>
 import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
+import ProfileProvenance from './ProfileProvenance.vue'
+import { knownProfileText } from '../lib/profilePresentation'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { chatWithReport, getReport, getAgentLog } from '../api/report'

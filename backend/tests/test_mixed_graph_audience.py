@@ -90,6 +90,7 @@ def test_real_preparation_includes_generic_candidates_before_profile_generation(
     configure_classifier(monkeypatch)
     monkeypatch.setattr(manager_module, 'ZepEntityReader', lambda: instance)
     monkeypatch.setattr(manager_module.SimulationManager, 'SIMULATION_DATA_DIR', str(tmp_path))
+    monkeypatch.setattr(manager_module.poblacion, 'modo_activo', lambda pedido: True)
     observed = []
 
     class Profiles:
