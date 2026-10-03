@@ -123,6 +123,10 @@
             <button type="button" class="cis-regen" :disabled="!audienceSizeValid" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
           </div>
 
+          <div v-if="canPrepareAgain" class="cis-changed">
+            <button type="button" class="cis-regen" :disabled="!audienceSizeValid" @click="regenerarPublico">{{ $t('step2.datosRegenerate') }}</button>
+          </div>
+
           <!-- Se pidieron datos reales pero no se pudieron aplicar: se dice, no se disimula -->
           <div v-if="poblacion?.sin_datos" class="cis-reparto cis-sin-datos" role="status" data-testid="cis-sin-datos">
             <span class="cis-reparto-title">{{ $t('step2.datosSinDatosTitle') }}</span>
@@ -1238,6 +1242,7 @@ const ajusteCambiado = computed(() => cisCambiado.value || alcanceCambiado.value
 // Mientras se prepara (o con la simulación ya ejecutada o en el flujo automático) los ajustes no se tocan: cambiar uno y «volver a
 // generar» a mitad lanzaba una segunda preparación sobre los mismos ficheros
 const ajustesBloqueados = computed(() => runnerStatus.value !== 'idle' || (phase.value < 4 && !prepareError.value) || autoRunning.value)
+const canPrepareAgain = computed(() => phase.value >= 4 && !ajusteCambiado.value && !ajustesBloqueados.value)
 const alcanceTexto = computed(() => {
   const a = alcance.value
   if (!a) return ''

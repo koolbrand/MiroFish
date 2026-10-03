@@ -29,7 +29,7 @@ function view(overrides = {}) {
     setInterval: () => { calls.intervals++; return calls.intervals }, clearInterval: () => {},
     ...overrides
   }
-  const state = new Function(...Object.keys(bindings), script + '\nreturn { phase, profiles, simulationConfig, prepareError, taskId, selectedProfile, regenerarPublico, fetchConfigRealtime, fetchProfilesRealtime, pollPrepareStatus, alreadyRun, runnerStatus, audienceSizeMode, audienceSizeValue, audienceSizeUsed, audienceSizeValid, audienceSizeChanged, demographics };')(...Object.values(bindings))
+  const state = new Function(...Object.keys(bindings), script + '\nreturn { phase, profiles, simulationConfig, prepareError, taskId, selectedProfile, regenerarPublico, fetchConfigRealtime, fetchProfilesRealtime, pollPrepareStatus, alreadyRun, runnerStatus, audienceSizeMode, audienceSizeValue, audienceSizeUsed, audienceSizeValid, audienceSizeChanged, demographics, canPrepareAgain };')(...Object.values(bindings))
   return { mount: () => mounted(), unmount: () => unmounted(), calls, state }
 }
 test('cerrar mientras carga datos poblacionales no inicia preparación', async () => {
@@ -232,5 +232,49 @@ test('resumen demográfico excluye defaults de actores y perfiles legados', () =
   ]
   assert.deepEqual(v.state.demographics.value.genderBreakdown.map(g => [g.key, g.count]), [['female', 1]])
   assert.deepEqual(v.state.demographics.value.topProfessions, ['Ingeniera'])
+  v.unmount()
+})
+
+test('READY idle permite preparar los mismos ajustes sin duplicar el botón ni actuar durante runs/auto', async () => {
+  const requests = []
+  const automatic = ref(false)
+  const v = view({
+    usePipeline: () => ({ isRunning: automatic, state: ref(null) }),
+    getSimulation: () => Promise.resolve({ success: true, data: { status: 'ready', audience_size: 70 } }),
+    getPoblacionEstado: () => Promise.resolve({ success: true, data: { disponible: true, por_defecto: false } }),
+    getPoblacionSimulacion: () => Promise.resolve({ success: true, data: { pais: 'ES', pais_decidido_por: 'pedido', sin_datos: false } }),
+    getAlcanceSimulacion: () => Promise.resolve({ success: true, data: { nivel: 'nacional', origen: 'pedido' } }),
+    prepareSimulation: params => {
+      requests.push(params)
+      return Promise.resolve({ success: true, data: requests.length === 1 ? { already_prepared: true } : { task_id: 'retry_task' } })
+    }
+  })
+  await v.mount()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(v.state.phase.value, 4)
+  assert.equal(v.state.audienceSizeChanged.value, false)
+  assert.equal(v.state.canPrepareAgain.value, true)
+  v.state.audienceSizeValue.value = 71
+  assert.equal(v.state.canPrepareAgain.value, false) // ya aparece el botón del ajuste cambiado
+  v.state.audienceSizeValue.value = 70
+  automatic.value = true
+  assert.equal(v.state.canPrepareAgain.value, false)
+  await v.state.regenerarPublico()
+  assert.equal(requests.length, 1)
+  automatic.value = false
+  v.state.runnerStatus.value = 'running'
+  assert.equal(v.state.canPrepareAgain.value, false)
+  await v.state.regenerarPublico()
+  assert.equal(requests.length, 1)
+  v.state.runnerStatus.value = 'idle'
+  assert.equal(v.state.canPrepareAgain.value, true)
+  await v.state.regenerarPublico()
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1].force_regenerate, true)
+  assert.equal(requests[1].audience_size, 70)
+  assert.equal(requests[1].poblacion_datos, true)
+  assert.equal(requests[1].poblacion_pais, 'ES')
+  assert.equal(requests[1].alcance, 'nacional')
+  assert.equal(v.state.canPrepareAgain.value, false)
   v.unmount()
 })
