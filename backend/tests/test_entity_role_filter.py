@@ -195,3 +195,28 @@ def test_target_size_has_a_hard_cap_and_never_shrinks(monkeypatch):
     monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", False)
     result = erf.filter_entities(ents, "x")
     assert len(erf.expand_audience(result.kept, result, "x")) == len(ents)
+
+
+def test_what_cannot_speak_is_pruned_with_a_high_threshold(monkeypatch):
+    """Un lugar, un texto legal o una web no opinan: sin agente. Solo con probabilidad alta; una duda se queda."""
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", False)
+    nombres = ["Asturias", "Real Decreto-ley 25/2026", "Bassa", "Vox", "Electorado español", "Madrid"]
+    ents = [Entity(n) for n in nombres]
+    for i, e in enumerate(ents):
+        e.uuid, e.attributes = f"u{i}", {}
+    resp = {
+        "Asturias": {"role": "implicado", "confidence": 0.9, "organization": 0.0, "thing": 0.97},
+        "Real Decreto-ley 25/2026": {"role": "voz_influyente", "confidence": 0.8, "organization": 0.02, "thing": 0.95},
+        "Bassa": {"role": "implicado", "confidence": 0.7, "organization": 0.1, "thing": 0.15},       # una duda (era una persona): se queda
+        "Vox": {"role": "implicado", "confidence": 0.95, "organization": 0.99, "thing": 0.0},
+        "Electorado español": {"role": "audiencia", "confidence": 1.0, "organization": 0.0, "thing": 0.9},   # la audiencia no se poda nunca
+        "Madrid": {"role": "implicado", "confidence": 0.9, "organization": 0.1, "thing": 0.79},      # por debajo del umbral: se queda
+    }
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: resp[e.name])
+    result = erf.filter_entities(ents, "elecciones")
+    assert [e.name for e in result.kept] == ["Bassa", "Vox", "Electorado español", "Madrid"]
+    assert [d["name"] for d in result.dropped] == ["Asturias", "Real Decreto-ley 25/2026"]
+    assert all(d.get("motivo") == "no habla" for d in result.dropped)
+    # y si faltara la respuesta de naturaleza, no se poda nada
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": "implicado", "confidence": 0.9})
+    assert len(erf.filter_entities(ents, "x").kept) == len(ents)

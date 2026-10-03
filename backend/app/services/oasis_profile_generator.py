@@ -1156,7 +1156,7 @@ Rules:
         self._tema_politico = False       # se decide más abajo, solo si hay datos reales; cada ejecución parte de cero
         orden_publico: Dict[int, int] = {}
         for i, e in enumerate(entities):
-            if (e.attributes or {}).get('__simuloo_individual') and not self._is_group_entity(e.get_entity_type() or ""):
+            if (e.attributes or {}).get('__simuloo_individual'):
                 orden_publico[i] = len(orden_publico)
         if poblacion.modo_activo(poblacion_datos):
             try:
@@ -1165,10 +1165,9 @@ Rules:
                     attrs = e.attributes or {}
                     if not attrs.get('__simuloo_individual'):
                         continue
-                    # Una universidad, un ayuntamiento o una empresa no es una persona: un encuestado (una jubilada de 80
-                    # años, un profesor de Valencia) no puede representarla. Esas entidades se generan como siempre.
-                    if self._is_group_entity(e.get_entity_type() or ""):
-                        continue
+                    # Solo llevan la marca de persona las entidades que Jev vio como personas o colectivos de personas (una
+                    # universidad o un ayuntamiento llegan como «implicado», sin marca). El NOMBRE del tipo del grafo no decide:
+                    # «Electorado español» salió con el tipo genérico «Organization» y se quedó sin anclar (3-oct-2026).
                     clave = str(attrs.get('__simuloo_group') or e.uuid)
                     nombre = re.sub(r'\s·\s\d+$', '', e.name or '')
                     g = grupos.setdefault(clave, {'idx': [], 'nombre': nombre, 'descripcion': e.summary or ''})
