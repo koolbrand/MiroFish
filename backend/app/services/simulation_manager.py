@@ -252,7 +252,8 @@ class SimulationManager:
         parallel_profile_count: int = 3,
         poblacion_datos: Optional[bool] = None,
         poblacion_pais: Optional[str] = None,
-        alcance: Optional[str] = None
+        alcance: Optional[str] = None,
+        audience_size: Optional[int] = None
     ) -> SimulationState:
         """
         准备模拟环境（全程自动化）
@@ -327,7 +328,8 @@ class SimulationManager:
             state.entity_filter = role_result.summary()
             if role_result.applied:
                 # Audiencia como personas individuales y, si falta, ampliada
-                filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement)
+                filtered.entities = expand_audience(role_result.kept, role_result, simulation_requirement,
+                                                        target_size=audience_size)
                 state.entity_filter = role_result.summary()
                 filtered.filtered_count = len(filtered.entities)
                 state.entities_count = filtered.filtered_count

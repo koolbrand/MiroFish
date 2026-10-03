@@ -147,3 +147,51 @@ def test_the_nature_question_goes_in_the_same_request(monkeypatch):
             return httpx.Response(200, request=httpx.Request("POST", url), json={"answers": {"rol": {"choice": "audiencia", "confidence": 0.9}}})
 
     assert erf._ask_jev(SinNaturaleza(), Entity("X"), "t")["organization"] == 0.0
+
+
+def _audiencia(n_grupos, otros):
+    ents = [Entity(f"G{i}") for i in range(n_grupos)] + [Entity(f"O{i}") for i in range(otros)]
+    for i, e in enumerate(ents):
+        e.uuid, e.attributes = f"u{i}", {}
+    roles = {f"G{i}": "audiencia" for i in range(n_grupos)}
+    return ents, roles
+
+
+def test_target_size_fills_the_audience_to_that_number_split_by_group(monkeypatch):
+    """Una muestra representativa de un electorado: un solo grupo («Electorado») con N personas, sin mirar umbral ni topes."""
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", True)
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_EXTRA", 3)           # los topes de la configuración no cuentan con target_size
+    monkeypatch.setattr(Config, "AUDIENCE_MAX_VARIANTS", 2)
+    ents, roles = _audiencia(1, 9)
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    result = erf.filter_entities(ents, "elecciones")
+    out = erf.expand_audience(result.kept, result, "elecciones", target_size=60)
+    pers = [e for e in out if e.attributes.get(erf.INDIVIDUAL_FLAG)]
+    assert len(pers) == 60 and len(out) == 69 and len({e.uuid for e in out}) == len(out)
+    assert {e.attributes[erf.GROUP_KEY] for e in pers} == {"u0"}                     # un solo grupo: una sola muestra
+    assert result.summary()["audience_expanded"] == 59
+    # varios grupos: reparto por igual
+    ents, roles = _audiencia(3, 4)
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    result = erf.filter_entities(ents, "x")
+    out = erf.expand_audience(result.kept, result, "x", target_size=12)
+    por_grupo = {}
+    for e in out:
+        if e.attributes.get(erf.INDIVIDUAL_FLAG):
+            por_grupo[e.attributes[erf.GROUP_KEY]] = por_grupo.get(e.attributes[erf.GROUP_KEY], 0) + 1
+    assert sorted(por_grupo.values()) == [4, 4, 4]
+
+
+def test_target_size_has_a_hard_cap_and_never_shrinks(monkeypatch):
+    ents, roles = _audiencia(2, 3)
+    monkeypatch.setattr(erf, "_ask_jev", lambda c, e, t: {"role": roles.get(e.name, "competidor"), "confidence": 0.9})
+    result = erf.filter_entities(ents, "x")
+    out = erf.expand_audience(result.kept, result, "x", target_size=10_000)
+    assert sum(1 for e in out if e.attributes.get(erf.INDIVIDUAL_FLAG)) == erf.MAX_AUDIENCE_SIZE
+    result = erf.filter_entities(ents, "x")
+    out = erf.expand_audience(result.kept, result, "x", target_size=1)               # menos que los grupos: no se quita a nadie
+    assert len(out) == len(ents) and result.summary()["audience_expanded"] == 0
+    # sin target_size, ampliar sigue apagado si AUDIENCE_EXPANSION es false
+    monkeypatch.setattr(Config, "AUDIENCE_EXPANSION", False)
+    result = erf.filter_entities(ents, "x")
+    assert len(erf.expand_audience(result.kept, result, "x")) == len(ents)

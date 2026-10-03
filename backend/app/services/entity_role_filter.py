@@ -217,7 +217,10 @@ VARIANT_HINT = "__simuloo_variant"
 TOPIC_HINT = "__simuloo_topic"
 
 
-def expand_audience(entities: list, result: EntityRoleResult, topic: str = "") -> list:
+MAX_AUDIENCE_SIZE = 150      # tope duro de `target_size` (cada persona es una llamada al modelo y memoria en la simulación)
+
+
+def expand_audience(entities: list, result: EntityRoleResult, topic: str = "", target_size: Optional[int] = None) -> list:
     """Convierte la audiencia en personas y la amplía si queda por debajo del mínimo.
 
     - Toda entidad con papel «audiencia» se marca para generarse como persona
@@ -225,6 +228,8 @@ def expand_audience(entities: list, result: EntityRoleResult, topic: str = "") -
     - Si la audiencia es < JEV_MIN_AUDIENCE_RATIO, cada grupo de audiencia se
       desdobla en variantes (personas distintas dentro del grupo) hasta el
       umbral, con topes por grupo y en total para no disparar la memoria.
+    - `target_size` (por simulación, p. ej. una muestra representativa de un electorado): el público llega a ese número de
+      personas, repartidas por igual entre los grupos, sin mirar el umbral ni los topes de la configuración. Tope duro: 150.
     """
     import copy
     import math
@@ -238,14 +243,20 @@ def expand_audience(entities: list, result: EntityRoleResult, topic: str = "") -
         e.attributes[GROUP_KEY] = str(getattr(e, "uuid", e.name))
         if topic:
             e.attributes[TOPIC_HINT] = topic[:600]
-    if not audience or not Config.AUDIENCE_EXPANSION:
+    if not audience or (not target_size and not Config.AUDIENCE_EXPANSION):
         return entities
 
-    total, n_aud, target = len(entities), len(audience), Config.JEV_MIN_AUDIENCE_RATIO
-    if n_aud / total >= target:
-        return entities
-    needed = math.ceil(round((target * total - n_aud) / (1 - target), 6))  # round: 0,4*8 = 3,2000000000000006
-    extra = min(needed, Config.AUDIENCE_MAX_EXTRA, n_aud * Config.AUDIENCE_MAX_VARIANTS)
+    total, n_aud = len(entities), len(audience)
+    if target_size:
+        extra = max(0, min(int(target_size), MAX_AUDIENCE_SIZE) - n_aud)
+        if extra == 0:
+            return entities
+    else:
+        target = Config.JEV_MIN_AUDIENCE_RATIO
+        if n_aud / total >= target:
+            return entities
+        needed = math.ceil(round((target * total - n_aud) / (1 - target), 6))  # round: 0,4*8 = 3,2000000000000006
+        extra = min(needed, Config.AUDIENCE_MAX_EXTRA, n_aud * Config.AUDIENCE_MAX_VARIANTS)
 
     variants, per_group = [], {id(e): 1 for e in audience}
     i = 0

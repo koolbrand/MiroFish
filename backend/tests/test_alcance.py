@@ -666,3 +666,9 @@ def test_con_pocas_personas_las_primeras_culturas_ya_incluyen_oriente_y_occident
     assert A.CULTURAS[:3] == ("Europa occidental", "Asia oriental", "Latinoamérica")
     assert any("Asia" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(3))
     assert any("Asia oriental" in A.pista_para_persona(A.Alcance("mundial"), i) for i in range(2))
+
+
+def test_api_prepare_acepta_audience_size_acotado():
+    """`audience_size` llega al gestor solo si es un entero de 5 a 150; cualquier otra cosa se ignora."""
+    from app.api.simulation import _normalizar_audience_size as norm
+    assert [norm(x) for x in (70, 5, 150, 4, 151, True, "70", 70.0, None, -3)] == [70, 5, 150, None, None, None, None, None, None, None]
