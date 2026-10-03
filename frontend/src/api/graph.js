@@ -25,6 +25,11 @@ export function downloadResearch(projectId) {
   return downloadFile(`/api/graph/project/${projectId}/research`, 'investigacion-internet.md')
 }
 
+// El punto de partida del proyecto: objetivo de la simulación, archivos y texto del brief (sin la investigación en internet)
+export function getProjectBrief(projectId) {
+  return requestWithRetry(() => service({ url: `/api/graph/project/${projectId}/brief`, method: 'get' }))
+}
+
 /**
  * 构建图谱
  * @param {Object} data - 包含project_id, graph_name等
