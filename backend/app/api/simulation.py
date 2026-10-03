@@ -19,6 +19,10 @@ from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..services.poblacion import alcance as poblacion_alcance
 from ..services.auto_pipeline import get_pipeline_summary
+from ..services.interview_guard import (  # noqa: F401 — INTERVIEW_PROMPT_PREFIX se re-exporta
+    INTERVIEW_PROMPT_PREFIX, build_context_block, build_interview_system_prompt, interview_notice, optimize_interview_prompt,
+    with_notice,
+)
 from ..utils.logger import get_logger
 from ..utils.access import visible_project_id
 from ..utils.locale import t, get_locale, set_locale
@@ -37,32 +41,6 @@ def _clamp_timeout(value, default, low=5.0, high=120.0) -> float:
         return float(default)
 
 logger = get_logger('mirofish.api.simulation')
-
-
-# Interview prompt optimization prefix
-# Adding this prefix prevents the agent from calling tools and forces a plain-text reply
-INTERVIEW_PROMPT_PREFIX = (
-    "Basándote en tu perfil, todas tus memorias y acciones pasadas, "
-    "responde directamente con texto en español sin invocar ninguna herramienta: "
-)
-
-
-def optimize_interview_prompt(prompt: str) -> str:
-    """
-    优化Interview提问，添加前缀避免Agent调用工具
-    
-    Args:
-        prompt: 原始提问
-        
-    Returns:
-        优化后的提问
-    """
-    if not prompt:
-        return prompt
-    # 避免重复添加前缀
-    if prompt.startswith(INTERVIEW_PROMPT_PREFIX):
-        return prompt
-    return f"{INTERVIEW_PROMPT_PREFIX}{prompt}"
 
 
 # ============== 实体读取接口 ==============
@@ -2508,7 +2486,7 @@ def interview_agent():
 
         return jsonify({
             "success": result.get("success", False),
-            "data": result
+            "data": with_notice(result)
         })
         
     except ValueError as e:
@@ -2635,22 +2613,7 @@ def _build_interview_llm_fallback_payload(simulation_id: str, interviews: list) 
         project_name = sim_ctx.get('project_name', '').strip()
         analysis_summary = sim_ctx.get('analysis_summary', '').strip()
 
-        context_block = ""
-        if simulation_requirement or project_name:
-            lines = ["=== CONTEXTO DE LA SIMULACIÓN ==="]
-            if project_name:
-                lines.append(f"Proyecto/Producto: {project_name}")
-            if simulation_requirement:
-                lines.append(f"Hipótesis simulada: {simulation_requirement}")
-            if analysis_summary:
-                lines.append(f"Descripción: {analysis_summary[:500]}")
-            lines.append(
-                "\nIMPORTANTE: Responde SOLO con información coherente con el contexto "
-                "anterior. No inventes datos sobre el producto, la marca ni sus características. "
-                "Si no sabes algo con certeza, habla en términos generales o de tu propia experiencia."
-            )
-            lines.append("=================================\n")
-            context_block = "\n".join(lines) + "\n"
+        context_block = build_context_block(project_name, simulation_requirement, analysis_summary)
 
         for interview in interviews:
             agent_id = interview.get('agent_id', 0)
@@ -2661,14 +2624,7 @@ def _build_interview_llm_fallback_payload(simulation_id: str, interviews: list) 
             bio = profile.get('bio', profile.get('persona', ''))
             profession = profile.get('profession', 'Participante de la simulación')
 
-            system_prompt = (
-                f"{context_block}"
-                f"Eres {username}, {profession}.\n"
-                f"Tu perfil: {bio[:600] if bio else 'Sin información adicional.'}\n\n"
-                "Responde siempre en español, en primera persona, con autenticidad y en el tono "
-                "propio de tu profesión e identidad. No uses prefijos ni introducciones: ve directo "
-                "al grano como si fuera una conversación real."
-            )
+            system_prompt = build_interview_system_prompt(username, profession, bio, context_block)
 
             response = llm.chat(
                 messages=[
@@ -2725,6 +2681,7 @@ def _interview_batch_llm_fallback(simulation_id: str, interviews: list):
                 'interviews_count': payload['interviews_count'],
                 'result': payload['result'],
                 'timestamp': payload['timestamp'],
+                'notice': interview_notice(),
             }
         })
     return jsonify({
@@ -2858,7 +2815,7 @@ def interview_agents_batch():
 
         return jsonify({
             "success": result.get("success", False),
-            "data": result
+            "data": with_notice(result)
         })
 
     except ValueError as e:
@@ -2964,7 +2921,7 @@ def interview_all_agents():
 
         return jsonify({
             "success": result.get("success", False),
-            "data": result
+            "data": with_notice(result)
         })
 
     except ValueError as e:

@@ -368,6 +368,12 @@
             </div>
           </div>
 
+          <!-- Lo que dice una persona simulada es razonamiento generado: nadie debe citarlo como dato -->
+          <p v-if="chatTarget === 'agent'" class="interview-notice" role="note">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <span>{{ $t('step5.interviewNotice') }}</span>
+          </p>
+
           <!-- Chat Input -->
           <div class="chat-input-area" data-tour="int-chat-input">
             <textarea
@@ -478,6 +484,10 @@
               <span class="results-title">{{ $t('step5.surveyResults') }}</span>
               <span class="results-count">{{ $t('step5.surveyResultsCount', { count: surveyResults.length }) }}</span>
             </div>
+            <p class="interview-notice" role="note">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+              <span>{{ $t('step5.interviewNotice') }}</span>
+            </p>
             <div class="results-list">
               <div 
                 v-for="(result, idx) in surveyResults" 
@@ -2584,6 +2594,27 @@ watch(() => props.simulationId, (newId) => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Aviso fijo de toda entrevista a una persona simulada: lo que responde es razonamiento generado, no un dato */
+.interview-notice {
+  margin: 0;
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--kb-text-2);
+  background: var(--kb-surface-2);
+  border-top: 1px solid var(--kb-line);
+}
+.interview-notice svg { flex: none; }
+.survey-results .interview-notice {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--kb-line);
+  border-radius: 8px;
 }
 
 /* Survey Results */
