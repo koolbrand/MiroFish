@@ -20,6 +20,7 @@ from ..utils.llm_client import LLMClient
 from ..utils.locale import t
 from ..utils.security import validate_storage_id
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from .interview_guard import REPORT_INTERVIEW_PROMPT_PREFIX
 
 logger = get_logger('mirofish.zep_tools')
 
@@ -1345,19 +1346,8 @@ Devuelve la lista de subpreguntas en formato JSON."""
         # 将问题合并为一个采访prompt
         combined_prompt = "\n".join([f"{i+1}. {q}" for i, q in enumerate(result.interview_questions)])
         
-        # 添加优化前缀，约束Agent回复格式
-        INTERVIEW_PROMPT_PREFIX = (
-            "Estás participando en una entrevista. Responde las siguientes preguntas "
-            "usando tu personalidad, tus recuerdos y tus acciones pasadas, en texto plano.\n"
-            "Instrucciones:\n"
-            "1. Responde directamente en lenguaje natural, sin invocar ninguna herramienta.\n"
-            "2. No devuelvas formato JSON ni llamadas a herramientas.\n"
-            "3. No uses títulos Markdown (#, ##, ###).\n"
-            "4. Responde cada pregunta por orden, comenzando cada respuesta con «Pregunta X:» (X = número de pregunta).\n"
-            "5. Separa las respuestas con líneas en blanco.\n"
-            "6. Da respuestas con contenido real, mínimo 2–3 oraciones por pregunta.\n\n"
-        )
-        optimized_prompt = f"{INTERVIEW_PROMPT_PREFIX}{combined_prompt}"
+        # Prefijo de la entrevista: formato de la respuesta y regla de no inventar cifras
+        optimized_prompt = f"{REPORT_INTERVIEW_PROMPT_PREFIX}{combined_prompt}"
         
         # Step 4: 调用真实的采访API（不指定platform，默认双平台同时采访）
         try:

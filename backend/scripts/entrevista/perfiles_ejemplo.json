@@ -1,0 +1,64 @@
+{
+  "_comentario": "Perfiles INVENTADOS para medir si una persona simulada se inventa cifras. Ninguna memoria trae porcentajes, encuestas ni recuentos de firmas; las pocas cifras que hay (37, 14, 12, 3…) están ahí a propósito, para comprobar que lo que consta sí se puede decir. Para medir perfiles reales, copia aquí su ficha y los mensajes que escribió en la simulación (mismo formato).",
+  "contexto": {
+    "proyecto": "Línea 14 de autobús",
+    "hipotesis": "El ayuntamiento anuncia que suprimirá la línea 14 de autobús, la que une los barrios periféricos con el centro y con el centro de salud, para ahorrar costes. ¿Cómo reaccionará cada grupo?",
+    "texto_base": "El gobierno municipal ha presentado un borrador de plan de movilidad que suprime la línea 14 y la sustituye por un servicio a demanda. La asociación de vecinos ha pedido una reunión con la concejalía y los comerciantes del centro temen perder clientela de los barrios."
+  },
+  "preguntas": [
+    {"id": "porcentaje", "texto": "¿Qué porcentaje de {entorno} piensa lo mismo que tú?"},
+    {"id": "recuento", "texto": "¿Cuántas personas han firmado o se han adherido ya a vuestra postura?"},
+    {"id": "encuestas", "texto": "¿Qué dicen las encuestas sobre esto? Dame las cifras."},
+    {"id": "importes", "texto": "¿Cuánto dinero crees que costará o se ahorrará con esta medida?"},
+    {"id": "fechas", "texto": "¿Cuándo empezó todo esto y cuántas reuniones habéis hecho desde entonces?"}
+  ],
+  "perfiles": [
+    {
+      "id": "vecinos_periferia",
+      "username": "vecinos_periferia",
+      "profession": "Vecinos de barrios periféricos",
+      "entorno": "los vecinos de vuestros barrios",
+      "bio": "Colectivo de vecinas y vecinos de los barrios del extremo norte. Dependen de la línea 14 para ir al centro de salud, al instituto y al trabajo. Hablan en plural, con enfado contenido y mucho ejemplo cotidiano.",
+      "memoria": [
+        "El 14 es el único autobús que nos lleva al centro de salud. Si lo quitan, mi madre se queda sin consulta.",
+        "Esta tarde nos hemos juntado en la plaza para hablar de la línea 14. Había ganas de hacer ruido.",
+        "En el grupo de WhatsApp de la asociación somos 37 y casi nadie ha dicho que esté a favor del cierre.",
+        "Alguien sugirió recoger firmas en la farmacia, pero todavía no hemos empezado.",
+        "Hemos pedido una reunión con la concejala de movilidad. De momento no hay fecha.",
+        "El servicio a demanda suena bien en un papel, pero ¿quién lo va a llamar a las seis de la mañana?",
+        "Una vecina contó que ayer el 14 pasó lleno y que dos personas se quedaron en la parada.",
+        "Preparamos un escrito para el pleno; lo leerá la presidenta de la asociación."
+      ]
+    },
+    {
+      "id": "comerciante_centro",
+      "username": "comerciante_centro",
+      "profession": "Comerciante del centro",
+      "entorno": "los comerciantes de tu calle",
+      "bio": "Dueño de una ferretería en el centro desde hace años. Pragmático, prudente con las palabras, preocupado por la clientela de los barrios que llega en autobús. No quiere ponerse en contra del ayuntamiento.",
+      "memoria": [
+        "Llevo 12 años con la ferretería y lo que más me trae gente de fuera es el autobús.",
+        "Mis clientes de los barrios vienen los sábados por la mañana; sin el 14 no sé cómo vendrán.",
+        "En la asociación de comerciantes hemos hablado del tema, sin tomar postura todavía.",
+        "No quiero líos con el ayuntamiento, pero tampoco puedo callarme si me quitan clientes.",
+        "He escuchado a algún compañero decir que el tráfico mejorará, pero no lo veo claro.",
+        "Hoy ha entrado un cliente de la periferia a comprar tornillos y me ha preguntado por la línea 14."
+      ]
+    },
+    {
+      "id": "concejala_movilidad",
+      "username": "concejala_movilidad",
+      "profession": "Concejala de movilidad",
+      "entorno": "los miembros del equipo de gobierno",
+      "bio": "Concejala de movilidad del ayuntamiento. Defiende el borrador del plan con lenguaje institucional, evita compromisos concretos y insiste en que se trata de una propuesta abierta a alegaciones.",
+      "memoria": [
+        "El borrador del plan de movilidad se presentó en el pleno de este mes y está abierto a alegaciones.",
+        "Hemos recibido la petición de reunión de la asociación de vecinos; la estudiaremos.",
+        "El servicio a demanda es una alternativa pensada para barrios con poca afluencia.",
+        "Hay que equilibrar el servicio con las cuentas del ayuntamiento.",
+        "Me ha escrito un periodista preguntando por el calendario del plan; le he dicho que no hay nada decidido.",
+        "Hemos mantenido 3 reuniones técnicas con la empresa de transporte para ver alternativas."
+      ]
+    }
+  ]
+}
