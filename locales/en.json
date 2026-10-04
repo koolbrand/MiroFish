@@ -1836,5 +1836,40 @@
     "step1Note": "Automatic mode will open the setup as soon as the map is ready.",
     "step2Note": "Automatic mode will launch the simulation with 40 rounds as soon as the people are ready.",
     "step3Note": "The report will be written automatically when it finishes."
+  },
+  "reportResults": {
+    "title": "Results at a glance",
+    "scope": "Selected findings from the report. Their scope depends on its limitations; this is not independent verification.",
+    "qualitative": "Qualitative map: positions and sizes do not indicate support, frequency or probability. The layout does not imply a contradiction between excerpts.",
+    "limitations": "What cannot be concluded",
+    "references": "Support in the report",
+    "referenceContext": "Quotes from the report itself; they are not independent verification.",
+    "section": "Section {n}",
+    "create": "Create a visual results summary",
+    "retry": "Retry the visual summary",
+    "createHelp": "Selects verbatim findings from the completed report and retains its limitations.",
+    "generating": "Preparing the visual summary…",
+    "generatingHelp": "The full report remains available while this opening is prepared.",
+    "failed": "The visual summary could not be prepared. The report is still available.",
+    "stale": "This opening belongs to a different version of the report. You can update it.",
+    "connection": "The visual summary status could not be confirmed. Check again.",
+    "pollTimeout": "Automatic checking has ended. Check the status to see whether the summary is ready.",
+    "checkAgain": "Check status",
+    "errors": {
+      "interrupted": "Preparation was interrupted. You can try again.",
+      "source_invalid": "The report does not contain a valid source for preparing the visual summary.",
+      "source_too_large": "This report exceeds the size supported for preparing a visual summary.",
+      "report_not_ready": "The report is not finished yet. The visual summary will be available afterwards.",
+      "source_changed": "The report changed during preparation. You can update the visual summary.",
+      "payload_invalid": "The selection of findings could not be validated. You can try again.",
+      "provider_timeout": "Preparation took too long. You can try again.",
+      "provider_token_limit": "The summary could not be completed within the length limit.",
+      "provider_invalid_response": "A valid summary could not be obtained. You can try again.",
+      "provider_error": "The service could not select findings from the report.",
+      "storage_error": "The visual summary could not be saved. You can try again.",
+      "busy": "Another visual summary is being prepared. Try again when it finishes."
+    },
+    "positions": "Observed positions",
+    "finding": "Finding"
   }
 }

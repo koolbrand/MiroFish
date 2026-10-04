@@ -109,6 +109,7 @@ def _download_report_pdf(report):
         return jsonify({"success": False, "error": t('api.reportNotReady')}), 409
     try:
         from ..services.report_pdf import render_report_pdf
+        from ..services.report_results import read_results
         pdf = render_report_pdf(
             markdown_text=report.markdown_content or "",
             question=report.simulation_requirement or "",
@@ -116,6 +117,7 @@ def _download_report_pdf(report):
             locale=get_locale(),
             completed_at=report.completed_at,
             created_at=report.created_at,
+            results=read_results(report),
         )
     except (ImportError, OSError) as lib_err:
         # WeasyPrint necesita pango en el sistema; si falta, se dice claro y el resto sigue funcionando
@@ -504,9 +506,12 @@ def get_report(report_id: str):
                 "error": t('api.reportNotFound', id=report_id)
             }), 404
         
+        from ..services.report_results import read_results
+        data = report.to_dict()
+        data['results'] = read_results(report)
         return jsonify({
             "success": True,
-            "data": report.to_dict()
+            "data": data
         })
         
     except Exception as e:
@@ -596,6 +601,21 @@ def list_reports():
             "error": str(e),
             **({"traceback": traceback.format_exc()} if Config.DEBUG else {})
         }), 500
+
+
+@report_bp.route('/<report_id>/results', methods=['POST'])
+def generate_report_results(report_id):
+    """Explicit synthesis from a completed report. GET/download never generate."""
+    from ..services.report_results import generate_results, ResultsError
+    report = ReportManager.get_report(report_id)
+    if report is None:
+        return jsonify({'success': False, 'error': t('api.reportNotFound', id=report_id)}), 404
+    try:
+        result, status = generate_results(report, get_locale())
+        return jsonify({'success': True, 'data': result}), status
+    except ResultsError as exc:
+        status = 429 if exc.code == 'busy' else 409 if exc.code == 'report_not_ready' else 400
+        return jsonify({'success': False, 'error_code': exc.code, 'error': t('reportResults.errors.' + exc.code)}), status
 
 
 @report_bp.route('/<report_id>/download', methods=['GET'])

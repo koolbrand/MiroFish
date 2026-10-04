@@ -67,6 +67,17 @@ export const getReport = (reportId) => {
   return service.get(`/api/report/${reportId}`)
 }
 
+// Preparar SOLO la apertura del informe ya terminado. Sin body ni reintentos
+// automáticos: el servidor reutiliza la síntesis vigente o el trabajo en curso.
+export const generateReportResults = (reportId, { signal } = {}) => {
+  return service.post(`/api/report/${reportId}/results`, undefined, { timeout: 15000, signal })
+}
+
+// Sondeo corto de solo lectura, independiente del timeout de trabajos largos.
+export const getReportResults = (reportId, { signal } = {}) => {
+  return service.get(`/api/report/${reportId}`, { timeout: 15000, signal })
+}
+
 /**
  * 与 Report Agent 对话
  * @param {Object} data - { simulation_id, message, chat_history? }

@@ -1836,5 +1836,40 @@
     "step1Note": "图谱就绪后，自动模式会打开环境配置。",
     "step2Note": "人物就绪后，自动模式会以 40 轮启动模拟。",
     "step3Note": "模拟结束后会自动撰写报告。"
+  },
+  "reportResults": {
+    "title": "结果一览",
+    "scope": "精选报告中的发现。其适用范围受报告局限约束，并非独立核实。",
+    "qualitative": "定性示意图：位置和大小不代表支持度、频率或概率。布局不表示各段摘录互相矛盾。",
+    "limitations": "无法得出的结论",
+    "references": "报告中的依据",
+    "referenceContext": "这些是报告本身的引文，并非独立核实。",
+    "section": "第{n}节",
+    "create": "生成结果可视化摘要",
+    "retry": "重试可视化摘要",
+    "createHelp": "从已完成的报告中选取原文发现，并保留其局限。",
+    "generating": "正在准备可视化摘要…",
+    "generatingHelp": "准备此开篇时，完整报告仍然可用。",
+    "failed": "无法准备可视化摘要，报告仍然可用。",
+    "stale": "此开篇对应报告的其他版本，可以更新。",
+    "connection": "无法确认可视化摘要的状态，请再次查询。",
+    "pollTimeout": "自动查询已结束，请检查状态，确认摘要是否已经就绪。",
+    "checkAgain": "检查状态",
+    "errors": {
+      "interrupted": "准备过程已中断，可以重试。",
+      "source_invalid": "报告中没有可用于准备可视化摘要的有效来源。",
+      "source_too_large": "报告超出了准备可视化摘要所支持的长度。",
+      "report_not_ready": "报告尚未完成，之后才能提供可视化摘要。",
+      "source_changed": "准备过程中报告发生了变化，可以更新摘要。",
+      "payload_invalid": "未能验证发现的选取。你可以重试。",
+      "provider_timeout": "准备过程耗时过长，可以重试。",
+      "provider_token_limit": "无法在长度限制内完成摘要。",
+      "provider_invalid_response": "无法获得有效摘要，可以重试。",
+      "provider_error": "服务未能从报告中选取发现。",
+      "storage_error": "无法保存可视化摘要，可以重试。",
+      "busy": "正在准备另一份可视化摘要，请在完成后重试。"
+    },
+    "positions": "观察到的立场",
+    "finding": "发现"
   }
 }

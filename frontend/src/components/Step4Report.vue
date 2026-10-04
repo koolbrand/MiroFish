@@ -13,9 +13,9 @@
               <ReportDownloads v-if="reportId" :report-id="reportId" :disabled="!isComplete" />
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
-            <p class="sub-title">{{ reportOutline.summary }}</p>
+            <ReportResults :report-id="reportId" :summary="reportOutline.summary" :results="reportResults" :report-ready="reportResultsReady" @results-updated="acceptReportResults" />
             <p v-if="cisCita" class="cis-source-line" data-testid="cis-source">{{ cisCita }}</p>
-            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
+            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" collapsible report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
             <div class="header-divider"></div>
           </div>
 
@@ -432,6 +432,7 @@
 </template>
 
 <script setup>
+import ReportResults from './ReportResults.vue'
 import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import { useTechDetails } from '../composables/useTechDetails'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
@@ -482,6 +483,14 @@ const lastLog = computed(() => {
 const agentLogLine = ref(0)
 const consoleLogLine = ref(0)
 const reportEvidence = ref(null)
+const reportResults = ref(null)
+const reportResultsReady = ref(false)
+let reportReadGeneration = 0
+let reportUnmounted = false
+const acceptReportResults = results => {
+  reportReadGeneration++
+  reportResults.value = results
+}
 const reportChecked = ref(false)
 const reportOutline = ref(null)
 const currentSectionIndex = ref(null)
@@ -2039,6 +2048,7 @@ const fetchAgentLog = async () => {
             currentSectionIndex.value = null  // 确保清除 loading 状态
             emit('update-status', 'completed')
             stopPolling()
+            checkReportStatus() // COMPLETED y la síntesis ya están persistidos al emitir este evento.
             // 滚动逻辑统一在循环结束后的 nextTick 中处理
           }
 
@@ -2102,12 +2112,22 @@ const failReport = (message) => {
 }
 
 const checkReportStatus = async () => {
+  const id = props.reportId
+  if (!id) return
+  const request = ++reportReadGeneration
   try {
-    const res = await getReport(props.reportId)
+    const res = await getReport(id)
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     const report = res?.data
-    if (res?.success && report) { reportEvidence.value = report.evidence || null; reportChecked.value = true }
+    if (res?.success && report) {
+      reportEvidence.value = report.evidence || null
+      reportResults.value = report.results || null
+      reportResultsReady.value = report.status === 'completed'
+      reportChecked.value = true
+    }
     if (report?.status === 'failed') failReport(report.error)
   } catch (err) {
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     if (err?.response?.status === 404) failReport(t('step4.reportNotFound'))
   }
 }
@@ -2250,17 +2270,22 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  reportUnmounted = true
+  reportReadGeneration++
   stopPolling()
 })
 
 watch(() => props.reportId, (newId) => {
+  reportReadGeneration++
+  reportResults.value = null
+  reportResultsReady.value = false
+  reportEvidence.value = null
+  reportChecked.value = false
   if (newId) {
     agentLogs.value = []
     consoleLogs.value = []
     agentLogLine.value = 0
     consoleLogLine.value = 0
-    reportEvidence.value = null
-    reportChecked.value = false
     reportOutline.value = null
     currentSectionIndex.value = null
     generatedSections.value = {}

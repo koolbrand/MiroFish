@@ -74,6 +74,24 @@ TEXTS = {
     },
 }
 
+RESULT_TEXTS = {
+    'es': {'support_title': 'Respaldo del resumen', 'title': 'Resultados en un vistazo', 'finding': 'Hallazgo', 'implication': 'Qué implica',
+           'contrasts': 'Posiciones observadas', 'findings': 'Hallazgos del informe',
+           'kinds': {'reaction': 'Reacción', 'agreement': 'Coincidencia', 'barrier': 'Barrera', 'condition': 'Condición'}, 'tensions': 'Tensiones del resultado', 'conditions': 'Condiciones que cambian el resultado',
+           'if': 'Si', 'then': 'Entonces', 'limits': 'Lo que no puede concluirse', 'ref': 'Respaldo en el informe · sección',
+           'note': 'Fragmentos del informe sobre el mundo simulado, no prueba independiente. La selección y el tamaño de los bloques no miden apoyo ni probabilidad.'},
+    'en': {'support_title': 'Support for the summary', 'title': 'Results at a glance', 'finding': 'Finding', 'implication': 'What it implies',
+           'contrasts': 'Observed positions', 'findings': 'Report findings',
+           'kinds': {'reaction': 'Reaction', 'agreement': 'Agreement', 'barrier': 'Barrier', 'condition': 'Condition'}, 'tensions': 'Tensions in the result', 'conditions': 'Conditions that change the result',
+           'if': 'If', 'then': 'Then', 'limits': 'What cannot be concluded', 'ref': 'Support in the report · section',
+           'note': 'Report excerpts about the simulated world, not independent proof. Selection and block sizes do not measure support or probability.'},
+    'zh': {'support_title': '摘要依据', 'title': '结果概览', 'finding': '发现', 'implication': '意味着什么',
+           'contrasts': '观察到的立场', 'findings': '报告发现',
+           'kinds': {'reaction': '反应', 'agreement': '一致之处', 'barrier': '障碍', 'condition': '条件'}, 'tensions': '结果中的张力', 'conditions': '改变结果的条件', 'if': '如果', 'then': '那么',
+           'limits': '不能得出的结论', 'ref': '报告中的依据 · 章节',
+           'note': '关于模拟世界的报告摘录，而非独立证明。选择与区块大小不代表支持度或概率。'},
+}
+
 
 def _texts(locale: str) -> Dict[str, Any]:
     return TEXTS.get((locale or "es")[:2], TEXTS["es"])
@@ -187,6 +205,22 @@ body {{ margin: 0; counter-reset: section; }}
 .box p {{ margin: 0; font-size: 11pt; line-height: 1.5; font-family: 'IT-500', 'WenQuanYi Micro Hei', sans-serif; }}
 .box.lead p {{ font-size: 12pt; color: {INK_2}; }}
 
+.results-opening {{ break-before: page; break-after: page; padding-top: 3mm; }}
+.results-title {{ font: 400 22pt 'IT-800', 'WenQuanYi Micro Hei', sans-serif; margin: 0 0 4mm; }}
+.results-note {{ font-size: 9pt; color: {INK_2}; margin-bottom: 6mm; }}
+.result-card {{ margin-bottom: 5mm; border: .8pt solid {GRAY_LINE}; border-radius: 3pt; padding: 5mm; break-inside: avoid; }}
+.result-card-title {{ font: 400 13pt 'IT-700', 'WenQuanYi Micro Hei', sans-serif; margin-bottom: 3mm; }}
+.result-pair {{ display: table; width: 100%; table-layout: fixed; }}
+.result-pole {{ display: table-cell; box-sizing: border-box; width: 47%; padding: 3mm; background: {CREAM}; vertical-align: top; font-size: 10pt; overflow-wrap: anywhere; }}
+.result-pole:last-child {{ background: {LIME_SOFT}; }}
+.result-pair.tension-pair .result-pole {{ background: {CREAM}; }}
+.result-link {{ display: table-cell; width: 6%; text-align: center; vertical-align: middle; font-size: 13pt; color: {LIME_DARK}; }}
+.result-label {{ display: block; font: 400 7pt 'JBM-700', 'WenQuanYi Micro Hei', sans-serif; color: {LIME_DARK}; margin-bottom: 2mm; }}
+.result-explanation {{ margin: 3mm 0 0; font-size: 10pt; }}
+.result-ref {{ margin: 3mm 0 0; border-left: 2pt solid {LIME}; padding: 1mm 0 0 3mm; font-size: 8.2pt; line-height: 1.45; color: {INK_2}; }}
+.result-ref-label {{ font-family: 'IT-700', 'WenQuanYi Micro Hei', sans-serif; display: block; margin-bottom: 1mm; }}
+.result-subtitle {{ font: 400 16pt 'IT-700', 'WenQuanYi Micro Hei', sans-serif; margin: 7mm 0 3mm; break-after: avoid; }}
+
 /* cuerpo */
 .body {{ margin-top: 9mm; }}
 h2 {{ counter-increment: section; margin: 11mm 0 3.5mm; padding-top: 4mm; border-top: 1.2pt solid {INK}; font-size: 16pt; line-height: 1.18;
@@ -240,16 +274,54 @@ def _highlight_title(title: str) -> str:
     return f'<span class="hl">{first}</span>{space}{rest}'
 
 
+def _results_html(data, locale):
+    if not data:
+        return ''
+    labels = RESULT_TEXTS.get((locale or 'es')[:2], RESULT_TEXTS['es'])
+    escape = html.escape
+    def references(refs):
+        return ''.join(f'<div class="result-ref"><span class="result-ref-label">{labels["ref"]} {ref["section_index"]}: '
+                       f'{escape(ref["section_title"])}</span></div>' for ref in refs)
+    def pair(left, right, left_label='', right_label='', connector='→', tension=False):
+        return (f'<div class="result-pair{" tension-pair" if tension else ""}"><div class="result-pole"><span class="result-label">{escape(left_label)}</span>{escape(left)}</div>'
+                f'<span class="result-link">{connector}</span><div class="result-pole"><span class="result-label">{escape(right_label)}</span>{escape(right)}</div></div>')
+    parts = [f'<section class="results-opening"><div class="results-title">{labels["title"]}</div><p class="results-note">{labels["note"]}</p>',
+             references(data['headline']['refs'])]
+    for row in data['findings']:
+        parts.append(f'<article class="result-card"><div class="result-card-title">{escape(labels["finding"])}</div>'
+                     + '<p>' + escape(row['text']).replace('\n', '<br>') + '</p>'
+                     + references(row['refs']) + '</article>')
+    if data['contrasts']:
+        parts.append(f'<div class="result-subtitle">{labels["contrasts"]}</div>')
+    for row in data['contrasts']:
+        parts.append('<article class="result-card">' + pair(row['left'], row['right'], connector='↔', tension=True)
+                     + references(row['refs']) + '</article>')
+    parts.append(f'<div class="result-subtitle">{labels["limits"]}</div>')
+    for row in data['limitations']:
+        parts.append('<article class="result-card"><p>' + escape(row['text']) + '</p>' + references(row['refs']) + '</article>')
+    return ''.join(parts) + '</section>'
+
+
+def _results_support_html(data, locale):
+    if not data:
+        return ''
+    labels = RESULT_TEXTS.get((locale or 'es')[:2], RESULT_TEXTS['es'])
+    refs = {}
+    for block in [data['headline']] + sum([data[name] for name in ('findings', 'contrasts', 'limitations')], []):
+        for ref in block['refs']:
+            refs[(ref['section_index'], ref['quote'])] = ref
+    parts = [f'<section class="results-opening"><h2>{labels["support_title"]}</h2>']
+    for ref in refs.values():
+        parts.append(f'<article class="result-card"><div class="result-ref-label">{labels["ref"]} {ref["section_index"]}: '
+                     f'{html.escape(ref["section_title"])}</div><p>«{html.escape(ref["quote"])}»</p></article>')
+    return ''.join(parts) + '</section>'
+
+
 def build_html(*, title: str, summary: str, question: str, body_html: str, meta: Dict[str, Any], locale: str,
-               completed_at: str = "", created_at: str = "", kind: str = "", show_note: bool = True) -> str:
+               completed_at: str = "", created_at: str = "", kind: str = "", show_note: bool = True, results_data=None) -> str:
     t = _texts(locale)
     kind = kind or t["kind"]
     date = _format_date(completed_at or created_at, t)
-    stats = [(t["people"], meta.get("people")), (t["rounds"], meta.get("rounds")), (t["actions"], meta.get("actions"))]
-    stats_html = "".join(
-        f'<div class="stat"><b>{html.escape(str(value))}</b><span>{html.escape(label)}</span></div>'
-        for label, value in stats if value not in (None, "", 0)
-    )
     question_html = (
         f'<div class="box"><div class="label">{html.escape(t["question"])}</div><p>{html.escape(question)}</p></div>'
         if question else ""
@@ -266,9 +338,10 @@ def build_html(*, title: str, summary: str, question: str, body_html: str, meta:
 <header class="cover-band">{_logo()}<div class="cover-tag">{html.escape(kind)}</div></header>
 <h1 class="cover-title">{_highlight_title(title or kind)}</h1>
 <div class="cover-date">{html.escape(t['generated'].format(date=date)) if date else ''}</div>
-{('<div class="stats">' + stats_html + '</div>') if stats_html else ''}
 {question_html}{summary_html}
+{_results_html(results_data, locale)}
 <main class="body">{body_html}</main>
+{_results_support_html(results_data, locale)}
 {('<aside class="note"><div class="label">' + html.escape(t['note_title']) + '</div><p>' + html.escape(t['note']) + ((' ' + html.escape(meta['fuente_datos'])) if meta.get('fuente_datos') else '') + '</p></aside>') if show_note else ''}
 </body></html>"""
 
@@ -301,12 +374,24 @@ def render_pdf(html_text: str) -> bytes:
 
 
 def render_report_pdf(*, markdown_text: str, question: str = "", meta: Optional[Dict[str, Any]] = None,
-                      locale: str = "es", completed_at: str = "", created_at: str = "") -> bytes:
+                      locale: str = "es", completed_at: str = "", created_at: str = "", results=None) -> bytes:
     """PDF (bytes) del informe. `meta`: people, rounds, actions (los que falten no se pintan)."""
     title, summary, body = split_report(markdown_text)
+    data = None
+    if isinstance(results, dict) and results.get('status') == 'ready':
+        from types import SimpleNamespace
+        from .report_results import report_source, validate_results, ResultsError
+        try:
+            source = report_source(SimpleNamespace(markdown_content=markdown_text, simulation_requirement=question))
+            if results.get('report_sha256') == source['report_sha256']:
+                data = validate_results(results.get('data'), source, stored=True)
+                summary = data['headline']['text']
+        except ResultsError:
+            data = None
     html_text = build_html(
         title=title, summary=summary, question=question, body_html=markdown_to_html(body),
         meta=meta or {}, locale=locale, completed_at=completed_at, created_at=created_at,
+        results_data=data,
     )
     return render_pdf(html_text)
 

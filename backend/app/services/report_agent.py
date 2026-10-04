@@ -1953,6 +1953,13 @@ class ReportAgent:
 
         return repaired, warning
 
+    def _generate_results_opening(self, report):
+        from .report_results import generate_results, ResultsError
+        try:
+            generate_results(report, get_locale(), background=False, internal=True)
+        except ResultsError as exc:
+            logger.warning('Apertura de resultados no disponible: %s', exc.code)
+
     def generate_report(
         self, 
         progress_callback: Optional[Callable[[str, int, str], None]] = None,
@@ -2159,6 +2166,10 @@ class ReportAgent:
             
             # 使用ReportManager组装完整报告
             report.markdown_content = ReportManager.assemble_full_report(report_id, outline, evidence=report.evidence)
+            # Synthesize the FINAL text, not the outline's provisional summary.
+            # Failure of this optional opening must not fail the completed report.
+            ReportManager.save_report(report)
+            self._generate_results_opening(report)
             report.status = ReportStatus.COMPLETED
             report.completed_at = datetime.now().isoformat()
 
@@ -2182,13 +2193,6 @@ class ReportAgent:
             # 计算总耗时
             total_time_seconds = (datetime.now() - start_time).total_seconds()
             
-            # 记录报告完成日志
-            if self.report_logger:
-                self.report_logger.log_report_complete(
-                    total_sections=total_sections,
-                    total_time_seconds=total_time_seconds
-                )
-            
             # 保存最终报告
             ReportManager.save_report(report)
             ReportManager.update_progress(
@@ -2196,6 +2200,15 @@ class ReportAgent:
                 completed_sections=completed_section_titles
             )
             
+            # Consumers reconcile via GET immediately after this event.
+            # Both final report and progress must already be persisted.
+            # 记录报告完成日志
+            if self.report_logger:
+                self.report_logger.log_report_complete(
+                    total_sections=total_sections,
+                    total_time_seconds=total_time_seconds
+                )
+
             if progress_callback:
                 progress_callback("completed", 100, t('progress.reportComplete'))
             

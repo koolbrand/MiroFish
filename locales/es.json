@@ -1836,5 +1836,40 @@
     "step1Note": "El automático abrirá la configuración en cuanto el mapa esté listo.",
     "step2Note": "El automático lanzará la simulación con 40 rondas en cuanto las personas estén listas.",
     "step3Note": "El informe se escribirá solo al terminar."
+  },
+  "reportResults": {
+    "title": "Resultados en un vistazo",
+    "scope": "Selección de hallazgos del informe. Su alcance depende de sus límites; no es una comprobación independiente.",
+    "qualitative": "Mapa cualitativo: las posiciones y tamaños no indican apoyo, frecuencia ni probabilidad. La disposición no implica contradicción entre los fragmentos.",
+    "limitations": "Lo que no puede concluirse",
+    "references": "Respaldo en el informe",
+    "referenceContext": "Citas del propio informe; no son una comprobación independiente.",
+    "section": "Sección {n}",
+    "create": "Crear resumen visual de resultados",
+    "retry": "Reintentar el resumen visual",
+    "createHelp": "Selecciona hallazgos literales del informe terminado y conserva sus límites.",
+    "generating": "Preparando el resumen visual…",
+    "generatingHelp": "El informe completo sigue disponible mientras se prepara esta apertura.",
+    "failed": "No se ha podido preparar el resumen visual. El informe sigue disponible.",
+    "stale": "Esta apertura corresponde a otra versión del informe. Puedes actualizarla.",
+    "connection": "No se ha podido confirmar el estado del resumen visual. Consulta de nuevo.",
+    "pollTimeout": "La consulta automática ha terminado. Comprueba el estado para ver si el resumen ya está listo.",
+    "checkAgain": "Comprobar el estado",
+    "errors": {
+      "interrupted": "La preparación se interrumpió. Puedes volver a intentarlo.",
+      "source_invalid": "El informe no contiene una fuente válida para preparar el resumen visual.",
+      "source_too_large": "Este informe supera el tamaño admitido para preparar el resumen visual.",
+      "report_not_ready": "El informe todavía no ha terminado. El resumen visual estará disponible después.",
+      "source_changed": "El informe ha cambiado durante la preparación. Puedes actualizar el resumen visual.",
+      "payload_invalid": "No se ha podido validar la selección de hallazgos. Puedes volver a intentarlo.",
+      "provider_timeout": "La preparación ha tardado demasiado. Puedes volver a intentarlo.",
+      "provider_token_limit": "No se ha podido completar el resumen dentro del límite de extensión.",
+      "provider_invalid_response": "No se ha podido obtener un resumen válido. Puedes volver a intentarlo.",
+      "provider_error": "El servicio no ha podido seleccionar los hallazgos del informe.",
+      "storage_error": "No se ha podido guardar el resumen visual. Puedes volver a intentarlo.",
+      "busy": "Se está preparando otro resumen visual. Vuelve a intentarlo cuando termine."
+    },
+    "positions": "Posiciones observadas",
+    "finding": "Hallazgo"
   }
 }

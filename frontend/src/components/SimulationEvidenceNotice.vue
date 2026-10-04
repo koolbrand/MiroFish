@@ -2,8 +2,9 @@
   <aside class="evidence-notice" data-testid="simulation-evidence" :aria-label="$t('evidence.title')">
     <strong>{{ $t('evidence.title') }}</strong>
     <p>{{ $t('evidence.conversation') }}</p>
-    <section v-if="facts" class="evidence-record" :aria-label="$t('evidence.recordTitle')" data-testid="evidence-record">
-      <h3>{{ $t('evidence.recordTitle') }}</h3>
+    <details v-if="facts" class="evidence-details" :open="!collapsible">
+      <summary>{{ $t('evidence.recordTitle') }}</summary>
+      <section class="evidence-record" :aria-label="$t('evidence.recordTitle')" data-testid="evidence-record">
       <dl>
         <div><dt>{{ $t('evidence.agents') }}</dt><dd>{{ show(facts.agents) }}</dd></div>
         <div><dt>{{ $t('evidence.anchored') }}</dt><dd>{{ show(facts.anchored) }}</dd></div>
@@ -15,9 +16,10 @@
         <div><dt>{{ $t('evidence.boundedExcerpt') }}</dt><dd>{{ yesNo(facts.truncated) }}</dd></div>
       </dl>
       <p v-if="facts.sourceAvailable === false">{{ $t('evidence.sourceMissing') }}</p>
-      <p v-if="facts.populationCitation">{{ $t('evidence.profileSource') }}: {{ facts.populationCitation }}</p>
       <p>{{ $t('evidence.method') }}</p>
-    </section>
+      </section>
+    </details>
+    <p v-if="facts?.populationCitation">{{ $t('evidence.profileSource') }}: {{ facts.populationCitation }}</p>
     <p v-if="legacy">{{ $t('evidence.legacy') }}</p>
     <template v-if="coverage">
       <p>{{ $t(preview ? 'evidence.durationPreview' : 'evidence.durationResult', {
@@ -46,7 +48,8 @@ const props = defineProps({
   legacyReport: Boolean,
   evidence: Object,
   report: Boolean,
-  reportReady: Boolean
+  reportReady: Boolean,
+  collapsible: Boolean
 })
 const { locale, t } = useI18n()
 const loadedConfig = ref(null)
@@ -110,6 +113,8 @@ const yesNo = value => value === null ? '—' : t(value ? 'evidence.yes' : 'evid
 .evidence-notice strong { color: var(--kb-text); font-weight: 700; }
 .evidence-notice p { margin: 6px 0 0; }
 .evidence-record { margin-top: 12px; }
+.evidence-details > summary { cursor: pointer; min-height: 24px; padding: 5px 0; margin-top: 6px; color: var(--kb-accent-text); }
+.evidence-details > summary:focus-visible { outline: 2px solid var(--kb-accent-text); outline-offset: 2px; }
 .evidence-record h3 { margin: 0; font-size: 13px; color: var(--kb-text); }
 .evidence-record dl { margin: 8px 0 0; }
 .evidence-record dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; padding: 3px 0; }

@@ -216,6 +216,7 @@ def test_coffee_report_has_general_scope_without_electoral_claims(case):
 
 def agent_for_generation(monkeypatch, section_content):
     agent = ReportAgent(GRAPH, SIM, "Ensayar elecciones hipotéticas", llm_client=object(), zep_tools=object())
+    agent._generate_results_opening = lambda report: None
     agent.plan_outline = lambda **kw: ReportOutline("Ensayo electoral", "Reacciones simuladas", [ReportSection("A"), ReportSection("B")])
     agent._generate_section_with_retries = lambda **kw: section_content
     agent._enforce_section_locale = lambda content, title: (content, None)
@@ -312,3 +313,20 @@ def test_legacy_report_read_has_no_evidence_and_is_not_rewritten(case):
     loaded = ReportManager.get_report(legacy.report_id)
     assert loaded.evidence is None and loaded.markdown_content == "OLD CONTENT"
     assert Path(path).read_bytes() == before
+
+
+def test_complete_event_observes_persisted_report_and_progress(case, monkeypatch):
+    observed = []
+    report_id = "report_eventorder001"
+    original = module.ReportLogger.log_report_complete
+    def complete_event(logger, **kwargs):
+        stored = ReportManager.get_report(report_id)
+        progress = ReportManager.get_progress(report_id)
+        observed.append((stored.status, progress['status'], stored.markdown_content))
+        original(logger, **kwargs)
+    monkeypatch.setattr(module.ReportLogger, 'log_report_complete', complete_event)
+    report = agent_for_generation(monkeypatch, 'Las personas simularon reacciones variadas con límites explícitos.').generate_report(report_id=report_id)
+    assert report.status == ReportStatus.COMPLETED
+    assert len(observed) == 1
+    assert observed[0][0:2] == (ReportStatus.COMPLETED, 'completed')
+    assert observed[0][2] == report.markdown_content

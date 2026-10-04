@@ -13,8 +13,8 @@
               <ReportDownloads :report-id="reportId" />
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
-            <p class="sub-title">{{ reportOutline.summary }}</p>
-            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
+            <ReportResults :report-id="reportId" :summary="reportOutline.summary" :results="reportResults" :report-ready="reportResultsReady" @results-updated="acceptReportResults" />
+            <SimulationEvidenceNotice :simulation-id="simulationId" :evidence="reportEvidence" collapsible report :report-ready="reportChecked" :legacy-report="reportChecked && !reportEvidence?.version" />
             <div class="header-divider"></div>
           </div>
 
@@ -531,6 +531,7 @@
 </template>
 
 <script setup>
+import ReportResults from './ReportResults.vue'
 import SimulationEvidenceNotice from './SimulationEvidenceNotice.vue'
 import ProfileProvenance from './ProfileProvenance.vue'
 import { knownProfileText } from '../lib/profilePresentation'
@@ -587,6 +588,14 @@ const surveyError = ref('')
 const reportLoaded = ref(false)      // la carga terminó (con o sin índice)
 const reportLoadError = ref('')      // detalle técnico si falló
 const reportEvidence = ref(null)
+const reportResults = ref(null)
+const reportResultsReady = ref(false)
+let reportReadGeneration = 0
+let reportUnmounted = false
+const acceptReportResults = results => {
+  reportReadGeneration++
+  reportResults.value = results
+}
 const reportChecked = ref(false)
 const reportOutline = ref(null)
 const generatedSections = ref({})
@@ -991,33 +1000,40 @@ const submitSurvey = async () => {
 
 // Load Report Data
 const loadReportData = async () => {
-  if (!props.reportId) return
+  const id = props.reportId
+  if (!id) return
+  const request = ++reportReadGeneration
   
   reportLoadError.value = ''
   try {
     addLog(t('log.loadReportData', { id: props.reportId }))
 
     // Get report info
-    const reportRes = await getReport(props.reportId)
+    const reportRes = await getReport(id)
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     if (reportRes.success && reportRes.data) {
       reportEvidence.value = reportRes.data.evidence || null
+      reportResults.value = reportRes.data.results || null
+      reportResultsReady.value = reportRes.data.status === 'completed'
       reportChecked.value = true
       // Load agent logs to get report outline and sections
-      await loadAgentLogs()
+      await loadAgentLogs(id, request)
     }
   } catch (err) {
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     addLog(t('log.loadReportFailed', { error: err.message }))
     reportLoadError.value = errorDetail(err)
   } finally {
-    reportLoaded.value = true
+    if (!reportUnmounted && request === reportReadGeneration && id === props.reportId) reportLoaded.value = true
   }
 }
 
-const loadAgentLogs = async () => {
-  if (!props.reportId) return
+const loadAgentLogs = async (id = props.reportId, request = reportReadGeneration) => {
+  if (!id) return
   
   try {
-    const res = await getAgentLog(props.reportId, 0)
+    const res = await getAgentLog(id, 0)
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     if (res.success && res.data) {
       const logs = res.data.logs || []
       
@@ -1034,6 +1050,7 @@ const loadAgentLogs = async () => {
       addLog(t('log.reportDataLoaded'))
     }
   } catch (err) {
+    if (reportUnmounted || request !== reportReadGeneration || id !== props.reportId) return
     addLog(t('log.loadReportLogFailed', { error: err.message }))
     reportLoadError.value = errorDetail(err)
   }
@@ -1073,11 +1090,16 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  reportUnmounted = true
+  reportReadGeneration++
   document.removeEventListener('click', handleClickOutside)
 })
 
 watch(() => props.reportId, (newId) => {
+  reportReadGeneration++
   reportEvidence.value = null
+  reportResults.value = null
+  reportResultsReady.value = false
   reportChecked.value = false
   if (newId) {
     loadReportData()

@@ -289,6 +289,14 @@ Auditoría de operación del 1-oct-2026; lo que se midió y lo que se decidió:
 - **WeasyPrint ≥ 70** (la API de `URLFetcher` cambió) y necesita pango/harfbuzz del sistema. En macOS: `brew install pango` y arrancar el backend con `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`, **directamente y sin `nohup`** (el binario protegido por SIP descarta las variables `DYLD_*`). Los tests de PDF se saltan solos si falta pango.
 - Al cambiar la maqueta, mirar el PDF de verdad (PyMuPDF: `fitz.open(...)[n].get_pixmap(dpi=60).save(...)`), no solo el HTML: portada, una página larga, tablas y un informe en chino.
 
+### Introducción visual del informe
+
+- **Criterio de producto de Adrián (4-oct-2026): la introducción muestra el valor de los resultados, no cómo se hizo la simulación.** Destaca hallazgos y posiciones observadas. Personas, rondas y acciones pertenecen a la ficha técnica.
+- La apertura es una **selección de fragmentos del informe terminado**. El modelo elige identificadores; el servidor incorpora su texto original. No se permiten títulos, implicaciones, porcentajes ni explicaciones redactadas libremente. Los ensayos reales detectaron afirmaciones añadidas incluso después de una revisión con el modelo, por lo que se adoptó la selección extractiva.
+- Los diagramas muestran posiciones con el mismo peso visual. No representan apoyo, frecuencia ni probabilidad. La selección no garantiza la verdad del informe original ni equivale a una comprobación independiente.
+- Pantalla y PDF usan la misma selección guardada. Abrir o descargar nunca llama al modelo. Los informes antiguos ofrecen una acción explícita para crear su apertura sin repetir la simulación ni reescribir el informe. Mantener la marca lima/tinta, las fuentes y la cita de población visible al plegar la ficha técnica.
+- Implementación: `services/report_results.py`, `ReportResults.vue` y `ReportResultReferences.vue`. `GET /api/report/<id>` devuelve `results`; `POST /api/report/<id>/results` prepara la apertura de un informe terminado y reutiliza la ya preparada. Se guarda en `results.json` con la huella del texto y la pregunta; si cambian, queda obsoleta. Una generación simultánea, hasta dos llamadas (selección y, si hace falta, corrección de estructura) en un plazo total de240s. Un fallo en la apertura no invalida el informe completo.
+
 ### Auditoría UX/UI (1-oct-2026) — reglas que salieron de medir
 
 - **Color**: solo tokens de `koolbrand.css`. Sobre tinta, el texto gris es `--kb-muted-on-dark` (#8A8A8A: 5,5:1; el #6E6E6E daba 3,7); sobre `--kb-soft` (#ECECEC), `--kb-text-on-soft` (#2A2A2A); «bien» = `--kb-ok-*` (lima oscuro), «mal» = `--kb-danger-*`. Nada de verdes, ámbares ni violetas de MiroFish: lo que se distinguía por color se distingue también por texto, forma o icono.
