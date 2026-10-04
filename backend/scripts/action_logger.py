@@ -19,6 +19,16 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 
+def _simulation_clock(config, max_rounds=None):
+    """Use the same round duration and optional truncation as the simulation."""
+    time_config = config.get('time_config', {})
+    total_hours = time_config.get('total_simulation_hours', 72)
+    minutes = time_config.get('minutes_per_round', 30)
+    configured = int((total_hours * 60) // minutes)
+    planned = min(configured, max_rounds) if max_rounds is not None and max_rounds > 0 else configured
+    return {'configured_total_rounds': configured, 'total_rounds': planned, 'minutes_per_round': minutes}
+
+
 class PlatformActionLogger:
     """单平台动作日志记录器"""
     
@@ -34,6 +44,7 @@ class PlatformActionLogger:
         self.base_dir = base_dir
         self.log_dir = os.path.join(base_dir, platform)
         self.log_path = os.path.join(self.log_dir, "actions.jsonl")
+        self._minutes_per_round = None
         self._ensure_dir()
     
     def _ensure_dir(self):
@@ -85,19 +96,22 @@ class PlatformActionLogger:
             "event_type": "round_end",
             "actions_count": actions_count,
         }
+        if self._minutes_per_round is not None:
+            entry['simulated_hours'] = round(round_num * self._minutes_per_round / 60, 4)
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_simulation_start(self, config: Dict[str, Any]):
+    def log_simulation_start(self, config: Dict[str, Any], max_rounds: Optional[int] = None):
         """记录模拟开始"""
         entry = {
             "timestamp": datetime.now().isoformat(),
             "event_type": "simulation_start",
             "platform": self.platform,
-            "total_rounds": config.get("time_config", {}).get("total_simulation_hours", 72) * 2,
+            **_simulation_clock(config, max_rounds),
             "agents_count": len(config.get("agent_configs", [])),
         }
+        self._minutes_per_round = entry['minutes_per_round']
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
@@ -206,6 +220,7 @@ class ActionLogger:
     
     def __init__(self, log_path: str):
         self.log_path = log_path
+        self._minutes_per_round = {}
         self._ensure_dir()
     
     def _ensure_dir(self):
@@ -259,18 +274,21 @@ class ActionLogger:
             "event_type": "round_end",
             "actions_count": actions_count,
         }
+        if platform in self._minutes_per_round:
+            entry['simulated_hours'] = round(round_num * self._minutes_per_round[platform] / 60, 4)
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_simulation_start(self, platform: str, config: Dict[str, Any]):
+    def log_simulation_start(self, platform: str, config: Dict[str, Any], max_rounds: Optional[int] = None):
         entry = {
             "timestamp": datetime.now().isoformat(),
             "platform": platform,
             "event_type": "simulation_start",
-            "total_rounds": config.get("time_config", {}).get("total_simulation_hours", 72) * 2,
+            **_simulation_clock(config, max_rounds),
             "agents_count": len(config.get("agent_configs", [])),
         }
+        self._minutes_per_round[platform] = entry['minutes_per_round']
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')

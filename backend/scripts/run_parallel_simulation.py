@@ -1265,7 +1265,7 @@ async def run_twitter_simulation(
     log_info("Entorno inicializado")
 
     if action_logger:
-        action_logger.log_simulation_start(config)
+        action_logger.log_simulation_start(config, max_rounds=max_rounds)
 
     total_actions = 0
     last_rowid = 0  # 跟踪数据库中最后处理的行号（使用 rowid 避免 created_at 格式差异）
@@ -1459,7 +1459,7 @@ async def run_reddit_simulation(
     log_info("Entorno inicializado")
 
     if action_logger:
-        action_logger.log_simulation_start(config)
+        action_logger.log_simulation_start(config, max_rounds=max_rounds)
 
     total_actions = 0
     last_rowid = 0  # 跟踪数据库中最后处理的行号（使用 rowid 避免 created_at 格式差异）
